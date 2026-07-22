@@ -4,7 +4,7 @@
 #include "Weft/Conversion/EmitC/WEFTEmitCLowerableOpInterface.h"
 #include "Weft/Dialect/Demo/IR/DemoDialect.h"
 #include "Weft/Plugin/ExtensionBundle.h"
-#include "Weft/Plugin/Demo/DemoConstructionProtocol.h"
+#include "Weft/Plugin/Demo/DemoFamilyContract.h"
 #include "Weft/Target/Demo/DemoTargetSupportBundle.h"
 
 #include "mlir/IR/Attributes.h"
@@ -51,24 +51,6 @@ constexpr llvm::StringLiteral kDemoExtensionGuard(
     "plugin_local_demo_extension_handoff_metadata");
 constexpr llvm::StringLiteral kSourceKernelAttrName("source_kernel");
 constexpr llvm::StringLiteral kSelectedVariantAttrName("selected_variant");
-constexpr llvm::StringLiteral kOriginAttrName("origin");
-constexpr llvm::StringLiteral kRequiresAttrName("requires");
-constexpr llvm::StringLiteral kRoleAttrName("role");
-constexpr llvm::StringLiteral kStatusAttrName("status");
-constexpr llvm::StringLiteral kRequiredCapabilitiesAttrName(
-    "required_capabilities");
-constexpr llvm::StringLiteral kRoleOpBoundaryStatusValue("role-op-boundary");
-constexpr llvm::StringLiteral kTypedRoleAttrName("typed_role");
-constexpr llvm::StringLiteral kRoleOrderAttrName("role_order");
-constexpr llvm::StringLiteral kSourceRoleAttrName("source_role");
-constexpr llvm::StringLiteral kRoleSpecificInterfaceAttrName(
-    "role_specific_interface");
-constexpr llvm::StringLiteral kDemoComputeTypedRoleID(
-    "demo.role.compute.compute_skeleton");
-constexpr unsigned kDemoComputeRoleOrder = 2;
-constexpr llvm::StringLiteral kDemoComputeSourceRole("compute");
-constexpr llvm::StringLiteral kDemoComputeRoleSpecificInterface(
-    "WEFTComputeOpInterface");
 
 struct DemoExtensionCapabilityView {
   std::string integrationContract;
@@ -238,28 +220,6 @@ buildDemoExtensionProposal(const VariantProposalRequest &request) {
   return proposal;
 }
 
-mlir::StringAttr getStringAttr(mlir::Operation *op, llvm::StringRef name) {
-  return op ? op->getAttrOfType<mlir::StringAttr>(name) : mlir::StringAttr();
-}
-
-llvm::Error validateBoundaryStringAttr(mlir::Operation *op,
-                                       llvm::StringRef attrName,
-                                       llvm::StringRef expectedValue) {
-  auto attr = getStringAttr(op, attrName);
-  if (!attr || attr.getValue().trim().empty())
-    return makeDemoPluginError(
-        llvm::Twine("Demo lowering-boundary validation requires non-empty "
-                    "string attribute '") +
-        attrName + "'");
-  if (attr.getValue().trim() != expectedValue)
-    return makeDemoPluginError(
-        llvm::Twine("Demo lowering-boundary attribute '") + attrName +
-        "' value '" + attr.getValue().trim() +
-        "' does not match expected selected-path value '" + expectedValue +
-        "'");
-  return llvm::Error::success();
-}
-
 llvm::Expected<conversion::emitc::WEFTEmitCSourceOpProvenance>
 getDemoConstructedSource(const VariantEmissionRequest &request) {
   auto compute = llvm::dyn_cast_if_present<weft::demo_ext::ComputeSkeletonOp>(
@@ -284,14 +244,10 @@ getDemoConstructedSource(const VariantEmissionRequest &request) {
 
 mlir::Operation *materializeDemoComputeSkeletonBoundary(
     const VariantLoweringBoundaryRequest &request) {
-  llvm::StringRef expectedRole =
-      stringifyVariantEmissionRole(request.getRole());
   if (!request.getKernel().getBody().empty()) {
     for (mlir::Operation &op : request.getKernel().getBody().front()) {
       auto body = llvm::dyn_cast<weft::demo_ext::ComputeSkeletonOp>(op);
-      auto role = op.getAttrOfType<mlir::StringAttr>(kRoleAttrName);
-      if (body && role && role.getValue() == expectedRole &&
-          isOperationSelectedForVariant(&op, request.getVariant()))
+      if (body && isOperationSelectedForVariant(&op, request.getVariant()))
         return &op;
     }
   }
@@ -301,31 +257,12 @@ mlir::Operation *materializeDemoComputeSkeletonBoundary(
   weft::exec::VariantOp variant = request.getVariant();
   weft::exec::KernelOp kernel = request.getKernel();
 
-  auto variantRequires =
-      variant->getAttrOfType<mlir::ArrayAttr>(kRequiresAttrName);
   mlir::OperationState state(variant.getLoc(), "weft_demo.compute_skeleton");
   state.addAttribute(kSourceKernelAttrName,
                      builder.getStringAttr(kernel.getSymName()));
   state.addAttribute(kSelectedVariantAttrName,
                      mlir::FlatSymbolRefAttr::get(context,
                                                   variant.getSymName()));
-  state.addAttribute(kOriginAttrName,
-                     builder.getStringAttr(kDemoPluginName));
-  state.addAttribute(kRoleAttrName,
-                     builder.getStringAttr(
-                         stringifyVariantEmissionRole(request.getRole())));
-  state.addAttribute(kStatusAttrName,
-                     builder.getStringAttr(kRoleOpBoundaryStatusValue));
-  state.addAttribute(kRequiredCapabilitiesAttrName, variantRequires);
-  state.addAttribute(kTypedRoleAttrName,
-                     builder.getStringAttr(kDemoComputeTypedRoleID));
-  state.addAttribute(kRoleOrderAttrName,
-                     builder.getI64IntegerAttr(kDemoComputeRoleOrder));
-  state.addAttribute(kSourceRoleAttrName,
-                     builder.getStringAttr(kDemoComputeSourceRole));
-  state.addAttribute(
-      kRoleSpecificInterfaceAttrName,
-      builder.getStringAttr(kDemoComputeRoleSpecificInterface));
   return builder.create(state);
 }
 
@@ -554,7 +491,7 @@ llvm::Error DemoExtensionPlugin::checkVariantEmissionReadiness(
 
   out = VariantEmissionStatus::getSupported(
       kDemoPluginName, request.getVariant().getSymName(),
-      demo_ext::getDemoEmitCConstructionRoute().routeID);
+      demo_ext::getDemoArtifactRoute().routeID);
   return llvm::Error::success();
 }
 
@@ -583,28 +520,25 @@ llvm::Error DemoExtensionPlugin::buildVariantEmissionPlan(
   if (!source)
     return source.takeError();
 
-  const demo_ext::DemoConstructionManifest &manifest =
-      demo_ext::getDemoConstructionManifest();
-  const demo_ext::DemoEmitCConstructionRoute &constructionRoute =
-      demo_ext::getDemoEmitCConstructionRoute();
+  const demo_ext::DemoArtifactRoute &artifactRoute =
+      demo_ext::getDemoArtifactRoute();
 
   out = VariantEmissionPlan::getSupported(
       kDemoPluginName, request.getKernel().getSymName(),
       request.getVariant().getSymName(), request.getRole(),
-      constructionRoute.emissionKind, constructionRoute.routeID,
-      constructionRoute.runtimeABI, constructionRoute.artifactKind,
+      artifactRoute.emissionKind, artifactRoute.routeID,
+      artifactRoute.runtimeABI, artifactRoute.artifactKind,
       "Demo selected compute_skeleton route materializes a verified EmitC "
       "module through the common WEFTEmitCLowerableRoute materializer and "
       "exports generated C++ through the MLIR EmitC C/C++ emitter");
-  out.setRuntimeABIKind(constructionRoute.runtimeABIKind);
-  out.setRuntimeABIName(constructionRoute.runtimeABIName);
-  out.setRuntimeGlueRole(constructionRoute.runtimeGlueRole);
-  out.setLoweringBoundaryOpName(constructionRoute.loweringBoundaryOpName);
+  out.setRuntimeABIKind(artifactRoute.runtimeABIKind);
+  out.setRuntimeABIName(artifactRoute.runtimeABIName);
+  out.setRuntimeGlueRole(artifactRoute.runtimeGlueRole);
+  out.setLoweringBoundaryOpName(artifactRoute.loweringBoundaryOpName);
   out.addRuntimeABIParameters(
       demo_ext::getDemoRuntimeABIParameters());
   out.addArtifactMetadata(
-      demo_ext::getDemoEmitCRouteMappingMetadataName(),
-      constructionRoute.routeID);
+      demo_ext::getDemoArtifactRouteMetadataName(), artifactRoute.routeID);
   out.addArtifactMetadata(demo_ext::getDemoSourceOpMetadataName(),
                           source->opName);
   out.addArtifactMetadata(demo_ext::getDemoSourceRoleMetadataName(),
@@ -612,14 +546,6 @@ llvm::Error DemoExtensionPlugin::buildVariantEmissionPlan(
   out.addArtifactMetadata(
       demo_ext::getDemoSourceOpInterfaceMetadataName(),
       source->opInterface);
-  out.addArtifactMetadata(
-      demo_ext::getDemoConstructionProtocolMetadataName(),
-      manifest.protocolVersion);
-  out.addArtifactMetadata(demo_ext::getDemoSemanticRoleGraphMetadataName(),
-                          manifest.semanticRoleGraph);
-  out.addArtifactMetadata(
-      demo_ext::getDemoTypedRoleRealizationMetadataName(),
-      demo_ext::getDemoTypedRoleRealizationSummary());
   if (llvm::Error error =
           out.setRequiredCapabilitySymbolsFromVariant(request.getVariant()))
     return error;
@@ -670,61 +596,19 @@ llvm::Error DemoExtensionPlugin::validateSelectedLoweringBoundary(
     return makeDemoPluginError(
         "selected Demo path requires a weft_demo.compute_skeleton operation");
 
-  if (llvm::Error error =
-          validateBoundaryStringAttr(boundary.getOperation(),
-                                     kSourceKernelAttrName,
-                                     request.getKernel().getSymName()))
-    return error;
-  if (llvm::Error error =
-          validateBoundaryStringAttr(boundary.getOperation(), kOriginAttrName,
-                                     kDemoPluginName))
-    return error;
-  if (llvm::Error error =
-          validateBoundaryStringAttr(
-              boundary.getOperation(), kRoleAttrName,
-              stringifyVariantEmissionRole(request.getRole())))
-    return error;
-  if (llvm::Error error =
-          validateBoundaryStringAttr(boundary.getOperation(), kStatusAttrName,
-                                     kRoleOpBoundaryStatusValue))
-    return error;
-  if (llvm::Error error = validateBoundaryStringAttr(
-          boundary.getOperation(), kTypedRoleAttrName,
-          kDemoComputeTypedRoleID))
-    return error;
-  if (llvm::Error error = validateBoundaryStringAttr(
-          boundary.getOperation(), kSourceRoleAttrName,
-          kDemoComputeSourceRole))
-    return error;
-  if (llvm::Error error = validateBoundaryStringAttr(
-          boundary.getOperation(), kRoleSpecificInterfaceAttrName,
-          kDemoComputeRoleSpecificInterface))
-    return error;
-
-  auto selectedVariant =
-      boundary->getAttrOfType<mlir::FlatSymbolRefAttr>(
-          kSelectedVariantAttrName);
-  if (!selectedVariant ||
-      selectedVariant.getValue() != request.getVariant().getSymName())
+  if (!request.getKernel() ||
+      boundary->getParentOp() != request.getKernel().getOperation())
     return makeDemoPluginError(
-        "Demo lowering-boundary selected_variant must match selected variant");
-
-  auto requiredCapabilities =
-      boundary->getAttrOfType<mlir::ArrayAttr>(kRequiredCapabilitiesAttrName);
-  auto variantRequires =
-      request.getVariant()->getAttrOfType<mlir::ArrayAttr>(kRequiresAttrName);
-  if (!requiredCapabilities || !variantRequires ||
-      requiredCapabilities != variantRequires)
+        "Demo compute_skeleton must belong directly to the selected kernel");
+  if (boundary.getSourceKernelAttr().getValue() !=
+      request.getKernel().getSymName())
     return makeDemoPluginError(
-        "Demo lowering-boundary required_capabilities must match selected "
-        "variant requires metadata");
+        "Demo compute_skeleton source_kernel must match selected kernel");
 
-  auto roleOrder =
-      boundary->getAttrOfType<mlir::IntegerAttr>(kRoleOrderAttrName);
-  if (!roleOrder || roleOrder.getInt() != kDemoComputeRoleOrder)
+  if (boundary.getSelectedVariantAttr().getValue() !=
+      request.getVariant().getSymName())
     return makeDemoPluginError(
-        "Demo compute_skeleton role_order must match the construction "
-        "typed-role realization");
+        "Demo compute_skeleton selected_variant must match selected variant");
 
   if (!llvm::isa<conversion::emitc::WEFTEmitCLowerableOpInterface>(
           boundary.getOperation()))

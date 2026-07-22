@@ -7,7 +7,7 @@ add_mlir_library(WeftToyTarget
   WeftPlugin
   WeftSupport
   WeftTarget
-  WeftToyConstructionProtocol
+  WeftToyFamilyContract
   MLIREmitCDialect
   MLIRIR
   MLIRSupport

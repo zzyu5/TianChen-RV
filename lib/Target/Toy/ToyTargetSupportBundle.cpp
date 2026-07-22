@@ -1,7 +1,8 @@
 #include "Weft/Target/Toy/ToyTargetSupportBundle.h"
 
 #include "Weft/Plugin/ExtensionBundle.h"
-#include "Weft/Plugin/Toy/ToyConstructionProtocol.h"
+#include "Weft/Plugin/Toy/ToyFamilyContract.h"
+#include "Weft/Plugin/Toy/ToyExtensionPlugin.h"
 #include "Weft/Target/ConstructionTemplateArtifactAdapter.h"
 
 #include "llvm/ADT/StringRef.h"
@@ -39,12 +40,8 @@ struct ScopedTempPath {
   }
 };
 
-const plugin::toy::ToyConstructionManifest &getToyManifest() {
-  return plugin::toy::getToyConstructionManifest();
-}
-
-const plugin::toy::ToyTemplateEmitCConstructionRoute &getToyRoute() {
-  return plugin::toy::getToyTemplateEmitCConstructionRoute();
+const plugin::toy::ToyArtifactRoute &getToyRoute() {
+  return plugin::toy::getToyArtifactRoute();
 }
 
 llvm::Error makeToyTargetRouteError(llvm::Twine message) {
@@ -57,8 +54,6 @@ llvm::Error makeToyTargetRouteError(llvm::Twine message) {
 
 llvm::Error validateToySelectedObjectCandidate(
     const TargetArtifactCandidate &candidate) {
-  if (llvm::Error error = plugin::toy::verifyToyConstructionProtocolReady())
-    return error;
   if (llvm::StringRef(candidate.role) != kDirectVariantRole)
     return makeToyTargetRouteError(
         llvm::Twine("candidate selected path role must be '") +
@@ -69,13 +64,12 @@ llvm::Error validateToySelectedObjectCandidate(
 
 SelectedEmitCArtifactRouteConfig
 getToySelectedEmitCArtifactConfig(bool validateCandidate) {
-  const auto &manifest = getToyManifest();
   const auto &route = getToyRoute();
 
   SelectedEmitCArtifactRouteConfig config;
   config.routeID = route.routeID;
   config.artifactKind = route.artifactKind;
-  config.originPlugin = manifest.family.pluginName;
+  config.originPlugin = plugin::toy::getToyExtensionPluginName();
   config.routeDescription =
       "Toy template materialized EmitC object artifact bridge";
   if (validateCandidate)
@@ -91,37 +85,15 @@ ConstructionTemplateArtifactAdapterConfig getToyArtifactAdapterConfig() {
   static const MaterializedEmitCHeaderArtifactMetadataEvidence
       kMetadataEvidence[] = {
           {"emitc_lowerable_route", kToyRouteMetadataKey,
-           plugin::toy::getToyTemplateEmitCConstructionRoute().routeID},
+           plugin::toy::getToyArtifactRoute().routeID},
           {"source_op", kToySourceOpMetadataKey,
-           plugin::toy::getToyTemplateEmitCConstructionRoute()
+           plugin::toy::getToyArtifactRoute()
                .loweringBoundaryOpName},
           {"source_role", kToySourceRoleMetadataKey, "compute"},
           {"source_op_interface", kToySourceOpInterfaceMetadataKey,
            kEmitCLowerableOpInterfaceName},
-          {"construction_protocol",
-           plugin::toy::getToyConstructionProtocolMetadataName(),
-           plugin::toy::getToyConstructionManifest().protocolVersion},
-          {"extension_archetype",
-           plugin::toy::getToyConstructionArchetypeMetadataName(),
-           plugin::toy::getToyConstructionManifest().archetype},
-          {"semantic_role_graph",
-           plugin::toy::getToySemanticRoleGraphMetadataName(),
-           plugin::toy::getToyConstructionManifest().semanticRoleGraph},
-          {"common_interface_realization",
-           plugin::toy::getToyCommonInterfaceRealizationMetadataName(),
-           plugin::toy::getToyConstructionInterfaceRealization()},
-          {"typed_role_realization",
-           plugin::toy::getToyTypedRoleRealizationMetadataName(),
-           plugin::toy::getToyTypedRoleRealizationSummary()},
-          {"emitc_route_mapping",
-           plugin::toy::getToyEmitCRouteMappingMetadataName(),
-           plugin::toy::getToyConstructionManifest().emitcRoute.routeID},
-          {"evidence_profile",
-           plugin::toy::getToyEvidenceProfileMetadataName(),
-           plugin::toy::getToyConstructionManifest().evidenceProfile},
       };
 
-  const auto &manifest = getToyManifest();
   const auto &route = getToyRoute();
 
   ConstructionTemplateArtifactAdapterConfig config;
@@ -131,11 +103,11 @@ ConstructionTemplateArtifactAdapterConfig getToyArtifactAdapterConfig() {
       "Toy template construction-template materialized EmitC artifact adapter";
   config.headerRouteID = route.headerRouteID;
   config.headerArtifactKind = route.headerArtifactKind;
-  config.ownerPlugin = manifest.family.pluginName;
+  config.ownerPlugin = plugin::toy::getToyExtensionPluginName();
   config.headerGuard = "WEFT_TOY_MATERIALIZED_EMITC_HEADER_H";
   config.evidencePrefix = "weft.toy";
   config.includes = kHeaderIncludes;
-  config.selectedVariant = manifest.family.firstSliceVariantName;
+  config.selectedVariant = plugin::toy::getToyTemplateFirstSliceVariantName();
   config.emissionKind = route.emissionKind;
   config.loweringBoundary = route.loweringBoundaryOpName;
   config.runtimeABI = route.runtimeABI;
@@ -143,7 +115,7 @@ ConstructionTemplateArtifactAdapterConfig getToyArtifactAdapterConfig() {
   config.runtimeABIName = route.runtimeABIName;
   config.runtimeGlueRole = route.runtimeGlueRole;
   config.runtimeABIParameters =
-      plugin::toy::getToyTemplateRuntimeABIParameters();
+      plugin::toy::getToyRuntimeABIParameters();
   config.metadataEvidence = kMetadataEvidence;
   config.componentGroup = route.bundleComponentGroup;
   config.externalABIName = route.runtimeABIName;
@@ -253,9 +225,6 @@ llvm::Error exportToyObjectArtifact(mlir::ModuleOp module,
 
 llvm::Error registerToyObjectBundleTargetArtifactExporter(
     TargetArtifactExporterRegistry &registry) {
-  if (llvm::Error error = plugin::toy::verifyToyConstructionProtocolReady())
-    return error;
-
   return registerConstructionTemplateArtifactAdapterExporters(
       registry, getToyArtifactAdapterConfig(), exportToyObjectArtifact,
       exportToyHeaderArtifact);
@@ -273,7 +242,7 @@ llvm::StringRef getToyMaterializedEmitCTargetArtifactRouteID() {
 
 llvm::Error registerToyTargetSupportPluginTargetExporterBundles(
     PluginTargetArtifactExporterRegistry &registry) {
-  llvm::StringRef pluginName = getToyManifest().family.pluginName;
+  llvm::StringRef pluginName = plugin::toy::getToyExtensionPluginName();
   if (const PluginTargetArtifactExporterBundle *existing =
           registry.lookup(pluginName)) {
     for (const PluginTargetArtifactExporterBundle &bundle :

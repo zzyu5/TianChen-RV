@@ -23,35 +23,6 @@ def WEFT_TensorExtLite_Dialect : Dialect {
 class WEFTTensorExtLite_Op<string mnemonic, list<Trait> traits = []>
     : Op<WEFT_TensorExtLite_Dialect, mnemonic, traits>;
 
-def LoweringBoundaryOp : WEFTTensorExtLite_Op<"lowering_boundary", []> {
-  let summary = "fail-closed TensorExtLite selected lowering boundary";
-  let description = [{
-    Records the TensorExtLite plugin-owned selected lowering boundary for a chosen
-    weft.exec.variant. The op carries source kernel, selected variant, origin
-    plugin, selected-path role, no-active-route status, required capability
-    references, and TensorExtLite fragment metadata.
-
-    This op is not a compute operation and is not an executable lowering step.
-    It exists to prove that a future extension plugin can own a dialect-local
-    boundary while generic core passes route through the registry.
-  }];
-
-  let arguments = (ins
-    StrAttr:$source_kernel,
-    FlatSymbolRefAttr:$selected_variant,
-    StrAttr:$origin,
-    StrAttr:$role,
-    StrAttr:$status,
-    ArrayAttr:$required_capabilities,
-    StrAttr:$fragment_abi,
-    StrAttr:$handoff_kind,
-    OptionalAttr<StrAttr>:$fragment_reason
-  );
-
-  let assemblyFormat = "attr-dict";
-  let hasVerifier = 1;
-}
-
 class TensorExtLiteRoleSkeletonOp<string mnemonic, string roleName>
     : WEFTTensorExtLite_Op<mnemonic,
     [DeclareOpInterfaceMethods<WEFTEmitCLowerableOpInterface,
@@ -73,14 +44,6 @@ class TensorExtLiteRoleSkeletonOp<string mnemonic, string roleName>
   let arguments = (ins
     StrAttr:$source_kernel,
     FlatSymbolRefAttr:$selected_variant,
-    StrAttr:$origin,
-    StrAttr:$role,
-    StrAttr:$status,
-    ArrayAttr:$required_capabilities,
-    StrAttr:$typed_role,
-    I64Attr:$role_order,
-    StrAttr:$source_role,
-    StrAttr:$role_specific_interface,
     OptionalAttr<StrAttr>:$fragment_reason
   );
 

@@ -1,4 +1,4 @@
-#include "Weft/Plugin/Toy/ToyConstructionProtocol.h"
+#include "Weft/Plugin/Toy/ToyFamilyContract.h"
 
 #include "Weft/Dialect/Exec/IR/ExecOps.h"
 #include "Weft/Support/CapabilityModel.h"

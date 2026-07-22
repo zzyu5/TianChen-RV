@@ -1,7 +1,8 @@
 #include "Weft/Target/Demo/DemoTargetSupportBundle.h"
 
 #include "Weft/Plugin/ExtensionBundle.h"
-#include "Weft/Plugin/Demo/DemoConstructionProtocol.h"
+#include "Weft/Plugin/Demo/DemoFamilyContract.h"
+#include "Weft/Plugin/Demo/DemoExtensionPlugin.h"
 #include "Weft/Target/ConstructionTemplateArtifactAdapter.h"
 #include "Weft/Target/TargetTranslateRegistration.h"
 
@@ -34,14 +35,8 @@ struct ScopedTempPath {
   }
 };
 
-const plugin::demo_ext::DemoConstructionManifest &
-getDemoManifest() {
-  return plugin::demo_ext::getDemoConstructionManifest();
-}
-
-const plugin::demo_ext::DemoEmitCConstructionRoute &
-getDemoRoute() {
-  return plugin::demo_ext::getDemoEmitCConstructionRoute();
+const plugin::demo_ext::DemoArtifactRoute &getDemoRoute() {
+  return plugin::demo_ext::getDemoArtifactRoute();
 }
 
 llvm::Error makeDemoTargetRouteError(llvm::Twine message) {
@@ -57,9 +52,6 @@ llvm::Error compileDemoGeneratedSourceToObject(llvm::StringRef source,
 
 llvm::Error validateDemoSelectedObjectCandidate(
     const TargetArtifactCandidate &candidate) {
-  if (llvm::Error error =
-          plugin::demo_ext::verifyDemoConstructionProtocolReady())
-    return error;
   if (llvm::StringRef(candidate.role) != kDirectVariantRole)
     return makeDemoTargetRouteError(
         llvm::Twine("candidate selected path role must be '") +
@@ -70,13 +62,12 @@ llvm::Error validateDemoSelectedObjectCandidate(
 
 SelectedEmitCArtifactRouteConfig
 getDemoSelectedEmitCArtifactConfig(bool validateCandidate) {
-  const auto &manifest = getDemoManifest();
   const auto &route = getDemoRoute();
 
   SelectedEmitCArtifactRouteConfig config;
   config.routeID = route.routeID;
   config.artifactKind = route.artifactKind;
-  config.originPlugin = manifest.family.pluginName;
+  config.originPlugin = plugin::demo_ext::getDemoExtensionPluginName();
   config.routeDescription =
       "Demo construction-demo materialized EmitC artifact adapter";
   if (validateCandidate)
@@ -90,11 +81,11 @@ getDemoArtifactAdapterConfig() {
   static const MaterializedEmitCHeaderArtifactMetadataEvidence
       kMetadataEvidence[] = {
           {"emitc_lowerable_route",
-           plugin::demo_ext::getDemoEmitCRouteMappingMetadataName(),
-           plugin::demo_ext::getDemoEmitCConstructionRoute().routeID},
+           plugin::demo_ext::getDemoArtifactRouteMetadataName(),
+           plugin::demo_ext::getDemoArtifactRoute().routeID},
           {"source_op",
            plugin::demo_ext::getDemoSourceOpMetadataName(),
-           plugin::demo_ext::getDemoEmitCConstructionRoute()
+           plugin::demo_ext::getDemoArtifactRoute()
                .loweringBoundaryOpName},
           {"source_role",
            plugin::demo_ext::getDemoSourceRoleMetadataName(),
@@ -102,20 +93,8 @@ getDemoArtifactAdapterConfig() {
           {"source_op_interface",
            plugin::demo_ext::getDemoSourceOpInterfaceMetadataName(),
            kEmitCLowerableOpInterfaceName},
-          {"construction_protocol",
-           plugin::demo_ext::getDemoConstructionProtocolMetadataName(),
-           plugin::demo_ext::getDemoConstructionManifest()
-               .protocolVersion},
-          {"semantic_role_graph",
-           plugin::demo_ext::getDemoSemanticRoleGraphMetadataName(),
-           plugin::demo_ext::getDemoConstructionManifest()
-               .semanticRoleGraph},
-          {"typed_role_realization",
-           plugin::demo_ext::getDemoTypedRoleRealizationMetadataName(),
-           plugin::demo_ext::getDemoTypedRoleRealizationSummary()},
       };
 
-  const auto &manifest = getDemoManifest();
   const auto &route = getDemoRoute();
 
   ConstructionTemplateArtifactAdapterConfig config;
@@ -123,12 +102,13 @@ getDemoArtifactAdapterConfig() {
       getDemoSelectedEmitCArtifactConfig(/*validateCandidate=*/true);
   config.headerRouteID = route.headerRouteID;
   config.headerArtifactKind = route.headerArtifactKind;
-  config.ownerPlugin = manifest.family.pluginName;
+  config.ownerPlugin = plugin::demo_ext::getDemoExtensionPluginName();
   config.headerGuard =
       "WEFT_DEMO_MATERIALIZED_EMITC_HEADER_H";
   config.evidencePrefix = "weft.demo";
   config.includes = kHeaderIncludes;
-  config.selectedVariant = manifest.family.firstSliceVariantName;
+  config.selectedVariant =
+      plugin::demo_ext::getDemoExtensionFirstSliceVariantName();
   config.emissionKind = route.emissionKind;
   config.loweringBoundary = route.loweringBoundaryOpName;
   config.runtimeABI = route.runtimeABI;
@@ -249,19 +229,12 @@ llvm::Error exportDemoObjectArtifact(mlir::ModuleOp module,
 llvm::Error exportDemoEmitCToCpp(mlir::ModuleOp module,
                                  const plugin::ExtensionPluginRegistry &plugins,
                                  llvm::raw_ostream &os) {
-  if (llvm::Error error =
-          plugin::demo_ext::verifyDemoConstructionProtocolReady())
-    return error;
   return exportConstructionTemplateEmitCToCpp(
       module, plugins, os, getDemoArtifactAdapterConfig());
 }
 
 llvm::Error registerDemoObjectBundleTargetArtifactExporter(
     TargetArtifactExporterRegistry &registry) {
-  if (llvm::Error error =
-          plugin::demo_ext::verifyDemoConstructionProtocolReady())
-    return error;
-
   return registerConstructionTemplateArtifactAdapterExporters(
       registry, getDemoArtifactAdapterConfig(),
       exportDemoObjectArtifact, exportDemoHeaderArtifact);
@@ -283,7 +256,8 @@ llvm::StringRef getDemoEmitCToCppTranslateRouteID() {
 
 llvm::Error registerDemoTargetSupportPluginTargetExporterBundles(
     PluginTargetArtifactExporterRegistry &registry) {
-  llvm::StringRef pluginName = getDemoManifest().family.pluginName;
+  llvm::StringRef pluginName =
+      plugin::demo_ext::getDemoExtensionPluginName();
   if (const PluginTargetArtifactExporterBundle *existing =
       registry.lookup(pluginName)) {
     for (const PluginTargetArtifactExporterBundle &bundle :
@@ -307,9 +281,6 @@ configureDemoTargetSupportExtensionBundle(plugin::ExtensionBundle &bundle) {
 
 llvm::Error registerDemoTargetSupportTargetTranslateRoutes(
     TargetTranslateRouteRegistry &registry) {
-  if (llvm::Error error =
-          plugin::demo_ext::verifyDemoConstructionProtocolReady())
-    return error;
   const auto &route = getDemoRoute();
   if (registry.lookup(route.emitCToCppTranslateRouteID))
     return llvm::Error::success();

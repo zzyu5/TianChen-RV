@@ -3,7 +3,7 @@
 #include "Weft/Dialect/Exec/IR/ExecOps.h"
 #include "Weft/Dialect/TensorExtLite/IR/TensorExtLiteDialect.h"
 #include "Weft/Plugin/ExtensionPlugin.h"
-#include "Weft/Plugin/TensorExtLite/TensorExtLiteConstructionProtocol.h"
+#include "Weft/Plugin/TensorExtLite/TensorExtLiteFamilyContract.h"
 #include "Weft/Plugin/TensorExtLite/TensorExtLiteExtensionPlugin.h"
 
 #include "mlir/IR/Builders.h"
@@ -33,18 +33,7 @@ constexpr llvm::StringLiteral kOriginAttrName("origin");
 constexpr llvm::StringLiteral kRequiresAttrName("requires");
 constexpr llvm::StringLiteral kSourceKernelBoundaryAttrName("source_kernel");
 constexpr llvm::StringLiteral kSelectedVariantAttrName("selected_variant");
-constexpr llvm::StringLiteral kRoleAttrName("role");
-constexpr llvm::StringLiteral kStatusAttrName("status");
-constexpr llvm::StringLiteral kRequiredCapabilitiesAttrName(
-    "required_capabilities");
-constexpr llvm::StringLiteral kTypedRoleAttrName("typed_role");
-constexpr llvm::StringLiteral kRoleOrderAttrName("role_order");
-constexpr llvm::StringLiteral kSourceRoleAttrName("source_role");
-constexpr llvm::StringLiteral kRoleSpecificInterfaceAttrName(
-    "role_specific_interface");
 constexpr llvm::StringLiteral kFragmentReasonAttrName("fragment_reason");
-constexpr llvm::StringLiteral kRoleOpBoundaryStatusValue("role-op-boundary");
-constexpr llvm::StringLiteral kLoweringBoundaryStatusValue("no-active-route");
 constexpr llvm::StringLiteral kSelectedDiagnosticMessage(
     "selected TensorExtLite source front-door route");
 constexpr llvm::StringLiteral kFragmentReason(
@@ -201,60 +190,14 @@ void createTensorExtLiteVariant(mlir::OpBuilder &builder, mlir::Location loc,
 }
 
 void createTensorExtLiteRoleOp(mlir::OpBuilder &builder, mlir::Location loc,
-                               const TensorExtLiteFragmentMmaRoleStep &step,
-                               llvm::StringRef kernelName,
-                               mlir::ArrayAttr requires) {
+                               const TensorExtLiteConstructionStep &step,
+                               llvm::StringRef kernelName) {
   mlir::OperationState state(loc, step.operationName);
   state.addAttribute(kSourceKernelBoundaryAttrName,
                      builder.getStringAttr(kernelName));
   state.addAttribute(
       kSelectedVariantAttrName,
       symbolRef(builder, getTensorExtLiteFragmentFirstSliceVariantName()));
-  state.addAttribute(kOriginAttrName,
-                     builder.getStringAttr(getTensorExtLiteExtensionPluginName()));
-  state.addAttribute(
-      kRoleAttrName,
-      builder.getStringAttr(
-          stringifyVariantEmissionRole(VariantEmissionRole::DirectVariant)));
-  state.addAttribute(kStatusAttrName,
-                     builder.getStringAttr(kRoleOpBoundaryStatusValue));
-  state.addAttribute(kRequiredCapabilitiesAttrName, requires);
-  state.addAttribute(kTypedRoleAttrName,
-                     builder.getStringAttr(step.typedRoleID));
-  state.addAttribute(kRoleOrderAttrName,
-                     builder.getI64IntegerAttr(step.order));
-  state.addAttribute(kSourceRoleAttrName,
-                     builder.getStringAttr(step.sourceRole));
-  state.addAttribute(kRoleSpecificInterfaceAttrName,
-                     builder.getStringAttr(step.roleSpecificInterface));
-  state.addAttribute(kFragmentReasonAttrName,
-                     builder.getStringAttr(kFragmentReason));
-  (void)builder.create(state);
-}
-
-void createTensorExtLiteLoweringBoundary(mlir::OpBuilder &builder,
-                                         mlir::Location loc,
-                                         llvm::StringRef kernelName,
-                                         mlir::ArrayAttr requires) {
-  mlir::OperationState state(loc, "weft_tensorext_lite.lowering_boundary");
-  state.addAttribute(kSourceKernelBoundaryAttrName,
-                     builder.getStringAttr(kernelName));
-  state.addAttribute(
-      kSelectedVariantAttrName,
-      symbolRef(builder, getTensorExtLiteFragmentFirstSliceVariantName()));
-  state.addAttribute(kOriginAttrName,
-                     builder.getStringAttr(getTensorExtLiteExtensionPluginName()));
-  state.addAttribute(
-      kRoleAttrName,
-      builder.getStringAttr(
-          stringifyVariantEmissionRole(VariantEmissionRole::DirectVariant)));
-  state.addAttribute(kStatusAttrName,
-                     builder.getStringAttr(kLoweringBoundaryStatusValue));
-  state.addAttribute(kRequiredCapabilitiesAttrName, requires);
-  state.addAttribute("fragment_abi",
-                     builder.getStringAttr(getTensorExtLiteExpectedFragmentABI()));
-  state.addAttribute("handoff_kind",
-                     builder.getStringAttr(getTensorExtLiteExpectedHandoffKind()));
   state.addAttribute(kFragmentReasonAttrName,
                      builder.getStringAttr(kFragmentReason));
   (void)builder.create(state);
@@ -298,12 +241,11 @@ void materializeTensorExtLiteSourceKernel(mlir::OpBuilder &builder,
       kernel.getBody().front().back());
   mlir::OpBuilder::InsertionGuard variantGuard(builder);
   builder.setInsertionPointToStart(&variant.getBody().front());
-  for (const TensorExtLiteFragmentMmaRoleStep &step :
-       getTensorExtLiteFragmentMmaRoleSteps())
-    createTensorExtLiteRoleOp(builder, loc, step, kernelName, requires);
+  for (const TensorExtLiteConstructionStep &step :
+       getTensorExtLiteConstructionSteps())
+    createTensorExtLiteRoleOp(builder, loc, step, kernelName);
 
   builder.setInsertionPointAfter(variant);
-  createTensorExtLiteLoweringBoundary(builder, loc, kernelName, requires);
   createSelectedTensorExtLiteDiagnostic(builder, loc);
 }
 

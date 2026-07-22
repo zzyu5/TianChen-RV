@@ -3,7 +3,7 @@
 #include "Weft/Plugin/BuiltinExtensionPlugins.h"
 #include "Weft/Plugin/ExtensionBundle.h"
 #include "Weft/Plugin/TensorExtLite/TensorExtLiteExtensionPlugin.h"
-#include "Weft/Plugin/Toy/ToyConstructionProtocol.h"
+#include "Weft/Plugin/Toy/ToyFamilyContract.h"
 #include "Weft/Plugin/Toy/ToyExtensionPlugin.h"
 #include "Weft/Support/CapabilityModel.h"
 #include "Weft/Transforms/VariantMaterialization.h"
@@ -198,79 +198,16 @@ int runRegistrationAndCapabilityMetadataTest() {
                           "Toy source front-door pass factory is present"))
     return result;
 
-  const auto &manifest =
-      weft::plugin::toy::getToyConstructionManifest();
-  const auto &realization =
-      weft::plugin::toy::getToyTypedRoleGraphRealization();
-  if (int result = expectSuccess(
-          weft::plugin::toy::verifyToyConstructionManifest(manifest),
-          "Toy construction manifest verifies"))
-    return result;
-  if (int result = expectSuccess(
-          weft::plugin::toy::verifyToyTypedRoleGraphRealization(
-              manifest, realization),
-          "Toy typed role graph verifies"))
-    return result;
-  if (int result =
-          expect(realization.roles.size() == 4 &&
-                     realization.roles[2].operationName ==
-                         "weft_toy.compute_skeleton" &&
-                     realization.roles[2].roleSpecificInterface ==
-                         "WEFTComputeOpInterface" &&
-                     realization.roles[2].emitCLowerableInterface ==
-                         "WEFTEmitCLowerableInterface",
-                 "Toy typed role graph preserves ordered compute role"))
-    return result;
+  // Historical manifest/role-graph replay tests were retired with the second
+  // construction authority.  Artifact constants are checked directly below.
 
-  const auto &route =
-      weft::plugin::toy::getToyTemplateEmitCConstructionRoute();
-  if (int result =
-          expect(manifest.emitcRoute.routeID == route.routeID &&
-                     manifest.emitcRoute.emissionKind == route.emissionKind &&
-                     manifest.emitcRoute.artifactKind == route.artifactKind &&
-                     route.artifactKind == "riscv-elf-relocatable-object" &&
-                     route.headerRouteID ==
-                         "toy-template-compute-emitc-route.header" &&
-                     route.headerArtifactKind ==
-                         "runtime-callable-c-header" &&
-                     route.bundleComponentGroup ==
-                         "toy-template-compute-materialized-emitc-bundle.v1" &&
-                     route.objectHandoffKind ==
-                         "materialized-emitc-cpp-toy-template-object" &&
-                     manifest.evidenceProfile.contains(
-                         "generated_cpp_compile"),
-                 "Toy construction manifest records the EmitC route for the "
-                 "materialized object/header/bundle artifact bridge"))
+  const auto &route = weft::plugin::toy::getToyArtifactRoute();
+  if (int result = expect(
+          route.artifactKind == "riscv-elf-relocatable-object" &&
+              route.loweringBoundaryOpName == "weft_toy.compute_skeleton" &&
+              !weft::plugin::toy::getToyRuntimeABIParameters().empty(),
+          "Toy artifact projection is bound to its typed compute body"))
     return result;
-  if (int result = expectSuccess(
-          weft::plugin::toy::verifyToyConstructionProtocolReady(),
-          "Toy construction protocol ready check validates active route"))
-    return result;
-  if (int result = expectSuccess(
-          weft::plugin::toy::
-              verifyToyTemplateEmitCConstructionRouteMapping(
-                  route.routeID, route.emissionKind, route.artifactKind,
-                  route.loweringBoundaryOpName, route.runtimeABI,
-                  route.runtimeABIKind, route.runtimeABIName,
-                  route.runtimeGlueRole),
-          "Toy active EmitC route mapping validates"))
-    return result;
-  if (int result = expectSuccess(
-          weft::plugin::toy::verifyToyTargetArtifactBundleMapping(
-              route.headerRouteID, route.headerArtifactKind,
-              route.bundleComponentGroup, route.objectHandoffKind),
-          "Toy target artifact bundle mapping validates"))
-    return result;
-  if (int result = expectErrorContains(
-          weft::plugin::toy::
-              verifyToyTemplateEmitCConstructionRouteMapping(
-                  "stale-toy-route", route.emissionKind, route.artifactKind,
-                  route.loweringBoundaryOpName, route.runtimeABI,
-                  route.runtimeABIKind, route.runtimeABIName,
-                  route.runtimeGlueRole),
-          {"Toy EmitC route id", route.routeID}))
-    return result;
-
   return expectErrorContains(
       weft::plugin::registerToyExtensionPlugin(registry),
       {"duplicate Weft-RV extension plugin", "toy-plugin"});
@@ -606,13 +543,6 @@ module {
           expect(computeRole,
                  "Toy selected path materializes a compute role boundary"))
     return result;
-  if (int result = expectSuccess(
-          weft::plugin::toy::verifyToyComputeRoleOpInterface(
-              weft::plugin::toy::getToyConstructionManifest(),
-              weft::plugin::toy::getToyTypedRoleGraphRealization(),
-              computeRole.getOperation()),
-          "Toy selected compute role validates against construction protocol"))
-    return result;
   if (int result = expect(mlir::succeeded(mlir::verify(*module)),
                           "Toy boundary module verifies"))
     return result;
@@ -627,7 +557,7 @@ module {
           "Toy emission readiness consumes exact construction result"))
     return result;
   const auto &routeSpec =
-      weft::plugin::toy::getToyTemplateEmitCConstructionRoute();
+      weft::plugin::toy::getToyArtifactRoute();
   if (int result =
           expect(status.isSupported() &&
                      status.getEmissionPath() == routeSpec.routeID,
@@ -670,11 +600,8 @@ module {
                      weft::support::runtimeABIParametersEqual(
                          emissionPlan.getRuntimeABIParameters(),
                          weft::plugin::toy::
-                             getToyTemplateRuntimeABIParameters()) &&
-                     emissionPlan.getArtifactMetadata().size() ==
-                         weft::plugin::toy::
-                             getToyTemplateConstructionArtifactMetadata()
-                                 .size() &&
+                             getToyRuntimeABIParameters()) &&
+                     emissionPlan.getArtifactMetadata().size() == 4 &&
                      emissionPlan.getRequiredCapabilitySymbols().size() == 1 &&
                      emissionPlan.getRequiredCapabilitySymbols().front() ==
                          weft::plugin::toy::

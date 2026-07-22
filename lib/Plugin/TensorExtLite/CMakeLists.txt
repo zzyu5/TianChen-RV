@@ -9,7 +9,7 @@ add_mlir_library(WeftTensorExtLitePlugin
   WeftConversionEmitC
   WeftPlugin
   WeftSupport
-  WeftTensorExtLiteConstructionProtocol
+  WeftTensorExtLiteFamilyContract
   WeftTensorExtLiteDialect
   WeftTensorExtLiteTarget
   MLIRIR

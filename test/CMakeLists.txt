@@ -165,23 +165,6 @@ target_link_libraries(weft-template-extension-plugin-test
   MLIRSupport
 )
 
-add_executable(weft-tensorext-lite-extension-plugin-test
-  Plugin/TensorExtLiteExtensionPluginTest.cpp
-)
-
-target_link_libraries(weft-tensorext-lite-extension-plugin-test
-  PRIVATE
-  WeftInitAll
-  WeftPlugin
-  WeftSupport
-  WeftTensorExtLiteDialect
-  WeftTensorExtLitePlugin
-  WeftTransforms
-  MLIRIR
-  MLIRParser
-  MLIRSupport
-)
-
 add_executable(weft-rvv-dialect-test
   Dialect/RVV/RVVDialectTest.cpp
 )

@@ -1,12 +1,11 @@
-add_mlir_library(WeftDemoConstructionProtocol
-  DemoConstructionProtocol.cpp
+add_mlir_library(WeftDemoFamilyContract
+  DemoFamilyContract.cpp
   DemoVariantLegality.cpp
 
   PARTIAL_SOURCES_INTENDED
 
   LINK_LIBS PUBLIC
   WeftExecDialect
-  WeftPluginConstructionProtocol
   WeftSupport
   MLIRIR
   MLIRSupport
@@ -19,7 +18,7 @@ add_mlir_library(WeftDemoBackendEmitter
 
   LINK_LIBS PUBLIC
   WeftConversionEmitC
-  WeftDemoConstructionProtocol
+  WeftDemoFamilyContract
   WeftDemoDialect
   WeftExecDialect
   WeftSupport
@@ -38,7 +37,7 @@ add_mlir_library(WeftDemoPlugin
   WeftConversionEmitC
   WeftPlugin
   WeftSupport
-  WeftDemoConstructionProtocol
+  WeftDemoFamilyContract
   WeftDemoDialect
   WeftDemoTarget
   MLIRIR

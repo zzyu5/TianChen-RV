@@ -7,7 +7,7 @@ add_mlir_library(WeftTemplateTarget
   WeftPlugin
   WeftSupport
   WeftTarget
-  WeftTemplateConstructionProtocol
+  WeftTemplateFamilyContract
   MLIREmitCDialect
   MLIRIR
   MLIRSupport

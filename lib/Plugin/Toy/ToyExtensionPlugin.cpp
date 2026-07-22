@@ -4,7 +4,7 @@
 #include "Weft/Conversion/EmitC/WEFTEmitCLowerableOpInterface.h"
 #include "Weft/Dialect/Toy/IR/ToyDialect.h"
 #include "Weft/Plugin/ExtensionBundle.h"
-#include "Weft/Plugin/Toy/ToyConstructionProtocol.h"
+#include "Weft/Plugin/Toy/ToyFamilyContract.h"
 #include "Weft/Plugin/Toy/ToySourceFrontDoor.h"
 #include "Weft/Target/Toy/ToyTargetSupportBundle.h"
 
@@ -53,23 +53,6 @@ constexpr llvm::StringLiteral kToyTemplateGuard(
     "plugin_local_toy_template_metadata");
 constexpr llvm::StringLiteral kSourceKernelAttrName("source_kernel");
 constexpr llvm::StringLiteral kSelectedVariantAttrName("selected_variant");
-constexpr llvm::StringLiteral kOriginAttrName("origin");
-constexpr llvm::StringLiteral kRequiresAttrName("requires");
-constexpr llvm::StringLiteral kRoleAttrName("role");
-constexpr llvm::StringLiteral kStatusAttrName("status");
-constexpr llvm::StringLiteral kRequiredCapabilitiesAttrName(
-    "required_capabilities");
-constexpr llvm::StringLiteral kTypedRoleAttrName("typed_role");
-constexpr llvm::StringLiteral kRoleOrderAttrName("role_order");
-constexpr llvm::StringLiteral kSourceRoleAttrName("source_role");
-constexpr llvm::StringLiteral kRoleSpecificInterfaceAttrName(
-    "role_specific_interface");
-constexpr llvm::StringLiteral kRoleOpBoundaryStatusValue("role-op-boundary");
-constexpr llvm::StringLiteral kToyComputeTypedRoleID(
-    "toy.role.compute.compute_skeleton");
-constexpr llvm::StringLiteral kToyComputeSourceRole("compute");
-constexpr llvm::StringLiteral kToyComputeRoleSpecificInterface(
-    "WEFTComputeOpInterface");
 constexpr llvm::StringLiteral kToyRouteArtifactMetadataKey(
     "toy_emitc_lowerable_route");
 constexpr llvm::StringLiteral kToySourceOpArtifactMetadataKey(
@@ -78,21 +61,6 @@ constexpr llvm::StringLiteral kToySourceRoleArtifactMetadataKey(
     "toy_source_role");
 constexpr llvm::StringLiteral kToySourceOpInterfaceArtifactMetadataKey(
     "toy_source_op_interface");
-constexpr llvm::StringLiteral kToyConstructionProtocolArtifactMetadataKey(
-    "toy_construction_protocol");
-constexpr llvm::StringLiteral kToyConstructionArchetypeArtifactMetadataKey(
-    "toy_extension_archetype");
-constexpr llvm::StringLiteral kToySemanticRoleGraphArtifactMetadataKey(
-    "toy_semantic_role_graph");
-constexpr llvm::StringLiteral kToyCommonInterfaceRealizationArtifactMetadataKey(
-    "toy_common_interface_realization");
-constexpr llvm::StringLiteral kToyTypedRoleRealizationArtifactMetadataKey(
-    "toy_typed_role_realization");
-constexpr llvm::StringLiteral kToyEmitCRouteMappingArtifactMetadataKey(
-    "toy_emitc_route_mapping");
-constexpr llvm::StringLiteral kToyEvidenceProfileArtifactMetadataKey(
-    "toy_evidence_profile");
-constexpr int64_t kToyComputeRoleOrder = 2;
 
 struct ToyTemplateCapabilityView {
   std::string templateABI;
@@ -260,28 +228,6 @@ buildToyTemplateProposal(const VariantProposalRequest &request) {
   return proposal;
 }
 
-mlir::StringAttr getStringAttr(mlir::Operation *op, llvm::StringRef name) {
-  return op ? op->getAttrOfType<mlir::StringAttr>(name) : mlir::StringAttr();
-}
-
-llvm::Error validateBoundaryStringAttr(mlir::Operation *op,
-                                       llvm::StringRef attrName,
-                                       llvm::StringRef expectedValue) {
-  auto attr = getStringAttr(op, attrName);
-  if (!attr || attr.getValue().trim().empty())
-    return makeToyPluginError(
-        llvm::Twine("Toy lowering-boundary validation requires non-empty "
-                    "string attribute '") +
-        attrName + "'");
-  if (attr.getValue().trim() != expectedValue)
-    return makeToyPluginError(
-        llvm::Twine("Toy lowering-boundary attribute '") + attrName +
-        "' value '" + attr.getValue().trim() +
-        "' does not match expected selected-path value '" + expectedValue +
-        "'");
-  return llvm::Error::success();
-}
-
 llvm::Expected<conversion::emitc::WEFTEmitCSourceOpProvenance>
 getToyConstructedSource(const VariantEmissionRequest &request) {
   auto compute = llvm::dyn_cast_if_present<weft::toy::ComputeSkeletonOp>(
@@ -311,14 +257,10 @@ const toy::ToyExtensionPlugin &getBuiltinToyExtensionPlugin() {
 
 mlir::Operation *materializeToyComputeSkeletonBoundary(
     const VariantLoweringBoundaryRequest &request) {
-  llvm::StringRef expectedRole =
-      stringifyVariantEmissionRole(request.getRole());
   if (!request.getKernel().getBody().empty()) {
     for (mlir::Operation &op : request.getKernel().getBody().front()) {
       auto body = llvm::dyn_cast<weft::toy::ComputeSkeletonOp>(op);
-      auto role = op.getAttrOfType<mlir::StringAttr>(kRoleAttrName);
-      if (body && role && role.getValue() == expectedRole &&
-          isOperationSelectedForVariant(&op, request.getVariant()))
+      if (body && isOperationSelectedForVariant(&op, request.getVariant()))
         return &op;
     }
   }
@@ -328,29 +270,12 @@ mlir::Operation *materializeToyComputeSkeletonBoundary(
   weft::exec::VariantOp variant = request.getVariant();
   weft::exec::KernelOp kernel = request.getKernel();
 
-  auto variantRequires =
-      variant->getAttrOfType<mlir::ArrayAttr>(kRequiresAttrName);
   mlir::OperationState state(variant.getLoc(), "weft_toy.compute_skeleton");
   state.addAttribute(kSourceKernelAttrName,
                      builder.getStringAttr(kernel.getSymName()));
   state.addAttribute(kSelectedVariantAttrName,
                      mlir::FlatSymbolRefAttr::get(context,
                                                   variant.getSymName()));
-  state.addAttribute(kOriginAttrName, builder.getStringAttr(kToyPluginName));
-  state.addAttribute(kRoleAttrName,
-                     builder.getStringAttr(
-                         stringifyVariantEmissionRole(request.getRole())));
-  state.addAttribute(kStatusAttrName,
-                     builder.getStringAttr(kRoleOpBoundaryStatusValue));
-  state.addAttribute(kRequiredCapabilitiesAttrName, variantRequires);
-  state.addAttribute(kTypedRoleAttrName,
-                     builder.getStringAttr(kToyComputeTypedRoleID));
-  state.addAttribute(kRoleOrderAttrName,
-                     builder.getI64IntegerAttr(kToyComputeRoleOrder));
-  state.addAttribute(kSourceRoleAttrName,
-                     builder.getStringAttr(kToyComputeSourceRole));
-  state.addAttribute(kRoleSpecificInterfaceAttrName,
-                     builder.getStringAttr(kToyComputeRoleSpecificInterface));
   return builder.create(state);
 }
 
@@ -588,7 +513,7 @@ llvm::Error ToyExtensionPlugin::checkVariantEmissionReadiness(
 
   out = VariantEmissionStatus::getSupported(
       kToyPluginName, request.getVariant().getSymName(),
-      toy::getToyTemplateEmitCConstructionRoute().routeID);
+      toy::getToyArtifactRoute().routeID);
   return llvm::Error::success();
 }
 
@@ -617,45 +542,28 @@ llvm::Error ToyExtensionPlugin::buildVariantEmissionPlan(
   if (!source)
     return source.takeError();
 
-  const toy::ToyConstructionManifest &manifest =
-      toy::getToyConstructionManifest();
-  const toy::ToyTemplateEmitCConstructionRoute &constructionRoute =
-      toy::getToyTemplateEmitCConstructionRoute();
+  const toy::ToyArtifactRoute &artifactRoute = toy::getToyArtifactRoute();
 
   out = VariantEmissionPlan::getSupported(
       kToyPluginName, request.getKernel().getSymName(),
       request.getVariant().getSymName(), request.getRole(),
-      constructionRoute.emissionKind, constructionRoute.routeID,
-      constructionRoute.runtimeABI, constructionRoute.artifactKind,
+      artifactRoute.emissionKind, artifactRoute.routeID,
+      artifactRoute.runtimeABI, artifactRoute.artifactKind,
       "Toy selected compute_skeleton route materializes a verified EmitC "
       "module through the common WEFTEmitCLowerableRoute materializer and "
       "exports a relocatable object with an object-backed declaration header "
       "and bundle");
-  out.setRuntimeABIKind(constructionRoute.runtimeABIKind);
-  out.setRuntimeABIName(constructionRoute.runtimeABIName);
-  out.setRuntimeGlueRole(constructionRoute.runtimeGlueRole);
-  out.setLoweringBoundaryOpName(constructionRoute.loweringBoundaryOpName);
-  out.addRuntimeABIParameters(toy::getToyTemplateRuntimeABIParameters());
+  out.setRuntimeABIKind(artifactRoute.runtimeABIKind);
+  out.setRuntimeABIName(artifactRoute.runtimeABIName);
+  out.setRuntimeGlueRole(artifactRoute.runtimeGlueRole);
+  out.setLoweringBoundaryOpName(artifactRoute.loweringBoundaryOpName);
+  out.addRuntimeABIParameters(toy::getToyRuntimeABIParameters());
   out.addArtifactMetadata(kToyRouteArtifactMetadataKey,
-                          constructionRoute.routeID);
+                          artifactRoute.routeID);
   out.addArtifactMetadata(kToySourceOpArtifactMetadataKey, source->opName);
   out.addArtifactMetadata(kToySourceRoleArtifactMetadataKey, source->role);
   out.addArtifactMetadata(kToySourceOpInterfaceArtifactMetadataKey,
                           source->opInterface);
-  out.addArtifactMetadata(kToyConstructionProtocolArtifactMetadataKey,
-                          manifest.protocolVersion);
-  out.addArtifactMetadata(kToyConstructionArchetypeArtifactMetadataKey,
-                          manifest.archetype);
-  out.addArtifactMetadata(kToySemanticRoleGraphArtifactMetadataKey,
-                          manifest.semanticRoleGraph);
-  out.addArtifactMetadata(kToyCommonInterfaceRealizationArtifactMetadataKey,
-                          toy::getToyConstructionInterfaceRealization());
-  out.addArtifactMetadata(kToyTypedRoleRealizationArtifactMetadataKey,
-                          toy::getToyTypedRoleRealizationSummary());
-  out.addArtifactMetadata(kToyEmitCRouteMappingArtifactMetadataKey,
-                          manifest.emitcRoute.routeID);
-  out.addArtifactMetadata(kToyEvidenceProfileArtifactMetadataKey,
-                          manifest.evidenceProfile);
   if (llvm::Error error =
           out.setRequiredCapabilitySymbolsFromVariant(request.getVariant()))
     return error;
@@ -705,59 +613,19 @@ llvm::Error ToyExtensionPlugin::validateSelectedLoweringBoundary(
     return makeToyPluginError(
         "selected Toy path requires a weft_toy.compute_skeleton operation");
 
-  if (llvm::Error error =
-          validateBoundaryStringAttr(boundary.getOperation(),
-                                     kSourceKernelAttrName,
-                                     request.getKernel().getSymName()))
-    return error;
-  if (llvm::Error error =
-          validateBoundaryStringAttr(boundary.getOperation(), kOriginAttrName,
-                                     kToyPluginName))
-    return error;
-  if (llvm::Error error =
-          validateBoundaryStringAttr(
-              boundary.getOperation(), kRoleAttrName,
-              stringifyVariantEmissionRole(request.getRole())))
-    return error;
-  if (llvm::Error error =
-          validateBoundaryStringAttr(boundary.getOperation(), kStatusAttrName,
-                                     kRoleOpBoundaryStatusValue))
-    return error;
-  if (llvm::Error error = validateBoundaryStringAttr(
-          boundary.getOperation(), kTypedRoleAttrName, kToyComputeTypedRoleID))
-    return error;
-  if (llvm::Error error = validateBoundaryStringAttr(
-          boundary.getOperation(), kSourceRoleAttrName, kToyComputeSourceRole))
-    return error;
-  if (llvm::Error error = validateBoundaryStringAttr(
-          boundary.getOperation(), kRoleSpecificInterfaceAttrName,
-          kToyComputeRoleSpecificInterface))
-    return error;
-
-  auto selectedVariant =
-      boundary->getAttrOfType<mlir::FlatSymbolRefAttr>(
-          kSelectedVariantAttrName);
-  if (!selectedVariant ||
-      selectedVariant.getValue() != request.getVariant().getSymName())
+  if (!request.getKernel() ||
+      boundary->getParentOp() != request.getKernel().getOperation())
     return makeToyPluginError(
-        "Toy lowering-boundary selected_variant must match selected variant");
-
-  auto requiredCapabilities =
-      boundary->getAttrOfType<mlir::ArrayAttr>(kRequiredCapabilitiesAttrName);
-  auto variantRequires =
-      request.getVariant()->getAttrOfType<mlir::ArrayAttr>(kRequiresAttrName);
-  if (!requiredCapabilities || !variantRequires ||
-      requiredCapabilities != variantRequires)
+        "Toy compute_skeleton must belong directly to the selected kernel");
+  if (boundary.getSourceKernelAttr().getValue() !=
+      request.getKernel().getSymName())
     return makeToyPluginError(
-        "Toy lowering-boundary required_capabilities must match selected "
-        "variant requires metadata");
+        "Toy compute_skeleton source_kernel must match selected kernel");
 
-  auto roleOrder =
-      boundary->getAttrOfType<mlir::IntegerAttr>(kRoleOrderAttrName);
-  if (!roleOrder || roleOrder.getInt() != kToyComputeRoleOrder)
+  if (boundary.getSelectedVariantAttr().getValue() !=
+      request.getVariant().getSymName())
     return makeToyPluginError(
-        "Toy compute_skeleton role_order must match the construction "
-        "typed-role realization");
+        "Toy compute_skeleton selected_variant must match selected variant");
 
   if (!llvm::isa<conversion::emitc::WEFTEmitCLowerableOpInterface>(
           boundary.getOperation()))

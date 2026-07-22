@@ -1,7 +1,7 @@
 #include "Weft/InitWeftDialects.h"
 #include "Weft/Conversion/EmitC/WEFTEmitCLowerableOpInterface.h"
 #include "Weft/Dialect/Template/IR/TemplateDialect.h"
-#include "Weft/Plugin/Template/TemplateConstructionProtocol.h"
+#include "Weft/Plugin/Template/TemplateFamilyContract.h"
 #include "Weft/Plugin/Template/TemplateExtensionPlugin.h"
 #include "Weft/Support/CapabilityModel.h"
 #include "Weft/Transforms/VariantMaterialization.h"
@@ -39,7 +39,6 @@ using weft::exec::DiagnosticOp;
 using weft::exec::KernelOp;
 using weft::exec::VariantOp;
 using weft::template_ext::ComputeSkeletonOp;
-using weft::template_ext::LoweringBoundaryOp;
 using weft::transforms::VariantSelectionKind;
 using weft::transforms::VariantSelectionPlan;
 
@@ -103,25 +102,6 @@ VariantOp findVariant(KernelOp kernel, llvm::StringRef symbolName) {
   return result;
 }
 
-LoweringBoundaryOp findTemplateBoundary(KernelOp kernel,
-                                   llvm::StringRef selectedVariantSymbol) {
-  LoweringBoundaryOp result;
-  if (!kernel || kernel.getBody().empty())
-    return result;
-
-  for (mlir::Operation &op : kernel.getBody().front()) {
-    auto boundary = llvm::dyn_cast<LoweringBoundaryOp>(op);
-    if (!boundary)
-      continue;
-
-    auto selectedVariant =
-        op.getAttrOfType<mlir::FlatSymbolRefAttr>("selected_variant");
-    if (selectedVariant && selectedVariant.getValue() == selectedVariantSymbol)
-      result = boundary;
-  }
-  return result;
-}
-
 ComputeSkeletonOp findTemplateComputeRoleOp(
     KernelOp kernel, llvm::StringRef selectedVariantSymbol) {
   ComputeSkeletonOp result;
@@ -164,326 +144,6 @@ int expectProposalStringAttr(const VariantProposal &proposal,
                     " preserves expected value");
 }
 
-int runConstructionManifestTest() {
-  const auto &manifest =
-      weft::plugin::template_ext::getTemplateConstructionManifest();
-  if (int result = expectSuccess(
-          weft::plugin::template_ext::
-              verifyTemplateConstructionManifest(manifest),
-          "Template construction manifest verifies"))
-    return result;
-
-  if (int result = expect(
-          manifest.protocolVersion ==
-                  "extension-family-construction-protocol.v1" &&
-              manifest.archetype == "custom-riscv-extension-minimal" &&
-              manifest.semanticRoleGraph == "configure->load->compute->store",
-          "Template manifest exposes construction protocol, archetype, and role graph"))
-    return result;
-  if (int result = expect(
-          manifest.family.pluginName ==
-                  weft::plugin::template_ext::
-                      getTemplateExtensionPluginName() &&
-              manifest.family.capabilityID ==
-                  weft::plugin::template_ext::
-                      getTemplateExtensionCapabilityID() &&
-              manifest.family.concreteNamespace == "weft_template",
-          "Template manifest family declaration agrees with plugin metadata"))
-    return result;
-  if (int result =
-          expect(manifest.semanticRoles.size() == 4 &&
-                     manifest.semanticRoles[0].role == "configure" &&
-                     manifest.semanticRoles[1].role == "load" &&
-                     manifest.semanticRoles[2].role == "compute" &&
-                     manifest.semanticRoles[3].role == "store",
-                 "Template manifest records ordered semantic role graph"))
-    return result;
-  for (const auto &role : manifest.semanticRoles) {
-    if (int result = expect(
-            role.commonInterfaces.contains("WEFTExtensionOpInterface") &&
-                role.commonInterfaces.contains("WEFTEmitCLowerableInterface"),
-            llvm::Twine("Template role realizes common interfaces: ") +
-                role.role))
-      return result;
-  }
-  if (int result = expect(
-          weft::plugin::template_ext::
-              getTemplateConstructionInterfaceRealization()
-                  .contains("compute=WEFTExtensionOpInterface") &&
-              weft::plugin::template_ext::
-                  getTemplateConstructionInterfaceRealization()
-                      .contains("WEFTComputeOpInterface"),
-          "Template manifest exposes common-interface realization mapping"))
-    return result;
-  const auto &realization =
-      weft::plugin::template_ext::getTemplateTypedRoleGraphRealization();
-  if (int result = expectSuccess(
-          weft::plugin::template_ext::
-              verifyTemplateTypedRoleGraphRealization(manifest, realization),
-          "Template typed role graph realization verifies"))
-    return result;
-  if (int result =
-          expect(realization.roles.size() == 4 &&
-                     realization.roles[2].typedRoleID ==
-                         "template.role.compute.compute_skeleton" &&
-                     realization.roles[2].roleSpecificInterface ==
-                         "WEFTComputeOpInterface" &&
-                     realization.roles[2].emitCLowerableInterface ==
-                         "WEFTEmitCLowerableInterface" &&
-                     weft::plugin::template_ext::
-                         getTemplateTypedRoleRealizationSummary()
-                             .contains("compute:template.role.compute"),
-                 "Template typed role realization exposes concrete compute role "
-                 "surface"))
-    return result;
-  if (int result = expect(
-          manifest.emitcRoute.routeID ==
-                  "template-extension-compute-skeleton-emitc-route" &&
-              manifest.emitcRoute.artifactKind ==
-                  "riscv-elf-relocatable-object" &&
-              manifest.emitcRoute.emissionKind ==
-                  "materialized-emitc-cpp-template-compute-skeleton-module",
-          "Template manifest exposes materialized EmitC route fields"))
-    return result;
-  const auto &route =
-      weft::plugin::template_ext::getTemplateEmitCConstructionRoute();
-  if (int result = expectSuccess(
-          weft::plugin::template_ext::
-              verifyTemplateEmitCConstructionRouteMapping(
-                  route.routeID, route.emissionKind, route.artifactKind,
-                  route.loweringBoundaryOpName, route.runtimeABI,
-                  route.runtimeABIKind, route.runtimeABIName,
-                  route.runtimeGlueRole),
-          "Template EmitC construction route mapping verifies"))
-    return result;
-  if (int result = expectSuccess(
-          weft::plugin::template_ext::
-              verifyTemplateTargetArtifactBundleMapping(
-                  route.headerRouteID, route.headerArtifactKind,
-                  route.bundleComponentGroup, route.objectHandoffKind,
-                  route.emitCToCppTranslateRouteID),
-          "Template object/header bundle mapping verifies"))
-    return result;
-  return expect(
-      manifest.evidenceProfile.contains("parse_verify") &&
-          manifest.evidenceProfile.contains("interface") &&
-          manifest.evidenceProfile.contains("emitc_route_mapping") &&
-          manifest.evidenceProfile.contains("materialized_emitc_module") &&
-          manifest.evidenceProfile.contains("generated_cpp_compile"),
-      "Template manifest records focused evidence profile");
-}
-
-int runTypedRoleGraphValidationTest() {
-  namespace template_ext = weft::plugin::template_ext;
-  const auto &manifest = template_ext::getTemplateConstructionManifest();
-  const auto &realization =
-      template_ext::getTemplateTypedRoleGraphRealization();
-
-  if (int result = expectSuccess(
-          template_ext::verifyTemplateTypedRoleGraphRealization(manifest,
-                                                                realization),
-          "Template typed role graph validates without generated output"))
-    return result;
-
-  {
-    template_ext::TemplateConstructionManifest bad = manifest;
-    llvm::SmallVector<template_ext::TemplateConstructionSemanticRole, 4> roles(
-        manifest.semanticRoles.begin(), manifest.semanticRoles.end());
-    std::swap(roles[1], roles[2]);
-    roles[1].order = 1;
-    roles[2].order = 2;
-    bad.semanticRoles = roles;
-
-    if (int result = expectErrorContains(
-            template_ext::verifyTemplateConstructionManifest(bad),
-            {"semantic role graph entry", "Template role order"}))
-      return result;
-  }
-
-  {
-    template_ext::TemplateTypedRoleGraphRealization bad = realization;
-    llvm::SmallVector<template_ext::TemplateTypedRoleInterfaceRealization, 4>
-        roles(realization.roles.begin(), realization.roles.end());
-    roles.pop_back();
-    bad.roles = roles;
-
-    if (int result = expectErrorContains(
-            template_ext::verifyTemplateTypedRoleGraphRealization(manifest,
-                                                                  bad),
-            {"typed role realization", "exactly one role object"}))
-      return result;
-  }
-
-  {
-    template_ext::TemplateTypedRoleGraphRealization bad = realization;
-    llvm::SmallVector<template_ext::TemplateTypedRoleInterfaceRealization, 4>
-        roles(realization.roles.begin(), realization.roles.end());
-    std::swap(roles[1], roles[2]);
-    roles[1].order = 1;
-    roles[2].order = 2;
-    bad.roles = roles;
-
-    if (int result = expectErrorContains(
-            template_ext::verifyTemplateTypedRoleGraphRealization(manifest,
-                                                                  bad),
-            {"typed role realization entry", "not ordered"}))
-      return result;
-  }
-
-  {
-    template_ext::TemplateTypedRoleGraphRealization bad = realization;
-    llvm::SmallVector<template_ext::TemplateTypedRoleInterfaceRealization, 4>
-        roles(realization.roles.begin(), realization.roles.end());
-    roles[2].operationName = "weft_template.stale_compute_skeleton";
-    bad.roles = roles;
-
-    if (int result = expectErrorContains(
-            template_ext::verifyTemplateTypedRoleGraphRealization(manifest,
-                                                                  bad),
-            {"typed role realization entry", "operation",
-             "does not match manifest operation"}))
-      return result;
-  }
-
-  {
-    template_ext::TemplateTypedRoleGraphRealization bad = realization;
-    llvm::SmallVector<template_ext::TemplateTypedRoleInterfaceRealization, 4>
-        roles(realization.roles.begin(), realization.roles.end());
-    roles[2].roleSpecificInterface = "WEFTMemoryOpInterface";
-    bad.roles = roles;
-
-    if (int result = expectErrorContains(
-            template_ext::verifyTemplateTypedRoleGraphRealization(manifest,
-                                                                  bad),
-            {"typed role realization entry",
-             "role-specific common interface", "WEFTComputeOpInterface"}))
-      return result;
-  }
-
-  {
-    template_ext::TemplateConstructionManifest bad = manifest;
-    llvm::SmallVector<template_ext::TemplateConstructionSemanticRole, 4> roles(
-        manifest.semanticRoles.begin(), manifest.semanticRoles.end());
-    roles[2].commonInterfaces =
-        "WEFTExtensionOpInterface+WEFTEmitCLowerableInterface";
-    bad.semanticRoles = roles;
-
-    if (int result = expectErrorContains(
-            template_ext::verifyTemplateConstructionManifest(bad),
-            {"semantic role 'compute'", "WEFTComputeOpInterface"}))
-      return result;
-  }
-
-  return 0;
-}
-
-int runTemplateComputeRoleOpInterfaceTest(mlir::MLIRContext &context) {
-  constexpr llvm::StringLiteral source = R"mlir(
-module {
-  weft.exec.kernel @template_compute_role_interface attributes {} {
-    weft.exec.capability @template_extension {
-      id = "template.extension",
-      kind = "future-extension-template",
-      status = "available",
-      integration_contract = "template-zero-core-handoff.v1",
-      handoff_kind = "template-extension-lowering-boundary"
-    }
-    weft.exec.variant @template_zero_core_first_slice attributes {
-      origin = "template-plugin",
-      requires = [@template_extension]
-    } {
-    }
-    weft_template.compute_skeleton {
-      origin = "template-plugin",
-      required_capabilities = [@template_extension],
-      role = "direct variant",
-      role_order = 2 : i64,
-      role_specific_interface = "WEFTComputeOpInterface",
-      selected_variant = @template_zero_core_first_slice,
-      source_kernel = "template_compute_role_interface",
-      source_role = "compute",
-      status = "role-op-boundary",
-      template_reason = "Template ODS role-op boundary only",
-      typed_role = "template.role.compute.compute_skeleton"
-    }
-  }
-}
-)mlir";
-
-  mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
-  if (!module)
-    return fail("failed to parse Template compute role-op module");
-  if (int result = expect(mlir::succeeded(mlir::verify(*module)),
-                          "Template compute role-op module verifies"))
-    return result;
-
-  KernelOp kernel = findKernel(*module, "template_compute_role_interface");
-  ComputeSkeletonOp compute = findTemplateComputeRoleOp(
-      kernel,
-      weft::plugin::template_ext::
-          getTemplateExtensionFirstSliceVariantName());
-  if (int result =
-          expect(compute, "Template ODS compute role op is materialized"))
-    return result;
-
-  auto lowerable =
-      llvm::dyn_cast<WEFTEmitCLowerableOpInterface>(compute.getOperation());
-  if (int result =
-          expect(lowerable,
-                 "Template compute role op implements "
-                 "WEFTEmitCLowerableOpInterface"))
-    return result;
-  if (int result =
-          expect(lowerable.getWEFTEmitCLowerableSourceOpName() ==
-                         ComputeSkeletonOp::getOperationName() &&
-                     lowerable.getWEFTEmitCLowerableSourceRole() == "compute",
-                 "Template compute role op exposes interface source op and "
-                 "role"))
-    return result;
-
-  const auto &manifest =
-      weft::plugin::template_ext::getTemplateConstructionManifest();
-  const auto &realization =
-      weft::plugin::template_ext::getTemplateTypedRoleGraphRealization();
-  if (int result = expectSuccess(
-          weft::plugin::template_ext::
-              verifyTemplateComputeRoleOpInterface(manifest, realization,
-                                                   compute.getOperation()),
-          "Template construction validation accepts ODS compute role op"))
-    return result;
-
-  compute->setAttr("source_role", mlir::StringAttr::get(&context, "load"));
-  if (int result = expectErrorContains(
-          weft::plugin::template_ext::
-              verifyTemplateComputeRoleOpInterface(manifest, realization,
-                                                  compute.getOperation()),
-          {"WEFTEmitCLowerableOpInterface source role", "compute"}))
-    return result;
-  compute->setAttr("source_role", mlir::StringAttr::get(&context, "compute"));
-
-  compute->setAttr(
-      "typed_role",
-      mlir::StringAttr::get(&context, "template.role.compute.stale"));
-  if (int result = expectErrorContains(
-          weft::plugin::template_ext::
-              verifyTemplateComputeRoleOpInterface(manifest, realization,
-                                                   compute.getOperation()),
-          {"compute role op typed_role", "typed compute role realization"}))
-    return result;
-  compute->setAttr(
-      "typed_role",
-      mlir::StringAttr::get(&context,
-                            "template.role.compute.compute_skeleton"));
-
-  if (int result = expectErrorContains(
-          weft::plugin::template_ext::
-              verifyTemplateComputeRoleOpInterface(
-                  manifest, realization, kernel.getOperation()),
-          {"must implement WEFTEmitCLowerableOpInterface"}))
-    return result;
-
-  return 0;
-}
 
 int runRegistrationAndCapabilityMetadataTest() {
   ExtensionPluginRegistry registry;
@@ -512,14 +172,13 @@ int runRegistrationAndCapabilityMetadataTest() {
                  "Template extension capability metadata is registered"))
     return result;
 
-  const auto &manifest =
-      weft::plugin::template_ext::getTemplateConstructionManifest();
-  if (int result =
-          expect(manifest.family.pluginName == plugin->getName() &&
-                     manifest.family.capabilityID == capability->getID() &&
-                     manifest.family.capabilityKind == capability->getKind(),
-                 "Template construction manifest agrees with registered plugin "
-                 "capability"))
+  const auto &route =
+      weft::plugin::template_ext::getTemplateArtifactRoute();
+  if (int result = expect(
+          route.artifactKind == "riscv-elf-relocatable-object" &&
+              route.loweringBoundaryOpName ==
+                  "weft_template.compute_skeleton",
+          "Template artifact projection names the typed compute body"))
     return result;
 
   return expectErrorContains(
@@ -811,13 +470,6 @@ module {
           "materialize Template selected boundary"))
     return result;
 
-  LoweringBoundaryOp oldBoundary =
-      findTemplateBoundary(kernel, templateVariant.getSymName());
-  if (int result =
-          expect(!oldBoundary,
-                 "Template selected path does not materialize the old "
-                 "metadata-only lowering_boundary"))
-    return result;
   if (int result = expect(mlir::succeeded(mlir::verify(*module)),
                           "Template selected role-boundary module verifies"))
     return result;
@@ -847,7 +499,7 @@ module {
           "Template emission readiness consumes exact construction result"))
     return result;
   const auto &constructionRoute =
-      weft::plugin::template_ext::getTemplateEmitCConstructionRoute();
+      weft::plugin::template_ext::getTemplateArtifactRoute();
   if (int result =
           expect(status.isSupported() &&
                      status.getOriginPlugin() ==
@@ -874,7 +526,7 @@ module {
   for (const auto &metadata : emissionPlan.getArtifactMetadata()) {
     if (metadata.key ==
             weft::plugin::template_ext::
-                getTemplateEmitCRouteMappingMetadataName() &&
+                getTemplateArtifactRouteMetadataName() &&
         metadata.value == constructionRoute.routeID)
       sawRouteMetadata = true;
     if (metadata.key ==
@@ -937,12 +589,6 @@ int main() {
   mlir::MLIRContext context(dialectRegistry);
   context.loadAllAvailableDialects();
 
-  if (int result = runConstructionManifestTest())
-    return result;
-  if (int result = runTypedRoleGraphValidationTest())
-    return result;
-  if (int result = runTemplateComputeRoleOpInterfaceTest(context))
-    return result;
   if (int result = runRegistrationAndCapabilityMetadataTest())
     return result;
   if (int result = runProposalGatingAndDeclineTest(context))

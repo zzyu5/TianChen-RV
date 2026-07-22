@@ -4,7 +4,7 @@
 #include "Weft/Conversion/EmitC/WEFTEmitCLowerableOpInterface.h"
 #include "Weft/Conversion/EmitC/TypedBackendEmissionDriver.h"
 #include "Weft/Dialect/TensorExtLite/IR/TensorExtLiteDialect.h"
-#include "Weft/Plugin/TensorExtLite/TensorExtLiteConstructionProtocol.h"
+#include "Weft/Plugin/TensorExtLite/TensorExtLiteFamilyContract.h"
 
 #include "mlir/Dialect/EmitC/IR/EmitC.h"
 #include "mlir/IR/Builders.h"
@@ -29,7 +29,6 @@ namespace weftemitc = ::weft::conversion::emitc;
 
 constexpr llvm::StringLiteral kOpInterface = "WEFTEmitCLowerableOpInterface";
 constexpr llvm::StringLiteral kSelectedVariantAttrName("selected_variant");
-constexpr llvm::StringLiteral kRoleAttrName("role");
 
 std::string routeSourceComment(llvm::StringRef opName, llvm::StringRef role) {
   std::string text;
@@ -63,8 +62,8 @@ std::string stepComment(llvm::StringRef opName, llvm::StringRef role,
 ///     // four route_source_op comments (one per role, in order)
 ///     // per role: source_op comment + a void call_opaque
 ///   }
-/// The anchor is the configure role op (role_order 0); the pattern collects the
-/// remaining roles from the same variant body and erases all four.
+/// The anchor is the typed configure root; the pattern follows the remaining
+/// family-local typed operations in the same variant body and erases all four.
 class TensorExtLiteRoleSequenceToEmitCFunc final
     : public mlir::OpConversionPattern<weft::tensorext_lite::ConfigSkeletonOp> {
 public:
@@ -81,46 +80,36 @@ public:
         kSelectedVariantAttrName);
     auto sourceKernel =
         config->getAttrOfType<mlir::StringAttr>("source_kernel");
-    auto role = config->getAttrOfType<mlir::StringAttr>(kRoleAttrName);
-    if (!variant || !sourceKernel || !role)
+    if (!variant || !sourceKernel)
       return rewriter.notifyMatchFailure(
-          config, "config_skeleton requires selected_variant, source_kernel "
-                  "and role attributes");
+          config, "config_skeleton requires selected_variant and "
+                  "source_kernel attributes");
 
     std::string functionName =
         ("weft_emitc_" + sourceKernel.getValue() + "_" + variant.getValue())
             .str();
 
-    mlir::Block *variantBlock = config->getBlock();
-    if (!variantBlock)
+    if (!config->getBlock())
       return rewriter.notifyMatchFailure(config, "config has no enclosing block");
 
     // Collect the already-qualified selected role sequence in its fixed
     // family construction order. Missing or duplicate roles decline the
     // conversion; no alternate route may synthesize them.
-    llvm::ArrayRef<TensorExtLiteFragmentMmaRoleStep> roleSteps =
-        getTensorExtLiteFragmentMmaRoleSteps();
+    llvm::ArrayRef<TensorExtLiteConstructionStep> constructionSteps =
+        getTensorExtLiteConstructionSteps();
     llvm::SmallVector<mlir::Operation *, 4> roleOps;
-    for (const TensorExtLiteFragmentMmaRoleStep &step : roleSteps) {
-      mlir::Operation *roleOp = nullptr;
-      for (mlir::Operation &op : *variantBlock) {
-        if (op.getName().getStringRef() != step.operationName)
-          continue;
-        auto opVariant =
-            op.getAttrOfType<mlir::FlatSymbolRefAttr>(kSelectedVariantAttrName);
-        auto opRole = op.getAttrOfType<mlir::StringAttr>(kRoleAttrName);
-        if (!opVariant || opVariant.getValue() != variant.getValue() ||
-            !opRole || opRole.getValue() != role.getValue())
-          continue;
-        if (roleOp)
-          return rewriter.notifyMatchFailure(
-              config, "selected role sequence has a duplicate role op");
-        roleOp = &op;
-      }
-      if (!roleOp)
+    mlir::Operation *current = config.getOperation();
+    for (const TensorExtLiteConstructionStep &step : constructionSteps) {
+      if (!current || current->getName().getStringRef() != step.operationName)
         return rewriter.notifyMatchFailure(
-            config, "selected role sequence is missing a role op");
-      roleOps.push_back(roleOp);
+            config, "typed construction sequence is incomplete or reordered");
+      auto opVariant = current->getAttrOfType<mlir::FlatSymbolRefAttr>(
+          kSelectedVariantAttrName);
+      if (!opVariant || opVariant.getValue() != variant.getValue())
+        return rewriter.notifyMatchFailure(
+            config, "typed construction sequence has conflicting ownership");
+      roleOps.push_back(current);
+      current = current->getNextNode();
     }
 
     // Resolve each role op's lowerable provenance (op name + role).
@@ -148,15 +137,21 @@ public:
     mlir::OpBuilder::InsertionGuard moduleGuard(rewriter);
     rewriter.setInsertionPointToEnd(module.getBody());
 
+    const TensorExtLiteArtifactRoute &artifactRoute =
+        getTensorExtLiteArtifactRoute();
+    const llvm::StringRef callees[] = {
+        artifactRoute.configCallee, artifactRoute.loadFragCallee,
+        artifactRoute.tileMmaCallee, artifactRoute.storeFragCallee};
+
     // Private callee declarations: void <callee>(); one per role, in order.
-    for (const TensorExtLiteFragmentMmaRoleStep &step : roleSteps) {
+    for (llvm::StringRef callee : callees) {
       mlir::FunctionType calleeType =
           rewriter.getFunctionType(/*inputs=*/{}, /*results=*/{});
       llvm::SmallVector<mlir::NamedAttribute, 1> calleeAttrs;
       calleeAttrs.push_back(rewriter.getNamedAttr(
           mlir::SymbolTable::getVisibilityAttrName(),
           rewriter.getStringAttr("private")));
-      rewriter.create<emitc::FuncOp>(loc, step.callee, calleeType, calleeAttrs);
+      rewriter.create<emitc::FuncOp>(loc, callee, calleeType, calleeAttrs);
     }
 
     // Exported function: extern "C" void <name>().
@@ -176,12 +171,12 @@ public:
           loc, routeSourceComment(lowerable.getWEFTEmitCLowerableSourceOpName(),
                                   lowerable.getWEFTEmitCLowerableSourceRole()));
     // ...then each role's source_op comment + a void call_opaque.
-    for (auto [step, lowerable] : llvm::zip(roleSteps, lowerables)) {
+    for (auto [callee, lowerable] : llvm::zip(callees, lowerables)) {
       rewriter.create<emitc::VerbatimOp>(
           loc, stepComment(lowerable.getWEFTEmitCLowerableSourceOpName(),
                            lowerable.getWEFTEmitCLowerableSourceRole(),
-                           step.callee));
-      rewriter.create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{}, step.callee,
+                           callee));
+      rewriter.create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{}, callee,
                                            mlir::ValueRange{});
     }
 

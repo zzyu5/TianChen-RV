@@ -3,7 +3,7 @@
 #include "Weft/Conversion/EmitC/BackendEmissionRegistry.h"
 #include "Weft/Conversion/EmitC/TypedBackendEmissionDriver.h"
 #include "Weft/Dialect/Demo/IR/DemoDialect.h"
-#include "Weft/Plugin/Demo/DemoConstructionProtocol.h"
+#include "Weft/Plugin/Demo/DemoFamilyContract.h"
 
 #include "mlir/Dialect/EmitC/IR/EmitC.h"
 #include "mlir/IR/Builders.h"
@@ -61,8 +61,7 @@ public:
       return rewriter.notifyMatchFailure(
           compute, "Demo final body requires source_kernel and selected_variant");
 
-    const DemoEmitCConstructionRoute &route =
-        getDemoEmitCConstructionRoute();
+    const DemoArtifactRoute &route = getDemoArtifactRoute();
     mlir::Location loc = compute.getLoc();
     mlir::MLIRContext *context = compute.getContext();
     auto module = compute->getParentOfType<mlir::ModuleOp>();

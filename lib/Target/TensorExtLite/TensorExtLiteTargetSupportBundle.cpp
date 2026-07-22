@@ -1,7 +1,8 @@
 #include "Weft/Target/TensorExtLite/TensorExtLiteTargetSupportBundle.h"
 
 #include "Weft/Plugin/ExtensionBundle.h"
-#include "Weft/Plugin/TensorExtLite/TensorExtLiteConstructionProtocol.h"
+#include "Weft/Plugin/TensorExtLite/TensorExtLiteFamilyContract.h"
+#include "Weft/Plugin/TensorExtLite/TensorExtLiteExtensionPlugin.h"
 #include "Weft/Target/ConstructionTemplateArtifactAdapter.h"
 #include "Weft/Target/TargetArtifactExport.h"
 #include "Weft/Target/TargetTranslateRegistration.h"
@@ -22,10 +23,6 @@ namespace weft::target::tensorext_lite {
 namespace {
 
 constexpr llvm::StringLiteral kDirectVariantRole("direct variant");
-constexpr llvm::StringLiteral kVariantFragmentABIAttrName(
-    "weft_tensorext_lite.fragment_abi");
-constexpr llvm::StringLiteral kVariantHandoffKindAttrName(
-    "weft_tensorext_lite.handoff_kind");
 constexpr llvm::StringLiteral kSourceFrontDoorAttrName(
     "weft_tensorext_lite.source_front_door");
 constexpr llvm::StringLiteral kSourceKernelModuleAttrName(
@@ -40,15 +37,9 @@ struct ScopedTempPath {
   }
 };
 
-const plugin::tensorext_lite::TensorExtLiteConstructionManifest &
-getTensorExtLiteManifest() {
-  return plugin::tensorext_lite::getTensorExtLiteConstructionManifest();
-}
-
-const plugin::tensorext_lite::TensorExtLiteFragmentMmaEmitCConstructionRoute &
+const plugin::tensorext_lite::TensorExtLiteArtifactRoute &
 getTensorExtLiteRoute() {
-  return plugin::tensorext_lite::
-      getTensorExtLiteFragmentMmaEmitCConstructionRoute();
+  return plugin::tensorext_lite::getTensorExtLiteArtifactRoute();
 }
 
 llvm::Error makeTensorExtLiteEmitCToCppRouteError(llvm::Twine message) {
@@ -167,13 +158,13 @@ llvm::Error compileTensorExtLiteGeneratedSourceToObject(llvm::StringRef source,
 
 SelectedEmitCArtifactRouteConfig
 getTensorExtLiteSelectedEmitCArtifactConfig(bool validateCandidate) {
-  const auto &manifest = getTensorExtLiteManifest();
   const auto &route = getTensorExtLiteRoute();
 
   SelectedEmitCArtifactRouteConfig config;
   config.routeID = route.routeID;
   config.artifactKind = route.artifactKind;
-  config.originPlugin = manifest.family.pluginName;
+  config.originPlugin =
+      plugin::tensorext_lite::getTensorExtLiteExtensionPluginName();
   config.routeDescription =
       "TensorExtLite fragment MMA materialized EmitC object artifact bridge";
   if (validateCandidate)
@@ -184,64 +175,25 @@ getTensorExtLiteSelectedEmitCArtifactConfig(bool validateCandidate) {
 ConstructionTemplateArtifactAdapterConfig
 getTensorExtLiteArtifactAdapterConfig() {
   static const llvm::StringRef kHeaderIncludes[] = {"stdint.h"};
-  static const ConstructionTemplateSelectedBoundaryAttributeExpectation
-      kBoundaryAttributeExpectations[] = {
-          {"fragment_abi", {}, kVariantFragmentABIAttrName},
-          {"handoff_kind", {}, kVariantHandoffKindAttrName},
-      };
   static const MaterializedEmitCHeaderArtifactMetadataEvidence
       kMetadataEvidence[] = {
           {"emitc_lowerable_route",
-           plugin::tensorext_lite::getTensorExtLiteEmitCLowerableRouteMetadataName(),
-           plugin::tensorext_lite::
-               getTensorExtLiteFragmentMmaEmitCConstructionRoute()
-                   .routeID},
-          {"role_sequence",
-           plugin::tensorext_lite::getTensorExtLiteRoleSequenceMetadataName(),
-           plugin::tensorext_lite::getTensorExtLiteConstructionManifest()
-               .semanticRoleGraph},
+           plugin::tensorext_lite::getTensorExtLiteArtifactRouteMetadataName(),
+           plugin::tensorext_lite::getTensorExtLiteArtifactRoute().routeID},
           {"source_ops",
            plugin::tensorext_lite::getTensorExtLiteSourceOpsMetadataName(),
-           plugin::tensorext_lite::getTensorExtLiteFragmentMmaSourceOps()},
+           "weft_tensorext_lite.config_skeleton->"
+           "weft_tensorext_lite.load_frag_skeleton->"
+           "weft_tensorext_lite.tile_mma_skeleton->"
+           "weft_tensorext_lite.store_frag_skeleton"},
           {"source_roles",
            plugin::tensorext_lite::getTensorExtLiteSourceRolesMetadataName(),
-           plugin::tensorext_lite::getTensorExtLiteFragmentMmaSourceRoles()},
+           "configure->load_frag->tile_mma->store_frag"},
           {"source_op_interface",
            plugin::tensorext_lite::getTensorExtLiteSourceOpInterfaceMetadataName(),
-           plugin::tensorext_lite::getTensorExtLiteEmitCLowerableOpInterfaceName()},
-          {"construction_protocol",
-           plugin::tensorext_lite::getTensorExtLiteConstructionProtocolMetadataName(),
-           plugin::tensorext_lite::getTensorExtLiteConstructionManifest()
-               .protocolVersion},
-          {"extension_archetype",
-           plugin::tensorext_lite::
-               getTensorExtLiteConstructionArchetypeMetadataName(),
-           plugin::tensorext_lite::getTensorExtLiteConstructionManifest()
-               .archetype},
-          {"semantic_role_graph",
-           plugin::tensorext_lite::getTensorExtLiteSemanticRoleGraphMetadataName(),
-           plugin::tensorext_lite::getTensorExtLiteConstructionManifest()
-               .semanticRoleGraph},
-          {"common_interface_realization",
-           plugin::tensorext_lite::
-               getTensorExtLiteCommonInterfaceRealizationMetadataName(),
-           plugin::tensorext_lite::
-               getTensorExtLiteConstructionInterfaceRealization()},
-          {"typed_role_realization",
-           plugin::tensorext_lite::getTensorExtLiteTypedRoleRealizationMetadataName(),
-           plugin::tensorext_lite::
-               getTensorExtLiteTypedRoleRealizationSummary()},
-          {"emitc_route_mapping",
-           plugin::tensorext_lite::getTensorExtLiteEmitCRouteMappingMetadataName(),
-           plugin::tensorext_lite::getTensorExtLiteConstructionManifest()
-               .emitcRoute.routeID},
-          {"evidence_profile",
-           plugin::tensorext_lite::getTensorExtLiteEvidenceProfileMetadataName(),
-           plugin::tensorext_lite::getTensorExtLiteConstructionManifest()
-               .evidenceProfile},
+           "WEFTEmitCLowerableOpInterface"},
       };
 
-  const auto &manifest = getTensorExtLiteManifest();
   const auto &route = getTensorExtLiteRoute();
 
   ConstructionTemplateArtifactAdapterConfig config;
@@ -252,11 +204,13 @@ getTensorExtLiteArtifactAdapterConfig() {
       "artifact adapter";
   config.headerRouteID = route.headerRouteID;
   config.headerArtifactKind = route.headerArtifactKind;
-  config.ownerPlugin = manifest.family.pluginName;
+  config.ownerPlugin =
+      plugin::tensorext_lite::getTensorExtLiteExtensionPluginName();
   config.headerGuard = "WEFT_TENSOREXTLITE_MATERIALIZED_EMITC_HEADER_H";
   config.evidencePrefix = "weft.tensorext_lite";
   config.includes = kHeaderIncludes;
-  config.selectedVariant = manifest.family.firstSliceVariantName;
+  config.selectedVariant =
+      plugin::tensorext_lite::getTensorExtLiteFragmentFirstSliceVariantName();
   config.emissionKind = route.emissionKind;
   config.loweringBoundary = route.loweringBoundaryOpName;
   config.runtimeABI = route.runtimeABI;
@@ -264,28 +218,19 @@ getTensorExtLiteArtifactAdapterConfig() {
   config.runtimeABIName = route.runtimeABIName;
   config.runtimeGlueRole = route.runtimeGlueRole;
   config.runtimeABIParameters =
-      plugin::tensorext_lite::getTensorExtLiteFragmentMmaRuntimeABIParameters();
+      plugin::tensorext_lite::getTensorExtLiteRuntimeABIParameters();
   config.metadataEvidence = kMetadataEvidence;
   config.componentGroup = route.bundleComponentGroup;
   config.externalABIName = route.runtimeABIName;
   config.handoffKind = route.objectHandoffKind;
   config.selectedObjectDescription =
       "TensorExtLite materialized EmitC object candidate";
-  config.selectedLoweringBoundary.required = true;
-  config.selectedLoweringBoundary.boundaryDescription =
-      "selected TensorExtLite construction-template artifact boundary";
-  config.selectedLoweringBoundary.status = "no-active-route";
-  config.selectedLoweringBoundary.extraStringAttributes =
-      kBoundaryAttributeExpectations;
   config.objectPackagerFn = compileTensorExtLiteGeneratedSourceToObject;
   return config;
 }
 
 llvm::Error validateTensorExtLiteSelectedObjectCandidate(
     const TargetArtifactCandidate &candidate) {
-  if (llvm::Error error =
-          plugin::tensorext_lite::verifyTensorExtLiteConstructionProtocolReady())
-    return error;
   if (llvm::StringRef(candidate.role) != kDirectVariantRole)
     return makeTensorExtLiteEmitCToCppRouteError(
         llvm::Twine("candidate selected path role must be '") +
@@ -300,7 +245,7 @@ llvm::Error requireTensorExtLiteArtifactPreconditions(mlir::ModuleOp module,
     if (llvm::Error error = requireTensorExtLiteSourceFrontDoorConsumed(module))
       return error;
 
-  return plugin::tensorext_lite::verifyTensorExtLiteConstructionProtocolReady();
+  return llvm::Error::success();
 }
 
 llvm::Error exportTensorExtLiteHeaderArtifact(mlir::ModuleOp module,
@@ -335,10 +280,6 @@ llvm::Error exportTensorExtLiteEmitCToCpp(mlir::ModuleOp module,
 
 llvm::Error registerTensorExtLiteTargetArtifactExporter(
     TargetArtifactExporterRegistry &registry) {
-  if (llvm::Error error =
-          plugin::tensorext_lite::verifyTensorExtLiteConstructionProtocolReady())
-    return error;
-
   return registerConstructionTemplateArtifactAdapterExporters(
       registry, getTensorExtLiteArtifactAdapterConfig(),
       exportTensorExtLiteObjectArtifact, exportTensorExtLiteHeaderArtifact);
@@ -360,7 +301,8 @@ llvm::StringRef getTensorExtLiteEmitCToCppTranslateRouteID() {
 
 llvm::Error registerTensorExtLiteTargetSupportPluginTargetExporterBundles(
     PluginTargetArtifactExporterRegistry &registry) {
-  llvm::StringRef pluginName = getTensorExtLiteManifest().family.pluginName;
+  llvm::StringRef pluginName =
+      plugin::tensorext_lite::getTensorExtLiteExtensionPluginName();
   if (const PluginTargetArtifactExporterBundle *existing =
           registry.lookup(pluginName)) {
     for (const PluginTargetArtifactExporterBundle &bundle :
@@ -385,9 +327,6 @@ configureTensorExtLiteTargetSupportExtensionBundle(
 
 llvm::Error registerTensorExtLiteTargetSupportTargetTranslateRoutes(
     TargetTranslateRouteRegistry &registry) {
-  if (llvm::Error error =
-          plugin::tensorext_lite::verifyTensorExtLiteConstructionProtocolReady())
-    return error;
   const auto &route = getTensorExtLiteRoute();
   if (registry.lookup(route.emitCToCppTranslateRouteID))
     return llvm::Error::success();

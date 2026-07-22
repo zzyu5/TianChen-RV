@@ -4,7 +4,7 @@
 #include "Weft/Conversion/EmitC/WEFTEmitCLowerableOpInterface.h"
 #include "Weft/Dialect/Template/IR/TemplateDialect.h"
 #include "Weft/Plugin/ExtensionBundle.h"
-#include "Weft/Plugin/Template/TemplateConstructionProtocol.h"
+#include "Weft/Plugin/Template/TemplateFamilyContract.h"
 #include "Weft/Target/Template/TemplateTargetSupportBundle.h"
 
 #include "mlir/IR/Attributes.h"
@@ -51,24 +51,6 @@ constexpr llvm::StringLiteral kTemplateExtensionGuard(
     "plugin_local_template_extension_handoff_metadata");
 constexpr llvm::StringLiteral kSourceKernelAttrName("source_kernel");
 constexpr llvm::StringLiteral kSelectedVariantAttrName("selected_variant");
-constexpr llvm::StringLiteral kOriginAttrName("origin");
-constexpr llvm::StringLiteral kRequiresAttrName("requires");
-constexpr llvm::StringLiteral kRoleAttrName("role");
-constexpr llvm::StringLiteral kStatusAttrName("status");
-constexpr llvm::StringLiteral kRequiredCapabilitiesAttrName(
-    "required_capabilities");
-constexpr llvm::StringLiteral kRoleOpBoundaryStatusValue("role-op-boundary");
-constexpr llvm::StringLiteral kTypedRoleAttrName("typed_role");
-constexpr llvm::StringLiteral kRoleOrderAttrName("role_order");
-constexpr llvm::StringLiteral kSourceRoleAttrName("source_role");
-constexpr llvm::StringLiteral kRoleSpecificInterfaceAttrName(
-    "role_specific_interface");
-constexpr llvm::StringLiteral kTemplateComputeTypedRoleID(
-    "template.role.compute.compute_skeleton");
-constexpr unsigned kTemplateComputeRoleOrder = 2;
-constexpr llvm::StringLiteral kTemplateComputeSourceRole("compute");
-constexpr llvm::StringLiteral kTemplateComputeRoleSpecificInterface(
-    "WEFTComputeOpInterface");
 
 struct TemplateExtensionCapabilityView {
   std::string integrationContract;
@@ -238,28 +220,6 @@ buildTemplateExtensionProposal(const VariantProposalRequest &request) {
   return proposal;
 }
 
-mlir::StringAttr getStringAttr(mlir::Operation *op, llvm::StringRef name) {
-  return op ? op->getAttrOfType<mlir::StringAttr>(name) : mlir::StringAttr();
-}
-
-llvm::Error validateBoundaryStringAttr(mlir::Operation *op,
-                                       llvm::StringRef attrName,
-                                       llvm::StringRef expectedValue) {
-  auto attr = getStringAttr(op, attrName);
-  if (!attr || attr.getValue().trim().empty())
-    return makeTemplatePluginError(
-        llvm::Twine("Template lowering-boundary validation requires non-empty "
-                    "string attribute '") +
-        attrName + "'");
-  if (attr.getValue().trim() != expectedValue)
-    return makeTemplatePluginError(
-        llvm::Twine("Template lowering-boundary attribute '") + attrName +
-        "' value '" + attr.getValue().trim() +
-        "' does not match expected selected-path value '" + expectedValue +
-        "'");
-  return llvm::Error::success();
-}
-
 llvm::Expected<conversion::emitc::WEFTEmitCSourceOpProvenance>
 getTemplateConstructedSource(const VariantEmissionRequest &request) {
   auto compute = llvm::dyn_cast_if_present<weft::template_ext::ComputeSkeletonOp>(
@@ -284,14 +244,10 @@ getTemplateConstructedSource(const VariantEmissionRequest &request) {
 
 mlir::Operation *materializeTemplateComputeSkeletonBoundary(
     const VariantLoweringBoundaryRequest &request) {
-  llvm::StringRef expectedRole =
-      stringifyVariantEmissionRole(request.getRole());
   if (!request.getKernel().getBody().empty()) {
     for (mlir::Operation &op : request.getKernel().getBody().front()) {
       auto body = llvm::dyn_cast<weft::template_ext::ComputeSkeletonOp>(op);
-      auto role = op.getAttrOfType<mlir::StringAttr>(kRoleAttrName);
-      if (body && role && role.getValue() == expectedRole &&
-          isOperationSelectedForVariant(&op, request.getVariant()))
+      if (body && isOperationSelectedForVariant(&op, request.getVariant()))
         return &op;
     }
   }
@@ -301,31 +257,12 @@ mlir::Operation *materializeTemplateComputeSkeletonBoundary(
   weft::exec::VariantOp variant = request.getVariant();
   weft::exec::KernelOp kernel = request.getKernel();
 
-  auto variantRequires =
-      variant->getAttrOfType<mlir::ArrayAttr>(kRequiresAttrName);
   mlir::OperationState state(variant.getLoc(), "weft_template.compute_skeleton");
   state.addAttribute(kSourceKernelAttrName,
                      builder.getStringAttr(kernel.getSymName()));
   state.addAttribute(kSelectedVariantAttrName,
                      mlir::FlatSymbolRefAttr::get(context,
                                                   variant.getSymName()));
-  state.addAttribute(kOriginAttrName,
-                     builder.getStringAttr(kTemplatePluginName));
-  state.addAttribute(kRoleAttrName,
-                     builder.getStringAttr(
-                         stringifyVariantEmissionRole(request.getRole())));
-  state.addAttribute(kStatusAttrName,
-                     builder.getStringAttr(kRoleOpBoundaryStatusValue));
-  state.addAttribute(kRequiredCapabilitiesAttrName, variantRequires);
-  state.addAttribute(kTypedRoleAttrName,
-                     builder.getStringAttr(kTemplateComputeTypedRoleID));
-  state.addAttribute(kRoleOrderAttrName,
-                     builder.getI64IntegerAttr(kTemplateComputeRoleOrder));
-  state.addAttribute(kSourceRoleAttrName,
-                     builder.getStringAttr(kTemplateComputeSourceRole));
-  state.addAttribute(
-      kRoleSpecificInterfaceAttrName,
-      builder.getStringAttr(kTemplateComputeRoleSpecificInterface));
   return builder.create(state);
 }
 
@@ -555,7 +492,7 @@ llvm::Error TemplateExtensionPlugin::checkVariantEmissionReadiness(
 
   out = VariantEmissionStatus::getSupported(
       kTemplatePluginName, request.getVariant().getSymName(),
-      template_ext::getTemplateEmitCConstructionRoute().routeID);
+      template_ext::getTemplateArtifactRoute().routeID);
   return llvm::Error::success();
 }
 
@@ -584,28 +521,26 @@ llvm::Error TemplateExtensionPlugin::buildVariantEmissionPlan(
   if (!source)
     return source.takeError();
 
-  const template_ext::TemplateConstructionManifest &manifest =
-      template_ext::getTemplateConstructionManifest();
-  const template_ext::TemplateEmitCConstructionRoute &constructionRoute =
-      template_ext::getTemplateEmitCConstructionRoute();
+  const template_ext::TemplateArtifactRoute &artifactRoute =
+      template_ext::getTemplateArtifactRoute();
 
   out = VariantEmissionPlan::getSupported(
       kTemplatePluginName, request.getKernel().getSymName(),
       request.getVariant().getSymName(), request.getRole(),
-      constructionRoute.emissionKind, constructionRoute.routeID,
-      constructionRoute.runtimeABI, constructionRoute.artifactKind,
+      artifactRoute.emissionKind, artifactRoute.routeID,
+      artifactRoute.runtimeABI, artifactRoute.artifactKind,
       "Template selected compute_skeleton route materializes a verified EmitC "
       "module through the common WEFTEmitCLowerableRoute materializer and "
       "exports generated C++ through the MLIR EmitC C/C++ emitter");
-  out.setRuntimeABIKind(constructionRoute.runtimeABIKind);
-  out.setRuntimeABIName(constructionRoute.runtimeABIName);
-  out.setRuntimeGlueRole(constructionRoute.runtimeGlueRole);
-  out.setLoweringBoundaryOpName(constructionRoute.loweringBoundaryOpName);
+  out.setRuntimeABIKind(artifactRoute.runtimeABIKind);
+  out.setRuntimeABIName(artifactRoute.runtimeABIName);
+  out.setRuntimeGlueRole(artifactRoute.runtimeGlueRole);
+  out.setLoweringBoundaryOpName(artifactRoute.loweringBoundaryOpName);
   out.addRuntimeABIParameters(
       template_ext::getTemplateRuntimeABIParameters());
   out.addArtifactMetadata(
-      template_ext::getTemplateEmitCRouteMappingMetadataName(),
-      constructionRoute.routeID);
+      template_ext::getTemplateArtifactRouteMetadataName(),
+      artifactRoute.routeID);
   out.addArtifactMetadata(template_ext::getTemplateSourceOpMetadataName(),
                           source->opName);
   out.addArtifactMetadata(template_ext::getTemplateSourceRoleMetadataName(),
@@ -613,14 +548,6 @@ llvm::Error TemplateExtensionPlugin::buildVariantEmissionPlan(
   out.addArtifactMetadata(
       template_ext::getTemplateSourceOpInterfaceMetadataName(),
       source->opInterface);
-  out.addArtifactMetadata(
-      template_ext::getTemplateConstructionProtocolMetadataName(),
-      manifest.protocolVersion);
-  out.addArtifactMetadata(template_ext::getTemplateSemanticRoleGraphMetadataName(),
-                          manifest.semanticRoleGraph);
-  out.addArtifactMetadata(
-      template_ext::getTemplateTypedRoleRealizationMetadataName(),
-      template_ext::getTemplateTypedRoleRealizationSummary());
   if (llvm::Error error =
           out.setRequiredCapabilitySymbolsFromVariant(request.getVariant()))
     return error;
@@ -671,61 +598,20 @@ llvm::Error TemplateExtensionPlugin::validateSelectedLoweringBoundary(
     return makeTemplatePluginError(
         "selected Template path requires a weft_template.compute_skeleton operation");
 
-  if (llvm::Error error =
-          validateBoundaryStringAttr(boundary.getOperation(),
-                                     kSourceKernelAttrName,
-                                     request.getKernel().getSymName()))
-    return error;
-  if (llvm::Error error =
-          validateBoundaryStringAttr(boundary.getOperation(), kOriginAttrName,
-                                     kTemplatePluginName))
-    return error;
-  if (llvm::Error error =
-          validateBoundaryStringAttr(
-              boundary.getOperation(), kRoleAttrName,
-              stringifyVariantEmissionRole(request.getRole())))
-    return error;
-  if (llvm::Error error =
-          validateBoundaryStringAttr(boundary.getOperation(), kStatusAttrName,
-                                     kRoleOpBoundaryStatusValue))
-    return error;
-  if (llvm::Error error = validateBoundaryStringAttr(
-          boundary.getOperation(), kTypedRoleAttrName,
-          kTemplateComputeTypedRoleID))
-    return error;
-  if (llvm::Error error = validateBoundaryStringAttr(
-          boundary.getOperation(), kSourceRoleAttrName,
-          kTemplateComputeSourceRole))
-    return error;
-  if (llvm::Error error = validateBoundaryStringAttr(
-          boundary.getOperation(), kRoleSpecificInterfaceAttrName,
-          kTemplateComputeRoleSpecificInterface))
-    return error;
-
-  auto selectedVariant =
-      boundary->getAttrOfType<mlir::FlatSymbolRefAttr>(
-          kSelectedVariantAttrName);
-  if (!selectedVariant ||
-      selectedVariant.getValue() != request.getVariant().getSymName())
+  if (!request.getKernel() ||
+      boundary->getParentOp() != request.getKernel().getOperation())
     return makeTemplatePluginError(
-        "Template lowering-boundary selected_variant must match selected variant");
-
-  auto requiredCapabilities =
-      boundary->getAttrOfType<mlir::ArrayAttr>(kRequiredCapabilitiesAttrName);
-  auto variantRequires =
-      request.getVariant()->getAttrOfType<mlir::ArrayAttr>(kRequiresAttrName);
-  if (!requiredCapabilities || !variantRequires ||
-      requiredCapabilities != variantRequires)
+        "Template compute_skeleton must belong directly to the selected "
+        "kernel");
+  if (boundary.getSourceKernelAttr().getValue() !=
+      request.getKernel().getSymName())
     return makeTemplatePluginError(
-        "Template lowering-boundary required_capabilities must match selected "
-        "variant requires metadata");
-
-  auto roleOrder =
-      boundary->getAttrOfType<mlir::IntegerAttr>(kRoleOrderAttrName);
-  if (!roleOrder || roleOrder.getInt() != kTemplateComputeRoleOrder)
+        "Template compute_skeleton source_kernel must match selected kernel");
+  if (boundary.getSelectedVariantAttr().getValue() !=
+      request.getVariant().getSymName())
     return makeTemplatePluginError(
-        "Template compute_skeleton role_order must match the construction "
-        "typed-role realization");
+        "Template compute_skeleton selected_variant must match selected "
+        "variant");
 
   if (!llvm::isa<conversion::emitc::WEFTEmitCLowerableOpInterface>(
           boundary.getOperation()))

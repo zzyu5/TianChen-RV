@@ -3,7 +3,7 @@
 #include "Weft/Conversion/EmitC/BackendEmissionRegistry.h"
 #include "Weft/Conversion/EmitC/TypedBackendEmissionDriver.h"
 #include "Weft/Dialect/Template/IR/TemplateDialect.h"
-#include "Weft/Plugin/Template/TemplateConstructionProtocol.h"
+#include "Weft/Plugin/Template/TemplateFamilyContract.h"
 #include "Weft/Support/RuntimeABI.h"
 
 #include "mlir/Dialect/EmitC/IR/EmitC.h"
@@ -92,8 +92,7 @@ public:
         ("weft_emitc_" + sourceKernel.getValue() + "_" + variant.getValue())
             .str();
 
-    const TemplateEmitCConstructionRoute &route =
-        getTemplateEmitCConstructionRoute();
+    const TemplateArtifactRoute &route = getTemplateArtifactRoute();
     llvm::ArrayRef<support::RuntimeABIParameter> abiParameters =
         getTemplateRuntimeABIParameters();
 

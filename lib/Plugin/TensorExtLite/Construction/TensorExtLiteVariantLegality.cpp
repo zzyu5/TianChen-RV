@@ -1,4 +1,4 @@
-#include "Weft/Plugin/TensorExtLite/TensorExtLiteConstructionProtocol.h"
+#include "Weft/Plugin/TensorExtLite/TensorExtLiteFamilyContract.h"
 
 #include "Weft/Dialect/Exec/IR/ExecOps.h"
 #include "Weft/Support/CapabilityModel.h"

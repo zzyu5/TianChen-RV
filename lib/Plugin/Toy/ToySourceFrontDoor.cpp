@@ -3,7 +3,6 @@
 #include "Weft/Dialect/Exec/IR/ExecOps.h"
 #include "Weft/Dialect/Toy/IR/ToyDialect.h"
 #include "Weft/Plugin/ExtensionPlugin.h"
-#include "Weft/Plugin/Toy/ToyConstructionProtocol.h"
 #include "Weft/Plugin/Toy/ToyExtensionPlugin.h"
 
 #include "mlir/IR/Builders.h"
@@ -31,27 +30,11 @@ constexpr llvm::StringLiteral kOriginAttrName("origin");
 constexpr llvm::StringLiteral kRequiresAttrName("requires");
 constexpr llvm::StringLiteral kSourceKernelBoundaryAttrName("source_kernel");
 constexpr llvm::StringLiteral kSelectedVariantAttrName("selected_variant");
-constexpr llvm::StringLiteral kRoleAttrName("role");
-constexpr llvm::StringLiteral kStatusAttrName("status");
-constexpr llvm::StringLiteral kRequiredCapabilitiesAttrName(
-    "required_capabilities");
-constexpr llvm::StringLiteral kTypedRoleAttrName("typed_role");
-constexpr llvm::StringLiteral kRoleOrderAttrName("role_order");
-constexpr llvm::StringLiteral kSourceRoleAttrName("source_role");
-constexpr llvm::StringLiteral kRoleSpecificInterfaceAttrName(
-    "role_specific_interface");
 constexpr llvm::StringLiteral kTemplateReasonAttrName("template_reason");
-constexpr llvm::StringLiteral kRoleOpBoundaryStatusValue("role-op-boundary");
-constexpr llvm::StringLiteral kToyComputeTypedRoleID(
-    "toy.role.compute.compute_skeleton");
-constexpr llvm::StringLiteral kToyComputeSourceRole("compute");
-constexpr llvm::StringLiteral kToyComputeRoleSpecificInterface(
-    "WEFTComputeOpInterface");
 constexpr llvm::StringLiteral kSelectedDiagnosticMessage(
     "selected Toy source front-door route");
 constexpr llvm::StringLiteral kTemplateReason(
     "toy-source-front-door-template-compute");
-constexpr std::int64_t kToyComputeRoleOrder = 2;
 
 mlir::LogicalResult failMaterializer(mlir::Operation *op,
                                      llvm::StringRef message) {
@@ -192,30 +175,12 @@ void createToyTemplateVariant(mlir::OpBuilder &builder, mlir::Location loc,
 
 void createToyComputeSkeletonBoundary(mlir::OpBuilder &builder,
                                       mlir::Location loc,
-                                      llvm::StringRef kernelName,
-                                      mlir::ArrayAttr requires) {
+                                      llvm::StringRef kernelName) {
   mlir::OperationState state(loc, "weft_toy.compute_skeleton");
   state.addAttribute(kSourceKernelBoundaryAttrName,
                      builder.getStringAttr(kernelName));
   state.addAttribute(kSelectedVariantAttrName,
                      symbolRef(builder, getToyTemplateFirstSliceVariantName()));
-  state.addAttribute(kOriginAttrName,
-                     builder.getStringAttr(getToyExtensionPluginName()));
-  state.addAttribute(
-      kRoleAttrName,
-      builder.getStringAttr(
-          stringifyVariantEmissionRole(VariantEmissionRole::DirectVariant)));
-  state.addAttribute(kStatusAttrName,
-                     builder.getStringAttr(kRoleOpBoundaryStatusValue));
-  state.addAttribute(kRequiredCapabilitiesAttrName, requires);
-  state.addAttribute(kTypedRoleAttrName,
-                     builder.getStringAttr(kToyComputeTypedRoleID));
-  state.addAttribute(kRoleOrderAttrName,
-                     builder.getI64IntegerAttr(kToyComputeRoleOrder));
-  state.addAttribute(kSourceRoleAttrName,
-                     builder.getStringAttr(kToyComputeSourceRole));
-  state.addAttribute(kRoleSpecificInterfaceAttrName,
-                     builder.getStringAttr(kToyComputeRoleSpecificInterface));
   state.addAttribute(kTemplateReasonAttrName,
                      builder.getStringAttr(kTemplateReason));
   (void)builder.create(state);
@@ -254,7 +219,7 @@ void materializeToySourceKernel(mlir::OpBuilder &builder,
   mlir::ArrayAttr requires =
       builder.getArrayAttr({symbolRef(builder, kToyCapabilitySymbol)});
   createToyTemplateVariant(builder, loc, requires);
-  createToyComputeSkeletonBoundary(builder, loc, kernelName, requires);
+  createToyComputeSkeletonBoundary(builder, loc, kernelName);
   createSelectedToyDiagnostic(builder, loc);
 }
 

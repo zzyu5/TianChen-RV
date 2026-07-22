@@ -1,4 +1,4 @@
-#include "Weft/Plugin/Demo/DemoConstructionProtocol.h"
+#include "Weft/Plugin/Demo/DemoFamilyContract.h"
 
 #include "Weft/Dialect/Exec/IR/ExecOps.h"
 #include "Weft/Support/CapabilityModel.h"

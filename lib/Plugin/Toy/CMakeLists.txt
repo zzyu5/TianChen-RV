@@ -1,12 +1,11 @@
-add_mlir_library(WeftToyConstructionProtocol
-  ToyConstructionProtocol.cpp
+add_mlir_library(WeftToyFamilyContract
+  ToyFamilyContract.cpp
   ToyVariantLegality.cpp
 
   PARTIAL_SOURCES_INTENDED
 
   LINK_LIBS PUBLIC
   WeftExecDialect
-  WeftPluginConstructionProtocol
   WeftSupport
   MLIRIR
   MLIRSupport
@@ -20,7 +19,7 @@ add_mlir_library(WeftToyBackendEmitter
   LINK_LIBS PUBLIC
   WeftConversionEmitC
   WeftExecDialect
-  WeftToyConstructionProtocol
+  WeftToyFamilyContract
   WeftSupport
   WeftToyDialect
   MLIREmitCDialect
@@ -39,7 +38,7 @@ add_mlir_library(WeftToyPlugin
   WeftConversionEmitC
   WeftPlugin
   WeftSupport
-  WeftToyConstructionProtocol
+  WeftToyFamilyContract
   WeftToyDialect
   WeftToyTarget
   MLIRFuncDialect

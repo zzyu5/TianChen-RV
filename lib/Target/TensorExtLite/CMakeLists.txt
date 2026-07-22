@@ -8,7 +8,7 @@ add_mlir_library(WeftTensorExtLiteTarget
   WeftSupport
   WeftTarget
   WeftTensorExtLiteDialect
-  WeftTensorExtLiteConstructionProtocol
+  WeftTensorExtLiteFamilyContract
   MLIREmitCDialect
   MLIRIR
   MLIRSupport

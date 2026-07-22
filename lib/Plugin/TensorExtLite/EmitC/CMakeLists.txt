@@ -7,7 +7,7 @@ add_mlir_library(WeftTensorExtLiteBackendEmitter
   WeftConversionEmitC
   WeftExecDialect
   WeftPlugin
-  WeftTensorExtLiteConstructionProtocol
+  WeftTensorExtLiteFamilyContract
   WeftTensorExtLiteDialect
   WeftSupport
   MLIREmitCDialect

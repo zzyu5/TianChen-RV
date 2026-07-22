@@ -1,7 +1,8 @@
 #include "Weft/Target/Template/TemplateTargetSupportBundle.h"
 
 #include "Weft/Plugin/ExtensionBundle.h"
-#include "Weft/Plugin/Template/TemplateConstructionProtocol.h"
+#include "Weft/Plugin/Template/TemplateFamilyContract.h"
+#include "Weft/Plugin/Template/TemplateExtensionPlugin.h"
 #include "Weft/Target/ConstructionTemplateArtifactAdapter.h"
 #include "Weft/Target/TargetTranslateRegistration.h"
 
@@ -34,14 +35,8 @@ struct ScopedTempPath {
   }
 };
 
-const plugin::template_ext::TemplateConstructionManifest &
-getTemplateManifest() {
-  return plugin::template_ext::getTemplateConstructionManifest();
-}
-
-const plugin::template_ext::TemplateEmitCConstructionRoute &
-getTemplateRoute() {
-  return plugin::template_ext::getTemplateEmitCConstructionRoute();
+const plugin::template_ext::TemplateArtifactRoute &getTemplateRoute() {
+  return plugin::template_ext::getTemplateArtifactRoute();
 }
 
 llvm::Error makeTemplateTargetRouteError(llvm::Twine message) {
@@ -57,9 +52,6 @@ llvm::Error compileTemplateGeneratedSourceToObject(llvm::StringRef source,
 
 llvm::Error validateTemplateSelectedObjectCandidate(
     const TargetArtifactCandidate &candidate) {
-  if (llvm::Error error =
-          plugin::template_ext::verifyTemplateConstructionProtocolReady())
-    return error;
   if (llvm::StringRef(candidate.role) != kDirectVariantRole)
     return makeTemplateTargetRouteError(
         llvm::Twine("candidate selected path role must be '") +
@@ -70,13 +62,13 @@ llvm::Error validateTemplateSelectedObjectCandidate(
 
 SelectedEmitCArtifactRouteConfig
 getTemplateSelectedEmitCArtifactConfig(bool validateCandidate) {
-  const auto &manifest = getTemplateManifest();
   const auto &route = getTemplateRoute();
 
   SelectedEmitCArtifactRouteConfig config;
   config.routeID = route.routeID;
   config.artifactKind = route.artifactKind;
-  config.originPlugin = manifest.family.pluginName;
+  config.originPlugin =
+      plugin::template_ext::getTemplateExtensionPluginName();
   config.routeDescription =
       "Template construction-template materialized EmitC artifact adapter";
   if (validateCandidate)
@@ -90,11 +82,11 @@ getTemplateArtifactAdapterConfig() {
   static const MaterializedEmitCHeaderArtifactMetadataEvidence
       kMetadataEvidence[] = {
           {"emitc_lowerable_route",
-           plugin::template_ext::getTemplateEmitCRouteMappingMetadataName(),
-           plugin::template_ext::getTemplateEmitCConstructionRoute().routeID},
+           plugin::template_ext::getTemplateArtifactRouteMetadataName(),
+           plugin::template_ext::getTemplateArtifactRoute().routeID},
           {"source_op",
            plugin::template_ext::getTemplateSourceOpMetadataName(),
-           plugin::template_ext::getTemplateEmitCConstructionRoute()
+           plugin::template_ext::getTemplateArtifactRoute()
                .loweringBoundaryOpName},
           {"source_role",
            plugin::template_ext::getTemplateSourceRoleMetadataName(),
@@ -102,20 +94,8 @@ getTemplateArtifactAdapterConfig() {
           {"source_op_interface",
            plugin::template_ext::getTemplateSourceOpInterfaceMetadataName(),
            kEmitCLowerableOpInterfaceName},
-          {"construction_protocol",
-           plugin::template_ext::getTemplateConstructionProtocolMetadataName(),
-           plugin::template_ext::getTemplateConstructionManifest()
-               .protocolVersion},
-          {"semantic_role_graph",
-           plugin::template_ext::getTemplateSemanticRoleGraphMetadataName(),
-           plugin::template_ext::getTemplateConstructionManifest()
-               .semanticRoleGraph},
-          {"typed_role_realization",
-           plugin::template_ext::getTemplateTypedRoleRealizationMetadataName(),
-           plugin::template_ext::getTemplateTypedRoleRealizationSummary()},
       };
 
-  const auto &manifest = getTemplateManifest();
   const auto &route = getTemplateRoute();
 
   ConstructionTemplateArtifactAdapterConfig config;
@@ -123,12 +103,14 @@ getTemplateArtifactAdapterConfig() {
       getTemplateSelectedEmitCArtifactConfig(/*validateCandidate=*/true);
   config.headerRouteID = route.headerRouteID;
   config.headerArtifactKind = route.headerArtifactKind;
-  config.ownerPlugin = manifest.family.pluginName;
+  config.ownerPlugin =
+      plugin::template_ext::getTemplateExtensionPluginName();
   config.headerGuard =
       "WEFT_TEMPLATE_MATERIALIZED_EMITC_HEADER_H";
   config.evidencePrefix = "weft.template";
   config.includes = kHeaderIncludes;
-  config.selectedVariant = manifest.family.firstSliceVariantName;
+  config.selectedVariant =
+      plugin::template_ext::getTemplateExtensionFirstSliceVariantName();
   config.emissionKind = route.emissionKind;
   config.loweringBoundary = route.loweringBoundaryOpName;
   config.runtimeABI = route.runtimeABI;
@@ -249,19 +231,12 @@ llvm::Error exportTemplateObjectArtifact(mlir::ModuleOp module,
 llvm::Error exportTemplateEmitCToCpp(mlir::ModuleOp module,
                                      const plugin::ExtensionPluginRegistry &plugins,
                                      llvm::raw_ostream &os) {
-  if (llvm::Error error =
-          plugin::template_ext::verifyTemplateConstructionProtocolReady())
-    return error;
   return exportConstructionTemplateEmitCToCpp(
       module, plugins, os, getTemplateArtifactAdapterConfig());
 }
 
 llvm::Error registerTemplateObjectBundleTargetArtifactExporter(
     TargetArtifactExporterRegistry &registry) {
-  if (llvm::Error error =
-          plugin::template_ext::verifyTemplateConstructionProtocolReady())
-    return error;
-
   return registerConstructionTemplateArtifactAdapterExporters(
       registry, getTemplateArtifactAdapterConfig(),
       exportTemplateObjectArtifact, exportTemplateHeaderArtifact);
@@ -283,7 +258,8 @@ llvm::StringRef getTemplateEmitCToCppTranslateRouteID() {
 
 llvm::Error registerTemplateTargetSupportPluginTargetExporterBundles(
     PluginTargetArtifactExporterRegistry &registry) {
-  llvm::StringRef pluginName = getTemplateManifest().family.pluginName;
+  llvm::StringRef pluginName =
+      plugin::template_ext::getTemplateExtensionPluginName();
   if (const PluginTargetArtifactExporterBundle *existing =
       registry.lookup(pluginName)) {
     for (const PluginTargetArtifactExporterBundle &bundle :
@@ -307,9 +283,6 @@ configureTemplateTargetSupportExtensionBundle(plugin::ExtensionBundle &bundle) {
 
 llvm::Error registerTemplateTargetSupportTargetTranslateRoutes(
     TargetTranslateRouteRegistry &registry) {
-  if (llvm::Error error =
-          plugin::template_ext::verifyTemplateConstructionProtocolReady())
-    return error;
   const auto &route = getTemplateRoute();
   if (registry.lookup(route.emitCToCppTranslateRouteID))
     return llvm::Error::success();

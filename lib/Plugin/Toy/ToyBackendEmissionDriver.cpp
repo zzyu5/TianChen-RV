@@ -3,7 +3,7 @@
 #include "Weft/Conversion/EmitC/BackendEmissionRegistry.h"
 #include "Weft/Conversion/EmitC/TypedBackendEmissionDriver.h"
 #include "Weft/Dialect/Toy/IR/ToyDialect.h"
-#include "Weft/Plugin/Toy/ToyConstructionProtocol.h"
+#include "Weft/Plugin/Toy/ToyFamilyContract.h"
 #include "Weft/Support/RuntimeABI.h"
 
 #include "mlir/Dialect/EmitC/IR/EmitC.h"
@@ -94,10 +94,9 @@ public:
         ("weft_emitc_" + sourceKernel.getValue() + "_" + variant.getValue())
             .str();
 
-    const ToyTemplateEmitCConstructionRoute &route =
-        getToyTemplateEmitCConstructionRoute();
+    const ToyArtifactRoute &route = getToyArtifactRoute();
     llvm::ArrayRef<support::RuntimeABIParameter> abiParameters =
-        getToyTemplateRuntimeABIParameters();
+        getToyRuntimeABIParameters();
 
     llvm::StringRef sourceOpName =
         compute.getWEFTEmitCLowerableSourceOpName();

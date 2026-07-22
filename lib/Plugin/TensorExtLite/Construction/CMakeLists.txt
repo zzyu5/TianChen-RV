@@ -1,11 +1,10 @@
-add_mlir_library(WeftTensorExtLiteConstructionProtocol
-  TensorExtLiteConstructionProtocol.cpp
+add_mlir_library(WeftTensorExtLiteFamilyContract
+  TensorExtLiteFamilyContract.cpp
   TensorExtLiteVariantLegality.cpp
 
   LINK_LIBS PUBLIC
   WeftConversionEmitC
   WeftExecDialect
-  WeftPluginConstructionProtocol
   WeftSupport
   MLIRIR
   MLIRSupport

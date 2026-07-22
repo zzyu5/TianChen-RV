@@ -1,12 +1,11 @@
-add_mlir_library(WeftTemplateConstructionProtocol
-  TemplateConstructionProtocol.cpp
+add_mlir_library(WeftTemplateFamilyContract
+  TemplateFamilyContract.cpp
   TemplateVariantLegality.cpp
 
   PARTIAL_SOURCES_INTENDED
 
   LINK_LIBS PUBLIC
   WeftExecDialect
-  WeftPluginConstructionProtocol
   WeftSupport
   MLIRIR
   MLIRSupport
@@ -20,7 +19,7 @@ add_mlir_library(WeftTemplateBackendEmitter
   LINK_LIBS PUBLIC
   WeftConversionEmitC
   WeftExecDialect
-  WeftTemplateConstructionProtocol
+  WeftTemplateFamilyContract
   WeftSupport
   WeftTemplateDialect
   MLIREmitCDialect
@@ -38,7 +37,7 @@ add_mlir_library(WeftTemplatePlugin
   WeftConversionEmitC
   WeftPlugin
   WeftSupport
-  WeftTemplateConstructionProtocol
+  WeftTemplateFamilyContract
   WeftTemplateDialect
   WeftTemplateTarget
   MLIRIR
