@@ -1,0 +1,82 @@
+# Every production backend must name and execute a family-local construction
+# entry.  The shared interface deliberately has no implicit success path.
+# RUN: rg -n 'prepareForConversion\(mlir::ModuleOp module\) const = 0' %S/../../include/Weft/Conversion/EmitC/TypedBackendEmissionDriver.h | FileCheck %s --check-prefix=PURE
+# RUN: not rg -n 'prepareForConversion\(mlir::ModuleOp module\) const \{' %S/../../include/Weft/Conversion/EmitC/TypedBackendEmissionDriver.h
+# RUN: rg -n 'getConstructionEntryNames\(\) const override' %S/../../lib/Conversion/RVV/RVVToEmitC.cpp | FileCheck %s --check-prefix=RVV
+# RUN: rg -n 'getConstructionEntryNames\(\) const override' %S/../../lib/Plugin/Demo/DemoBackendEmissionDriver.cpp | FileCheck %s --check-prefix=DEMO
+# RUN: rg -n 'getConstructionEntryNames\(\) const override' %S/../../lib/Plugin/IME/IMEBackendEmissionDriver.cpp | FileCheck %s --check-prefix=IME
+# RUN: rg -n 'getConstructionEntryNames\(\) const override' %S/../../lib/Plugin/Scalar/ScalarBackendEmissionDriver.cpp | FileCheck %s --check-prefix=SCALAR
+# RUN: rg -n 'getConstructionEntryNames\(\) const override' %S/../../lib/Plugin/Toy/ToyBackendEmissionDriver.cpp | FileCheck %s --check-prefix=TOY
+# RUN: rg -n 'getConstructionEntryNames\(\) const override' %S/../../lib/Plugin/Template/TemplateBackendEmissionDriver.cpp | FileCheck %s --check-prefix=TEMPLATE
+# RUN: rg -n 'getConstructionEntryNames\(\) const override' %S/../../lib/Plugin/TensorExtLite/EmitC/TensorExtLiteBackendEmissionDriver.cpp | FileCheck %s --check-prefix=TENSOR
+# RUN: rg -n 'constructRVVFormulaBodies\(module\)' %S/../../lib/Conversion/RVV/RVVToEmitC.cpp | FileCheck %s --check-prefix=RVV-CALL
+# RUN: rg -n 'return constructDemoFinalBody\(module\)' %S/../../lib/Plugin/Demo/DemoBackendEmissionDriver.cpp | FileCheck %s --check-prefix=DEMO-CALL
+# RUN: rg -n 'return constructIMEFinalPlans\(module\)' %S/../../lib/Plugin/IME/IMEBackendEmissionDriver.cpp | FileCheck %s --check-prefix=IME-CALL
+# RUN: rg -n 'return constructScalarFinalPlans\(module\)' %S/../../lib/Plugin/Scalar/ScalarBackendEmissionDriver.cpp | FileCheck %s --check-prefix=SCALAR-CALL
+# RUN: rg -n 'return constructToyFinalBody\(module\)' %S/../../lib/Plugin/Toy/ToyBackendEmissionDriver.cpp | FileCheck %s --check-prefix=TOY-CALL
+# RUN: rg -n 'return constructTemplateFinalBody\(module\)' %S/../../lib/Plugin/Template/TemplateBackendEmissionDriver.cpp | FileCheck %s --check-prefix=TEMPLATE-CALL
+# RUN: rg -n 'return constructTensorExtLiteFinalBody\(module\)' %S/../../lib/Plugin/TensorExtLite/EmitC/TensorExtLiteBackendEmissionDriver.cpp | FileCheck %s --check-prefix=TENSOR-CALL
+
+# The live backend table contains every supported emitter family.  Offload is
+# deliberately absent because its plugin contract is explicit unsupported.
+# RUN: FileCheck %s --check-prefix=TABLE < %S/../../lib/Conversion/EmitC/Builtin/BuiltinBackendEmitters.cpp
+# RUN: rg -n 'runtime-offload has no active materialized EmitC lowering or target' %S/../../lib/Plugin/Offload/OffloadExtensionPlugin.cpp | FileCheck %s --check-prefix=OFFLOAD
+
+# Public materialization, target artifact export, and the scalar translate
+# route all enter the same backend registry and fail closed when no family
+# fully legalizes; none may build a metadata/string implementation fallback.
+# RUN: rg -n 'tryConvertModuleWithRegisteredBackend' %S/../../lib/Transforms/EmitCLowerableMaterialization.cpp | FileCheck %s --check-prefix=PUBLIC-REGISTRY
+# RUN: rg -n 'tryConvertModuleWithRegisteredBackend' %S/../../lib/Target/TargetArtifactExport.cpp | FileCheck %s --check-prefix=ARTIFACT-REGISTRY
+# RUN: rg -n 'tryConvertModuleWithRegisteredBackend' %S/../../lib/Target/Scalar/ScalarTargetSupportBundle.cpp | FileCheck %s --check-prefix=TRANSLATE-REGISTRY
+# RUN: rg -n 'no registered backend emission driver fully legalizes' %S/../../lib/Transforms/EmitCLowerableMaterialization.cpp %S/../../lib/Target/TargetArtifactExport.cpp %S/../../lib/Target/Scalar/ScalarTargetSupportBundle.cpp | FileCheck %s --check-prefix=FAIL-CLOSED
+
+# Scalar and IME decisions happen in their construction owners.  Pattern code
+# may only parse/consume the final plan; it cannot call the old selectors or
+# derive qk fractions/plane geometry from the typed op again.
+# RUN: sed -n '/class ScalarComputeSkeletonToEmitCFunc/,/class ScalarBackendEmissionDriver/p' %S/../../lib/Plugin/Scalar/ScalarBackendEmissionDriver.cpp | rg 'requireScalarPlan|scalarPlanInt' | FileCheck %s --check-prefix=SCALAR-CONSUME
+# RUN: sed -n '/class ScalarComputeSkeletonToEmitCFunc/,/class ScalarBackendEmissionDriver/p' %S/../../lib/Plugin/Scalar/ScalarBackendEmissionDriver.cpp | not rg 'getQk\(|getWeightBlockStride\(|getActivationBlockStride\(|getWeightDByteOffset\(|getActivationDByteOffset\(|getActivationQuantByteOffset\(|getWeightQuantByteOffset\('
+# RUN: sed -n '/class IMEMACToEmitCFunc/,/class IMEBackendEmissionDriver/p' %S/../../lib/Plugin/IME/IMEBackendEmissionDriver.cpp | rg 'requireIMEFinalPlan|readIMEQuantPlan' | FileCheck %s --check-prefix=IME-CONSUME
+# RUN: sed -n '/class IMEMACToEmitCFunc/,/class IMEBackendEmissionDriver/p' %S/../../lib/Plugin/IME/IMEBackendEmissionDriver.cpp | not rg 'constructIMEMacLeafPlan\(|constructWideVmadotPlan\(|readIMEConstructionVlenBits\(|getImeOp\(\)[[:space:]]*=='
+# RUN: sed -n '/class IMEMACToEmitCFunc/,/class IMEBackendEmissionDriver/p' %S/../../lib/Plugin/IME/IMEBackendEmissionDriver.cpp | rg 'emitHelper' | FileCheck %s --check-prefix=IME-HELPER
+# RUN: sed -n '/class IMEMACToEmitCFunc/,/class IMEBackendEmissionDriver/p' %S/../../lib/Plugin/IME/IMEBackendEmissionDriver.cpp | not rg 'kQ40MatmulHelperName|kQ80MatmulHelperName|kQ4KMatmulHelperName'
+
+# flat_* remains the RVV formula-produced final computation plan consumed
+# directly by the emitter; kind/format/fold_model never regain authority.
+# RUN: sed -n '/VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(/,/^}/p' %S/../../lib/Conversion/RVV/RVVToEmitCBlockQuantLinear.cpp | rg 'readFinalFlatBlockDotComputePlan' | FileCheck %s --check-prefix=FLAT
+# RUN: sed -n '/VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(/,/^}/p' %S/../../lib/Conversion/RVV/RVVToEmitCBlockQuantLinear.cpp | not rg 'getFoldModel\(|getAttr(OfType)?<[^>]+>\("(kind|format|fold_model)"\)|getAttr\("(kind|format|fold_model)"\)'
+
+# PURE: prepareForConversion(mlir::ModuleOp module) const = 0
+# RVV: getConstructionEntryNames() const override
+# DEMO: getConstructionEntryNames() const override
+# IME: getConstructionEntryNames() const override
+# SCALAR: getConstructionEntryNames() const override
+# TOY: getConstructionEntryNames() const override
+# TEMPLATE: getConstructionEntryNames() const override
+# TENSOR: getConstructionEntryNames() const override
+# RVV-CALL: constructRVVFormulaBodies(module)
+# DEMO-CALL: return constructDemoFinalBody(module)
+# IME-CALL: return constructIMEFinalPlans(module)
+# SCALAR-CALL: return constructScalarFinalPlans(module)
+# TOY-CALL: return constructToyFinalBody(module)
+# TEMPLATE-CALL: return constructTemplateFinalBody(module)
+# TENSOR-CALL: return constructTensorExtLiteFinalBody(module)
+# TABLE: rvv::registerRVVBackendEmitter
+# TABLE: ::weft::plugin::demo_ext::registerDemoBackendEmitter
+# TABLE: ::weft::plugin::toy::registerToyBackendEmitter
+# TABLE: ::weft::plugin::template_ext::registerTemplateBackendEmitter
+# TABLE: ::weft::plugin::tensorext_lite::registerTensorExtLiteBackendEmitter
+# TABLE: ::weft::plugin::ime::registerIMEBackendEmitter
+# TABLE: ::weft::plugin::scalar::registerScalarBackendEmitter
+# OFFLOAD: runtime-offload has no active materialized EmitC lowering or target
+# PUBLIC-REGISTRY: tryConvertModuleWithRegisteredBackend
+# ARTIFACT-REGISTRY: tryConvertModuleWithRegisteredBackend
+# TRANSLATE-REGISTRY: tryConvertModuleWithRegisteredBackend
+# FAIL-CLOSED: no registered backend emission driver fully legalizes
+# FAIL-CLOSED: no registered backend emission driver fully legalizes
+# FAIL-CLOSED: no registered backend emission driver fully legalizes
+# SCALAR-CONSUME: requireScalarPlan
+# SCALAR-CONSUME: scalarPlanInt
+# IME-CONSUME: requireIMEFinalPlan
+# IME-CONSUME: readIMEQuantPlan
+# IME-HELPER: emitHelper
+# FLAT: readFinalFlatBlockDotComputePlan

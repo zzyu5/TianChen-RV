@@ -20,8 +20,8 @@ BackendEmissionRegistry::tryConvertModuleClone(mlir::ModuleOp source) const {
 
     // The conversion is SPECULATIVE and runs IN PLACE: a family the backend's
     // patterns do not fully cover legally fails `applyPartialConversion` (an
-    // illegal carrier op survives), which is the expected strangler-fig signal
-    // to fall back. So convert a CLONE — the live IR is never mutated — and
+    // illegal carrier op survives), which is a fail-closed ownership decline.
+    // Convert a CLONE — the live IR is never mutated — and
     // swallow the speculative "failed to legalize" diagnostics rather than leak
     // a spurious error to stderr; the real conversion seams (and the
     // `--weft-rvv-lower-to-emitc` pass) still surface diagnostics normally.

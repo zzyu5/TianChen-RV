@@ -59,7 +59,8 @@ bool convertModuleWithBackendEmitter(
   // illegal carrier op) leaves `applyPartialConversion` trivially succeeding
   // WITHOUT producing any function; returning success there would tell every
   // caller the UNCHANGED body is the "materialized" module. So a no-emitc.func
-  // conversion is NEVER a full conversion: callers fall through unchanged.
+  // conversion is NEVER a full conversion: callers receive an explicit
+  // incomplete result and production materialization then fails closed.
   bool producedFunc = false;
   module.walk([&](mlir::emitc::FuncOp) { producedFunc = true; });
   if (!producedFunc)
@@ -70,8 +71,8 @@ bool convertModuleWithBackendEmitter(
   // AND the backend reports no leftover op/type of its own
   // (`moduleHasBackendBody` doubles as the per-backend "no half-converted
   // remnant" gate). A partial conversion (a func produced but a not-yet-covered
-  // op in the same body remains) returns false so the caller falls back
-  // unchanged.
+  // op in the same body remains) returns false; it is never accepted as a
+  // materialized production module.
   bool sawUnrealizedCast = false;
   module.walk([&](mlir::UnrealizedConversionCastOp) {
     sawUnrealizedCast = true;

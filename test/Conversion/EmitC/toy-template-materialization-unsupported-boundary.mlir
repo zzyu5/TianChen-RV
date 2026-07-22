@@ -33,6 +33,20 @@ module {
       status = "no-active-route",
       template_abi = "toy-metadata-boundary.v1"
     }
+    // A valid compute sibling must not let cleanup erase the unsupported body
+    // and report a false full conversion.
+    weft_toy.compute_skeleton {
+      origin = "toy-plugin",
+      required_capabilities = [@toy_template],
+      role = "direct variant",
+      role_order = 2 : i64,
+      role_specific_interface = "WEFTComputeOpInterface",
+      selected_variant = @toy_template_first_slice,
+      source_kernel = "toy_legacy_lowering_boundary",
+      source_role = "compute",
+      status = "role-op-boundary",
+      typed_role = "toy.role.compute.compute_skeleton"
+    }
   }
 }
 

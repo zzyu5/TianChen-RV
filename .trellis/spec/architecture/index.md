@@ -57,7 +57,7 @@
 
 ## 当前主改造方向
 
-当前先完成并守住全项目 formula/construction authority 的横向切换：所有
+当前已经完成并继续守住全项目 formula/construction authority 的横向切换：所有
 production operator/family entry 与 analytic authority 进入轻量 catalog 和
 family-local typed evaluator；旧 decision provider/helper/replay、emitter
 redecision 与兼容旁路退出生产链。这里的“横向完成”指单一构造权威，不表示每个

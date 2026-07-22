@@ -15,12 +15,12 @@
 // against the int8 q8_K activation into a scalar int32 `sumi`, then folded
 // `sumf += (float) sumi * (y.d * fp16(x.d))`.
 //
-// The emission is operand-driven, NOT vacuous: the exported function name is
-// derived from source_kernel + selected_variant, and the block-format facts
-// (qk=256 -> `/ 256`, weight_block_stride=66 -> `* 66`, activation_block_stride
-// =292 -> `* 292`, activation_quant_byte_offset=4 -> `+ 4`, weight_d_byte_offset
-// =64 -> `+ 64`) become the emitted loop bounds and address arithmetic --
-// changing any attribute changes the emitted C.
+// The construction is typed-input-driven, NOT vacuous: the family formula
+// consumes source_kernel + selected_variant and the canonical block-format
+// facts (qk=256, strides 66/292, offsets 64/0/4), then records the complete
+// final computation plan, including the loop/decode geometry. The emitter only
+// materializes that plan. The negative scalar-formula-plan tests prove that a
+// noncanonical input or a partial/forged final plan fails closed.
 //
 // The last RUN is a strict byte-exact gate versus the captured golden C
 // (the ggml scalar ternary reference), sibling tq2-0-q8-k-ternary-vec-dot.golden.c.

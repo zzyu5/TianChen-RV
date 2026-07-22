@@ -3,6 +3,7 @@
 
 #include "mlir/IR/BuiltinOps.h"
 
+#include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/LogicalResult.h"
 
@@ -33,14 +34,22 @@ public:
   /// Stable backend identity (e.g. "rvv"). Used for registry diagnostics.
   virtual llvm::StringRef getBackendName() const = 0;
 
-  /// Family-owned preparation that must complete before any conversion pattern
-  /// can emit backend code (for example formula selection + typed-plan
-  /// materialization). The shared harness calls this for every entry path,
-  /// including registry clone conversion. Default: no-op.
+  /// Read-only formula-catalog inventory for this backend's production direct
+  /// entries.  These names are audit keys only; the registry never dispatches
+  /// or evaluates a formula by string.
+  virtual llvm::ArrayRef<llvm::StringRef>
+  getConstructionEntryNames() const = 0;
+
+  /// Family-owned construction that must complete before any conversion
+  /// pattern can emit backend code (for example formula construction plus
+  /// final typed-plan materialization). The shared harness calls this for
+  /// every entry path, including registry clone conversion.
+  ///
+  /// This is deliberately pure virtual. A backend which has no construction
+  /// owner is not a backend of the production registry: an implicit no-op
+  /// would make a direct typed-body route a second, hidden authority.
   virtual llvm::LogicalResult
-  prepareForConversion(mlir::ModuleOp module) const {
-    return llvm::success();
-  }
+  prepareForConversion(mlir::ModuleOp module) const = 0;
 
   /// Registers the type conversions mapping this backend's typed dataflow types
   /// to the emitc C types they lower to. Runs AFTER the harness installs an

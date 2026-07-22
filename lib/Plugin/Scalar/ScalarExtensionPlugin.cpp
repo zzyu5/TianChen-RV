@@ -1,5 +1,7 @@
 #include "Weft/Plugin/Scalar/ScalarExtensionPlugin.h"
 
+#include "Weft/Plugin/Scalar/ScalarFormulaConstruction.h"
+
 #include "Weft/Dialect/Scalar/IR/ScalarDialect.h"
 #include "Weft/Target/Scalar/ScalarTargetSupportBundle.h"
 #include "mlir/IR/Attributes.h"
@@ -22,8 +24,6 @@ constexpr llvm::StringLiteral kScalarFallbackFirstSliceVariantName(
     "scalar_fallback_first_slice");
 constexpr llvm::StringLiteral kScalarFallbackPolicy(
     "portable_scalar_fallback_first_slice");
-constexpr llvm::StringLiteral kScalarConstructionFormulaID(
-    "weft.scalar.fallback.construct");
 constexpr llvm::StringLiteral kScalarCostFormulaID(
     "weft.scalar.fallback.analytic-prior");
 constexpr llvm::StringLiteral kOriginAttrName("origin");
@@ -140,7 +140,8 @@ void ScalarExtensionPlugin::registerDialects(
 void ScalarExtensionPlugin::collectFormulaDescriptors(
     llvm::SmallVectorImpl<FormulaDescriptor> &out) const {
   FormulaDescriptor construction(
-      kScalarConstructionFormulaID, kScalarPluginName, "operator/fallback",
+      scalar::kScalarFallbackConstructionFormulaID, kScalarPluginName,
+      "operator/fallback",
       FormulaResultKind::CandidateSet,
       FormulaConstructionStrength::ConstructedWeak);
   construction.getGeometryAxis().set(FormulaAxisUse::Decisive,
@@ -155,7 +156,48 @@ void ScalarExtensionPlugin::collectFormulaDescriptors(
   construction.addSemanticCase("capability-available-single-candidate");
   construction.addSemanticCase("capability-unavailable-not-applicable");
   construction.addProductionEntry("plugin:variant-proposal");
+  construction.addProductionEntry("backend:scalar-compute-skeleton");
   out.push_back(std::move(construction));
+
+  FormulaDescriptor ternaryBlockDot(
+      scalar::kScalarTernaryBlockDotFormulaID, kScalarPluginName,
+      "contraction/tq2-0-q8-k", FormulaResultKind::TypedPlan,
+      FormulaConstructionStrength::ConstructedWeak);
+  ternaryBlockDot.getGeometryAxis().set(FormulaAxisUse::Decisive,
+                                        "ScalarTQ2Q8Geometry");
+  for (llvm::StringRef field :
+       {"qk", "weight-block-stride", "activation-block-stride",
+        "weight-d-offset", "activation-d-offset",
+        "activation-quant-offset"})
+    ternaryBlockDot.getGeometryAxis().addConsumedField(field);
+  ternaryBlockDot.getCapabilityAxis().set(FormulaAxisUse::Decisive,
+                                          "PortableScalarCapability");
+  ternaryBlockDot.getCapabilityAxis().addConsumedField("scalar.fallback");
+  ternaryBlockDot.getStaticContextAxis().set(FormulaAxisUse::HonestNull,
+                                             "ScalarTQ2NoStaticContext");
+  ternaryBlockDot.addSemanticCase("canonical-tq2-0-q8-k");
+  ternaryBlockDot.addSemanticCase("unsupported-layout-reject");
+  ternaryBlockDot.addProductionEntry("backend:scalar-tq2-q8-block-dot");
+  out.push_back(std::move(ternaryBlockDot));
+
+  FormulaDescriptor q40Dequant(
+      scalar::kScalarQ40DequantizeRowFormulaID, kScalarPluginName,
+      "dequantize-row/q4-0", FormulaResultKind::TypedPlan,
+      FormulaConstructionStrength::ConstructedWeak);
+  q40Dequant.getGeometryAxis().set(FormulaAxisUse::Decisive,
+                                   "ScalarQ40DequantGeometry");
+  for (llvm::StringRef field : {"qk", "weight-block-stride",
+                                "weight-d-offset", "weight-quant-offset"})
+    q40Dequant.getGeometryAxis().addConsumedField(field);
+  q40Dequant.getCapabilityAxis().set(FormulaAxisUse::Decisive,
+                                     "PortableScalarCapability");
+  q40Dequant.getCapabilityAxis().addConsumedField("scalar.fallback");
+  q40Dequant.getStaticContextAxis().set(FormulaAxisUse::HonestNull,
+                                        "ScalarQ40NoStaticContext");
+  q40Dequant.addSemanticCase("canonical-q4-0-row");
+  q40Dequant.addSemanticCase("unsupported-layout-reject");
+  q40Dequant.addProductionEntry("backend:scalar-q4-0-dequantize-row");
+  out.push_back(std::move(q40Dequant));
 
   FormulaDescriptor cost(
       kScalarCostFormulaID, kScalarPluginName, "operator/fallback",
@@ -186,7 +228,7 @@ llvm::Error ScalarExtensionPlugin::proposeVariants(
 
   VariantProposal proposal(kScalarFallbackFirstSliceVariantName,
                            kScalarPluginName);
-  proposal.setFormulaID(kScalarConstructionFormulaID);
+  proposal.setFormulaID(scalar::kScalarFallbackConstructionFormulaID);
   proposal.addRequiredCapabilityID(kScalarFallbackCapabilityID);
   proposal.setPolicy(kScalarFallbackPolicy);
   proposal.setFallbackRole(VariantFallbackRole::ConservativeFallback);

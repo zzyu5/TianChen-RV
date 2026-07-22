@@ -15,6 +15,7 @@
 #include "mlir/Transforms/DialectConversion.h"
 
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/Support/Error.h"
 #include "llvm/Support/raw_ostream.h"
 
 #include <string>
@@ -29,6 +30,63 @@ namespace emitc = ::mlir::emitc;
 namespace weftemitc = ::weft::conversion::emitc;
 
 constexpr llvm::StringLiteral kOpInterface = "WEFTEmitCLowerableOpInterface";
+
+mlir::LogicalResult constructToyFinalBody(mlir::ModuleOp module) {
+  if (llvm::Error error = verifyToyConstructionProtocolReady()) {
+    module.emitError() << llvm::toString(std::move(error));
+    return mlir::failure();
+  }
+
+  bool unsupportedBody = false;
+  module.walk([&](mlir::Operation *op) {
+    if (op->getName().getDialectNamespace() ==
+            weft::toy::WEFTToyDialect::getDialectNamespace() &&
+        !llvm::isa<weft::toy::ComputeSkeletonOp>(op)) {
+      op->emitError("Toy direct construction only accepts its final typed "
+                    "compute body");
+      unsupportedBody = true;
+    }
+  });
+  if (unsupportedBody)
+    return mlir::failure();
+
+  mlir::LogicalResult result = mlir::success();
+  module.walk([&](weft::toy::ComputeSkeletonOp compute) {
+    auto variant = compute->getAttrOfType<mlir::FlatSymbolRefAttr>(
+        "selected_variant");
+    auto kernel = compute->getParentOfType<weft::exec::KernelOp>();
+    if (!variant || !kernel) {
+      compute.emitError("Toy construction requires a selected variant in an "
+                        "enclosing kernel");
+      result = mlir::failure();
+      return;
+    }
+    weft::exec::VariantOp variantOp;
+    kernel.walk([&](weft::exec::VariantOp candidate) {
+      if (candidate.getSymName() == variant.getValue())
+        variantOp = candidate;
+    });
+    if (!variantOp) {
+      compute.emitError("Toy construction requires selected_variant to resolve "
+                        "to a typed variant body");
+      result = mlir::failure();
+      return;
+    }
+    llvm::Expected<support::TargetCapabilitySet> capabilities =
+        support::TargetCapabilitySet::buildFromKernelChecked(kernel);
+    if (!capabilities) {
+      compute.emitError() << llvm::toString(capabilities.takeError());
+      result = mlir::failure();
+      return;
+    }
+    if (llvm::Error error =
+            verifyToySelectedVariantLegality(variantOp, kernel, *capabilities)) {
+      compute.emitError() << llvm::toString(std::move(error));
+      result = mlir::failure();
+    }
+  });
+  return result;
+}
 
 mlir::Type emitCTypeForCTypeSpelling(mlir::MLIRContext *context,
                                      llvm::StringRef cType) {
@@ -95,38 +153,6 @@ public:
         ("weft_emitc_" + sourceKernel.getValue() + "_" + variant.getValue())
             .str();
 
-    // Plugin legality gate: the conversion's convert-set MUST equal the plugin
-    // route-build's success-set. The plugin's legality predicate (capability
-    // conformance + variant metadata-vs-manifest, incl. the emitc_route_mapping
-    // eligibility declaration) is the authority; a body it rejects must NOT be
-    // emitted (I7). Decline so the legacy plugin route-build still owns the
-    // fail-closed diagnostic. The Toy compute_skeleton boundary lives at kernel
-    // scope; resolve the selected variant op by its symbol.
-    auto kernelOp = compute->getParentOfType<weft::exec::KernelOp>();
-    if (!kernelOp)
-      return rewriter.notifyMatchFailure(compute, "compute has no kernel");
-    weft::exec::VariantOp variantOp;
-    kernelOp.walk([&](weft::exec::VariantOp candidate) {
-      if (candidate.getSymName() == variant.getValue())
-        variantOp = candidate;
-    });
-    if (variantOp) {
-      llvm::Expected<support::TargetCapabilitySet> capabilities =
-          support::TargetCapabilitySet::buildFromKernelChecked(kernelOp);
-      if (!capabilities) {
-        llvm::consumeError(capabilities.takeError());
-        return rewriter.notifyMatchFailure(
-            compute, "selected kernel capabilities are not legality-checkable");
-      }
-      if (llvm::Error error = verifyToySelectedVariantLegality(
-              variantOp, kernelOp, *capabilities)) {
-        llvm::consumeError(std::move(error));
-        return rewriter.notifyMatchFailure(
-            compute, "selected variant fails plugin legality (legacy validator "
-                     "owns the fail-closed diagnostic)");
-      }
-    }
-
     const ToyTemplateEmitCConstructionRoute &route =
         getToyTemplateEmitCConstructionRoute();
     llvm::ArrayRef<support::RuntimeABIParameter> abiParameters =
@@ -140,9 +166,8 @@ public:
     if (!module)
       return rewriter.notifyMatchFailure(compute, "compute has no module");
 
-    // Build a standalone top-level EmitC module: the standard headers, the
-    // private callee declaration, then the exported function. This mirrors the
-    // legacy materializer's module shape so the rendered C is byte-equivalent.
+    // Build the standalone top-level EmitC module from the qualified typed body:
+    // standard headers, private callee declaration, then exported function.
     {
       mlir::OpBuilder::InsertionGuard moduleGuard(rewriter);
       rewriter.setInsertionPointToStart(module.getBody());
@@ -213,6 +238,18 @@ class ToyBackendEmissionDriver final
 public:
   llvm::StringRef getBackendName() const override { return "toy"; }
 
+  llvm::ArrayRef<llvm::StringRef>
+  getConstructionEntryNames() const override {
+    static constexpr llvm::StringRef entries[] = {
+        "backend:toy-direct-typed-body"};
+    return entries;
+  }
+
+  llvm::LogicalResult
+  prepareForConversion(mlir::ModuleOp module) const override {
+    return constructToyFinalBody(module);
+  }
+
   void populateTypeConversions(
       mlir::TypeConverter & /*typeConverter*/) const override {
     // The Toy skeleton carries no Toy-typed dataflow values; the identity
@@ -254,9 +291,8 @@ llvm::LogicalResult
 ToyBackendEmissionDriver::postConversionCleanup(mlir::ModuleOp module) const {
   // Once a function was produced, drop the now-emptied weft.exec scaffolding
   // (kernel/capability/diagnostics) and any leftover source ops so the module
-  // is the clean, standalone EmitC-only shape the export handoff expects (a
-  // leftover non-emitc top-level op makes the export handoff reject the module
-  // and fall back to the legacy path).
+  // is the clean, standalone EmitC-only shape the export handoff requires. A
+  // leftover non-EmitC top-level op makes the route fail closed.
   bool producedFunc = false;
   module.walk([&](emitc::FuncOp) { producedFunc = true; });
   if (!producedFunc)

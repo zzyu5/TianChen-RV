@@ -15,6 +15,7 @@
 #include "mlir/Transforms/DialectConversion.h"
 
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/Support/Error.h"
 #include "llvm/Support/raw_ostream.h"
 
 #include <string>
@@ -31,6 +32,87 @@ namespace weftemitc = ::weft::conversion::emitc;
 constexpr llvm::StringLiteral kOpInterface = "WEFTEmitCLowerableOpInterface";
 constexpr llvm::StringLiteral kSelectedVariantAttrName("selected_variant");
 constexpr llvm::StringLiteral kRoleAttrName("role");
+
+mlir::LogicalResult constructTensorExtLiteFinalBody(mlir::ModuleOp module) {
+  if (llvm::Error error = verifyTensorExtLiteConstructionProtocolReady()) {
+    module.emitError() << llvm::toString(std::move(error));
+    return mlir::failure();
+  }
+
+  bool unsupportedBody = false;
+  module.walk([&](mlir::Operation *op) {
+    if (op->getName().getDialectNamespace() !=
+        weft::tensorext_lite::WEFTTensorExtLiteDialect::getDialectNamespace())
+      return;
+    // The four role ops are the final compute body. LoweringBoundaryOp is the
+    // target bundle's already-validated mechanical handoff record; it carries
+    // no role, callee, or compute choice and is drained after successful emit.
+    if (llvm::isa<weft::tensorext_lite::ConfigSkeletonOp,
+                  weft::tensorext_lite::LoadFragSkeletonOp,
+                  weft::tensorext_lite::TileMmaSkeletonOp,
+                  weft::tensorext_lite::StoreFragSkeletonOp,
+                  weft::tensorext_lite::LoweringBoundaryOp>(op))
+      return;
+    op->emitError("TensorExtLite direct construction only accepts the complete "
+                  "final typed role sequence");
+    unsupportedBody = true;
+  });
+  if (unsupportedBody)
+    return mlir::failure();
+
+  mlir::LogicalResult result = mlir::success();
+  module.walk([&](weft::tensorext_lite::ConfigSkeletonOp config) {
+    auto variant = config->getAttrOfType<mlir::FlatSymbolRefAttr>(
+        kSelectedVariantAttrName);
+    auto role = config->getAttrOfType<mlir::StringAttr>(kRoleAttrName);
+    auto kernel = config->getParentOfType<weft::exec::KernelOp>();
+    auto variantOp = config->getParentOfType<weft::exec::VariantOp>();
+    if (!variant || !role || !kernel || !variantOp ||
+        variantOp.getSymName() != variant.getValue()) {
+      config.emitError("TensorExtLite construction requires the configure "
+                       "anchor in its selected typed variant body");
+      result = mlir::failure();
+      return;
+    }
+    llvm::Expected<support::TargetCapabilitySet> capabilities =
+        support::TargetCapabilitySet::buildFromKernelChecked(kernel);
+    if (!capabilities) {
+      config.emitError() << llvm::toString(capabilities.takeError());
+      result = mlir::failure();
+      return;
+    }
+    if (llvm::Error error = verifyTensorExtLiteSelectedVariantLegality(
+            variantOp, kernel, *capabilities)) {
+      config.emitError() << llvm::toString(std::move(error));
+      result = mlir::failure();
+      return;
+    }
+
+    mlir::Block *block = config->getBlock();
+    for (const TensorExtLiteFragmentMmaRoleStep &step :
+         getTensorExtLiteFragmentMmaRoleSteps()) {
+      unsigned matches = 0;
+      for (mlir::Operation &op : *block) {
+        if (op.getName().getStringRef() != step.operationName)
+          continue;
+        auto opVariant = op.getAttrOfType<mlir::FlatSymbolRefAttr>(
+            kSelectedVariantAttrName);
+        auto opRole = op.getAttrOfType<mlir::StringAttr>(kRoleAttrName);
+        if (opVariant && opVariant.getValue() == variant.getValue() && opRole &&
+            opRole.getValue() == role.getValue())
+          ++matches;
+      }
+      if (matches != 1) {
+        config.emitError()
+            << "TensorExtLite construction requires exactly one typed role op '"
+            << step.operationName << "' for the selected role sequence";
+        result = mlir::failure();
+        return;
+      }
+    }
+  });
+  return result;
+}
 
 std::string routeSourceComment(llvm::StringRef opName, llvm::StringRef role) {
   std::string text;
@@ -88,33 +170,6 @@ public:
           config, "config_skeleton requires selected_variant, source_kernel "
                   "and role attributes");
 
-    // Plugin legality gate: the conversion's convert-set MUST equal the plugin
-    // route-build's success-set. The plugin's `verifyVariantLegality`
-    // (capability conformance + variant metadata-vs-manifest, incl. the
-    // emitc_route_mapping eligibility declaration) is the authority; a body it
-    // rejects (e.g. a variant declaring `no-active-emitc-route`) must NOT be
-    // emitted (I7). Decline so the legacy plugin route-build still owns the
-    // fail-closed diagnostic instead of synthesizing an artifact the IR
-    // disclaims.
-    auto kernelOp = config->getParentOfType<weft::exec::KernelOp>();
-    auto variantOp = config->getParentOfType<weft::exec::VariantOp>();
-    if (!kernelOp || !variantOp)
-      return rewriter.notifyMatchFailure(
-          config, "config_skeleton requires an enclosing kernel and variant");
-    llvm::Expected<support::TargetCapabilitySet> capabilities =
-        support::TargetCapabilitySet::buildFromKernelChecked(kernelOp);
-    if (!capabilities) {
-      llvm::consumeError(capabilities.takeError());
-      return rewriter.notifyMatchFailure(
-          config, "selected kernel capabilities are not legality-checkable");
-    }
-    if (llvm::Error error = verifyTensorExtLiteSelectedVariantLegality(
-            variantOp, kernelOp, *capabilities)) {
-      llvm::consumeError(std::move(error));
-      return rewriter.notifyMatchFailure(
-          config, "selected variant fails plugin legality (legacy validator "
-                  "owns the fail-closed diagnostic)");
-    }
     std::string functionName =
         ("weft_emitc_" + sourceKernel.getValue() + "_" + variant.getValue())
             .str();
@@ -123,9 +178,9 @@ public:
     if (!variantBlock)
       return rewriter.notifyMatchFailure(config, "config has no enclosing block");
 
-    // Collect the selected role-sequence ops in construction-route order. Each
-    // role op must carry the same selected_variant + role; a missing role makes
-    // the conversion decline so the legacy validator owns the diagnostic.
+    // Collect the already-qualified selected role sequence in its fixed
+    // family construction order. Missing or duplicate roles decline the
+    // conversion; no alternate route may synthesize them.
     llvm::ArrayRef<TensorExtLiteFragmentMmaRoleStep> roleSteps =
         getTensorExtLiteFragmentMmaRoleSteps();
     llvm::SmallVector<mlir::Operation *, 4> roleOps;
@@ -225,6 +280,18 @@ class TensorExtLiteBackendEmissionDriver final
     : public weftemitc::TypedBackendEmissionDriver {
 public:
   llvm::StringRef getBackendName() const override { return "tensorext_lite"; }
+
+  llvm::ArrayRef<llvm::StringRef>
+  getConstructionEntryNames() const override {
+    static constexpr llvm::StringRef entries[] = {
+        "backend:tensorext-lite-direct-typed-body"};
+    return entries;
+  }
+
+  llvm::LogicalResult
+  prepareForConversion(mlir::ModuleOp module) const override {
+    return constructTensorExtLiteFinalBody(module);
+  }
 
   void populateTypeConversions(
       mlir::TypeConverter & /*typeConverter*/) const override {}

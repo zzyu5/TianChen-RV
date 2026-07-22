@@ -53,12 +53,13 @@ def ComputeSkeletonOp : WEFTScalar_Op<"compute_skeleton",
     interface and have the scalar backend emission driver consume that IR
     identity to emit a pure-scalar (no __riscv_) EmitC module.
 
-    The exported function name is derived from `source_kernel` and
-    `selected_variant`, and the emitted body echoes `scalar_immediate`, so the
-    emission is operand-driven (changing an attribute changes the emitted C).
-    This is a TRIVIAL tracer-bullet boundary: it does not model tensor/tile
-    computation, runtime ABI values, generated objects, correctness, or
-    performance.
+    Family-local formula construction consumes `source_kernel`,
+    `selected_variant`, and `scalar_immediate` and records the complete
+    conversion-local final plan (exported symbol, callee, and immediate). The
+    emitter only materializes that plan; it does not reinterpret the source
+    attributes. This is a TRIVIAL tracer-bullet boundary: it does not model
+    tensor/tile computation, runtime ABI values, generated objects,
+    correctness, or performance.
   }];
 
   let arguments = (ins
@@ -86,14 +87,13 @@ def TernaryQ2Q8BlockDotOp : WEFTScalar_Op<"tq2_0_q8_k_vec_dot",
     plain C loops -- NO XOR-popcount codebook, NO __riscv_ intrinsics, NO
     vector machinery.
 
-    The exported function name is derived from `source_kernel` and
-    `selected_variant`; the block-format structural facts (super-block width,
-    weight/activation block strides, the fp16 weight-scale byte offset, the
-    fp32 activation-scale byte offset, and the q8 quant byte offset) are read
-    from the typed attributes and become the emitted loop bounds and address
-    arithmetic, so the emission is operand-driven (changing an attribute
-    changes the emitted C). This boundary models the numeric kernel only; it
-    does not model target object export, runtime ABI values, or performance.
+    The typed attributes are formula inputs. Family-local construction
+    qualifies the supported canonical layout and records a complete
+    conversion-local final computation plan, including all loop geometry,
+    decode constants, strides, and offsets. The emitter consumes that plan
+    mechanically; it neither derives geometry nor accepts an unqualified
+    layout. This boundary models the numeric kernel only; it does not model
+    target object export, runtime ABI values, or performance.
   }];
 
   let arguments = (ins
@@ -125,14 +125,13 @@ def DequantizeRowQ4Op : WEFTScalar_Op<"dequantize_row_q4_0",
     reference layout. It is pure nibble arithmetic over plain C loops -- NO
     XOR-popcount codebook, NO __riscv_ intrinsics, NO vector machinery.
 
-    The exported function name is derived from `source_kernel` and
-    `selected_variant`; the block-format structural facts (block width `qk`, the
-    block byte stride, the fp16 scale byte offset, and the packed-nibble byte
-    offset) are read from the typed attributes and become the emitted loop
-    bounds and address arithmetic, so the emission is operand-driven (changing
-    an attribute changes the emitted C). This boundary models the numeric kernel
-    only; it does not model target object export, runtime ABI values, or
-    performance.
+    The typed attributes are formula inputs. Family-local construction
+    qualifies the supported canonical layout and records a complete
+    conversion-local final computation plan, including the block geometry,
+    nibble decode constants, strides, and offsets. The emitter consumes that
+    plan mechanically; it neither reconstructs `qk/2` nor accepts an
+    unqualified layout. This boundary models the numeric kernel only; it does
+    not model target object export, runtime ABI values, or performance.
   }];
 
   let arguments = (ins

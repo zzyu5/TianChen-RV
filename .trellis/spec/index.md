@@ -166,18 +166,24 @@ tools/bench/bench --self-test
 
 ## 当前工程推进方向
 
-当前已经建立 formula/construction authority 的公共底座：production construction
-entries 由 registry-derived catalog 关联 family-local typed owner。RVV
-quantize/dequantize final body、repack loop-order/main-term schedule 与通过
-`TunableScheduleOpInterface` 发现的通用 schedule 均在 emission 前完成构造；已有完整
-tuple 只接受合法性校验，缺失 tuple 才构造，partial/illegal tuple 直接拒绝。emitter 不补
-schedule default，旧 repack strip-width materializer 已退出。
+当前 registered/direct production path 已统一到 construction-before-emission：shared
+backend interface 不再允许隐式 no-op preparation；registry clone、公开 materialization、
+direct RVV conversion、translate 与 artifact 路径都在 family emitter 之前调用同一
+family-local construction owner。RVV、IME、Scalar、Demo、Toy、Template 与
+TensorExtLite 是当前具备该入口的 backend；Offload 仍是显式 unsupported，不能成为空
+emitter 或 fallback。
 
-这仍不是 project-wide authority cutover 已完成的证明。当前尚有一个公开可执行的
-low-precision Gearbox/pre-realized-body surface：它会先写 candidate、selection、resource 与
-审计镜像，再由 selected-body realization 解释。即使默认 front door 暂无 caller，只要该
-pass 与 IR 仍是公开接受面，就必须在本轮横向重构中归入同一 formula → legality → thin
-selector → final typed body 链，或明确退役；不能用“测试/手工入口”排除在分母外。
+RVV quantize/dequantize、repack、通用 schedule、selected-body 与 flat block-dot 已沿既有
+typed formula 链构造，其中 `flat_*` 是 formula 产生的最终计算 plan，emitter 直接读取，
+不得恢复 `kind`、`format` 或旧 `fold_model` 的第二决定。Scalar 的 q2 block-dot/q4_0
+dequant 与 IME 的 MAC/tile 选择也在 emission 前形成 family-local final plan；确定性的
+Demo/Toy/Template/TensorExtLite 以已资格化 final typed body 加固定机械 route 实现，不另造
+通用 plan/provider。
+
+这证明的是当前可达 production authority 和 caller 已横向收敛，不是所有知识都达到强
+因式分解。仍标为 `ConstructedWeak` 的完整 leaf，只有在删除该逐点实现后能由
+`g/c/ω + mechanisms + formula` 重建同一实例时，才可升级 strong construction。后续工程
+重点是继续做 mechanism factorization、能力因果与该删除实验，而不是重开兼容入口。
 
 公共底座与上述切换也不表示每个 `ConstructedWeak` leaf 已经完成强义重建。关闭剩余
 公开 authority inversion 后，应在同一横向结构上推进：

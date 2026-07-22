@@ -1,0 +1,26 @@
+{"file":"include/Weft/Conversion/EmitC/TypedBackendEmissionDriver.h","reason":"将 family construction hook 与只读 production-entry inventory 设为 live backend 必实现接口；删除隐式成功 no-op"}
+{"file":"lib/Conversion/EmitC/TypedBackendEmissionDriver.cpp","reason":"所有 direct/pass/registry conversion 在 pattern emission 前运行同一 family preparation，并只接受完整 legalization"}
+{"file":"lib/Conversion/EmitC/BackendEmissionRegistry.cpp","reason":"clone conversion 对 construction/convert decline 保持 fail-closed，不把部分结果交付为 materialized module"}
+{"file":"lib/Conversion/EmitC/Builtin/BuiltinBackendEmitters.cpp","reason":"注册 Demo 后形成 RVV/Demo/Toy/Template/TensorExtLite/IME/Scalar 的 live backend 全集；Offload 明确不在表内"}
+{"file":"lib/Plugin/Demo/DemoBackendEmissionDriver.cpp","reason":"为已有 production Demo plugin/target route 建立 family legality、final typed body qualification 与机械 EmitC driver"}
+{"file":"lib/Plugin/RVV/RVVExtensionPlugin.cpp","reason":"把 RVV direct typed-body backend entry 关联到真实 selected-body construction formula；flat_* final plan 权威不变"}
+{"file":"lib/Plugin/Scalar/ScalarBackendEmissionDriver.cpp","reason":"从 typed geometry 与 canonical scalar capability 构造 conversion-local final plan；q2 block-dot 与 q4_0 dequant emitter 只读 plan，不再推导 geometry/decode constants"}
+{"file":"include/Weft/Plugin/Scalar/ScalarFormulaConstruction.h","reason":"集中 Scalar formula inventory id 与 conversion-local final-plan key；字符串只供关联，不能动态求值"}
+{"file":"lib/Plugin/Scalar/ScalarExtensionPlugin.cpp","reason":"登记 compute skeleton、q2 block-dot、q4_0 dequant 三个真实 backend construction entry 与诚实 g/c/ω 轴"}
+{"file":"lib/Plugin/IME/IMEBackendEmissionDriver.cpp","reason":"在 emission 前复用 IME variant legality，消费 kernel-local capability/VLEN，构造 MAC、wide tiling、helper、dimensions final plan；emitter 不再运行 selector"}
+{"file":"include/Weft/Plugin/IME/IMEFormulaConstruction.h","reason":"集中 IME construction formula id 与 conversion-local plan key，禁止字符串 dispatcher"}
+{"file":"lib/Plugin/IME/IMEExtensionPlugin.cpp","reason":"IME catalog/backend entry 与同一 family construction formula 关联，覆盖 q4_0/q8_0/q4_K typed tile 语义域"}
+{"file":"lib/Plugin/Toy/ToyBackendEmissionDriver.cpp","reason":"direct emission 前验证 construction protocol、selected variant、capability、legality 与 final typed body；拒绝同 family 未拥有 op"}
+{"file":"lib/Plugin/Template/TemplateBackendEmissionDriver.cpp","reason":"direct emission 前验证 construction protocol、selected variant、capability、legality 与 final typed body；拒绝同 family 未拥有 op"}
+{"file":"lib/Plugin/TensorExtLite/EmitC/TensorExtLiteBackendEmissionDriver.cpp","reason":"资格化完整四角色 final typed sequence；lowering boundary 仅为已验证 mechanical artifact handoff，不参与 compute/callee 决策"}
+{"file":"test/Plugin/FormulaCatalogTest.cpp","reason":"要求 catalog backend:* entry 集合与 live backend inventory 双向相等，且 backend claim、formula owner、backend identity 均唯一"}
+{"file":"test/Scripts/project-construction-authority.test","reason":"锁住 mandatory construction calls、Offload unsupported、Scalar/IME plan-only consumption 以及 RVV flat_* 不回退 kind/format/fold_model"}
+{"file":"test/Conversion/EmitC/demo-compute-skeleton-materialization.mlir","reason":"覆盖 Demo construction-qualified 正路径与 stale route fail-closed"}
+{"file":"test/Target/Scalar/scalar-formula-plan-negative-invalid.mlir","reason":"覆盖 Scalar unsupported geometry 不能进入 emitter"}
+{"file":"test/Target/Scalar/scalar-formula-plan-negative-partial.mlir","reason":"覆盖 partial preloaded plan 不能成为第二权威"}
+{"file":"test/Target/Scalar/scalar-formula-plan-negative-conflicting.mlir","reason":"覆盖字段完整但与 formula 重建结果冲突的 forged plan 必须拒绝"}
+{"file":"test/Conversion/EmitC/ime-q4-0-matmul-tile-vlen128-narrow-fallback.mlir","reason":"退役 emission-only VLEN128 bypass；direct IME 与 proposal/legality 共用已验证 VLEN256 域，缺失或 unsupported VLEN 均拒绝"}
+{"file":".trellis/spec/architecture/公式层与覆盖.md","reason":"记录全 backend 横向 construction authority、双向 catalog inventory 与 ConstructedWeak 边界"}
+{"file":".trellis/spec/architecture/变体流水线.md","reason":"保持主公式/薄 selector 不变，补充 direct backend construction-before-emission 单向链和 flat_* 最终 plan 纪律"}
+{"file":".trellis/spec/issues/发射器与架构.md","reason":"以 ISSUE-129 记录并关闭非 RVV direct backend 绕过、Demo 缺 driver、Scalar/IME emitter 重决策缺口"}
+{"file":"README.md","reason":"更新项目全景：Weft 是可扩展 MLIR operator compiler，RISC-V 是旗舰实例；当前受支持 backend 已统一 construction hook"}

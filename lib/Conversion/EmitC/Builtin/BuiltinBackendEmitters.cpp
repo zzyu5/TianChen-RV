@@ -1,6 +1,7 @@
 #include "Weft/Conversion/EmitC/BackendEmissionRegistry.h"
 
 #include "Weft/Conversion/RVV/RVVBackendEmissionDriver.h"
+#include "Weft/Plugin/Demo/DemoBackendEmissionDriver.h"
 #include "Weft/Plugin/IME/IMEBackendEmissionDriver.h"
 #include "Weft/Plugin/Scalar/ScalarBackendEmissionDriver.h"
 #include "Weft/Plugin/TensorExtLite/TensorExtLiteBackendEmissionDriver.h"
@@ -17,14 +18,15 @@ namespace emitc {
 namespace {
 
 // The built-in typed-emission backend table. Mirrors the plugin
-// `kBuiltinExtensionBundles` registry (zero-core-branch): RVV, Toy, Template,
-// TensorExtLite, IME and Scalar are registered today; a future family is a ONE-LINE add
-// here (registerXBackendEmitter) with no edit to any core materialization call
-// site.
+// `kBuiltinExtensionBundles` registry (zero-core-branch): every supported
+// direct-emission family is registered here. A future family adds one
+// registration entry and its family-local driver; no core materialization call
+// site learns the family name.
 using BackendEmitterRegistrationFn = void (*)(BackendEmissionRegistry &);
 
 constexpr BackendEmitterRegistrationFn kBuiltinBackendEmitters[] = {
     rvv::registerRVVBackendEmitter,
+    ::weft::plugin::demo_ext::registerDemoBackendEmitter,
     ::weft::plugin::toy::registerToyBackendEmitter,
     ::weft::plugin::template_ext::registerTemplateBackendEmitter,
     ::weft::plugin::tensorext_lite::registerTensorExtLiteBackendEmitter,

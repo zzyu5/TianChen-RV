@@ -15,6 +15,7 @@
 #include "mlir/Transforms/DialectConversion.h"
 
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/Support/Error.h"
 #include "llvm/Support/raw_ostream.h"
 
 #include <string>
@@ -29,6 +30,63 @@ namespace emitc = ::mlir::emitc;
 namespace weftemitc = ::weft::conversion::emitc;
 
 constexpr llvm::StringLiteral kOpInterface = "WEFTEmitCLowerableOpInterface";
+
+mlir::LogicalResult constructTemplateFinalBody(mlir::ModuleOp module) {
+  if (llvm::Error error = verifyTemplateConstructionProtocolReady()) {
+    module.emitError() << llvm::toString(std::move(error));
+    return mlir::failure();
+  }
+
+  bool unsupportedBody = false;
+  module.walk([&](mlir::Operation *op) {
+    if (op->getName().getDialectNamespace() ==
+            weft::template_ext::WEFTTemplateDialect::getDialectNamespace() &&
+        !llvm::isa<weft::template_ext::ComputeSkeletonOp>(op)) {
+      op->emitError("Template direct construction only accepts its final "
+                    "typed compute body");
+      unsupportedBody = true;
+    }
+  });
+  if (unsupportedBody)
+    return mlir::failure();
+
+  mlir::LogicalResult result = mlir::success();
+  module.walk([&](weft::template_ext::ComputeSkeletonOp compute) {
+    auto variant = compute->getAttrOfType<mlir::FlatSymbolRefAttr>(
+        "selected_variant");
+    auto kernel = compute->getParentOfType<weft::exec::KernelOp>();
+    if (!variant || !kernel) {
+      compute.emitError("Template construction requires a selected variant in "
+                        "an enclosing kernel");
+      result = mlir::failure();
+      return;
+    }
+    weft::exec::VariantOp variantOp;
+    kernel.walk([&](weft::exec::VariantOp candidate) {
+      if (candidate.getSymName() == variant.getValue())
+        variantOp = candidate;
+    });
+    if (!variantOp) {
+      compute.emitError("Template construction requires selected_variant to "
+                        "resolve to a typed variant body");
+      result = mlir::failure();
+      return;
+    }
+    llvm::Expected<support::TargetCapabilitySet> capabilities =
+        support::TargetCapabilitySet::buildFromKernelChecked(kernel);
+    if (!capabilities) {
+      compute.emitError() << llvm::toString(capabilities.takeError());
+      result = mlir::failure();
+      return;
+    }
+    if (llvm::Error error = verifyTemplateSelectedVariantLegality(
+            variantOp, kernel, *capabilities)) {
+      compute.emitError() << llvm::toString(std::move(error));
+      result = mlir::failure();
+    }
+  });
+  return result;
+}
 
 mlir::Type emitCTypeForCTypeSpelling(mlir::MLIRContext *context,
                                      llvm::StringRef cType) {
@@ -92,38 +150,6 @@ public:
     std::string functionName =
         ("weft_emitc_" + sourceKernel.getValue() + "_" + variant.getValue())
             .str();
-
-    // Plugin legality gate: the conversion's convert-set MUST equal the plugin
-    // route-build's success-set. The plugin's legality predicate (capability
-    // conformance + variant metadata-vs-manifest, incl. the emitc_route_mapping
-    // eligibility declaration) is the authority; a body it rejects must NOT be
-    // emitted (I7). Decline so the legacy plugin route-build still owns the
-    // fail-closed diagnostic. The Template compute_skeleton boundary lives at
-    // kernel scope; resolve the selected variant op by its symbol.
-    auto kernelOp = compute->getParentOfType<weft::exec::KernelOp>();
-    if (!kernelOp)
-      return rewriter.notifyMatchFailure(compute, "compute has no kernel");
-    weft::exec::VariantOp variantOp;
-    kernelOp.walk([&](weft::exec::VariantOp candidate) {
-      if (candidate.getSymName() == variant.getValue())
-        variantOp = candidate;
-    });
-    if (variantOp) {
-      llvm::Expected<support::TargetCapabilitySet> capabilities =
-          support::TargetCapabilitySet::buildFromKernelChecked(kernelOp);
-      if (!capabilities) {
-        llvm::consumeError(capabilities.takeError());
-        return rewriter.notifyMatchFailure(
-            compute, "selected kernel capabilities are not legality-checkable");
-      }
-      if (llvm::Error error = verifyTemplateSelectedVariantLegality(
-              variantOp, kernelOp, *capabilities)) {
-        llvm::consumeError(std::move(error));
-        return rewriter.notifyMatchFailure(
-            compute, "selected variant fails plugin legality (legacy validator "
-                     "owns the fail-closed diagnostic)");
-      }
-    }
 
     const TemplateEmitCConstructionRoute &route =
         getTemplateEmitCConstructionRoute();
@@ -205,6 +231,18 @@ class TemplateBackendEmissionDriver final
     : public weftemitc::TypedBackendEmissionDriver {
 public:
   llvm::StringRef getBackendName() const override { return "template"; }
+
+  llvm::ArrayRef<llvm::StringRef>
+  getConstructionEntryNames() const override {
+    static constexpr llvm::StringRef entries[] = {
+        "backend:template-direct-typed-body"};
+    return entries;
+  }
+
+  llvm::LogicalResult
+  prepareForConversion(mlir::ModuleOp module) const override {
+    return constructTemplateFinalBody(module);
+  }
 
   void populateTypeConversions(
       mlir::TypeConverter & /*typeConverter*/) const override {}

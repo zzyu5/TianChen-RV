@@ -5693,6 +5693,13 @@ class RVVBackendEmissionDriver final
 public:
   llvm::StringRef getBackendName() const override { return "rvv"; }
 
+  llvm::ArrayRef<llvm::StringRef>
+  getConstructionEntryNames() const override {
+    static constexpr llvm::StringRef entries[] = {
+        "backend:rvv-direct-typed-body"};
+    return entries;
+  }
+
   llvm::LogicalResult
   prepareForConversion(mlir::ModuleOp module) const override {
     if (mlir::failed(::weft::plugin::rvv::constructRVVFormulaBodies(module)))

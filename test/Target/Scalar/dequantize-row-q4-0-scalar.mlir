@@ -2,6 +2,7 @@
 // RUN: weft-opt %s --weft-check-capability-requires --weft-materialize-plugin-variants --weft-verify-plugin-variant-legality --weft-select-variants | weft-translate --weft-scalar-emitc-to-cpp | FileCheck %s --check-prefix=SOURCE --implicit-check-not="__riscv_" --implicit-check-not="popcount" --implicit-check-not="weft_rvv"
 // RUN: weft-translate --weft-scalar-emitc-to-cpp %s | FileCheck %s --check-prefix=SOURCE --implicit-check-not="__riscv_" --implicit-check-not="popcount" --implicit-check-not="weft_rvv"
 // RUN: weft-translate --weft-scalar-emitc-to-cpp %s | diff %S/dequantize-row-q4-0-scalar.golden.c -
+// RUN: sed 's/id = "scalar.fallback"/id = "scalar.other"/' %s | not weft-translate --weft-scalar-emitc-to-cpp 2>&1 | FileCheck %s --check-prefix=MISSING-CAPABILITY
 
 // X-SCALAR family #4: a REAL 4-bit nibble dequantize scalar fallback kernel. A
 // hand-written portable-scalar weft_scalar.dequantize_row_q4_0 boundary flows
@@ -13,12 +14,12 @@
 // decodes its low nibble `(q & 0x0F) - 8` and high nibble `(q >> 4) - 8`, and
 // scatters `x0*d` / `x1*d` into the two halves of the float output row.
 //
-// The emission is operand-driven, NOT vacuous: the exported function name is
-// derived from source_kernel + selected_variant, and the block-format facts
-// (qk=32 -> `/ 32` and the `* 32` output base, weight_block_stride=18 -> `* 18`,
-// weight_quant_byte_offset=2 -> `+ 2`, and qk/2=16 -> the `+ 16` second-half
-// scatter) become the emitted loop bounds and address arithmetic -- changing
-// any attribute changes the emitted C.
+// The construction is typed-input-driven, NOT vacuous: the family formula
+// consumes source_kernel + selected_variant and the canonical q4_0 block facts
+// (qk=32, stride 18, offsets 0/2), then records the complete final computation
+// plan, including qk/2=16 and the nibble decode constants. The emitter only
+// materializes that plan. The negative scalar-formula-plan tests prove that a
+// noncanonical input or a partial/forged final plan fails closed.
 //
 // The last RUN is a strict byte-exact gate versus the captured golden C (the
 // ggml scalar q4_0 reference), sibling dequantize-row-q4-0-scalar.golden.c.
@@ -30,6 +31,7 @@
 
 // HELP: --weft-scalar-emitc-to-cpp
 // HELP-SAME: MLIR EmitC C/C++ emitter
+// MISSING-CAPABILITY: no registered backend emission driver fully legalizes the selected portable-scalar body to EmitC
 
 module {
   weft.exec.kernel @q4_0_dequant_kernel {

@@ -1,5 +1,7 @@
 #include "Weft/Plugin/IME/IMEExtensionPlugin.h"
 
+#include "Weft/Plugin/IME/IMEFormulaConstruction.h"
+
 #include "Weft/Dialect/Exec/IR/ExecOps.h"
 #include "Weft/Dialect/IME/IR/IMEDialect.h"
 #include "Weft/Support/CapabilityModel.h"
@@ -20,8 +22,6 @@ namespace {
 
 constexpr llvm::StringLiteral kIMEPluginName("ime-plugin");
 constexpr llvm::StringLiteral kIMEPluginVersion("0.1.0");
-constexpr llvm::StringLiteral kIMEConstructionFormulaID(
-    "weft.ime.matmul.construct");
 constexpr llvm::StringLiteral kIMECostFormulaID(
     "weft.ime.matmul.analytic-prior");
 // The first-class derived capability id. NOT a family-name string match: the
@@ -605,7 +605,7 @@ buildIMEProposal(const VariantProposalRequest &request) {
     variantName =
         isUnsigned ? kIMEUnsignedVariantName : kIMEFirstSliceVariantName;
   VariantProposal proposal(variantName, kIMEPluginName);
-  proposal.setFormulaID(kIMEConstructionFormulaID);
+  proposal.setFormulaID(ime::kIMEConstructionFormulaID);
   proposal.addRequiredCapabilityID(kIMECapabilityID);
   proposal.setCondition(kIMECondition);
   proposal.setGuard(kIMEGuard);
@@ -719,9 +719,11 @@ void IMEExtensionPlugin::collectFormulaDescriptors(
   for (llvm::StringRef semanticCase :
        {"signed-mma", "unsigned-mma", "mixed-sign-su", "mixed-sign-us",
         "sliding-window", "whole-matrix", "q4-0-matrix-tile",
+        "q8-0-matrix-tile", "q4-k-matrix-tile",
         "unsupported-capability"})
     construction.addSemanticCase(semanticCase);
   construction.addProductionEntry("plugin:variant-proposal");
+  construction.addProductionEntry("backend:ime-direct-typed-body");
   out.push_back(std::move(construction));
 
   FormulaDescriptor cost(

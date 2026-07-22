@@ -1,0 +1,36 @@
+{
+  "id": "project-wide-construction-path-convergence",
+  "name": "project-wide-construction-path-convergence",
+  "title": "全项目 production construction path 统一",
+  "description": "根据公式层与覆盖、变体流水线和当前 direct backend 审计，关闭非 RVV backend 与直接 translate/artifact 入口绕过 family-local construction 的缺口；量化、反量化以及所有当前 production operator path 必须在同一 construction-before-emission contract 下收敛，不保留兼容中间路径。",
+  "status": "in_progress",
+  "dev_type": "refactor",
+  "scope": "project-wide-architecture",
+  "package": null,
+  "priority": "P0",
+  "creator": "codex",
+  "assignee": "codex",
+  "createdAt": "2026-07-22",
+  "completedAt": null,
+  "branch": "refactor/full-refactor-m1",
+  "base_branch": "refactor/full-refactor-m1",
+  "worktree_path": "/home/kingdom/phdworks/TianchenRV",
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [
+    ".trellis/spec/architecture/公式层与覆盖.md",
+    ".trellis/spec/architecture/变体流水线.md",
+    ".trellis/spec/issues/发射器与架构.md",
+    "include/Weft/Conversion/EmitC/TypedBackendEmissionDriver.h",
+    "lib/Conversion/EmitC/Builtin/BuiltinBackendEmitters.cpp"
+  ],
+  "notes": "上一轮 RVV cutover 只证明了 RVV 主路径，不能覆盖 direct backend translate/artifact 入口。本 task 不修改两柱、六律或主公式，不引入 universal verifier/provider；每个 family 仍由自己的 typed construction owner 负责。禁止先保留旧 direct emitter 作为兼容 fallback，禁止只增加 catalog/proposal 而不迁移真实 caller。",
+  "meta": {
+    "cutover": "RET-F-PROJECT",
+    "audit_baseline": "459645ae0670e64cb7f8f532e5299df98b515d83",
+    "supersedes_claim": "previous RVV-only horizontal cutover did not prove non-RVV direct backend entries"
+  }
+}

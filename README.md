@@ -52,7 +52,7 @@ Every production operator entry follows this path, including deterministic singl
 
 The repository already contains:
 
-- RVV, IME, Scalar, Offload, Template and other plugin families;
+- RVV, IME, Scalar, Demo, Toy, Template, TensorExtLite and Offload plugin families;
 - typed construction and extension bodies;
 - seven dequant mechanism formulas: Int8Scale, NibbleDecode, BinarySign,
   KQuantScaleMin, CodebookGather, GridLookup and TernaryDecode;
@@ -71,6 +71,16 @@ typed formulas; generic and source schedules use the same construction lifecycle
 lower-quant outputs complete legal schedules; composite realization is a real registry
 owner; and obsolete Q40/GEMM compatibility passes and non-semantic decision mirrors
 have been removed.
+
+The same boundary now covers backend emission itself. Every supported driver must run
+family-local construction before conversion; registry clone, public materialization,
+direct RVV conversion, translate and artifact paths share that hook. RVV, IME, Scalar,
+Demo, Toy, Template and TensorExtLite are construction-qualified; Offload remains
+explicitly unsupported. Scalar q2/dequant and IME MAC/tile decisions are frozen into
+conversion-local final plans before emission, while deterministic small families use a
+qualified final typed body plus a fixed mechanical route. Catalog/backend inventory is
+bidirectionally checked but is not compute authority. See
+[ISSUE-129](.trellis/spec/issues/发射器与架构.md).
 
 For flat block-dot kernels, formula construction now produces the final `flat_*`
 computation plan—body family, decode, fold, block length, activation offset, scale
@@ -96,7 +106,7 @@ The former eight-row migration ledger is retained only as
 ~~~text
 include/Weft/       ODS/TableGen and public C++ headers
 lib/                dialects, passes, plugins, realization, EmitC and target export
-  lib/Plugin/       RVV, IME, Scalar, Offload, Template and other families
+  lib/Plugin/       RVV, IME, Scalar, Demo, Toy, Template, TensorExtLite, Offload
 tools/              weft tools, bench runner, cell harnesses, gates and oracles
 test/               lit/FileCheck and C++ tests
 scripts/            probes and support tooling

@@ -4,6 +4,7 @@ add_mlir_library(WeftConversionEmitCBuiltin
   LINK_LIBS PUBLIC
   WeftConversionEmitC
   WeftConversionRVV
+  WeftDemoBackendEmitter
   WeftIMEBackendEmitter
   WeftToyBackendEmitter
   WeftTemplateBackendEmitter

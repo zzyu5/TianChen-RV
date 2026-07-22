@@ -862,6 +862,7 @@ void RVVExtensionPlugin::collectFormulaDescriptors(
        getRVVSelectedBodyRealizationOwners())
     realization.addSemanticCase(owner.familyName);
   realization.addProductionEntry("internal:selected-body-realization");
+  realization.addProductionEntry("backend:rvv-direct-typed-body");
   out.push_back(std::move(realization));
 }
 

@@ -7,6 +7,7 @@ add_mlir_library(WeftIMEBackendEmitter
   WeftConversionEmitC
   WeftExecDialect
   WeftIMEDialect
+  WeftIMEPlugin
   WeftSupport
   MLIREmitCDialect
   MLIRIR

@@ -256,12 +256,11 @@ private:
     // Attempt the real typed-body->emitc DialectConversion on a CLONE of the
     // module — via the table-driven backend-emission registry (mirrors the
     // plugin ExtensionPlugin registry: zero core branch per family). The
-    // registry iterates every registered typed-emission backend (RVV +
-    // Toy/Template/TensorExtLite today; a future RVM family is a one-line table
-    // add), skips those whose ops the module does not carry, and tries the
+    // registry iterates every registered typed-emission backend, skips those
+    // whose ops the module does not carry, and tries the
     // shared conversion harness on a clone for each candidate. If a backend
     // FULLY legalizes the selected body, the materialized module IS the
-    // conversion output (the hardware-validated authority). The clone protects
+    // construction-qualified conversion output. The clone protects
     // the live IR; only a full conversion keeps it. Zero family-name branch —
     // purely "did a registered backend legalize this body."
     if (mlir::OwningOpRef<mlir::ModuleOp> convertedModule =

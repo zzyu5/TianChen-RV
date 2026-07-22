@@ -27,6 +27,23 @@ add_mlir_library(WeftDemoEmitCRouteProvider
   MLIRSupport
 )
 
+add_mlir_library(WeftDemoBackendEmitter
+  DemoBackendEmissionDriver.cpp
+
+  PARTIAL_SOURCES_INTENDED
+
+  LINK_LIBS PUBLIC
+  WeftConversionEmitC
+  WeftDemoConstructionProtocol
+  WeftDemoDialect
+  WeftExecDialect
+  WeftSupport
+  MLIREmitCDialect
+  MLIRIR
+  MLIRSupport
+  MLIRTransformUtils
+)
+
 add_mlir_library(WeftDemoPlugin
   DemoExtensionPlugin.cpp
 

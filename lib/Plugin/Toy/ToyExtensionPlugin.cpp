@@ -456,6 +456,7 @@ void ToyExtensionPlugin::collectFormulaDescriptors(
   construction.addSemanticCase("template-capability-decline");
   construction.addProductionEntry("plugin:variant-proposal");
   construction.addProductionEntry(kToySourceFrontDoorArgument);
+  construction.addProductionEntry("backend:toy-direct-typed-body");
   out.push_back(std::move(construction));
 
   FormulaDescriptor cost(

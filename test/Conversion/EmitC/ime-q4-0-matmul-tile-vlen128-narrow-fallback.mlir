@@ -1,19 +1,10 @@
-// G8 wide-vmadot Leg1 (VLEN-mismatch capability decline) COVERAGE — the "VLEN-
-// invariant / dual-board" seller-point fixture that every other IME fixture (all
-// vlen_bits=256) leaves uncovered.
+// Direct IME emission must use the same family legality domain as proposal and
+// selected-body construction. VLEN=128 is outside the only real-K1-validated
+// IME1 4x4x8 envelope, so a hand-written tile cannot bypass that boundary and
+// reach an emitter-side "narrow fallback". Missing VLEN is rejected as well.
 //
-// The IME front door (IMEExtensionPlugin) fails closed for VLEN != 256 (the only
-// real-K1-validated 4x4x8 MAC-fragment envelope), so a VLEN128 capability cannot be
-// driven through --weft-materialize-plugin-variants. This fixture therefore exercises
-// EMISSION ONLY on a PRE-CONSTRUCTED q4_0 tile whose sibling spacemit.ime capability
-// provider carries vlen_bits = "128" — exactly what readDeployedVlenBits reads at
-// emit time. It asserts the wide-vmadot capability leg (Leg1) DECLINES: the 4x8 int8
-// fragment (macM*macK*elem_in_bits = 4*8*8 = 256 bits) needs rpfIn = ceil(256/128) =
-// 2 vregs at VLEN128, so the single-`vle8 e8,m1` wide leaf is invalid -> narrow
-// fallback. The honest decline is MATERIALIZED (not silent) and NO `_w2` wide leaf is
-// emitted.
-//
-// RUN: weft-opt %s --weft-materialize-emitc-lowerable-routes | FileCheck %s --implicit-check-not="mac_kloop_w2" --implicit-check-not="wide_deployed_njw"
+// RUN: not weft-opt %s --weft-materialize-emitc-lowerable-routes 2>&1 | FileCheck %s --check-prefix=UNSUPPORTED-VLEN
+// RUN: sed 's/, vlen_bits = "128"//' %s | not weft-opt --weft-materialize-emitc-lowerable-routes 2>&1 | FileCheck %s --check-prefix=MISSING-VLEN
 
 module {
   weft.exec.kernel @ime_q4_0_matmul_kernel {
@@ -29,33 +20,5 @@ module {
   }
 }
 
-// The DEPLOYED narrow batched vmadot MAC leaf is still emitted (register-resident,
-// single vsetvli, store once) — the wide leaf declines, so the narrow leaf stays the
-// deployed leaf (auto fallback).
-// CHECK: emitc.include <"stdint.h">
-// CHECK: emitc.verbatim
-// CHECK-SAME: register_resident_accumulate=1
-// CHECK-SAME: static inline void weft_ime_vmadot_mac_kloop(
-// CHECK-SAME: vmadot    v2, v0, v1
-
-// Leg1 VLEN-mismatch capability DECLINE, MATERIALIZED as honest provenance (not
-// silent): rpfIn = ceil(256/128) = 2 > 1, so the single-`vle8 e8,m1` wide leaf is
-// invalid at VLEN128 -> narrow fallback. deployed=0, njw=1.
-// CHECK: emitc.verbatim
-// CHECK-SAME: weft_ime.pat1_tiling=decline njw=1 deployed=0
-// CHECK-SAME: capability=vlen-fragment-mismatch decline
-// CHECK-SAME: macM*macK*elem_in_bits=256 does not fit one 128-bit vreg (rpfIn=2)
-// CHECK-SAME: narrow fallback
-
-// The q4_0 decode helper + the tiled q4_0 int32 kernel. The kernel runs NARROW-ONLY
-// (no wide column-tile loop, no wide_deployed_njw tag): the bulk loop calls the
-// narrow batched leaf directly.
-// CHECK: emitc.verbatim
-// CHECK-SAME: decode_model=q4_0_offset_binary_nibble
-// CHECK-SAME: static inline void weft_ime_q4_0_dequant_fragment
-// CHECK: emitc.verbatim
-// CHECK-SAME: int32_exact=1
-// CHECK-SAME: static void weft_ime_q4_0_vmadot_matmul
-// CHECK-SAME: weft_ime_vmadot_mac_kloop(Arow, Bdec, kt, frag)
-// CHECK: emitc.func @weft_emitc_ime_q4_0_matmul_kernel_ime_vmadot_matmul_slice
-// CHECK: call_opaque "weft_ime_q4_0_vmadot_matmul"
+// UNSUPPORTED-VLEN: no registered backend emission driver fully legalizes the selected variant {{.*}} body to EmitC
+// MISSING-VLEN: no registered backend emission driver fully legalizes the selected variant {{.*}} body to EmitC

@@ -1,0 +1,7 @@
+{"command":"cmake --build build/weft --target weft-opt weft-translate weft-formula-catalog-test -j2","result":"PASS","evidence":"mandatory backend interface、Demo/Scalar/IME/Toy/Template/TensorExtLite 与 catalog test 全部重新编译/链接"}
+{"command":"build/weft/bin/weft-formula-catalog-test","result":"PASS","evidence":"8 plugins、46 formula authorities、36 source front doors、7 construction-qualified backends；backend:* catalog/live inventory 双向唯一"}
+{"command":"lit -sv build/weft/test --filter=project-construction-authority|demo|scalar-plan|dequant|ime-vlen|toy|template|tensorext","result":"PASS 14/14","evidence":"direct backend 正负路径、Scalar forged/invalid plan、Demo stale route、RVV flat authority denylist"}
+{"command":"lit -sv build/weft/test --filter=ime","result":"PASS 125/125","evidence":"IME proposal/legality/direct construction 共域；受支持 VLEN256 正路径与 unsupported/missing capability 负路径无回归"}
+{"command":"cmake --build build/weft --target check-weft -j2","result":"PASS 979/979","evidence":"完整 lit、plugin/unit、target artifact、runtime ABI 与 authority tests 全绿"}
+{"command":"git diff --check","result":"PASS","evidence":"无 whitespace/error marker"}
+{"command":"jq empty task.json and per-line jq for implement.jsonl/check.jsonl","result":"PASS","evidence":"task metadata 与 JSONL 均为有效 JSON"}

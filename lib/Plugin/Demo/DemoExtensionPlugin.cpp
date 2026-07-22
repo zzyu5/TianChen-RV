@@ -445,6 +445,7 @@ void DemoExtensionPlugin::collectFormulaDescriptors(
   construction.addSemanticCase("capability-applicable-role-sequence");
   construction.addSemanticCase("capability-decline");
   construction.addProductionEntry("plugin:variant-proposal");
+  construction.addProductionEntry("backend:demo-direct-typed-body");
   out.push_back(std::move(construction));
 
   FormulaDescriptor cost(

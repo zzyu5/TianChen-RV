@@ -28,6 +28,7 @@ add_executable(weft-formula-catalog-test
 target_link_libraries(weft-formula-catalog-test
   PRIVATE
   WeftBuiltinPlugins
+  WeftConversionEmitCBuiltin
   WeftPlugin
   MLIRSupport
 )

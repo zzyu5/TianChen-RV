@@ -1,4 +1,6 @@
 #include "Weft/Plugin/BuiltinExtensionPlugins.h"
+#include "Weft/Conversion/EmitC/BackendEmissionRegistry.h"
+#include "Weft/Conversion/EmitC/TypedBackendEmissionDriver.h"
 #include "Weft/Plugin/ExtensionBundle.h"
 #include "Weft/Plugin/ExtensionPlugin.h"
 #include "Weft/Plugin/RVV/RVVExtensionPlugin.h"
@@ -63,6 +65,8 @@ int main() {
 
   llvm::StringMap<const FormulaDescriptor *> byID;
   llvm::StringMap<unsigned> scopedProductionEntryOwners;
+  llvm::StringMap<unsigned> globalProductionEntryOwners;
+  llvm::StringSet<> catalogBackendEntries;
   std::size_t declaredDependencyFields = 0;
   std::size_t declaredFormulaCases = 0;
   for (const FormulaDescriptor &formula : formulas) {
@@ -76,6 +80,9 @@ int main() {
       std::string key =
           (formula.getOwnerPlugin() + llvm::Twine("\n") + entry).str();
       ++scopedProductionEntryOwners[key];
+      ++globalProductionEntryOwners[entry];
+      if (llvm::StringRef(entry).starts_with("backend:"))
+        catalogBackendEntries.insert(entry);
     }
     auto countDecisive = [&](const FormulaAxisDescriptor &axis) {
       if (axis.getUse() == FormulaAxisUse::Decisive)
@@ -86,6 +93,50 @@ int main() {
     countDecisive(formula.getStaticContextAxis());
     declaredFormulaCases += formula.getSemanticCases().size();
   }
+
+  weft::conversion::emitc::BackendEmissionRegistry backendRegistry;
+  weft::conversion::emitc::registerBuiltinBackendEmitters(backendRegistry);
+  llvm::StringSet<> backendNames;
+  llvm::StringMap<unsigned> backendConstructionEntryClaims;
+  for (const weft::conversion::emitc::TypedBackendEmissionDriver *backend :
+       backendRegistry.getRegisteredBackends()) {
+    if (!backendNames.insert(backend->getBackendName()).second)
+      return fail(llvm::Twine("duplicate backend identity: ") +
+                  backend->getBackendName());
+    if (backend->getConstructionEntryNames().empty())
+      return fail(llvm::Twine("backend has no construction formula entry: ") +
+                  backend->getBackendName());
+    for (llvm::StringRef entry : backend->getConstructionEntryNames()) {
+      if (!entry.starts_with("backend:"))
+        return fail(llvm::Twine("backend construction entry has no backend: "
+                                "namespace: ") +
+                    entry);
+      if (++backendConstructionEntryClaims[entry] != 1)
+        return fail(llvm::Twine("backend construction entry is claimed by "
+                                "multiple live backends: ") +
+                    entry);
+      if (globalProductionEntryOwners.lookup(entry) != 1)
+        return fail(llvm::Twine("backend construction entry must have exactly "
+                                "one catalog owner: ") +
+                    entry);
+    }
+  }
+  if (catalogBackendEntries.size() != backendConstructionEntryClaims.size())
+    return fail("catalog backend entries and live backend construction entries "
+                "must be the same set");
+  for (const auto &entry : catalogBackendEntries)
+    if (backendConstructionEntryClaims.lookup(entry.getKey()) != 1)
+      return fail(llvm::Twine("catalog contains a dead backend construction "
+                              "entry: ") +
+                  entry.getKey());
+  for (llvm::StringRef requiredBackend :
+       {"rvv", "demo", "toy", "template", "tensorext_lite", "ime",
+        "scalar"})
+    if (!backendNames.contains(requiredBackend))
+      return fail(llvm::Twine("production backend missing from registry: ") +
+                  requiredBackend);
+  if (backendNames.contains("offload"))
+    return fail("unsupported Offload placeholder must not become an emitter");
 
   llvm::StringSet<> registeredFrontDoors;
   for (const SourceFrontDoorPassRegistration &frontDoor : frontDoors) {
@@ -379,7 +430,8 @@ int main() {
   llvm::outs() << "formula catalog/registry integrity ok: " << plugins.size()
                << " plugins, " << formulas.size() << " formula authorities, "
                << frontDoors.size()
-               << " registered source front doors; direct route and all "
+               << " registered source front doors, " << backendNames.size()
+               << " construction-qualified backends; direct route and all "
                   "entries uniquely owned; "
                << declaredDependencyFields << " declared dependency fields and "
                << declaredFormulaCases << " declared formula cases\n";

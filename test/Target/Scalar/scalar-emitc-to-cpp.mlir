@@ -12,11 +12,11 @@
 // intrinsics). The second RUN proves the translate route is self-contained on
 // the same source (byte-identical output).
 //
-// This is a TRIVIAL compute boundary (step 3 lands a real kernel). The emission
-// is operand-driven, not vacuous: the exported function name is derived from
-// the op's source_kernel + selected_variant, and the emitted `int32_t v = 7;`
-// echoes the op's scalar_immediate attribute -- changing either attribute
-// changes the emitted C.
+// This is a TRIVIAL compute boundary (step 3 lands a real kernel). The
+// construction is typed-input-driven, not vacuous: the family formula consumes
+// source_kernel + selected_variant + scalar_immediate and records the exported
+// symbol, callee, and immediate in the conversion-local final plan. The emitter
+// only materializes that plan.
 //
 // NOTE: --weft-materialize-emission-plans is intentionally NOT in the pipe. That
 // pass gates on the origin plugin reporting a SUPPORTED emission readiness
