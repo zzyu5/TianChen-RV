@@ -67,12 +67,6 @@ findSelectedTensorExtLiteRoleSequence(
 llvm::Expected<emitc::WEFTEmitCSourceOpProvenance>
 getTensorExtLiteRoleSourceProvenance(
     const construction::SelectedExecutableRoleStep &step) {
-  if (llvm::Error error = verifyTensorExtLiteRoleOpInterface(
-          getTensorExtLiteConstructionManifest(),
-          getTensorExtLiteTypedRoleGraphRealization(), step.operation,
-          step.constructionStep->sourceRole))
-    return std::move(error);
-
   auto lowerable =
       llvm::dyn_cast<emitc::WEFTEmitCLowerableOpInterface>(step.operation);
   if (!lowerable)
@@ -93,25 +87,11 @@ llvm::Error validateTensorExtLiteFragmentMmaEmitCRouteReadiness(
     const VariantEmitCLowerableRequest &request,
     llvm::SmallVectorImpl<emitc::WEFTEmitCSourceOpProvenance> &outSources) {
   outSources.clear();
-  if (llvm::Error error = verifyTensorExtLiteConstructionProtocolReady())
-    return error;
-
   llvm::Expected<llvm::SmallVector<construction::SelectedExecutableRoleStep, 4>>
       steps =
       findSelectedTensorExtLiteRoleSequence(request);
   if (!steps)
     return steps.takeError();
-
-  const TensorExtLiteFragmentMmaEmitCConstructionRoute &constructionRoute =
-      getTensorExtLiteFragmentMmaEmitCConstructionRoute();
-  if (llvm::Error error =
-          verifyTensorExtLiteFragmentMmaEmitCConstructionRouteMapping(
-              constructionRoute.routeID, constructionRoute.emissionKind,
-              constructionRoute.artifactKind, constructionRoute.runtimeABI,
-              constructionRoute.runtimeABIKind,
-              constructionRoute.runtimeABIName,
-              constructionRoute.runtimeGlueRole))
-    return error;
 
   for (const construction::SelectedExecutableRoleStep &step : *steps) {
     llvm::Expected<emitc::WEFTEmitCSourceOpProvenance> source =

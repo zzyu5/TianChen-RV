@@ -879,11 +879,6 @@ void RVVExtensionPlugin::collectFormulaDescriptors(
   out.push_back(std::move(realization));
 }
 
-llvm::Error
-RVVExtensionPlugin::verifyExecutableConstructionConformance() const {
-  return rvv::verifyRVVConstructionProtocolReady();
-}
-
 llvm::Error RVVExtensionPlugin::registerSourceFrontDoorPasses(
     const ExtensionPluginRegistry &registry,
     llvm::SmallVectorImpl<SourceFrontDoorPassRegistration> &out) const {

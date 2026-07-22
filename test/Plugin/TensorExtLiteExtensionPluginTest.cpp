@@ -520,20 +520,21 @@ module {
           proposal, weft::plugin::tensorext_lite::getTensorExtLiteHandoffKindAttrName(),
           weft::plugin::tensorext_lite::getTensorExtLiteExpectedHandoffKind()))
     return result;
-  if (int result = expectProposalStringAttr(
-          proposal, "weft_tensorext_lite.construction_protocol",
-          weft::plugin::tensorext_lite::getTensorExtLiteConstructionManifest()
-              .protocolVersion))
-    return result;
-  if (int result = expectProposalStringAttr(
-          proposal, "weft_tensorext_lite.semantic_role_graph",
-          weft::plugin::tensorext_lite::getTensorExtLiteConstructionManifest()
-              .semanticRoleGraph))
-    return result;
-  if (int result = expectProposalStringAttr(
-          proposal, "weft_tensorext_lite.typed_role_realization",
-          weft::plugin::tensorext_lite::getTensorExtLiteTypedRoleRealizationSummary()))
-    return result;
+  for (llvm::StringRef legacyConstructionAttr : {
+           "weft_tensorext_lite.construction_protocol",
+           "weft_tensorext_lite.archetype",
+           "weft_tensorext_lite.semantic_role_graph",
+           "weft_tensorext_lite.common_interface_realization",
+           "weft_tensorext_lite.typed_role_realization",
+           "weft_tensorext_lite.emitc_route_mapping",
+           "weft_tensorext_lite.evidence_profile"}) {
+    if (int result = expect(
+            !findProposalAttribute(proposal, legacyConstructionAttr),
+            llvm::Twine(
+                "TensorExtLite proposal omits legacy construction metadata '") +
+                legacyConstructionAttr + "'"))
+      return result;
+  }
 
   auto expectNoProposal = [&](KernelOp kernel, llvm::StringRef context) -> int {
     TargetCapabilitySet capabilities = TargetCapabilitySet::buildFromKernel(kernel);

@@ -24,20 +24,6 @@ constexpr llvm::StringLiteral kDemoIntegrationContractAttrName(
     "weft_demo.integration_contract");
 constexpr llvm::StringLiteral kDemoHandoffKindAttrName(
     "weft_demo.handoff_kind");
-constexpr llvm::StringLiteral kDemoConstructionProtocolAttrName(
-    "weft_demo.construction_protocol");
-constexpr llvm::StringLiteral kDemoConstructionArchetypeAttrName(
-    "weft_demo.archetype");
-constexpr llvm::StringLiteral kDemoSemanticRoleGraphAttrName(
-    "weft_demo.semantic_role_graph");
-constexpr llvm::StringLiteral kDemoCommonInterfaceRealizationAttrName(
-    "weft_demo.common_interface_realization");
-constexpr llvm::StringLiteral kDemoTypedRoleRealizationAttrName(
-    "weft_demo.typed_role_realization");
-constexpr llvm::StringLiteral kDemoEmitCRouteMappingAttrName(
-    "weft_demo.emitc_route_mapping");
-constexpr llvm::StringLiteral kDemoEvidenceProfileAttrName(
-    "weft_demo.evidence_profile");
 constexpr llvm::StringLiteral kExpectedIntegrationContract(
     "demo-zero-core-handoff.v1");
 constexpr llvm::StringLiteral kExpectedHandoffKind(
@@ -191,11 +177,6 @@ llvm::Expected<bool> variantRequiresDemoExtension(
 llvm::Error verifyDemoVariantMetadata(
     weft::exec::VariantOp variant,
     const DemoExtensionCapabilityView &capabilityView) {
-  if (llvm::Error error = verifyDemoConstructionProtocolReady())
-    return error;
-
-  const DemoConstructionManifest &manifest =
-      getDemoConstructionManifest();
   auto integrationContract = variant->getAttrOfType<mlir::StringAttr>(
       kDemoIntegrationContractAttrName);
   if (!integrationContract || integrationContract.getValue().trim().empty())
@@ -221,66 +202,6 @@ llvm::Error verifyDemoVariantMetadata(
         llvm::Twine("materialized Demo variant @") + variant.getSymName() +
         " handoff kind metadata is not satisfied by "
         "preserved capability property 'handoff_kind'");
-
-  auto constructionProtocol = variant->getAttrOfType<mlir::StringAttr>(
-      kDemoConstructionProtocolAttrName);
-  if (!constructionProtocol ||
-      constructionProtocol.getValue() != manifest.protocolVersion)
-    return makeDemoPluginError(
-        llvm::Twine("materialized Demo variant @") + variant.getSymName() +
-        " must carry construction protocol metadata '" +
-        kDemoConstructionProtocolAttrName + "'");
-
-  auto archetype = variant->getAttrOfType<mlir::StringAttr>(
-      kDemoConstructionArchetypeAttrName);
-  if (!archetype || archetype.getValue() != manifest.archetype)
-    return makeDemoPluginError(
-        llvm::Twine("materialized Demo variant @") + variant.getSymName() +
-        " must carry extension archetype metadata '" +
-        kDemoConstructionArchetypeAttrName + "'");
-
-  auto roleGraph = variant->getAttrOfType<mlir::StringAttr>(
-      kDemoSemanticRoleGraphAttrName);
-  if (!roleGraph || roleGraph.getValue() != manifest.semanticRoleGraph)
-    return makeDemoPluginError(
-        llvm::Twine("materialized Demo variant @") + variant.getSymName() +
-        " must carry semantic role graph metadata '" +
-        kDemoSemanticRoleGraphAttrName + "'");
-
-  auto interfaces = variant->getAttrOfType<mlir::StringAttr>(
-      kDemoCommonInterfaceRealizationAttrName);
-  if (!interfaces ||
-      interfaces.getValue() != getDemoConstructionInterfaceRealization())
-    return makeDemoPluginError(
-        llvm::Twine("materialized Demo variant @") + variant.getSymName() +
-        " must carry common interface realization metadata '" +
-        kDemoCommonInterfaceRealizationAttrName + "'");
-
-  auto typedRoles = variant->getAttrOfType<mlir::StringAttr>(
-      kDemoTypedRoleRealizationAttrName);
-  if (!typedRoles ||
-      typedRoles.getValue() != getDemoTypedRoleRealizationSummary())
-    return makeDemoPluginError(
-        llvm::Twine("materialized Demo variant @") + variant.getSymName() +
-        " must carry typed role realization metadata '" +
-        kDemoTypedRoleRealizationAttrName + "'");
-
-  auto emitcRoute = variant->getAttrOfType<mlir::StringAttr>(
-      kDemoEmitCRouteMappingAttrName);
-  if (!emitcRoute || emitcRoute.getValue() != manifest.emitcRoute.routeID)
-    return makeDemoPluginError(
-        llvm::Twine("materialized Demo variant @") + variant.getSymName() +
-        " must carry EmitC route mapping metadata '" +
-        kDemoEmitCRouteMappingAttrName + "'");
-
-  auto evidenceProfile = variant->getAttrOfType<mlir::StringAttr>(
-      kDemoEvidenceProfileAttrName);
-  if (!evidenceProfile ||
-      evidenceProfile.getValue() != manifest.evidenceProfile)
-    return makeDemoPluginError(
-        llvm::Twine("materialized Demo variant @") + variant.getSymName() +
-        " must carry evidence profile metadata '" +
-        kDemoEvidenceProfileAttrName + "'");
 
   return llvm::Error::success();
 }

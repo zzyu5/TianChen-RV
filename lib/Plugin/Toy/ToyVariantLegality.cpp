@@ -20,20 +20,6 @@ constexpr llvm::StringLiteral kToyTemplateCapabilityID("toy.template");
 constexpr llvm::StringLiteral kToyTemplateCapabilityKind("extension-template");
 constexpr llvm::StringLiteral kToyTemplateABIAttrName("weft_toy.template_abi");
 constexpr llvm::StringLiteral kToyHandoffKindAttrName("weft_toy.handoff_kind");
-constexpr llvm::StringLiteral kToyConstructionProtocolAttrName(
-    "weft_toy.construction_protocol");
-constexpr llvm::StringLiteral kToyConstructionArchetypeAttrName(
-    "weft_toy.archetype");
-constexpr llvm::StringLiteral kToySemanticRoleGraphAttrName(
-    "weft_toy.semantic_role_graph");
-constexpr llvm::StringLiteral kToyCommonInterfaceRealizationAttrName(
-    "weft_toy.common_interface_realization");
-constexpr llvm::StringLiteral kToyTypedRoleRealizationAttrName(
-    "weft_toy.typed_role_realization");
-constexpr llvm::StringLiteral kToyEmitCRouteMappingAttrName(
-    "weft_toy.emitc_route_mapping");
-constexpr llvm::StringLiteral kToyEvidenceProfileAttrName(
-    "weft_toy.evidence_profile");
 constexpr llvm::StringLiteral kExpectedTemplateABI("toy-metadata-boundary.v1");
 constexpr llvm::StringLiteral kExpectedHandoffKind("toy-lowering-template");
 constexpr llvm::StringLiteral kOriginAttrName("origin");
@@ -182,10 +168,6 @@ variantRequiresToyTemplate(weft::exec::VariantOp variant,
 llvm::Error verifyToyVariantMetadata(
     weft::exec::VariantOp variant,
     const ToyTemplateCapabilityView &capabilityView) {
-  if (llvm::Error error = verifyToyConstructionProtocolReady())
-    return error;
-
-  const ToyConstructionManifest &manifest = getToyConstructionManifest();
   auto templateABI =
       variant->getAttrOfType<mlir::StringAttr>(kToyTemplateABIAttrName);
   if (!templateABI || templateABI.getValue().trim().empty())
@@ -211,66 +193,6 @@ llvm::Error verifyToyVariantMetadata(
                               variant.getSymName() +
                               " handoff kind metadata is not satisfied by "
                               "preserved capability property 'handoff_kind'");
-
-  auto constructionProtocol = variant->getAttrOfType<mlir::StringAttr>(
-      kToyConstructionProtocolAttrName);
-  if (!constructionProtocol ||
-      constructionProtocol.getValue() != manifest.protocolVersion)
-    return makeToyPluginError(
-        llvm::Twine("materialized Toy variant @") + variant.getSymName() +
-        " must carry construction protocol metadata '" +
-        kToyConstructionProtocolAttrName + "'");
-
-  auto archetype = variant->getAttrOfType<mlir::StringAttr>(
-      kToyConstructionArchetypeAttrName);
-  if (!archetype || archetype.getValue() != manifest.archetype)
-    return makeToyPluginError(
-        llvm::Twine("materialized Toy variant @") + variant.getSymName() +
-        " must carry extension archetype metadata '" +
-        kToyConstructionArchetypeAttrName + "'");
-
-  auto roleGraph =
-      variant->getAttrOfType<mlir::StringAttr>(kToySemanticRoleGraphAttrName);
-  if (!roleGraph || roleGraph.getValue() != manifest.semanticRoleGraph)
-    return makeToyPluginError(
-        llvm::Twine("materialized Toy variant @") + variant.getSymName() +
-        " must carry semantic role graph metadata '" +
-        kToySemanticRoleGraphAttrName + "'");
-
-  auto interfaces = variant->getAttrOfType<mlir::StringAttr>(
-      kToyCommonInterfaceRealizationAttrName);
-  if (!interfaces ||
-      interfaces.getValue() != getToyConstructionInterfaceRealization())
-    return makeToyPluginError(
-        llvm::Twine("materialized Toy variant @") + variant.getSymName() +
-        " must carry common interface realization metadata '" +
-        kToyCommonInterfaceRealizationAttrName + "'");
-
-  auto typedRoles = variant->getAttrOfType<mlir::StringAttr>(
-      kToyTypedRoleRealizationAttrName);
-  if (!typedRoles ||
-      typedRoles.getValue() != getToyTypedRoleRealizationSummary())
-    return makeToyPluginError(
-        llvm::Twine("materialized Toy variant @") + variant.getSymName() +
-        " must carry typed role realization metadata '" +
-        kToyTypedRoleRealizationAttrName + "'");
-
-  auto emitcRoute =
-      variant->getAttrOfType<mlir::StringAttr>(kToyEmitCRouteMappingAttrName);
-  if (!emitcRoute || emitcRoute.getValue() != manifest.emitcRoute.routeID)
-    return makeToyPluginError(
-        llvm::Twine("materialized Toy variant @") + variant.getSymName() +
-        " must carry EmitC route mapping metadata '" +
-        kToyEmitCRouteMappingAttrName + "'");
-
-  auto evidenceProfile =
-      variant->getAttrOfType<mlir::StringAttr>(kToyEvidenceProfileAttrName);
-  if (!evidenceProfile ||
-      evidenceProfile.getValue() != manifest.evidenceProfile)
-    return makeToyPluginError(
-        llvm::Twine("materialized Toy variant @") + variant.getSymName() +
-        " must carry evidence profile metadata '" +
-        kToyEvidenceProfileAttrName + "'");
 
   return llvm::Error::success();
 }

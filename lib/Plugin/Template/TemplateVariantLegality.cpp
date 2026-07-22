@@ -24,20 +24,6 @@ constexpr llvm::StringLiteral kTemplateIntegrationContractAttrName(
     "weft_template.integration_contract");
 constexpr llvm::StringLiteral kTemplateHandoffKindAttrName(
     "weft_template.handoff_kind");
-constexpr llvm::StringLiteral kTemplateConstructionProtocolAttrName(
-    "weft_template.construction_protocol");
-constexpr llvm::StringLiteral kTemplateConstructionArchetypeAttrName(
-    "weft_template.archetype");
-constexpr llvm::StringLiteral kTemplateSemanticRoleGraphAttrName(
-    "weft_template.semantic_role_graph");
-constexpr llvm::StringLiteral kTemplateCommonInterfaceRealizationAttrName(
-    "weft_template.common_interface_realization");
-constexpr llvm::StringLiteral kTemplateTypedRoleRealizationAttrName(
-    "weft_template.typed_role_realization");
-constexpr llvm::StringLiteral kTemplateEmitCRouteMappingAttrName(
-    "weft_template.emitc_route_mapping");
-constexpr llvm::StringLiteral kTemplateEvidenceProfileAttrName(
-    "weft_template.evidence_profile");
 constexpr llvm::StringLiteral kExpectedIntegrationContract(
     "template-zero-core-handoff.v1");
 constexpr llvm::StringLiteral kExpectedHandoffKind(
@@ -191,11 +177,6 @@ llvm::Expected<bool> variantRequiresTemplateExtension(
 llvm::Error verifyTemplateVariantMetadata(
     weft::exec::VariantOp variant,
     const TemplateExtensionCapabilityView &capabilityView) {
-  if (llvm::Error error = verifyTemplateConstructionProtocolReady())
-    return error;
-
-  const TemplateConstructionManifest &manifest =
-      getTemplateConstructionManifest();
   auto integrationContract = variant->getAttrOfType<mlir::StringAttr>(
       kTemplateIntegrationContractAttrName);
   if (!integrationContract || integrationContract.getValue().trim().empty())
@@ -221,66 +202,6 @@ llvm::Error verifyTemplateVariantMetadata(
         llvm::Twine("materialized Template variant @") + variant.getSymName() +
         " handoff kind metadata is not satisfied by "
         "preserved capability property 'handoff_kind'");
-
-  auto constructionProtocol = variant->getAttrOfType<mlir::StringAttr>(
-      kTemplateConstructionProtocolAttrName);
-  if (!constructionProtocol ||
-      constructionProtocol.getValue() != manifest.protocolVersion)
-    return makeTemplatePluginError(
-        llvm::Twine("materialized Template variant @") + variant.getSymName() +
-        " must carry construction protocol metadata '" +
-        kTemplateConstructionProtocolAttrName + "'");
-
-  auto archetype = variant->getAttrOfType<mlir::StringAttr>(
-      kTemplateConstructionArchetypeAttrName);
-  if (!archetype || archetype.getValue() != manifest.archetype)
-    return makeTemplatePluginError(
-        llvm::Twine("materialized Template variant @") + variant.getSymName() +
-        " must carry extension archetype metadata '" +
-        kTemplateConstructionArchetypeAttrName + "'");
-
-  auto roleGraph = variant->getAttrOfType<mlir::StringAttr>(
-      kTemplateSemanticRoleGraphAttrName);
-  if (!roleGraph || roleGraph.getValue() != manifest.semanticRoleGraph)
-    return makeTemplatePluginError(
-        llvm::Twine("materialized Template variant @") + variant.getSymName() +
-        " must carry semantic role graph metadata '" +
-        kTemplateSemanticRoleGraphAttrName + "'");
-
-  auto interfaces = variant->getAttrOfType<mlir::StringAttr>(
-      kTemplateCommonInterfaceRealizationAttrName);
-  if (!interfaces ||
-      interfaces.getValue() != getTemplateConstructionInterfaceRealization())
-    return makeTemplatePluginError(
-        llvm::Twine("materialized Template variant @") + variant.getSymName() +
-        " must carry common interface realization metadata '" +
-        kTemplateCommonInterfaceRealizationAttrName + "'");
-
-  auto typedRoles = variant->getAttrOfType<mlir::StringAttr>(
-      kTemplateTypedRoleRealizationAttrName);
-  if (!typedRoles ||
-      typedRoles.getValue() != getTemplateTypedRoleRealizationSummary())
-    return makeTemplatePluginError(
-        llvm::Twine("materialized Template variant @") + variant.getSymName() +
-        " must carry typed role realization metadata '" +
-        kTemplateTypedRoleRealizationAttrName + "'");
-
-  auto emitcRoute = variant->getAttrOfType<mlir::StringAttr>(
-      kTemplateEmitCRouteMappingAttrName);
-  if (!emitcRoute || emitcRoute.getValue() != manifest.emitcRoute.routeID)
-    return makeTemplatePluginError(
-        llvm::Twine("materialized Template variant @") + variant.getSymName() +
-        " must carry EmitC route mapping metadata '" +
-        kTemplateEmitCRouteMappingAttrName + "'");
-
-  auto evidenceProfile = variant->getAttrOfType<mlir::StringAttr>(
-      kTemplateEvidenceProfileAttrName);
-  if (!evidenceProfile ||
-      evidenceProfile.getValue() != manifest.evidenceProfile)
-    return makeTemplatePluginError(
-        llvm::Twine("materialized Template variant @") + variant.getSymName() +
-        " must carry evidence profile metadata '" +
-        kTemplateEvidenceProfileAttrName + "'");
 
   return llvm::Error::success();
 }

@@ -17,7 +17,6 @@ module attributes {
 // BOUNDARY: weft.exec.variant @tensorext_lite_tile_mma_first_slice
 // BOUNDARY-SAME: origin = "tensorext-lite-plugin"
 // BOUNDARY-SAME: requires = [@tensorext_lite_tile_mma]
-// BOUNDARY-SAME: weft_tensorext_lite.emitc_route_mapping = "tensorext-lite-fragment-mma-emitc-route"
 // BOUNDARY: weft_tensorext_lite.config_skeleton {
 // BOUNDARY-SAME: role_order = 0 : i64
 // BOUNDARY-SAME: selected_variant = @tensorext_lite_tile_mma_first_slice

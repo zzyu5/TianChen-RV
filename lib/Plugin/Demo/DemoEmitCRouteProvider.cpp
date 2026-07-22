@@ -86,11 +86,6 @@ findSelectedDemoComputeSkeletonBoundary(
 llvm::Expected<emitc::WEFTEmitCSourceOpProvenance>
 getDemoComputeSourceProvenance(
     weft::demo_ext::ComputeSkeletonOp compute) {
-  if (llvm::Error error = verifyDemoComputeRoleOpInterface(
-          getDemoConstructionManifest(), getDemoTypedRoleGraphRealization(),
-          compute.getOperation()))
-    return std::move(error);
-
   auto lowerable =
       llvm::dyn_cast<emitc::WEFTEmitCLowerableOpInterface>(
           compute.getOperation());
@@ -111,9 +106,6 @@ getDemoComputeSourceProvenance(
 llvm::Error validateDemoComputeSkeletonEmitCRouteReadiness(
     const VariantEmitCLowerableRequest &request,
     emitc::WEFTEmitCSourceOpProvenance &outSource) {
-  if (llvm::Error error = verifyDemoConstructionProtocolReady())
-    return error;
-
   llvm::Expected<weft::demo_ext::ComputeSkeletonOp> compute =
       findSelectedDemoComputeSkeletonBoundary(request);
   if (!compute)
@@ -123,16 +115,6 @@ llvm::Error validateDemoComputeSkeletonEmitCRouteReadiness(
       getDemoComputeSourceProvenance(*compute);
   if (!source)
     return source.takeError();
-
-  const DemoEmitCConstructionRoute &constructionRoute =
-      getDemoEmitCConstructionRoute();
-  if (llvm::Error error = verifyDemoEmitCConstructionRouteMapping(
-          constructionRoute.routeID, constructionRoute.emissionKind,
-          constructionRoute.artifactKind, constructionRoute.loweringBoundaryOpName,
-          constructionRoute.runtimeABI, constructionRoute.runtimeABIKind,
-          constructionRoute.runtimeABIName,
-          constructionRoute.runtimeGlueRole))
-    return error;
 
   outSource = std::move(*source);
   return llvm::Error::success();

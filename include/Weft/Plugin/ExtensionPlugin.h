@@ -677,7 +677,6 @@ public:
   virtual llvm::ArrayRef<PluginCapability> getCapabilities() const = 0;
   virtual void registerDialects(mlir::DialectRegistry &registry) const = 0;
   virtual bool isEnabled() const { return true; }
-  virtual llvm::Error verifyExecutableConstructionConformance() const;
   virtual void collectFormulaDescriptors(
       llvm::SmallVectorImpl<FormulaDescriptor> &out) const;
   /// Construct or validate every family-owned final formula plan before

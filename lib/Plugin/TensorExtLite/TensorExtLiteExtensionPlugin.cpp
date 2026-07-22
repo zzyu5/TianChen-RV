@@ -45,20 +45,6 @@ constexpr llvm::StringLiteral kTensorExtLiteFragmentABIAttrName(
     "weft_tensorext_lite.fragment_abi");
 constexpr llvm::StringLiteral kTensorExtLiteHandoffKindAttrName(
     "weft_tensorext_lite.handoff_kind");
-constexpr llvm::StringLiteral kTensorExtLiteConstructionProtocolAttrName(
-    "weft_tensorext_lite.construction_protocol");
-constexpr llvm::StringLiteral kTensorExtLiteConstructionArchetypeAttrName(
-    "weft_tensorext_lite.archetype");
-constexpr llvm::StringLiteral kTensorExtLiteSemanticRoleGraphAttrName(
-    "weft_tensorext_lite.semantic_role_graph");
-constexpr llvm::StringLiteral kTensorExtLiteCommonInterfaceRealizationAttrName(
-    "weft_tensorext_lite.common_interface_realization");
-constexpr llvm::StringLiteral kTensorExtLiteTypedRoleRealizationAttrName(
-    "weft_tensorext_lite.typed_role_realization");
-constexpr llvm::StringLiteral kTensorExtLiteEmitCRouteMappingAttrName(
-    "weft_tensorext_lite.emitc_route_mapping");
-constexpr llvm::StringLiteral kTensorExtLiteEvidenceProfileAttrName(
-    "weft_tensorext_lite.evidence_profile");
 constexpr llvm::StringLiteral kExpectedFragmentABI(
     "tensorext-lite-fragment-boundary.v1");
 constexpr llvm::StringLiteral kExpectedHandoffKind("tensorext-lite-fragment-mma-template");
@@ -257,43 +243,6 @@ buildTensorExtLiteFragmentProposal(const VariantProposalRequest &request) {
                             kTensorExtLiteHandoffKindAttrName),
       mlir::StringAttr::get(request.getKernel()->getContext(),
                             capabilityView->handoffKind));
-  const tensorext_lite::TensorExtLiteConstructionManifest &manifest =
-      tensorext_lite::getTensorExtLiteConstructionManifest();
-  proposal.addPluginAttribute(
-      mlir::StringAttr::get(request.getKernel()->getContext(),
-                            kTensorExtLiteConstructionProtocolAttrName),
-      mlir::StringAttr::get(request.getKernel()->getContext(),
-                            manifest.protocolVersion));
-  proposal.addPluginAttribute(
-      mlir::StringAttr::get(request.getKernel()->getContext(),
-                            kTensorExtLiteConstructionArchetypeAttrName),
-      mlir::StringAttr::get(request.getKernel()->getContext(),
-                            manifest.archetype));
-  proposal.addPluginAttribute(
-      mlir::StringAttr::get(request.getKernel()->getContext(),
-                            kTensorExtLiteSemanticRoleGraphAttrName),
-      mlir::StringAttr::get(request.getKernel()->getContext(),
-                            manifest.semanticRoleGraph));
-  proposal.addPluginAttribute(
-      mlir::StringAttr::get(request.getKernel()->getContext(),
-                            kTensorExtLiteCommonInterfaceRealizationAttrName),
-      mlir::StringAttr::get(request.getKernel()->getContext(),
-                            tensorext_lite::getTensorExtLiteConstructionInterfaceRealization()));
-  proposal.addPluginAttribute(
-      mlir::StringAttr::get(request.getKernel()->getContext(),
-                            kTensorExtLiteTypedRoleRealizationAttrName),
-      mlir::StringAttr::get(request.getKernel()->getContext(),
-                            tensorext_lite::getTensorExtLiteTypedRoleRealizationSummary()));
-  proposal.addPluginAttribute(
-      mlir::StringAttr::get(request.getKernel()->getContext(),
-                            kTensorExtLiteEmitCRouteMappingAttrName),
-      mlir::StringAttr::get(request.getKernel()->getContext(),
-                            manifest.emitcRoute.routeID));
-  proposal.addPluginAttribute(
-      mlir::StringAttr::get(request.getKernel()->getContext(),
-                            kTensorExtLiteEvidenceProfileAttrName),
-      mlir::StringAttr::get(request.getKernel()->getContext(),
-                            manifest.evidenceProfile));
   return proposal;
 }
 
@@ -624,12 +573,6 @@ bool TensorExtLiteExtensionPlugin::hasConstructedFinalBody(
       found = true;
   });
   return found;
-}
-
-llvm::Error
-TensorExtLiteExtensionPlugin::verifyExecutableConstructionConformance()
-    const {
-  return tensorext_lite::verifyTensorExtLiteConstructionProtocolReady();
 }
 
 void TensorExtLiteExtensionPlugin::collectFormulaDescriptors(

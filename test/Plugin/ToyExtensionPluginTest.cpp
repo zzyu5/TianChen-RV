@@ -431,20 +431,18 @@ module {
           proposal, weft::plugin::toy::getToyHandoffKindAttrName(),
           weft::plugin::toy::getToyExpectedHandoffKind()))
     return result;
-  if (int result = expectProposalStringAttr(
-          proposal, "weft_toy.construction_protocol",
-          weft::plugin::toy::getToyConstructionManifest()
-              .protocolVersion))
-    return result;
-  if (int result = expectProposalStringAttr(
-          proposal, "weft_toy.semantic_role_graph",
-          weft::plugin::toy::getToyConstructionManifest()
-              .semanticRoleGraph))
-    return result;
-  if (int result = expectProposalStringAttr(
-          proposal, "weft_toy.typed_role_realization",
-          weft::plugin::toy::getToyTypedRoleRealizationSummary()))
-    return result;
+  for (llvm::StringRef legacyConstructionAttr : {
+           "weft_toy.construction_protocol", "weft_toy.archetype",
+           "weft_toy.semantic_role_graph",
+           "weft_toy.common_interface_realization",
+           "weft_toy.typed_role_realization",
+           "weft_toy.emitc_route_mapping", "weft_toy.evidence_profile"}) {
+    if (int result = expect(
+            !findProposalAttribute(proposal, legacyConstructionAttr),
+            llvm::Twine("Toy proposal omits legacy construction metadata '") +
+                legacyConstructionAttr + "'"))
+      return result;
+  }
 
   auto expectNoProposal = [&](KernelOp kernel, llvm::StringRef context) -> int {
     TargetCapabilitySet capabilities = TargetCapabilitySet::buildFromKernel(kernel);

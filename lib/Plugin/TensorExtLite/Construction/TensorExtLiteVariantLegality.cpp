@@ -24,20 +24,6 @@ constexpr llvm::StringLiteral kTensorExtLiteFragmentABIAttrName(
     "weft_tensorext_lite.fragment_abi");
 constexpr llvm::StringLiteral kTensorExtLiteHandoffKindAttrName(
     "weft_tensorext_lite.handoff_kind");
-constexpr llvm::StringLiteral kTensorExtLiteConstructionProtocolAttrName(
-    "weft_tensorext_lite.construction_protocol");
-constexpr llvm::StringLiteral kTensorExtLiteConstructionArchetypeAttrName(
-    "weft_tensorext_lite.archetype");
-constexpr llvm::StringLiteral kTensorExtLiteSemanticRoleGraphAttrName(
-    "weft_tensorext_lite.semantic_role_graph");
-constexpr llvm::StringLiteral kTensorExtLiteCommonInterfaceRealizationAttrName(
-    "weft_tensorext_lite.common_interface_realization");
-constexpr llvm::StringLiteral kTensorExtLiteTypedRoleRealizationAttrName(
-    "weft_tensorext_lite.typed_role_realization");
-constexpr llvm::StringLiteral kTensorExtLiteEmitCRouteMappingAttrName(
-    "weft_tensorext_lite.emitc_route_mapping");
-constexpr llvm::StringLiteral kTensorExtLiteEvidenceProfileAttrName(
-    "weft_tensorext_lite.evidence_profile");
 constexpr llvm::StringLiteral kExpectedFragmentABI(
     "tensorext-lite-fragment-boundary.v1");
 constexpr llvm::StringLiteral kExpectedHandoffKind(
@@ -195,11 +181,6 @@ llvm::Expected<bool> variantRequiresTensorExtLiteFragment(
 llvm::Error verifyTensorExtLiteVariantMetadata(
     weft::exec::VariantOp variant,
     const TensorExtLiteFragmentCapabilityView &capabilityView) {
-  if (llvm::Error error = verifyTensorExtLiteConstructionProtocolReady())
-    return error;
-
-  const TensorExtLiteConstructionManifest &manifest =
-      getTensorExtLiteConstructionManifest();
   auto fragmentABI =
       variant->getAttrOfType<mlir::StringAttr>(kTensorExtLiteFragmentABIAttrName);
   if (!fragmentABI || fragmentABI.getValue().trim().empty())
@@ -229,69 +210,6 @@ llvm::Error verifyTensorExtLiteVariantMetadata(
         variant.getSymName() +
         " handoff kind metadata is not satisfied by "
         "preserved capability property 'handoff_kind'");
-
-  auto constructionProtocol = variant->getAttrOfType<mlir::StringAttr>(
-      kTensorExtLiteConstructionProtocolAttrName);
-  if (!constructionProtocol ||
-      constructionProtocol.getValue() != manifest.protocolVersion)
-    return makeTensorExtLitePluginError(
-        llvm::Twine("materialized TensorExtLite variant @") +
-        variant.getSymName() +
-        " must carry construction protocol metadata '" +
-        kTensorExtLiteConstructionProtocolAttrName + "'");
-
-  auto archetype = variant->getAttrOfType<mlir::StringAttr>(
-      kTensorExtLiteConstructionArchetypeAttrName);
-  if (!archetype || archetype.getValue() != manifest.archetype)
-    return makeTensorExtLitePluginError(
-        llvm::Twine("materialized TensorExtLite variant @") +
-        variant.getSymName() + " must carry extension archetype metadata '" +
-        kTensorExtLiteConstructionArchetypeAttrName + "'");
-
-  auto roleGraph = variant->getAttrOfType<mlir::StringAttr>(
-      kTensorExtLiteSemanticRoleGraphAttrName);
-  if (!roleGraph || roleGraph.getValue() != manifest.semanticRoleGraph)
-    return makeTensorExtLitePluginError(
-        llvm::Twine("materialized TensorExtLite variant @") +
-        variant.getSymName() + " must carry semantic role graph metadata '" +
-        kTensorExtLiteSemanticRoleGraphAttrName + "'");
-
-  auto interfaces = variant->getAttrOfType<mlir::StringAttr>(
-      kTensorExtLiteCommonInterfaceRealizationAttrName);
-  if (!interfaces ||
-      interfaces.getValue() != getTensorExtLiteConstructionInterfaceRealization())
-    return makeTensorExtLitePluginError(
-        llvm::Twine("materialized TensorExtLite variant @") +
-        variant.getSymName() +
-        " must carry common interface realization metadata '" +
-        kTensorExtLiteCommonInterfaceRealizationAttrName + "'");
-
-  auto typedRoles = variant->getAttrOfType<mlir::StringAttr>(
-      kTensorExtLiteTypedRoleRealizationAttrName);
-  if (!typedRoles ||
-      typedRoles.getValue() != getTensorExtLiteTypedRoleRealizationSummary())
-    return makeTensorExtLitePluginError(
-        llvm::Twine("materialized TensorExtLite variant @") +
-        variant.getSymName() +
-        " must carry typed role realization metadata '" +
-        kTensorExtLiteTypedRoleRealizationAttrName + "'");
-
-  auto emitcRoute = variant->getAttrOfType<mlir::StringAttr>(
-      kTensorExtLiteEmitCRouteMappingAttrName);
-  if (!emitcRoute || emitcRoute.getValue() != manifest.emitcRoute.routeID)
-    return makeTensorExtLitePluginError(
-        llvm::Twine("materialized TensorExtLite variant @") +
-        variant.getSymName() + " must carry EmitC route mapping metadata '" +
-        kTensorExtLiteEmitCRouteMappingAttrName + "'");
-
-  auto evidenceProfile = variant->getAttrOfType<mlir::StringAttr>(
-      kTensorExtLiteEvidenceProfileAttrName);
-  if (!evidenceProfile ||
-      evidenceProfile.getValue() != manifest.evidenceProfile)
-    return makeTensorExtLitePluginError(
-        llvm::Twine("materialized TensorExtLite variant @") +
-        variant.getSymName() + " must carry evidence profile metadata '" +
-        kTensorExtLiteEvidenceProfileAttrName + "'");
 
   return llvm::Error::success();
 }

@@ -1,5 +1,5 @@
 // RUN: weft-opt %s --weft-materialize-plugin-variants --weft-select-variants --weft-materialize-selected-lowering-boundaries --weft-materialize-emitc-lowerable-routes | FileCheck %s
-// RUN: weft-opt %s --weft-materialize-plugin-variants --weft-select-variants --weft-materialize-selected-lowering-boundaries | sed 's/demo-extension-compute-skeleton-emitc-route/demo-extension-no-active-emitc-route/' | not weft-opt --weft-materialize-emitc-lowerable-routes 2>&1 | FileCheck %s --check-prefix=STALE
+// RUN: weft-opt %s --weft-materialize-plugin-variants --weft-select-variants --weft-materialize-selected-lowering-boundaries | sed 's/weft_demo.handoff_kind = "demo-extension-lowering-boundary"/weft_demo.emitc_route_mapping = "legacy-stale-route", weft_demo.handoff_kind = "demo-extension-lowering-boundary"/' | weft-opt --weft-materialize-emitc-lowerable-routes | FileCheck %s
 
 // The Demo extension is a registered production target route.  Its final
 // compute body is constructed and qualified by the Demo family owner before
@@ -22,4 +22,3 @@ module {
 // CHECK: emitc.func @weft_emitc_demo_direct_emitc_demo_zero_core_first_slice
 // CHECK: weft_emitc.route_source_op=weft_demo.compute_skeleton role=compute
 // CHECK: call_opaque "weft_demo_compute_skeleton"
-// STALE: bound family construction for origin 'demo-plugin' rejected selected variant legality

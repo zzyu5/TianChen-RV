@@ -42,20 +42,6 @@ constexpr llvm::StringLiteral kToyTemplateABIAttrName(
     "weft_toy.template_abi");
 constexpr llvm::StringLiteral kToyHandoffKindAttrName(
     "weft_toy.handoff_kind");
-constexpr llvm::StringLiteral kToyConstructionProtocolAttrName(
-    "weft_toy.construction_protocol");
-constexpr llvm::StringLiteral kToyConstructionArchetypeAttrName(
-    "weft_toy.archetype");
-constexpr llvm::StringLiteral kToySemanticRoleGraphAttrName(
-    "weft_toy.semantic_role_graph");
-constexpr llvm::StringLiteral kToyCommonInterfaceRealizationAttrName(
-    "weft_toy.common_interface_realization");
-constexpr llvm::StringLiteral kToyTypedRoleRealizationAttrName(
-    "weft_toy.typed_role_realization");
-constexpr llvm::StringLiteral kToyEmitCRouteMappingAttrName(
-    "weft_toy.emitc_route_mapping");
-constexpr llvm::StringLiteral kToyEvidenceProfileAttrName(
-    "weft_toy.evidence_profile");
 constexpr llvm::StringLiteral kExpectedTemplateABI(
     "toy-metadata-boundary.v1");
 constexpr llvm::StringLiteral kExpectedHandoffKind("toy-lowering-template");
@@ -271,43 +257,6 @@ buildToyTemplateProposal(const VariantProposalRequest &request) {
                             kToyHandoffKindAttrName),
       mlir::StringAttr::get(request.getKernel()->getContext(),
                             capabilityView->handoffKind));
-  const toy::ToyConstructionManifest &manifest =
-      toy::getToyConstructionManifest();
-  proposal.addPluginAttribute(
-      mlir::StringAttr::get(request.getKernel()->getContext(),
-                            kToyConstructionProtocolAttrName),
-      mlir::StringAttr::get(request.getKernel()->getContext(),
-                            manifest.protocolVersion));
-  proposal.addPluginAttribute(
-      mlir::StringAttr::get(request.getKernel()->getContext(),
-                            kToyConstructionArchetypeAttrName),
-      mlir::StringAttr::get(request.getKernel()->getContext(),
-                            manifest.archetype));
-  proposal.addPluginAttribute(
-      mlir::StringAttr::get(request.getKernel()->getContext(),
-                            kToySemanticRoleGraphAttrName),
-      mlir::StringAttr::get(request.getKernel()->getContext(),
-                            manifest.semanticRoleGraph));
-  proposal.addPluginAttribute(
-      mlir::StringAttr::get(request.getKernel()->getContext(),
-                            kToyCommonInterfaceRealizationAttrName),
-      mlir::StringAttr::get(request.getKernel()->getContext(),
-                            toy::getToyConstructionInterfaceRealization()));
-  proposal.addPluginAttribute(
-      mlir::StringAttr::get(request.getKernel()->getContext(),
-                            kToyTypedRoleRealizationAttrName),
-      mlir::StringAttr::get(request.getKernel()->getContext(),
-                            toy::getToyTypedRoleRealizationSummary()));
-  proposal.addPluginAttribute(
-      mlir::StringAttr::get(request.getKernel()->getContext(),
-                            kToyEmitCRouteMappingAttrName),
-      mlir::StringAttr::get(request.getKernel()->getContext(),
-                            manifest.emitcRoute.routeID));
-  proposal.addPluginAttribute(
-      mlir::StringAttr::get(request.getKernel()->getContext(),
-                            kToyEvidenceProfileAttrName),
-      mlir::StringAttr::get(request.getKernel()->getContext(),
-                            manifest.evidenceProfile));
   return proposal;
 }
 
@@ -452,11 +401,6 @@ bool ToyExtensionPlugin::hasConstructedFinalBody(
       found = true;
   });
   return found;
-}
-
-llvm::Error ToyExtensionPlugin::verifyExecutableConstructionConformance()
-    const {
-  return toy::verifyToyConstructionProtocolReady();
 }
 
 void ToyExtensionPlugin::collectFormulaDescriptors(

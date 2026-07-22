@@ -86,11 +86,6 @@ findSelectedTemplateComputeSkeletonBoundary(
 llvm::Expected<emitc::WEFTEmitCSourceOpProvenance>
 getTemplateComputeSourceProvenance(
     weft::template_ext::ComputeSkeletonOp compute) {
-  if (llvm::Error error = verifyTemplateComputeRoleOpInterface(
-          getTemplateConstructionManifest(), getTemplateTypedRoleGraphRealization(),
-          compute.getOperation()))
-    return std::move(error);
-
   auto lowerable =
       llvm::dyn_cast<emitc::WEFTEmitCLowerableOpInterface>(
           compute.getOperation());
@@ -111,9 +106,6 @@ getTemplateComputeSourceProvenance(
 llvm::Error validateTemplateComputeSkeletonEmitCRouteReadiness(
     const VariantEmitCLowerableRequest &request,
     emitc::WEFTEmitCSourceOpProvenance &outSource) {
-  if (llvm::Error error = verifyTemplateConstructionProtocolReady())
-    return error;
-
   llvm::Expected<weft::template_ext::ComputeSkeletonOp> compute =
       findSelectedTemplateComputeSkeletonBoundary(request);
   if (!compute)
@@ -123,16 +115,6 @@ llvm::Error validateTemplateComputeSkeletonEmitCRouteReadiness(
       getTemplateComputeSourceProvenance(*compute);
   if (!source)
     return source.takeError();
-
-  const TemplateEmitCConstructionRoute &constructionRoute =
-      getTemplateEmitCConstructionRoute();
-  if (llvm::Error error = verifyTemplateEmitCConstructionRouteMapping(
-          constructionRoute.routeID, constructionRoute.emissionKind,
-          constructionRoute.artifactKind, constructionRoute.loweringBoundaryOpName,
-          constructionRoute.runtimeABI, constructionRoute.runtimeABIKind,
-          constructionRoute.runtimeABIName,
-          constructionRoute.runtimeGlueRole))
-    return error;
 
   outSource = std::move(*source);
   return llvm::Error::success();

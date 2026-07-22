@@ -175,8 +175,6 @@ void createToyCapability(mlir::OpBuilder &builder, mlir::Location loc) {
 
 void createToyTemplateVariant(mlir::OpBuilder &builder, mlir::Location loc,
                               mlir::ArrayAttr requires) {
-  const ToyConstructionManifest &manifest = getToyConstructionManifest();
-
   mlir::OperationState state(loc, "weft.exec.variant");
   state.addAttribute(
       "sym_name", builder.getStringAttr(getToyTemplateFirstSliceVariantName()));
@@ -187,21 +185,6 @@ void createToyTemplateVariant(mlir::OpBuilder &builder, mlir::Location loc,
                      builder.getStringAttr(getToyExpectedTemplateABI()));
   state.addAttribute(getToyHandoffKindAttrName(),
                      builder.getStringAttr(getToyExpectedHandoffKind()));
-  state.addAttribute("weft_toy.construction_protocol",
-                     builder.getStringAttr(manifest.protocolVersion));
-  state.addAttribute("weft_toy.archetype",
-                     builder.getStringAttr(manifest.archetype));
-  state.addAttribute("weft_toy.semantic_role_graph",
-                     builder.getStringAttr(manifest.semanticRoleGraph));
-  state.addAttribute("weft_toy.common_interface_realization",
-                     builder.getStringAttr(
-                         getToyConstructionInterfaceRealization()));
-  state.addAttribute("weft_toy.typed_role_realization",
-                     builder.getStringAttr(getToyTypedRoleRealizationSummary()));
-  state.addAttribute("weft_toy.emitc_route_mapping",
-                     builder.getStringAttr(manifest.emitcRoute.routeID));
-  state.addAttribute("weft_toy.evidence_profile",
-                     builder.getStringAttr(manifest.evidenceProfile));
   state.addRegion();
   auto variant = llvm::cast<weft::exec::VariantOp>(builder.create(state));
   variant.getBody().emplaceBlock();

@@ -39,20 +39,6 @@ constexpr llvm::StringLiteral kTemplateIntegrationContractAttrName(
     "weft_template.integration_contract");
 constexpr llvm::StringLiteral kTemplateHandoffKindAttrName(
     "weft_template.handoff_kind");
-constexpr llvm::StringLiteral kTemplateConstructionProtocolAttrName(
-    "weft_template.construction_protocol");
-constexpr llvm::StringLiteral kTemplateConstructionArchetypeAttrName(
-    "weft_template.archetype");
-constexpr llvm::StringLiteral kTemplateSemanticRoleGraphAttrName(
-    "weft_template.semantic_role_graph");
-constexpr llvm::StringLiteral kTemplateCommonInterfaceRealizationAttrName(
-    "weft_template.common_interface_realization");
-constexpr llvm::StringLiteral kTemplateTypedRoleRealizationAttrName(
-    "weft_template.typed_role_realization");
-constexpr llvm::StringLiteral kTemplateEmitCRouteMappingAttrName(
-    "weft_template.emitc_route_mapping");
-constexpr llvm::StringLiteral kTemplateEvidenceProfileAttrName(
-    "weft_template.evidence_profile");
 constexpr llvm::StringLiteral kExpectedIntegrationContract(
     "template-zero-core-handoff.v1");
 constexpr llvm::StringLiteral kExpectedHandoffKind(
@@ -94,10 +80,6 @@ llvm::Error makeTemplatePluginError(llvm::Twine message) {
       llvm::Twine("Weft-RV Template extension plugin template failed: ") +
           message,
       llvm::errc::invalid_argument);
-}
-
-llvm::Error verifyTemplateConstructionProtocolReady() {
-  return template_ext::verifyTemplateConstructionProtocolReady();
 }
 
 bool hasAvailableTemplateExtensionCapability(
@@ -232,16 +214,11 @@ std::string sanitizeTemplateDeclineReason(llvm::StringRef reason) {
 
 llvm::Expected<VariantProposal>
 buildTemplateExtensionProposal(const VariantProposalRequest &request) {
-  if (llvm::Error error = verifyTemplateConstructionProtocolReady())
-    return std::move(error);
-
   llvm::Expected<TemplateExtensionCapabilityView> capabilityView =
       buildTemplateExtensionCapabilityView(request.getCapabilities());
   if (!capabilityView)
     return capabilityView.takeError();
 
-  const template_ext::TemplateConstructionManifest &manifest =
-      template_ext::getTemplateConstructionManifest();
   VariantProposal proposal(kTemplateExtensionFirstSliceVariantName, kTemplatePluginName);
   proposal.setFormulaID(kTemplateConstructionFormulaID);
   proposal.addRequiredCapabilityID(kTemplateExtensionCapabilityID);
@@ -258,43 +235,6 @@ buildTemplateExtensionProposal(const VariantProposalRequest &request) {
                             kTemplateHandoffKindAttrName),
       mlir::StringAttr::get(request.getKernel()->getContext(),
                             capabilityView->handoffKind));
-  proposal.addPluginAttribute(
-      mlir::StringAttr::get(request.getKernel()->getContext(),
-                            kTemplateConstructionProtocolAttrName),
-      mlir::StringAttr::get(request.getKernel()->getContext(),
-                            manifest.protocolVersion));
-  proposal.addPluginAttribute(
-      mlir::StringAttr::get(request.getKernel()->getContext(),
-                            kTemplateConstructionArchetypeAttrName),
-      mlir::StringAttr::get(request.getKernel()->getContext(),
-                            manifest.archetype));
-  proposal.addPluginAttribute(
-      mlir::StringAttr::get(request.getKernel()->getContext(),
-                            kTemplateSemanticRoleGraphAttrName),
-      mlir::StringAttr::get(request.getKernel()->getContext(),
-                            manifest.semanticRoleGraph));
-  proposal.addPluginAttribute(
-      mlir::StringAttr::get(request.getKernel()->getContext(),
-                            kTemplateCommonInterfaceRealizationAttrName),
-      mlir::StringAttr::get(
-          request.getKernel()->getContext(),
-          template_ext::getTemplateConstructionInterfaceRealization()));
-  proposal.addPluginAttribute(
-      mlir::StringAttr::get(request.getKernel()->getContext(),
-                            kTemplateTypedRoleRealizationAttrName),
-      mlir::StringAttr::get(
-          request.getKernel()->getContext(),
-          template_ext::getTemplateTypedRoleRealizationSummary()));
-  proposal.addPluginAttribute(
-      mlir::StringAttr::get(request.getKernel()->getContext(),
-                            kTemplateEmitCRouteMappingAttrName),
-      mlir::StringAttr::get(request.getKernel()->getContext(),
-                            manifest.emitcRoute.routeID));
-  proposal.addPluginAttribute(
-      mlir::StringAttr::get(request.getKernel()->getContext(),
-                            kTemplateEvidenceProfileAttrName),
-      mlir::StringAttr::get(request.getKernel()->getContext(),
-                            manifest.evidenceProfile));
   return proposal;
 }
 
@@ -442,11 +382,6 @@ bool TemplateExtensionPlugin::hasConstructedFinalBody(
       found = true;
   });
   return found;
-}
-
-llvm::Error
-TemplateExtensionPlugin::verifyExecutableConstructionConformance() const {
-  return template_ext::verifyTemplateConstructionProtocolReady();
 }
 
 void TemplateExtensionPlugin::collectFormulaDescriptors(

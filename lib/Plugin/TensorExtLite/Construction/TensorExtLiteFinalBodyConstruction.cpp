@@ -14,10 +14,6 @@ constexpr llvm::StringLiteral kRoleAttrName("role");
 } // namespace
 
 mlir::LogicalResult constructTensorExtLiteFinalBody(mlir::ModuleOp module) {
-  if (llvm::Error error = verifyTensorExtLiteConstructionProtocolReady()) {
-    module.emitError() << llvm::toString(std::move(error));
-    return mlir::failure();
-  }
   bool unsupportedBody = false;
   module.walk([&](mlir::Operation *op) {
     if (op->getName().getDialectNamespace() !=

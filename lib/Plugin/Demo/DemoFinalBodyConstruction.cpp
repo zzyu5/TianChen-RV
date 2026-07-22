@@ -10,10 +10,6 @@
 namespace weft::plugin::demo_ext {
 
 mlir::LogicalResult constructDemoFinalBody(mlir::ModuleOp module) {
-  if (llvm::Error error = verifyDemoConstructionProtocolReady()) {
-    module.emitError() << llvm::toString(std::move(error));
-    return mlir::failure();
-  }
   bool unsupportedBody = false;
   module.walk([&](mlir::Operation *op) {
     if (op->getName().getDialectNamespace() ==

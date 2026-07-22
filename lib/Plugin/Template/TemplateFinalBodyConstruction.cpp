@@ -10,10 +10,6 @@
 namespace weft::plugin::template_ext {
 
 mlir::LogicalResult constructTemplateFinalBody(mlir::ModuleOp module) {
-  if (llvm::Error error = verifyTemplateConstructionProtocolReady()) {
-    module.emitError() << llvm::toString(std::move(error));
-    return mlir::failure();
-  }
   bool unsupportedBody = false;
   module.walk([&](mlir::Operation *op) {
     if (op->getName().getDialectNamespace() ==

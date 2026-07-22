@@ -182,26 +182,6 @@ target_link_libraries(weft-tensorext-lite-extension-plugin-test
   MLIRSupport
 )
 
-add_executable(weft-construction-protocol-common-test
-  Plugin/ConstructionProtocolCommonTest.cpp
-)
-
-target_link_libraries(weft-construction-protocol-common-test
-  PRIVATE
-  WeftInitAll
-  WeftConversionEmitC
-  WeftPluginConstructionProtocol
-  WeftRVVConstructionProtocol
-  WeftRVVPlugin
-  WeftTarget
-  WeftTemplatePlugin
-  WeftTensorExtLitePlugin
-  WeftToyPlugin
-  MLIRIR
-  MLIRParser
-  MLIRSupport
-)
-
 add_executable(weft-rvv-dialect-test
   Dialect/RVV/RVVDialectTest.cpp
 )
@@ -361,7 +341,6 @@ add_lit_testsuite(check-weft "Running Weft-RV lit tests"
   weft-translate
   weft-capability-model-test
   weft-load-time-resolution-test
-  weft-construction-protocol-common-test
   weft-plugin-emission-plan-test
   weft-formula-catalog-test
   weft-plugin-variant-cost-test

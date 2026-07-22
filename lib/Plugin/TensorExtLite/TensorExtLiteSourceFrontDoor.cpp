@@ -182,9 +182,6 @@ void createTensorExtLiteCapability(mlir::OpBuilder &builder,
 
 void createTensorExtLiteVariant(mlir::OpBuilder &builder, mlir::Location loc,
                                 mlir::ArrayAttr requires) {
-  const TensorExtLiteConstructionManifest &manifest =
-      getTensorExtLiteConstructionManifest();
-
   mlir::OperationState state(loc, "weft.exec.variant");
   state.addAttribute(
       "sym_name",
@@ -198,22 +195,6 @@ void createTensorExtLiteVariant(mlir::OpBuilder &builder, mlir::Location loc,
   state.addAttribute(
       getTensorExtLiteHandoffKindAttrName(),
       builder.getStringAttr(getTensorExtLiteExpectedHandoffKind()));
-  state.addAttribute("weft_tensorext_lite.construction_protocol",
-                     builder.getStringAttr(manifest.protocolVersion));
-  state.addAttribute("weft_tensorext_lite.archetype",
-                     builder.getStringAttr(manifest.archetype));
-  state.addAttribute("weft_tensorext_lite.semantic_role_graph",
-                     builder.getStringAttr(manifest.semanticRoleGraph));
-  state.addAttribute(
-      "weft_tensorext_lite.common_interface_realization",
-      builder.getStringAttr(getTensorExtLiteConstructionInterfaceRealization()));
-  state.addAttribute(
-      "weft_tensorext_lite.typed_role_realization",
-      builder.getStringAttr(getTensorExtLiteTypedRoleRealizationSummary()));
-  state.addAttribute("weft_tensorext_lite.emitc_route_mapping",
-                     builder.getStringAttr(manifest.emitcRoute.routeID));
-  state.addAttribute("weft_tensorext_lite.evidence_profile",
-                     builder.getStringAttr(manifest.evidenceProfile));
   state.addRegion();
   auto variant = llvm::cast<weft::exec::VariantOp>(builder.create(state));
   variant.getBody().emplaceBlock();
@@ -355,13 +336,6 @@ public:
     }
     if (kernelName->empty())
       return;
-
-    if (llvm::Error error = verifyTensorExtLiteConstructionProtocolReady()) {
-      std::string message = llvm::toString(std::move(error));
-      (void)failMaterializer(module, message);
-      signalPassFailure();
-      return;
-    }
 
     mlir::OpBuilder builder(module.getContext());
     builder.setInsertionPointToStart(module.getBody());

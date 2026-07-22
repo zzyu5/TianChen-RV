@@ -39,20 +39,6 @@ constexpr llvm::StringLiteral kDemoIntegrationContractAttrName(
     "weft_demo.integration_contract");
 constexpr llvm::StringLiteral kDemoHandoffKindAttrName(
     "weft_demo.handoff_kind");
-constexpr llvm::StringLiteral kDemoConstructionProtocolAttrName(
-    "weft_demo.construction_protocol");
-constexpr llvm::StringLiteral kDemoConstructionArchetypeAttrName(
-    "weft_demo.archetype");
-constexpr llvm::StringLiteral kDemoSemanticRoleGraphAttrName(
-    "weft_demo.semantic_role_graph");
-constexpr llvm::StringLiteral kDemoCommonInterfaceRealizationAttrName(
-    "weft_demo.common_interface_realization");
-constexpr llvm::StringLiteral kDemoTypedRoleRealizationAttrName(
-    "weft_demo.typed_role_realization");
-constexpr llvm::StringLiteral kDemoEmitCRouteMappingAttrName(
-    "weft_demo.emitc_route_mapping");
-constexpr llvm::StringLiteral kDemoEvidenceProfileAttrName(
-    "weft_demo.evidence_profile");
 constexpr llvm::StringLiteral kExpectedIntegrationContract(
     "demo-zero-core-handoff.v1");
 constexpr llvm::StringLiteral kExpectedHandoffKind(
@@ -94,10 +80,6 @@ llvm::Error makeDemoPluginError(llvm::Twine message) {
       llvm::Twine("Weft-RV Demo extension plugin demo failed: ") +
           message,
       llvm::errc::invalid_argument);
-}
-
-llvm::Error verifyDemoConstructionProtocolReady() {
-  return demo_ext::verifyDemoConstructionProtocolReady();
 }
 
 bool hasAvailableDemoExtensionCapability(
@@ -232,16 +214,11 @@ std::string sanitizeDemoDeclineReason(llvm::StringRef reason) {
 
 llvm::Expected<VariantProposal>
 buildDemoExtensionProposal(const VariantProposalRequest &request) {
-  if (llvm::Error error = verifyDemoConstructionProtocolReady())
-    return std::move(error);
-
   llvm::Expected<DemoExtensionCapabilityView> capabilityView =
       buildDemoExtensionCapabilityView(request.getCapabilities());
   if (!capabilityView)
     return capabilityView.takeError();
 
-  const demo_ext::DemoConstructionManifest &manifest =
-      demo_ext::getDemoConstructionManifest();
   VariantProposal proposal(kDemoExtensionFirstSliceVariantName, kDemoPluginName);
   proposal.setFormulaID(kDemoConstructionFormulaID);
   proposal.addRequiredCapabilityID(kDemoExtensionCapabilityID);
@@ -258,43 +235,6 @@ buildDemoExtensionProposal(const VariantProposalRequest &request) {
                             kDemoHandoffKindAttrName),
       mlir::StringAttr::get(request.getKernel()->getContext(),
                             capabilityView->handoffKind));
-  proposal.addPluginAttribute(
-      mlir::StringAttr::get(request.getKernel()->getContext(),
-                            kDemoConstructionProtocolAttrName),
-      mlir::StringAttr::get(request.getKernel()->getContext(),
-                            manifest.protocolVersion));
-  proposal.addPluginAttribute(
-      mlir::StringAttr::get(request.getKernel()->getContext(),
-                            kDemoConstructionArchetypeAttrName),
-      mlir::StringAttr::get(request.getKernel()->getContext(),
-                            manifest.archetype));
-  proposal.addPluginAttribute(
-      mlir::StringAttr::get(request.getKernel()->getContext(),
-                            kDemoSemanticRoleGraphAttrName),
-      mlir::StringAttr::get(request.getKernel()->getContext(),
-                            manifest.semanticRoleGraph));
-  proposal.addPluginAttribute(
-      mlir::StringAttr::get(request.getKernel()->getContext(),
-                            kDemoCommonInterfaceRealizationAttrName),
-      mlir::StringAttr::get(
-          request.getKernel()->getContext(),
-          demo_ext::getDemoConstructionInterfaceRealization()));
-  proposal.addPluginAttribute(
-      mlir::StringAttr::get(request.getKernel()->getContext(),
-                            kDemoTypedRoleRealizationAttrName),
-      mlir::StringAttr::get(
-          request.getKernel()->getContext(),
-          demo_ext::getDemoTypedRoleRealizationSummary()));
-  proposal.addPluginAttribute(
-      mlir::StringAttr::get(request.getKernel()->getContext(),
-                            kDemoEmitCRouteMappingAttrName),
-      mlir::StringAttr::get(request.getKernel()->getContext(),
-                            manifest.emitcRoute.routeID));
-  proposal.addPluginAttribute(
-      mlir::StringAttr::get(request.getKernel()->getContext(),
-                            kDemoEvidenceProfileAttrName),
-      mlir::StringAttr::get(request.getKernel()->getContext(),
-                            manifest.evidenceProfile));
   return proposal;
 }
 
@@ -442,11 +382,6 @@ bool DemoExtensionPlugin::hasConstructedFinalBody(
       found = true;
   });
   return found;
-}
-
-llvm::Error
-DemoExtensionPlugin::verifyExecutableConstructionConformance() const {
-  return demo_ext::verifyDemoConstructionProtocolReady();
 }
 
 void DemoExtensionPlugin::collectFormulaDescriptors(

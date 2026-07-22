@@ -626,41 +626,20 @@ module {
           proposal, weft::plugin::template_ext::getTemplateHandoffKindAttrName(),
           weft::plugin::template_ext::getTemplateExpectedHandoffKind()))
     return result;
-  if (int result = expectProposalStringAttr(
-          proposal, "weft_template.construction_protocol",
-          weft::plugin::template_ext::
-              getTemplateConstructionProtocolVersion()))
-    return result;
-  if (int result = expectProposalStringAttr(
-          proposal, "weft_template.archetype",
-          weft::plugin::template_ext::
-              getTemplateConstructionArchetype()))
-    return result;
-  if (int result = expectProposalStringAttr(
-          proposal, "weft_template.semantic_role_graph",
-          weft::plugin::template_ext::
-              getTemplateConstructionSemanticRoleGraph()))
-    return result;
-  if (int result = expectProposalStringAttr(
-          proposal, "weft_template.common_interface_realization",
-          weft::plugin::template_ext::
-              getTemplateConstructionInterfaceRealization()))
-    return result;
-  if (int result = expectProposalStringAttr(
-          proposal, "weft_template.typed_role_realization",
-          weft::plugin::template_ext::
-              getTemplateTypedRoleRealizationSummary()))
-    return result;
-  if (int result = expectProposalStringAttr(
-          proposal, "weft_template.emitc_route_mapping",
-          weft::plugin::template_ext::getTemplateConstructionManifest()
-              .emitcRoute.routeID))
-    return result;
-  if (int result = expectProposalStringAttr(
-          proposal, "weft_template.evidence_profile",
-          weft::plugin::template_ext::
-              getTemplateConstructionEvidenceProfile()))
-    return result;
+  for (llvm::StringRef legacyConstructionAttr : {
+           "weft_template.construction_protocol", "weft_template.archetype",
+           "weft_template.semantic_role_graph",
+           "weft_template.common_interface_realization",
+           "weft_template.typed_role_realization",
+           "weft_template.emitc_route_mapping",
+           "weft_template.evidence_profile"}) {
+    if (int result = expect(
+            !findProposalAttribute(proposal, legacyConstructionAttr),
+            llvm::Twine(
+                "Template proposal omits legacy construction metadata '") +
+                legacyConstructionAttr + "'"))
+      return result;
+  }
 
   auto expectNoProposal = [&](KernelOp kernel, llvm::StringRef context) -> int {
     TargetCapabilitySet capabilities = TargetCapabilitySet::buildFromKernel(kernel);
@@ -763,32 +742,20 @@ module {
                      weft::plugin::template_ext::getTemplateExpectedIntegrationContract(),
                  "Template variant carries integration contract metadata"))
     return result;
-  if (int result =
-          expect(templateVariant
-                         ->getAttrOfType<mlir::StringAttr>(
-                             "weft_template.construction_protocol")
-                         .getValue() ==
-                     weft::plugin::template_ext::
-                         getTemplateConstructionProtocolVersion() &&
-                     templateVariant
-                             ->getAttrOfType<mlir::StringAttr>(
-                                 "weft_template.semantic_role_graph")
-                             .getValue() ==
-                         weft::plugin::template_ext::
-                             getTemplateConstructionSemanticRoleGraph() &&
-                     templateVariant
-                             ->getAttrOfType<mlir::StringAttr>(
-                                 "weft_template.common_interface_realization")
-                             .getValue()
-                             .contains("WEFTComputeOpInterface") &&
-                     templateVariant
-                             ->getAttrOfType<mlir::StringAttr>(
-                                 "weft_template.typed_role_realization")
-                             .getValue()
-                             .contains("compute:template.role.compute"),
-                 "Template variant carries code-consumed construction manifest "
-                 "and typed role metadata"))
-    return result;
+  for (llvm::StringRef legacyConstructionAttr : {
+           "weft_template.construction_protocol", "weft_template.archetype",
+           "weft_template.semantic_role_graph",
+           "weft_template.common_interface_realization",
+           "weft_template.typed_role_realization",
+           "weft_template.emitc_route_mapping",
+           "weft_template.evidence_profile"}) {
+    if (int result = expect(
+            !templateVariant->hasAttr(legacyConstructionAttr),
+            llvm::Twine(
+                "materialized Template variant omits legacy construction metadata '") +
+                legacyConstructionAttr + "'"))
+      return result;
+  }
 
   if (int result = expect(mlir::succeeded(mlir::verify(*module)),
                           "materialized Template module verifies"))

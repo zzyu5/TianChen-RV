@@ -17,7 +17,6 @@ module attributes {
 // BOUNDARY: weft.exec.variant @toy_template_first_slice
 // BOUNDARY-SAME: origin = "toy-plugin"
 // BOUNDARY-SAME: requires = [@toy_template]
-// BOUNDARY-SAME: weft_toy.emitc_route_mapping = "toy-template-compute-emitc-route"
 // BOUNDARY: weft_toy.compute_skeleton {
 // BOUNDARY-SAME: origin = "toy-plugin"
 // BOUNDARY-SAME: role = "direct variant"

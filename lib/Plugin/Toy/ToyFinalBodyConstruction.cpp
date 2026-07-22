@@ -10,10 +10,6 @@
 namespace weft::plugin::toy {
 
 mlir::LogicalResult constructToyFinalBody(mlir::ModuleOp module) {
-  if (llvm::Error error = verifyToyConstructionProtocolReady()) {
-    module.emitError() << llvm::toString(std::move(error));
-    return mlir::failure();
-  }
   bool unsupportedBody = false;
   module.walk([&](mlir::Operation *op) {
     if (op->getName().getDialectNamespace() ==
