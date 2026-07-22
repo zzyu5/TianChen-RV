@@ -56,7 +56,6 @@ module {
 // REALIZED: %[[VL:.*]] = weft_rvv.setvl %{{.*}} {lmul = "m2", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, sew = 8 : i64}
 // REALIZED: weft_rvv.with_vl %[[VL]] attributes
 // REALIZED-SAME: lmul = "m2"
-// REALIZED-SAME: selected_variant = @pre_realized_body_rvv_product_reduce_dequantize
 // REALIZED-SAME: sew = 8 : i64
 // REALIZED-SAME: unroll_factor = 1 : i64
 // REALIZED: %[[LHS:.*]] = weft_rvv.load

@@ -29,16 +29,8 @@ module {
       } : index -> !weft_rvv.vl
       weft_rvv.with_vl %vl attributes {
         lmul = "m1",
-        origin = "rvv-plugin",
         policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>,
-        required_capabilities = [@rvv],
-        rvv_construction_protocol = "extension-family-construction-protocol.v1",
-        rvv_emitc_route_mapping = "rvv-generic-typed-body-emitc-route-family",
-        selected_path_role = "dispatch case",
-        selected_variant = @rvv_i32_add,
-        sew = 32 : i64,
-        source_kernel = "rvv_i32_add_kernel",
-        status = "selected-lowering-boundary"
+        sew = 32 : i64
       } {
         %lhs = weft_rvv.load %lhs_ptr, %vl : !weft_rvv.runtime_abi_value, !weft_rvv.vl -> !weft_rvv.vector<i32, "m1">
         %rhs = weft_rvv.load %rhs_ptr, %vl : !weft_rvv.runtime_abi_value, !weft_rvv.vl -> !weft_rvv.vector<i32, "m1">

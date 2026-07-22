@@ -31,9 +31,6 @@ module {
 // REALIZED-NOT: weft_rvv.typed_segment2_deinterleave_memory_pre_realized_body
 // REALIZED: %[[VL:.*]] = weft_rvv.setvl %{{.*}} {lmul = "m1", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64}
 // REALIZED: weft_rvv.with_vl %[[VL]] attributes
-// REALIZED-SAME: origin = "rvv-plugin"
-// REALIZED-SAME: selected_path_role = "dispatch case"
-// REALIZED-SAME: selected_variant = @pre_realized_body_rvv_segment2_deinterleave_unit_store
 // REALIZED: %[[FIELD0:.*]], %[[FIELD1:.*]] = weft_rvv.segment2_load
 // REALIZED-SAME: field0_role = "segment-field0-output-buffer"
 // REALIZED-SAME: field1_role = "segment-field1-output-buffer"

@@ -29,7 +29,6 @@ module {
 // REALIZED-NOT: weft_rvv.typed_runtime_scalar_dual_compare_mask_and_select_pre_realized_body
 // REALIZED: %[[VL:.*]] = weft_rvv.setvl
 // REALIZED: weft_rvv.with_vl %[[VL]] attributes
-// REALIZED-SAME: selected_variant = @pre_rvv_dual_cmp_mask_select
 // REALIZED: %[[LHS_A:.*]] = weft_rvv.load
 // REALIZED: %[[RHS_A:.*]] = weft_rvv.splat
 // REALIZED: %[[LHS_B:.*]] = weft_rvv.load

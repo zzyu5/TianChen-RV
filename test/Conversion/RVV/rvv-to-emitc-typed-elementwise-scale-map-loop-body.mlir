@@ -31,7 +31,7 @@ module {
       %y = weft_rvv.runtime_abi_value {c_name = "y", c_type = "float *", ownership = "target-export-abi-owned", purpose = "inout", role = "output-buffer"} : !weft_rvv.runtime_abi_value
       %v = weft_rvv.runtime_abi_value {c_name = "v", c_type = "float", ownership = "target-export-abi-owned", purpose = "scale", role = "dequant-scale-value"} : !weft_rvv.runtime_abi_value
       %vl = weft_rvv.setvl %n {lmul = "m1", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !weft_rvv.vl
-      weft_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @ggml_vec_scale_f32, sew = 32 : i64, source_kernel = "ggml_vec_scale_f32_kernel", status = "selected-lowering-boundary"} {
+      weft_rvv.with_vl %vl attributes {lmul = "m1", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} {
         weft_rvv.typed_elementwise_loop_body %y, %v, %n attributes {kind = "typed_elementwise_loop_body", reduce_map_model = "map", element_sew = 32 : i64, strip_lmul = "m8"} {
         ^bb0(%strip_index: index):
           // The per-strip map core brick: y[i..i+vl] *= v. Its strip_index is the

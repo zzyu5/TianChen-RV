@@ -29,7 +29,6 @@ module {
 // REALIZED-NOT: weft_rvv.typed_runtime_scalar_dual_compare_mask_and_select_pre_realized_body
 // REALIZED: %[[VL:.*]] = weft_rvv.setvl %{{.*}} {lmul = "m1", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, sew = 64 : i64}
 // REALIZED: weft_rvv.with_vl %[[VL]] attributes
-// REALIZED-SAME: selected_variant = @pr_rvv_dual_cmp_sel_i64
 // REALIZED: %[[LHS_A:.*]] = weft_rvv.load
 // REALIZED-SAME: -> !weft_rvv.vector<i64, "m1">
 // REALIZED: %[[RHS_A:.*]] = weft_rvv.splat

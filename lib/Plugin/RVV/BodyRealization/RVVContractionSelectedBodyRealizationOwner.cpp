@@ -29,11 +29,6 @@ llvm::Error makeRVVPluginError(llvm::Twine message) {
       llvm::errc::invalid_argument);
 }
 
-mlir::FlatSymbolRefAttr symbolRef(mlir::OpBuilder &builder,
-                                  llvm::StringRef symbol) {
-  return mlir::FlatSymbolRefAttr::get(builder.getContext(), symbol);
-}
-
 mlir::Operation *createRealizedSetVL(mlir::OpBuilder &builder,
                                      mlir::Location loc, mlir::Value nValue,
                                      std::int64_t sew, llvm::StringRef lmul,
@@ -48,27 +43,12 @@ mlir::Operation *createRealizedSetVL(mlir::OpBuilder &builder,
 
 weft::rvv::WithVLOp createRealizedWithVL(
     mlir::OpBuilder &builder, mlir::Location loc, mlir::Value vlValue,
-    weft::exec::KernelOp kernel, weft::exec::VariantOp variant,
-    VariantEmissionRole role, mlir::ArrayAttr requires, std::int64_t sew,
+    std::int64_t sew,
     llvm::StringRef lmul, weft::rvv::PolicyAttr policy) {
   mlir::OperationState state(loc, "weft_rvv.with_vl");
   state.addOperands(vlValue);
   weft::rvv::populateRVVSelectedBodyConfigAttrs(builder, state, sew, lmul,
                                                 policy);
-  state.addAttribute(rvv::getRVVSourceKernelAttrName(),
-                     builder.getStringAttr(kernel.getSymName()));
-  state.addAttribute(rvv::getRVVSelectedVariantAttrName(),
-                     symbolRef(builder, variant.getSymName()));
-  state.addAttribute(rvv::getRVVOriginAttrName(),
-                     builder.getStringAttr(kRVVPluginName));
-  state.addAttribute(rvv::getRVVSelectedPathRoleAttrName(),
-                     builder.getStringAttr(stringifyVariantEmissionRole(role)));
-  state.addAttribute(rvv::getRVVStatusAttrName(),
-                     builder.getStringAttr(rvv::getRVVLoweringBoundaryStatus()));
-  state.addAttribute(rvv::getRVVRequiredCapabilitiesAttrName(), requires);
-  state.addAttribute(rvv::getRVVConstructionProtocolMetadataName(),
-                     builder.getStringAttr(
-                         rvv::getRVVConstructionProtocolVersion()));
   state.addRegion();
   auto withVL = llvm::cast<weft::rvv::WithVLOp>(builder.create(state));
   withVL.getBody().emplaceBlock();
@@ -924,7 +904,7 @@ makeContractionRealizationPlan(
 // (no clamp, plain-byte i8 source); packed-i4 and clamp keep the narrow path.
 //===----------------------------------------------------------------------===//
 llvm::Expected<weft::rvv::WithVLOp> realizeDeferredWideDequantBody(
-    const VariantLoweringBoundaryRequest &request, mlir::ArrayAttr requires,
+    const VariantLoweringBoundaryRequest &request,
     const RVVSelectedBodyContractionRealizationPlan &plan,
     const RVVLowPrecisionLMULRung &rung) {
   if (!plan.preRealizedBody)
@@ -937,8 +917,6 @@ llvm::Expected<weft::rvv::WithVLOp> realizeDeferredWideDequantBody(
         "deferred-wide RVV contraction realization requires lhs/rhs/acc/scale/"
         "out/n runtime ABI values");
 
-  weft::exec::VariantOp variant = request.getVariant();
-  weft::exec::KernelOp kernel = request.getKernel();
   mlir::OpBuilder &builder = request.getBuilder();
   mlir::Location loc = plan.preRealizedBody->getLoc();
 
@@ -955,8 +933,7 @@ llvm::Expected<weft::rvv::WithVLOp> realizeDeferredWideDequantBody(
   auto setvl = llvm::cast<weft::rvv::SetVLOp>(createRealizedSetVL(
       builder, loc, plan.n, sourceSEW, rung.sourceLMUL, plan.policy));
   weft::rvv::WithVLOp withVL =
-      createRealizedWithVL(builder, loc, setvl.getVl(), kernel, variant,
-                           request.getRole(), requires, sourceSEW,
+      createRealizedWithVL(builder, loc, setvl.getVl(), sourceSEW,
                            rung.sourceLMUL, plan.policy);
   // The single deferred-wide slice runs unroll_factor=1: one i8m2 strip per
   // loop iteration into the wide accumulator (matches the wide-lmul lit).
@@ -1010,7 +987,7 @@ llvm::Expected<weft::rvv::WithVLOp> realizeDeferredWideDequantBody(
 // validated (P-B7).
 //===----------------------------------------------------------------------===//
 llvm::Expected<weft::rvv::WithVLOp> realizeDeferredWideDotReduceBody(
-    const VariantLoweringBoundaryRequest &request, mlir::ArrayAttr requires,
+    const VariantLoweringBoundaryRequest &request,
     const RVVSelectedBodyContractionRealizationPlan &plan,
     const RVVDotReduceDeferredWideLMULRung &rung) {
   if (!plan.preRealizedBody)
@@ -1022,8 +999,6 @@ llvm::Expected<weft::rvv::WithVLOp> realizeDeferredWideDotReduceBody(
         "deferred-wide RVV dot-reduce realization requires lhs/rhs/acc/out/n "
         "runtime ABI values");
 
-  weft::exec::VariantOp variant = request.getVariant();
-  weft::exec::KernelOp kernel = request.getKernel();
   mlir::OpBuilder &builder = request.getBuilder();
   mlir::Location loc = plan.preRealizedBody->getLoc();
 
@@ -1041,8 +1016,7 @@ llvm::Expected<weft::rvv::WithVLOp> realizeDeferredWideDotReduceBody(
   auto setvl = llvm::cast<weft::rvv::SetVLOp>(createRealizedSetVL(
       builder, loc, plan.n, sourceSEW, rung.sourceLMUL, plan.policy));
   weft::rvv::WithVLOp withVL =
-      createRealizedWithVL(builder, loc, setvl.getVl(), kernel, variant,
-                           request.getRole(), requires, sourceSEW,
+      createRealizedWithVL(builder, loc, setvl.getVl(), sourceSEW,
                            rung.sourceLMUL, plan.policy);
   // The single deferred-wide slice runs unroll_factor=1: one i16m4 strip per
   // loop iteration into the wide accumulator (matches the wide-lmul lit).
@@ -1088,7 +1062,7 @@ llvm::Expected<weft::rvv::WithVLOp> realizeDeferredWideDotReduceBody(
 
 llvm::Expected<weft::rvv::WithVLOp>
 realizePreRealizedRVVSelectedContractionFamily(
-    const VariantLoweringBoundaryRequest &request, mlir::ArrayAttr requires,
+    const VariantLoweringBoundaryRequest &request,
     const RVVSelectedBodyContractionRealizationPlan &plan) {
   if (!plan.preRealizedBody)
     return makeRVVPluginError(
@@ -1154,8 +1128,6 @@ realizePreRealizedRVVSelectedContractionFamily(
     lowPrecisionPrimitiveFacts = std::move(*facts);
   }
 
-  weft::exec::VariantOp variant = request.getVariant();
-  weft::exec::KernelOp kernel = request.getKernel();
   mlir::OpBuilder &builder = request.getBuilder();
   mlir::Location loc = plan.preRealizedBody->getLoc();
 
@@ -1164,8 +1136,7 @@ realizePreRealizedRVVSelectedContractionFamily(
       createRealizedSetVL(builder, loc, plan.n, plan.resultSEW,
                           plan.resultLMUL, plan.policy));
   weft::rvv::WithVLOp withVL =
-      createRealizedWithVL(builder, loc, setvl.getVl(), kernel, variant,
-                           request.getRole(), requires, plan.resultSEW,
+      createRealizedWithVL(builder, loc, setvl.getVl(), plan.resultSEW,
                            plan.resultLMUL, plan.policy);
   std::optional<RVVLowPrecisionResourceCandidate>
       selectedResourceCandidate;
@@ -1413,7 +1384,6 @@ realizePreRealizedRVVContractionOwnerImpl(
         "pre-realized RVV contraction selected-body realization requires "
         "materialized kernel and variant");
 
-  auto requires = variant->getAttrOfType<mlir::ArrayAttr>("requires");
   mlir::OpBuilder &builder = request.getBuilder();
   mlir::OpBuilder::InsertionGuard guard(builder);
 
@@ -1425,7 +1395,7 @@ realizePreRealizedRVVContractionOwnerImpl(
                                                            wideningMAccBody))
       return std::move(error);
     return realizePreRealizedRVVSelectedContractionFamily(
-        request, requires, makeContractionRealizationPlan(wideningMAccBody));
+        request, makeContractionRealizationPlan(wideningMAccBody));
   }
 
   if (auto dotReduceBody = llvm::dyn_cast<
@@ -1467,10 +1437,10 @@ realizePreRealizedRVVContractionOwnerImpl(
             "dot-reduce resource formula selected deferred accumulation "
             "without a complete LMUL rung");
       return realizeDeferredWideDotReduceBody(
-          request, requires, plan, *schedule->deferredRung);
+          request, plan, *schedule->deferredRung);
     }
     return realizePreRealizedRVVSelectedContractionFamily(
-        request, requires, plan);
+        request, plan);
   }
 
   if (auto stridedDotReduceBody =
@@ -1482,7 +1452,7 @@ realizePreRealizedRVVContractionOwnerImpl(
                 request, stridedDotReduceBody))
       return std::move(error);
     return realizePreRealizedRVVSelectedContractionFamily(
-        request, requires,
+        request,
         makeContractionRealizationPlan(stridedDotReduceBody));
   }
 
@@ -1495,7 +1465,7 @@ realizePreRealizedRVVContractionOwnerImpl(
                 request, maskedDotReduceBody))
       return std::move(error);
     return realizePreRealizedRVVSelectedContractionFamily(
-        request, requires, makeContractionRealizationPlan(maskedDotReduceBody));
+        request, makeContractionRealizationPlan(maskedDotReduceBody));
   }
 
   if (auto maskedStridedDotReduceBody =
@@ -1507,7 +1477,7 @@ realizePreRealizedRVVContractionOwnerImpl(
                 request, maskedStridedDotReduceBody))
       return std::move(error);
     return realizePreRealizedRVVSelectedContractionFamily(
-        request, requires,
+        request,
         makeContractionRealizationPlan(maskedStridedDotReduceBody));
   }
 
@@ -1518,7 +1488,7 @@ realizePreRealizedRVVContractionOwnerImpl(
                 request, productReduceBody))
       return std::move(error);
     return realizePreRealizedRVVSelectedContractionFamily(
-        request, requires, makeContractionRealizationPlan(productReduceBody));
+        request, makeContractionRealizationPlan(productReduceBody));
   }
 
   if (auto productReduceDequantBody =
@@ -1543,11 +1513,11 @@ realizePreRealizedRVVContractionOwnerImpl(
             "low-precision resource formula selected deferred-wide without "
             "a complete LMUL rung");
       return realizeDeferredWideDequantBody(
-          request, requires, plan, *resourcePlan->deferredWideRung);
+          request, plan, *resourcePlan->deferredWideRung);
     }
     plan.lowPrecisionResourcePlan = *resourcePlan;
     return realizePreRealizedRVVSelectedContractionFamily(
-        request, requires, plan);
+        request, plan);
   }
 
   if (auto productReduceDequantClampBody =
@@ -1567,7 +1537,7 @@ realizePreRealizedRVVContractionOwnerImpl(
       return resourcePlan.takeError();
     plan.lowPrecisionResourcePlan = *resourcePlan;
     return realizePreRealizedRVVSelectedContractionFamily(
-        request, requires, plan);
+        request, plan);
   }
 
   if (auto explicitProductReduceDequantClampBody =
@@ -1587,7 +1557,7 @@ realizePreRealizedRVVContractionOwnerImpl(
       return resourcePlan.takeError();
     plan.lowPrecisionResourcePlan = *resourcePlan;
     return realizePreRealizedRVVSelectedContractionFamily(
-        request, requires, plan);
+        request, plan);
   }
 
   return makeRVVPluginError(

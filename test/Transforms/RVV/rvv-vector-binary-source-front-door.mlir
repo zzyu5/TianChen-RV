@@ -59,11 +59,6 @@ module attributes {weft_rvv.source_front_door = "bounded_vector_source"} {
 // MATERIALIZED-SAME: lmul = "m1"
 // MATERIALIZED-SAME: sew = 32
 // MATERIALIZED: weft_rvv.with_vl %[[ADD_VL]]
-// MATERIALIZED-SAME: required_capabilities = [@rvv]
-// MATERIALIZED-SAME: rvv_construction_protocol = "extension-family-construction-protocol.v1"
-// MATERIALIZED-SAME: rvv_emitc_route_mapping = "rvv-generic-typed-body-emitc-route-family"
-// MATERIALIZED-SAME: selected_variant = @rvv_vector_add
-// MATERIALIZED-SAME: source_kernel = "rvv_vector_add_from_vector_source"
 // MATERIALIZED: weft_rvv.load
 // MATERIALIZED-SAME: -> !weft_rvv.vector<i32, "m1">
 // MATERIALIZED: weft_rvv.load
@@ -91,8 +86,6 @@ module attributes {weft_rvv.source_front_door = "bounded_vector_source"} {
 // MATERIALIZED: weft.exec.variant @rvv_vector_sub
 // MATERIALIZED-SAME: origin = "rvv-plugin"
 // MATERIALIZED: weft_rvv.with_vl
-// MATERIALIZED-SAME: selected_variant = @rvv_vector_sub
-// MATERIALIZED-SAME: source_kernel = "rvv_vector_sub_from_vector_source"
 // MATERIALIZED: weft_rvv.binary
 // MATERIALIZED-SAME: kind = "sub"
 // MATERIALIZED-SAME: -> !weft_rvv.vector<i32, "m1">
@@ -106,8 +99,6 @@ module attributes {weft_rvv.source_front_door = "bounded_vector_source"} {
 // MATERIALIZED: weft.exec.variant @rvv_vector_mul
 // MATERIALIZED-SAME: origin = "rvv-plugin"
 // MATERIALIZED: weft_rvv.with_vl
-// MATERIALIZED-SAME: selected_variant = @rvv_vector_mul
-// MATERIALIZED-SAME: source_kernel = "rvv_vector_mul_from_vector_source"
 // MATERIALIZED: weft_rvv.binary
 // MATERIALIZED-SAME: kind = "mul"
 // MATERIALIZED-SAME: -> !weft_rvv.vector<i32, "m1">

@@ -57,13 +57,6 @@ constexpr llvm::StringLiteral kRVVSegment2DeinterleaveRuntimeABIOrder(
 constexpr llvm::StringLiteral kRVVSegment2InterleaveRuntimeABIOrder(
     "src0,src1,dst,n");
 
-static constexpr char kRVVPluginName[] = "rvv-plugin";
-
-mlir::FlatSymbolRefAttr symbolRef(mlir::OpBuilder &builder,
-                                  llvm::StringRef symbol) {
-  return mlir::FlatSymbolRefAttr::get(builder.getContext(), symbol);
-}
-
 bool isSupportedPreRealizedArithmeticOpKind(llvm::StringRef opKind) {
   return opKind == "add" || opKind == "sub" || opKind == "mul";
 }
@@ -82,27 +75,12 @@ mlir::Operation *createRealizedSetVL(mlir::OpBuilder &builder,
 
 weft::rvv::WithVLOp createRealizedWithVL(
     mlir::OpBuilder &builder, mlir::Location loc, mlir::Value vlValue,
-    weft::exec::KernelOp kernel, weft::exec::VariantOp variant,
-    VariantEmissionRole role, mlir::ArrayAttr requires, std::int64_t sew,
+    std::int64_t sew,
     llvm::StringRef lmul, weft::rvv::PolicyAttr policy) {
   mlir::OperationState state(loc, "weft_rvv.with_vl");
   state.addOperands(vlValue);
   weft::rvv::populateRVVSelectedBodyConfigAttrs(builder, state, sew, lmul,
                                                 policy);
-  state.addAttribute(rvv::getRVVSourceKernelAttrName(),
-                     builder.getStringAttr(kernel.getSymName()));
-  state.addAttribute(rvv::getRVVSelectedVariantAttrName(),
-                     symbolRef(builder, variant.getSymName()));
-  state.addAttribute(rvv::getRVVOriginAttrName(),
-                     builder.getStringAttr(kRVVPluginName));
-  state.addAttribute(rvv::getRVVSelectedPathRoleAttrName(),
-                     builder.getStringAttr(stringifyVariantEmissionRole(role)));
-  state.addAttribute(rvv::getRVVStatusAttrName(),
-                     builder.getStringAttr(rvv::getRVVLoweringBoundaryStatus()));
-  state.addAttribute(rvv::getRVVRequiredCapabilitiesAttrName(), requires);
-  state.addAttribute(rvv::getRVVConstructionProtocolMetadataName(),
-                     builder.getStringAttr(
-                         rvv::getRVVConstructionProtocolVersion()));
   state.addRegion();
   auto withVL = llvm::cast<weft::rvv::WithVLOp>(builder.create(state));
   withVL.getBody().emplaceBlock();
@@ -1680,10 +1658,6 @@ realizePreRealizedRVVSelectedComputedMaskSegment2LoadBody(
                                                                      body))
     return std::move(error);
 
-  weft::exec::VariantOp variant = request.getVariant();
-  weft::exec::KernelOp kernel = request.getKernel();
-  auto requires = variant->getAttrOfType<mlir::ArrayAttr>("requires");
-
   mlir::Location loc = body->getLoc();
   mlir::OpBuilder &builder = request.getBuilder();
   builder.setInsertionPoint(body.getOperation());
@@ -1694,8 +1668,7 @@ realizePreRealizedRVVSelectedComputedMaskSegment2LoadBody(
       createRealizedSetVL(builder, loc, body.getN(), sew, lmul,
                           body.getPolicy()));
   weft::rvv::WithVLOp withVL =
-      createRealizedWithVL(builder, loc, setvl.getVl(), kernel, variant,
-                           request.getRole(), requires, sew, lmul,
+      createRealizedWithVL(builder, loc, setvl.getVl(), sew, lmul,
                            body.getPolicy());
 
   builder.setInsertionPointToStart(&withVL.getBody().front());
@@ -1741,8 +1714,6 @@ realizePreRealizedRVVSelectedRuntimeScalarComputedMaskSegment2LoadBody(
     return std::move(error);
 
   weft::exec::VariantOp variant = request.getVariant();
-  weft::exec::KernelOp kernel = request.getKernel();
-  auto requires = variant->getAttrOfType<mlir::ArrayAttr>("requires");
 
   mlir::Location loc = body->getLoc();
   mlir::OpBuilder &builder = request.getBuilder();
@@ -1764,9 +1735,7 @@ realizePreRealizedRVVSelectedRuntimeScalarComputedMaskSegment2LoadBody(
                           runtimeControlPlan->sew, runtimeControlPlan->lmul,
                           runtimeControlPlan->policy));
   weft::rvv::WithVLOp withVL =
-      createRealizedWithVL(builder, loc, setvl.getVl(), kernel, variant,
-                           request.getRole(), requires,
-                           runtimeControlPlan->sew, runtimeControlPlan->lmul,
+      createRealizedWithVL(builder, loc, setvl.getVl(), runtimeControlPlan->sew, runtimeControlPlan->lmul,
                            runtimeControlPlan->policy);
 
   builder.setInsertionPointToStart(&withVL.getBody().front());
@@ -1812,10 +1781,6 @@ realizePreRealizedRVVSelectedComputedMaskSegment2StoreBody(
                                                                       body))
     return std::move(error);
 
-  weft::exec::VariantOp variant = request.getVariant();
-  weft::exec::KernelOp kernel = request.getKernel();
-  auto requires = variant->getAttrOfType<mlir::ArrayAttr>("requires");
-
   mlir::Location loc = body->getLoc();
   mlir::OpBuilder &builder = request.getBuilder();
   builder.setInsertionPoint(body.getOperation());
@@ -1826,8 +1791,7 @@ realizePreRealizedRVVSelectedComputedMaskSegment2StoreBody(
       createRealizedSetVL(builder, loc, body.getN(), sew, lmul,
                           body.getPolicy()));
   weft::rvv::WithVLOp withVL =
-      createRealizedWithVL(builder, loc, setvl.getVl(), kernel, variant,
-                           request.getRole(), requires, sew, lmul,
+      createRealizedWithVL(builder, loc, setvl.getVl(), sew, lmul,
                            body.getPolicy());
 
   builder.setInsertionPointToStart(&withVL.getBody().front());
@@ -1879,8 +1843,6 @@ realizePreRealizedRVVSelectedRuntimeScalarComputedMaskSegment2StoreBody(
     return std::move(error);
 
   weft::exec::VariantOp variant = request.getVariant();
-  weft::exec::KernelOp kernel = request.getKernel();
-  auto requires = variant->getAttrOfType<mlir::ArrayAttr>("requires");
 
   mlir::Location loc = body->getLoc();
   mlir::OpBuilder &builder = request.getBuilder();
@@ -1902,9 +1864,7 @@ realizePreRealizedRVVSelectedRuntimeScalarComputedMaskSegment2StoreBody(
                           runtimeControlPlan->sew, runtimeControlPlan->lmul,
                           runtimeControlPlan->policy));
   weft::rvv::WithVLOp withVL =
-      createRealizedWithVL(builder, loc, setvl.getVl(), kernel, variant,
-                           request.getRole(), requires,
-                           runtimeControlPlan->sew, runtimeControlPlan->lmul,
+      createRealizedWithVL(builder, loc, setvl.getVl(), runtimeControlPlan->sew, runtimeControlPlan->lmul,
                            runtimeControlPlan->policy);
 
   builder.setInsertionPointToStart(&withVL.getBody().front());

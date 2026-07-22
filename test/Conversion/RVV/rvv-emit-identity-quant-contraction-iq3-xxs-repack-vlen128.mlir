@@ -39,7 +39,7 @@ module {
       %vy = weft_rvv.runtime_abi_value {c_name = "vy", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "q8-act", role = "rhs-input-buffer"} : !weft_rvv.runtime_abi_value
       %nc = weft_rvv.runtime_abi_value {c_name = "nc", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "nc", role = "destination-byte-stride"} : index
       %vl = weft_rvv.setvl %n {lmul = "m1", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !weft_rvv.vl
-      weft_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @ggml_repack_gemv_iq3_xxs_q8_K, sew = 32 : i64, source_kernel = "ggml_repack_gemv_iq3_xxs_q8_K_kernel", status = "selected-lowering-boundary"} {
+      weft_rvv.with_vl %vl attributes {lmul = "m1", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} {
         // The ABSTRACT dual-entry grid request: PLAIN block_iq3_xxs (stride 98 = fp16 d +
         // 3*(QK_K/8) = 96 qs bytes, qs @2) x PLAIN block_q8_K (stride 292), qk 256,
         // scale_model = the iq3_xxs dual-entry WHAT, block_dot_compute_heavy = true (routes

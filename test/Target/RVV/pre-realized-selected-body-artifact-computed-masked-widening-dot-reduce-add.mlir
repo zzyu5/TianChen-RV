@@ -35,7 +35,6 @@ module {
 // REALIZED-NOT: weft_rvv.typed_computed_mask_widening_dot_reduce_pre_realized_body
 // REALIZED: %[[VL:.*]] = weft_rvv.setvl %{{.*}} {lmul = "m1", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64}
 // REALIZED: weft_rvv.with_vl %[[VL]] attributes
-// REALIZED-SAME: selected_variant = @pre_realized_body_rvv_masked_widening_dot_reduce_add
 // REALIZED: %[[CMP_LHS:.*]] = weft_rvv.load
 // REALIZED-SAME: !weft_rvv.vector<i32, "m1">
 // REALIZED: %[[CMP_RHS:.*]] = weft_rvv.load

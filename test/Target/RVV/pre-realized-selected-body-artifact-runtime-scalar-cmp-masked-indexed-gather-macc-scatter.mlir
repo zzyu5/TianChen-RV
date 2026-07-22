@@ -48,7 +48,6 @@ module {
 // REALIZED-NOT: weft_rvv.typed_runtime_scalar_computed_mask_indexed_scatter_pre_realized_body
 // REALIZED: %[[VL:.*]] = weft_rvv.setvl %{{.*}} {lmul = "m1", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64}
 // REALIZED: weft_rvv.with_vl %[[VL]] attributes
-// REALIZED-SAME: selected_variant = @rvv_pre_composite
 // REALIZED: %[[CMP_LHS:.*]] = weft_rvv.load
 // REALIZED: %[[THRESHOLD:.*]] = weft_rvv.splat
 // REALIZED: %[[PAYLOAD:.*]] = weft_rvv.load

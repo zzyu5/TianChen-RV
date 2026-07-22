@@ -29,9 +29,6 @@ module {
 // REALIZED: %[[VL:.*]] = weft_rvv.setvl %{{.*}} {lmul = "m2", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, sew = 64 : i64}
 // REALIZED: weft_rvv.with_vl %[[VL]] attributes
 // REALIZED-SAME: lmul = "m2"
-// REALIZED-SAME: origin = "rvv-plugin"
-// REALIZED-SAME: selected_path_role = "dispatch case"
-// REALIZED-SAME: selected_variant = @pre_realized_body_rvv_widen_i32_to_i64
 // REALIZED: weft_rvv.load
 // REALIZED-SAME: !weft_rvv.vector<i32, "m1">
 // REALIZED: weft_rvv.widening_convert

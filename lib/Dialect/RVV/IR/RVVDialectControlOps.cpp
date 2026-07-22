@@ -235,12 +235,12 @@ mlir::LogicalResult WithVLOp::verify() {
 
     if (!isAllowedWithVLAttr(attrName))
       return emitOpError()
-             << "only accepts optional bounded compile-time config "
+             << "only accepts formula-owned bounded config/schedule "
                 "attributes '"
              << kSEWAttrName << "', '" << kLMULAttrName << "', and '"
-             << kPolicyAttrName
-             << "', selected-boundary mirrors, and RVV plugin-owned Gearbox/"
-                "resource facts; unexpected attribute '"
+             << kPolicyAttrName << "', and '" << kUnrollFactorAttrName
+             << "'; source/selection/capability/protocol/route mirrors belong "
+                "outside the exact typed body; unexpected attribute '"
              << attr.getName() << "'";
   }
 
@@ -312,15 +312,6 @@ mlir::LogicalResult WithVLOp::verify() {
       return emitOpError()
              << "requires optional 'policy' metadata to match defining "
                 "weft_rvv.setvl";
-  }
-
-  for (llvm::StringRef attrName :
-       {kSourceKernelAttrName, kOriginAttrName, kSelectedPathRoleAttrName,
-        kStatusAttrName, kRVVConstructionProtocolAttrName,
-        kRVVEmitCRouteMappingAttrName}) {
-    if (auto attr = op->getAttrOfType<mlir::StringAttr>(attrName))
-      if (mlir::failed(verifyBoundedMetadata(op, attrName, attr.getValue())))
-        return mlir::failure();
   }
 
   for (mlir::Operation &nested : body.front()) {

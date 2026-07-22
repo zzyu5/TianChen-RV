@@ -27,7 +27,6 @@ module {
 // REALIZED-NOT: weft_rvv.typed_dequant_clamp_f32_epilogue_pre_realized_body
 // REALIZED: %[[VL:.*]] = weft_rvv.setvl %{{.*}} {lmul = "m1", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64}
 // REALIZED: weft_rvv.with_vl %[[VL]] attributes
-// REALIZED-SAME: selected_variant = @pre_realized_rvv_dequant_clamp_f32_epilogue
 // REALIZED: %[[SRC:.*]] = weft_rvv.load
 // REALIZED-SAME: -> !weft_rvv.vector<i32, "m1">
 // REALIZED: %[[DEQ:.*]] = weft_rvv.dequantize %[[SRC]]

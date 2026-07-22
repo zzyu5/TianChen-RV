@@ -26,7 +26,7 @@ module {
       %n = weft_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "n", role = "runtime-element-count"} : index
       %sums = weft_rvv.runtime_abi_value {c_name = "sums", c_type = "const float *", ownership = "target-export-abi-owned", purpose = "q4-sums", role = "lhs-input-buffer"} : !weft_rvv.runtime_abi_value
       %vl = weft_rvv.setvl %n {lmul = "m1", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !weft_rvv.vl
-      weft_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @q4_k_horizontal_fold, sew = 32 : i64, source_kernel = "q4_k_horizontal_fold_kernel", status = "selected-lowering-boundary"} {
+      weft_rvv.with_vl %vl attributes {lmul = "m1", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} {
         %fd = weft_rvv.q4_k_horizontal_fold %sums, %vl {kind = "q4_k_horizontal_fold", qk = 256 : i64, sub_block = 32 : i64, num_sub_blocks = 8 : i64, num_lanes = 8 : i64} : !weft_rvv.runtime_abi_value, !weft_rvv.vl -> !weft_rvv.vector<i32, "m1">
       } : !weft_rvv.vl
     }

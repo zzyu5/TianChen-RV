@@ -26,7 +26,6 @@ module {
 // REALIZED-NOT: weft_rvv.typed_runtime_scalar_computed_mask_store_pre_realized_body
 // REALIZED: %[[VL:.*]] = weft_rvv.setvl %{{.*}} {lmul = "m1", policy = #weft_rvv.policy<tail = undisturbed, mask = undisturbed>, sew = 64 : i64}
 // REALIZED: weft_rvv.with_vl %[[VL]] attributes
-// REALIZED-SAME: selected_variant = @pr_rvv_cmp_mstore_i64
 // REALIZED: %[[LHS:.*]] = weft_rvv.load
 // REALIZED-SAME: -> !weft_rvv.vector<i64, "m1">
 // REALIZED: %[[RHS:.*]] = weft_rvv.splat

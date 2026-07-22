@@ -28,7 +28,6 @@ module {
 // REALIZED-NOT: weft_rvv.typed_runtime_scalar_computed_mask_macc_pre_realized_body
 // REALIZED: %[[VL:.*]] = weft_rvv.setvl
 // REALIZED: weft_rvv.with_vl %[[VL]] attributes
-// REALIZED-SAME: selected_variant = @rvv_pr_rt_scalar_masked_macc
 // REALIZED: %[[CMP_LHS:.*]] = weft_rvv.load
 // REALIZED: %[[RHS:.*]] = weft_rvv.splat
 // REALIZED: %[[LHS:.*]] = weft_rvv.load

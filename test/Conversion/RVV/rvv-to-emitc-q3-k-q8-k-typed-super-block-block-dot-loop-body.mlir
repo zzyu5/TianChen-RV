@@ -59,7 +59,7 @@ module {
       %aux32out = weft_rvv.runtime_abi_value {c_name = "aux32", c_type = "int32_t *", ownership = "target-export-abi-owned", purpose = "q3-aux32-scratch-out", role = "output-buffer"} : !weft_rvv.runtime_abi_value
       %aux32 = weft_rvv.runtime_abi_value {c_name = "aux32r", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "q3-aux32-scratch", role = "lhs-input-buffer"} : !weft_rvv.runtime_abi_value
       %vl = weft_rvv.setvl %n {lmul = "m1", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !weft_rvv.vl
-      weft_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @q3_k_super_block_loop_body, sew = 32 : i64, source_kernel = "q3_k_super_block_loop_body_kernel", status = "selected-lowering-boundary"} {
+      weft_rvv.with_vl %vl attributes {lmul = "m1", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} {
         weft_rvv.typed_super_block_block_dot_loop_body %vx, %vy, %s, %n attributes {kind = "typed_super_block_block_dot_loop_body", qk = 256 : i64, weight_block_stride = 110 : i64, activation_block_stride = 292 : i64, fold_model = "scales_times_sumi"} {
         ^bb0(%super_block_index: index, %sums: !weft_rvv.vector<f32, "m2">):
           // R1 %r1 = arith.constant 0.0 : f32

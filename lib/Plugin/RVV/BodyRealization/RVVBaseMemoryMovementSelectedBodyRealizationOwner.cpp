@@ -23,11 +23,6 @@ llvm::Error makeRVVPluginError(llvm::Twine message) {
       llvm::errc::invalid_argument);
 }
 
-mlir::FlatSymbolRefAttr symbolRef(mlir::OpBuilder &builder,
-                                  llvm::StringRef symbol) {
-  return mlir::FlatSymbolRefAttr::get(builder.getContext(), symbol);
-}
-
 mlir::Operation *createRealizedSetVL(mlir::OpBuilder &builder,
                                      mlir::Location loc, mlir::Value nValue,
                                      std::int64_t sew, llvm::StringRef lmul,
@@ -42,27 +37,12 @@ mlir::Operation *createRealizedSetVL(mlir::OpBuilder &builder,
 
 weft::rvv::WithVLOp createRealizedWithVL(
     mlir::OpBuilder &builder, mlir::Location loc, mlir::Value vlValue,
-    weft::exec::KernelOp kernel, weft::exec::VariantOp variant,
-    VariantEmissionRole role, mlir::ArrayAttr requires, std::int64_t sew,
+    std::int64_t sew,
     llvm::StringRef lmul, weft::rvv::PolicyAttr policy) {
   mlir::OperationState state(loc, "weft_rvv.with_vl");
   state.addOperands(vlValue);
   weft::rvv::populateRVVSelectedBodyConfigAttrs(builder, state, sew, lmul,
                                                 policy);
-  state.addAttribute(rvv::getRVVSourceKernelAttrName(),
-                     builder.getStringAttr(kernel.getSymName()));
-  state.addAttribute(rvv::getRVVSelectedVariantAttrName(),
-                     symbolRef(builder, variant.getSymName()));
-  state.addAttribute(rvv::getRVVOriginAttrName(),
-                     builder.getStringAttr(kRVVPluginName));
-  state.addAttribute(rvv::getRVVSelectedPathRoleAttrName(),
-                     builder.getStringAttr(stringifyVariantEmissionRole(role)));
-  state.addAttribute(rvv::getRVVStatusAttrName(),
-                     builder.getStringAttr(rvv::getRVVLoweringBoundaryStatus()));
-  state.addAttribute(rvv::getRVVRequiredCapabilitiesAttrName(), requires);
-  state.addAttribute(rvv::getRVVConstructionProtocolMetadataName(),
-                     builder.getStringAttr(
-                         rvv::getRVVConstructionProtocolVersion()));
   state.addRegion();
   auto withVL = llvm::cast<weft::rvv::WithVLOp>(builder.create(state));
   withVL.getBody().emplaceBlock();
@@ -254,7 +234,6 @@ realizePreRealizedRVVBaseMemoryMovementOwner(
         "pre-realized RVV base memory movement selected-body realization "
         "requires materialized kernel and variant");
 
-  auto requires = variant->getAttrOfType<mlir::ArrayAttr>("requires");
   mlir::OpBuilder &builder = request.getBuilder();
   mlir::OpBuilder::InsertionGuard guard(builder);
 
@@ -274,9 +253,7 @@ realizePreRealizedRVVBaseMemoryMovementOwner(
                             weft::rvv::getRVVLMULM1(),
                             stridedMemoryBody.getPolicy()));
     weft::rvv::WithVLOp withVL =
-        createRealizedWithVL(builder, loc, setvl.getVl(), kernel, variant,
-                             request.getRole(), requires,
-                             weft::rvv::getRVVFirstSliceSEWBits(),
+        createRealizedWithVL(builder, loc, setvl.getVl(), weft::rvv::getRVVFirstSliceSEWBits(),
                              weft::rvv::getRVVLMULM1(),
                              stridedMemoryBody.getPolicy());
 
@@ -313,9 +290,7 @@ realizePreRealizedRVVBaseMemoryMovementOwner(
                             weft::rvv::getRVVLMULM1(),
                             stridedStoreBody.getPolicy()));
     weft::rvv::WithVLOp withVL =
-        createRealizedWithVL(builder, loc, setvl.getVl(), kernel, variant,
-                             request.getRole(), requires,
-                             weft::rvv::getRVVFirstSliceSEWBits(),
+        createRealizedWithVL(builder, loc, setvl.getVl(), weft::rvv::getRVVFirstSliceSEWBits(),
                              weft::rvv::getRVVLMULM1(),
                              stridedStoreBody.getPolicy());
 
@@ -354,8 +329,7 @@ realizePreRealizedRVVBaseMemoryMovementOwner(
         createRealizedSetVL(builder, loc, indexedGatherBody.getN(), sew, lmul,
                             indexedGatherBody.getPolicy()));
     weft::rvv::WithVLOp withVL =
-        createRealizedWithVL(builder, loc, setvl.getVl(), kernel, variant,
-                             request.getRole(), requires, sew, lmul,
+        createRealizedWithVL(builder, loc, setvl.getVl(), sew, lmul,
                              indexedGatherBody.getPolicy());
 
     builder.setInsertionPointToStart(&withVL.getBody().front());
@@ -396,8 +370,7 @@ realizePreRealizedRVVBaseMemoryMovementOwner(
         createRealizedSetVL(builder, loc, indexedScatterBody.getN(), sew, lmul,
                             indexedScatterBody.getPolicy()));
     weft::rvv::WithVLOp withVL =
-        createRealizedWithVL(builder, loc, setvl.getVl(), kernel, variant,
-                             request.getRole(), requires, sew, lmul,
+        createRealizedWithVL(builder, loc, setvl.getVl(), sew, lmul,
                              indexedScatterBody.getPolicy());
 
     builder.setInsertionPointToStart(&withVL.getBody().front());
@@ -437,8 +410,7 @@ realizePreRealizedRVVBaseMemoryMovementOwner(
         createRealizedSetVL(builder, loc, maskedMemoryBody.getN(), sew, lmul,
                             maskedMemoryBody.getPolicy()));
     weft::rvv::WithVLOp withVL =
-        createRealizedWithVL(builder, loc, setvl.getVl(), kernel, variant,
-                             request.getRole(), requires, sew, lmul,
+        createRealizedWithVL(builder, loc, setvl.getVl(), sew, lmul,
                              maskedMemoryBody.getPolicy());
 
     builder.setInsertionPointToStart(&withVL.getBody().front());

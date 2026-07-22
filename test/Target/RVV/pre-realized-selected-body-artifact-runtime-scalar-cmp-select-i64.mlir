@@ -27,8 +27,6 @@ module {
 // REALIZED-NOT: weft_rvv.typed_runtime_scalar_compare_select_pre_realized_body
 // REALIZED: %[[VL:.*]] = weft_rvv.setvl %{{.*}} {lmul = "m1", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, sew = 64 : i64}
 // REALIZED: weft_rvv.with_vl %[[VL]] attributes
-// REALIZED-SAME: origin = "rvv-plugin"
-// REALIZED-SAME: selected_variant = @pre_realized_body_rvv_runtime_scalar_cmp_select_i64
 // REALIZED: %[[LHS:.*]] = weft_rvv.load
 // REALIZED-SAME: -> !weft_rvv.vector<i64, "m1">
 // REALIZED: %[[RHS:.*]] = weft_rvv.splat

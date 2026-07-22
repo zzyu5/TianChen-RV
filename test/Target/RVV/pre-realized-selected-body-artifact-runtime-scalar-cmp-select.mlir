@@ -27,7 +27,6 @@ module {
 // REALIZED-NOT: weft_rvv.typed_runtime_scalar_compare_select_pre_realized_body
 // REALIZED: %[[VL:.*]] = weft_rvv.setvl
 // REALIZED: weft_rvv.with_vl %[[VL]] attributes
-// REALIZED-SAME: selected_variant = @pre_realized_body_rvv_runtime_scalar_cmp_select
 // REALIZED: %[[LHS:.*]] = weft_rvv.load
 // REALIZED: %[[RHS:.*]] = weft_rvv.splat
 // REALIZED: %[[TRUE:.*]] = weft_rvv.load

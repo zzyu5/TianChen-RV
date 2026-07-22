@@ -30,9 +30,6 @@ module {
 // REALIZED-NOT: weft_rvv.typed_masked_binary_pre_realized_body
 // REALIZED: %[[VL:.*]] = weft_rvv.setvl %{{.*}} {lmul = "m1", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64}
 // REALIZED: weft_rvv.with_vl %[[VL]] attributes
-// REALIZED-SAME: origin = "rvv-plugin"
-// REALIZED-SAME: selected_path_role = "dispatch case"
-// REALIZED-SAME: selected_variant = @pre_realized_body_rvv_masked_add
 // REALIZED: %[[LHS:.*]] = weft_rvv.load
 // REALIZED: %[[RHS:.*]] = weft_rvv.load
 // REALIZED: %[[MASK:.*]] = weft_rvv.compare %[[LHS]], %[[RHS]], %[[VL]]

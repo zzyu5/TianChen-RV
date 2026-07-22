@@ -27,7 +27,6 @@ module {
 // REALIZED-NOT: weft_rvv.typed_runtime_scalar_computed_mask_standalone_reduce_pre_realized_body
 // REALIZED: %[[VL:.*]] = weft_rvv.setvl
 // REALIZED: weft_rvv.with_vl %[[VL]] attributes
-// REALIZED-SAME: selected_variant = @rvv_pre_rt_scalar_cm_standalone_reduce_i64
 // REALIZED-SAME: sew = 64
 // REALIZED: %[[CMP_LHS:.*]] = weft_rvv.load
 // REALIZED: %[[RHS:.*]] = weft_rvv.splat

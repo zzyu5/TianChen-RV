@@ -25,7 +25,6 @@ module {
 // REALIZED-NOT: weft_rvv.typed_masked_memory_pre_realized_body
 // REALIZED: %[[VL:.*]] = weft_rvv.setvl %{{.*}} {lmul = "m1", policy = #weft_rvv.policy<tail = undisturbed, mask = undisturbed>, sew = 32 : i64}
 // REALIZED: weft_rvv.with_vl %[[VL]] attributes
-// REALIZED-SAME: selected_variant = @pre_realized_body_rvv_masked_unit_store
 // REALIZED: weft_rvv.mask_load
 // REALIZED-SAME: mask_memory_form = "unit-stride-mask-load"
 // REALIZED-SAME: mask_role = "predicate-mask-input-buffer"

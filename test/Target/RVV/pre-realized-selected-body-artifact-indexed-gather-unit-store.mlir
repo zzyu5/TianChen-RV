@@ -30,9 +30,6 @@ module {
 // REALIZED-NOT: weft_rvv.typed_indexed_gather_memory_pre_realized_body
 // REALIZED: %[[VL:.*]] = weft_rvv.setvl %{{.*}} {lmul = "m1", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64}
 // REALIZED: weft_rvv.with_vl %[[VL]] attributes
-// REALIZED-SAME: origin = "rvv-plugin"
-// REALIZED-SAME: selected_path_role = "dispatch case"
-// REALIZED-SAME: selected_variant = @pre_realized_body_rvv_indexed_gather_unit_store
 // REALIZED: weft_rvv.index_load
 // REALIZED-SAME: index_eew = 32 : i64
 // REALIZED: weft_rvv.indexed_load

@@ -45,11 +45,6 @@ llvm::Error makeRVVPluginError(llvm::Twine message) {
       llvm::errc::invalid_argument);
 }
 
-mlir::FlatSymbolRefAttr symbolRef(mlir::OpBuilder &builder,
-                                  llvm::StringRef symbol) {
-  return mlir::FlatSymbolRefAttr::get(builder.getContext(), symbol);
-}
-
 llvm::Error requireRuntimeABIValue(
     mlir::Value value, llvm::StringRef label,
     weft::support::RuntimeABIParameterRole role,
@@ -126,27 +121,12 @@ mlir::Operation *createRealizedSetVL(mlir::OpBuilder &builder,
 
 weft::rvv::WithVLOp createRealizedWithVL(
     mlir::OpBuilder &builder, mlir::Location loc, mlir::Value vlValue,
-    weft::exec::KernelOp kernel, weft::exec::VariantOp variant,
-    VariantEmissionRole role, mlir::ArrayAttr requires, std::int64_t sew,
+    std::int64_t sew,
     llvm::StringRef lmul, weft::rvv::PolicyAttr policy) {
   mlir::OperationState state(loc, "weft_rvv.with_vl");
   state.addOperands(vlValue);
   weft::rvv::populateRVVSelectedBodyConfigAttrs(builder, state, sew, lmul,
                                                 policy);
-  state.addAttribute(rvv::getRVVSourceKernelAttrName(),
-                     builder.getStringAttr(kernel.getSymName()));
-  state.addAttribute(rvv::getRVVSelectedVariantAttrName(),
-                     symbolRef(builder, variant.getSymName()));
-  state.addAttribute(rvv::getRVVOriginAttrName(),
-                     builder.getStringAttr(kRVVPluginName));
-  state.addAttribute(rvv::getRVVSelectedPathRoleAttrName(),
-                     builder.getStringAttr(stringifyVariantEmissionRole(role)));
-  state.addAttribute(rvv::getRVVStatusAttrName(),
-                     builder.getStringAttr(rvv::getRVVLoweringBoundaryStatus()));
-  state.addAttribute(rvv::getRVVRequiredCapabilitiesAttrName(), requires);
-  state.addAttribute(rvv::getRVVConstructionProtocolMetadataName(),
-                     builder.getStringAttr(
-                         rvv::getRVVConstructionProtocolVersion()));
   state.addRegion();
   auto withVL = llvm::cast<weft::rvv::WithVLOp>(builder.create(state));
   withVL.getBody().emplaceBlock();
@@ -687,11 +667,8 @@ realizePreRealizedRVVCompositeGatherMAccScatterOwner(
       createRealizedSetVL(builder, loc, runtimeControlPlan->runtimeAVLValue,
                           runtimeControlPlan->sew, runtimeControlPlan->lmul,
                           runtimeControlPlan->policy));
-  auto requires = variant->getAttrOfType<mlir::ArrayAttr>("requires");
   weft::rvv::WithVLOp withVL =
-      createRealizedWithVL(builder, loc, setvl.getVl(), kernel, variant,
-                           request.getRole(), requires,
-                           runtimeControlPlan->sew,
+      createRealizedWithVL(builder, loc, setvl.getVl(), runtimeControlPlan->sew,
                            runtimeControlPlan->lmul,
                            runtimeControlPlan->policy);
   builder.setInsertionPointToStart(&withVL.getBody().front());

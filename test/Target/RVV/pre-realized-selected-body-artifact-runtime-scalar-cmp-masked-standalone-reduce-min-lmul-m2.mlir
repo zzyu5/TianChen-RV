@@ -28,7 +28,6 @@ module {
 // REALIZED: %[[VL:.*]] = weft_rvv.setvl
 // REALIZED: weft_rvv.with_vl %[[VL]] attributes
 // REALIZED-SAME: lmul = "m2"
-// REALIZED-SAME: selected_variant = @rvv_pre_rt_scalar_cm_standalone_reduce_min_m2
 // REALIZED-SAME: sew = 32
 // REALIZED: weft_rvv.splat
 // REALIZED: weft_rvv.compare

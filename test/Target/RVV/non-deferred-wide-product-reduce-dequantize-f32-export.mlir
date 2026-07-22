@@ -64,7 +64,7 @@ module {
       %4 = weft_rvv.runtime_abi_value {c_name = "out", c_type = "float *", ownership = "target-export-abi-owned", purpose = "widening-dot-reduce-dequantize:out", role = "output-buffer"} : !weft_rvv.runtime_abi_value
       %5 = weft_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "widening-dot-reduce-dequantize:n", role = "runtime-element-count"} : index
       %6 = weft_rvv.setvl %5 {lmul = "m2", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, sew = 8 : i64} : index -> !weft_rvv.vl
-      weft_rvv.with_vl %6 attributes {lmul = "m2", origin = "rvv-plugin", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", rvv_emitc_route_mapping = "rvv-generic-typed-body-emitc-route-family", selected_path_role = "dispatch case", selected_variant = @rvv_widening_dot_reduce_dequantize_i8, sew = 8 : i64, source_kernel = "rvv_widening_dot_reduce_dequantize_i8_from_vector_source", status = "selected-lowering-boundary"} {
+      weft_rvv.with_vl %6 attributes {lmul = "m2", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, sew = 8 : i64} {
         %7 = weft_rvv.load %0, %6 : !weft_rvv.runtime_abi_value, !weft_rvv.vl -> !weft_rvv.vector<i8, "m2">
         %8 = weft_rvv.load %1, %6 : !weft_rvv.runtime_abi_value, !weft_rvv.vl -> !weft_rvv.vector<i8, "m2">
         %9 = weft_rvv.widening_product %7, %8, %6 {kind = "signed_widening_product", product_relation = "signed-i8m2xi8m2-to-i16m4"} : !weft_rvv.vector<i8, "m2">, !weft_rvv.vector<i8, "m2">, !weft_rvv.vl -> !weft_rvv.vector<i16, "m4">

@@ -35,7 +35,7 @@ module {
       %sumi1 = weft_rvv.runtime_abi_value {c_name = "sumi1", c_type = "int32_t", ownership = "target-export-abi-owned", purpose = "cross-block-f32-accumulate:sumi1", role = "rhs-secondary-scalar-value"} : i32
       %n = weft_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "cross-block-f32-accumulate:n", role = "runtime-element-count"} : index
       %vl = weft_rvv.setvl %n {lmul = "m1", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, sew = 16 : i64} : index -> !weft_rvv.vl
-      weft_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @rvv_cross_block_f32_accumulate, sew = 16 : i64, source_kernel = "rvv_cross_block_f32_accumulate_kernel", status = "selected-lowering-boundary"} {
+      weft_rvv.with_vl %vl attributes {lmul = "m1", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, sew = 16 : i64} {
         // brick 1: reconstruct the COMPUTED per-block scale d_x * d_y (f32).
         %scale = weft_rvv.block_fp16_scale_product %lhs, %rhs {kind = "dual_fp16_per_block_scale_product", scale_model = "dual-fp16-per-block-d_x.d_y"} : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value -> f32
         // brick 2: fold each block's scalar i32 sumi by the COMPUTED scale -> f32 term.

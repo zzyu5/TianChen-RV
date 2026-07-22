@@ -29,7 +29,6 @@ module {
 // REALIZED-NOT: weft_rvv.typed_masked_binary_pre_realized_body
 // REALIZED: %[[VL:.*]] = weft_rvv.setvl %{{.*}} {lmul = "m2", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64}
 // REALIZED: weft_rvv.with_vl %[[VL]] attributes
-// REALIZED-SAME: selected_variant = @pre_realized_body_rvv_masked_lmul_m2_sub
 // REALIZED: weft_rvv.load
 // REALIZED-SAME: !weft_rvv.vector<i32, "m2">
 // REALIZED: weft_rvv.compare

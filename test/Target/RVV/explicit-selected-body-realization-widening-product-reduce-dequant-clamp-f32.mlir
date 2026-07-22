@@ -49,7 +49,6 @@ module {
 // weft_rvv.gearbox_cross_region_handoff carrier and NO weft_rvv.vsetvl_region_marker
 // placeholders. The structural unroll_factor (=2) the conversion reads is stamped on
 // with_vl; the resource facts survive on the single scope.
-// REALIZED-DAG: selected_variant = @explicit_rvv_wprdc
 // REALIZED-DAG: unroll_factor = 2 : i64
 // REALIZED-DAG: %[[PRODUCT:.*]] = weft_rvv.widening_product %{{[^,]+}}, %{{[^,]+}}, %{{[^ ]+}}
 // REALIZED-DAG: product_relation = "signed-i8mf4xi8mf4-to-i16mf2"

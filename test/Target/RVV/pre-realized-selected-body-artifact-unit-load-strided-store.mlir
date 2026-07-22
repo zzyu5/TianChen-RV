@@ -30,9 +30,6 @@ module {
 // REALIZED-NOT: weft_rvv.typed_strided_store_memory_pre_realized_body
 // REALIZED: %[[VL:.*]] = weft_rvv.setvl %{{.*}} {lmul = "m1", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64}
 // REALIZED: weft_rvv.with_vl %[[VL]] attributes
-// REALIZED-SAME: origin = "rvv-plugin"
-// REALIZED-SAME: selected_path_role = "dispatch case"
-// REALIZED-SAME: selected_variant = @pre_realized_body_rvv_unit_load_strided_store
 // REALIZED: weft_rvv.load
 // REALIZED: weft_rvv.move
 // REALIZED-SAME: kind = "copy"

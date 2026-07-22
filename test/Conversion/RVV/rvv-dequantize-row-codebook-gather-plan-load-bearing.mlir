@@ -11,7 +11,7 @@ module {
       %x = weft_rvv.runtime_abi_value {c_name = "x", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "in", role = "lhs-input-buffer"} : !weft_rvv.runtime_abi_value
       %y = weft_rvv.runtime_abi_value {c_name = "y", c_type = "float *", ownership = "target-export-abi-owned", purpose = "out", role = "output-buffer"} : !weft_rvv.runtime_abi_value
       %vl = weft_rvv.setvl %k {lmul = "m1", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !weft_rvv.vl
-      weft_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @dequant_mxfp4, sew = 32 : i64, source_kernel = "dequant_mxfp4_kernel", status = "selected-lowering-boundary"} {
+      weft_rvv.with_vl %vl attributes {lmul = "m1", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} {
         weft_rvv.typed_dequantize_row_loop_body %x, %y, %k attributes {decode_model = "mxfp4", kind = "typed_dequantize_row_loop_body", qk = 32 : i64, weight_block_stride = 17 : i64} {
         ^bb0(%block_index: index):
           weft_rvv.dequantize_row_decode_core %x, %y, %block_index {codebook_gather_entries = 16 : i64, codebook_gather_table = "fp4-e2m1", codebook_scale_model = "e8m0-shared-exp", decode_model = "mxfp4", dequant_load_lmul = "m1", dequant_mechanism = "codebook-gather", dequant_strip_lanes = 16 : i64, qk = 32 : i64, quant_byte_offset = 1 : i64, scale_byte_offset = 0 : i64, weight_block_stride = 17 : i64} : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index

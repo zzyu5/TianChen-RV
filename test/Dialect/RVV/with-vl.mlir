@@ -28,8 +28,8 @@ module {
 // -----
 
 module {
-  // CHECK-LABEL: weft.exec.kernel @rvv_with_vl_selected_boundary_attrs
-  weft.exec.kernel @rvv_with_vl_selected_boundary_attrs {
+  // CHECK-LABEL: weft.exec.kernel @rvv_with_vl_exact_body_attrs
+  weft.exec.kernel @rvv_with_vl_exact_body_attrs {
     weft.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
     weft.exec.variant @rvv_selected attributes {origin = "rvv-plugin", requires = [@rvv]} {
       %avl = "builtin.unrealized_conversion_cast"() : () -> index
@@ -39,29 +39,40 @@ module {
         sew = 32 : i64
       } : index -> !weft_rvv.vl
       // CHECK: weft_rvv.with_vl
-      // CHECK-SAME: origin = "rvv-plugin"
-      // CHECK-SAME: required_capabilities = [@rvv]
-      // CHECK-SAME: rvv_construction_protocol = "extension-family-construction-protocol.v1"
-      // CHECK-SAME: rvv_emitc_route_mapping = "rvv-generic-typed-body-emitc-route-family"
-      // CHECK-SAME: selected_path_role = "direct variant"
-      // CHECK-SAME: selected_variant = @rvv_selected
-      // CHECK-SAME: source_kernel = "rvv_with_vl_selected_boundary_attrs"
-      // CHECK-SAME: status = "selected-lowering-boundary"
+      // CHECK-SAME: lmul = "m1"
+      // CHECK-SAME: policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>
+      // CHECK-SAME: sew = 32 : i64
+      // CHECK-NOT: selected_variant
+      // CHECK-NOT: rvv_construction_protocol
+      // CHECK: } : !weft_rvv.vl
       weft_rvv.with_vl %vl attributes {
         lmul = "m1",
-        origin = "rvv-plugin",
         policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>,
-        required_capabilities = [@rvv],
-        rvv_construction_protocol = "extension-family-construction-protocol.v1",
-        rvv_emitc_route_mapping = "rvv-generic-typed-body-emitc-route-family",
-        selected_path_role = "direct variant",
-        selected_variant = @rvv_selected,
-        sew = 32 : i64,
-        source_kernel = "rvv_with_vl_selected_boundary_attrs",
-        status = "selected-lowering-boundary"
+        sew = 32 : i64
       } {
       } : !weft_rvv.vl
     }
+  }
+}
+
+// -----
+
+module {
+  weft.exec.kernel @rvv_with_vl_reject_retired_route_mirror {
+    %avl = "builtin.unrealized_conversion_cast"() : () -> index
+    %vl = weft_rvv.setvl %avl {
+      lmul = "m1",
+      policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>,
+      sew = 32 : i64
+    } : index -> !weft_rvv.vl
+    // expected-error@+1 {{source/selection/capability/protocol/route mirrors belong outside the exact typed body; unexpected attribute '"rvv_emitc_route_mapping"'}}
+    weft_rvv.with_vl %vl attributes {
+      lmul = "m1",
+      policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>,
+      rvv_emitc_route_mapping = "retired-second-authority",
+      sew = 32 : i64
+    } {
+    } : !weft_rvv.vl
   }
 }
 

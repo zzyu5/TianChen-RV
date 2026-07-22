@@ -30,9 +30,6 @@ module {
 // REALIZED: %[[VL:.*]] = weft_rvv.setvl %{{.*}} {lmul = "m2", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64}
 // REALIZED: weft_rvv.with_vl %[[VL]] attributes
 // REALIZED-SAME: lmul = "m2"
-// REALIZED-SAME: origin = "rvv-plugin"
-// REALIZED-SAME: selected_path_role = "dispatch case"
-// REALIZED-SAME: selected_variant = @pre_realized_body_rvv_lmul_m2_add
 // REALIZED: weft_rvv.load
 // REALIZED-SAME: !weft_rvv.vector<i32, "m2">
 // REALIZED: weft_rvv.load

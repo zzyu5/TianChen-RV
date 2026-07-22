@@ -95,13 +95,7 @@ bool isAllowedSetVLAttr(llvm::StringRef name) {
 
 bool isAllowedWithVLAttr(llvm::StringRef name) {
   return name == kSEWAttrName || name == kLMULAttrName ||
-         name == kPolicyAttrName || name == kUnrollFactorAttrName ||
-         name == kSourceKernelAttrName ||
-         name == kSelectedVariantAttrName || name == kOriginAttrName ||
-         name == kSelectedPathRoleAttrName || name == kStatusAttrName ||
-         name == kRequiredCapabilitiesAttrName ||
-         name == kRVVConstructionProtocolAttrName ||
-         name == kRVVEmitCRouteMappingAttrName;
+         name == kPolicyAttrName || name == kUnrollFactorAttrName;
 }
 
 bool isAllowedI32LoadAttr(llvm::StringRef) {

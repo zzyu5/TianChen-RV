@@ -27,7 +27,6 @@ module {
 // REALIZED-NOT: weft_rvv.typed_computed_mask_standalone_reduce_pre_realized_body
 // REALIZED: %[[VL:.*]] = weft_rvv.setvl %{{.*}} {lmul = "m1", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64}
 // REALIZED: weft_rvv.with_vl %[[VL]] attributes
-// REALIZED-SAME: selected_variant = @rvv_pre_cm_standalone_reduce_min
 // REALIZED: %[[CMP_LHS:.*]] = weft_rvv.load
 // REALIZED: %[[CMP_RHS:.*]] = weft_rvv.load
 // REALIZED: %[[SRC:.*]] = weft_rvv.load

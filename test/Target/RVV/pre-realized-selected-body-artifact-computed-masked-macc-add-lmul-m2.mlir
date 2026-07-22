@@ -31,7 +31,6 @@ module {
 // REALIZED-SAME: sew = 32
 // REALIZED: weft_rvv.with_vl %[[VL]] attributes
 // REALIZED-SAME: lmul = "m2"
-// REALIZED-SAME: selected_variant = @pre_realized_body_rvv_computed_masked_macc_add_m2
 // REALIZED: %[[CMP_LHS:.*]] = weft_rvv.load
 // REALIZED-SAME: -> !weft_rvv.vector<i32, "m2">
 // REALIZED: %[[CMP_RHS:.*]] = weft_rvv.load

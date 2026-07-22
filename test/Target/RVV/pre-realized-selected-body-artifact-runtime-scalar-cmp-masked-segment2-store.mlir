@@ -33,7 +33,6 @@ module {
 // REALIZED-NOT: weft_rvv.typed_runtime_scalar_computed_mask_segment2_store_pre_realized_body
 // REALIZED: %[[VL:.*]] = weft_rvv.setvl %{{.*}} {lmul = "m1", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64}
 // REALIZED: weft_rvv.with_vl %[[VL]] attributes
-// REALIZED-SAME: selected_variant = @pre_realized_body_rvv_rt_scalar_cmseg_store
 // REALIZED: %[[LHS:.*]] = weft_rvv.load
 // REALIZED: %[[RHS:.*]] = weft_rvv.splat
 // REALIZED: %[[FIELD0:.*]] = weft_rvv.load

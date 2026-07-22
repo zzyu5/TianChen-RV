@@ -33,7 +33,6 @@ module {
 // REALIZED-NOT: weft_rvv.typed_strided_input_widening_dot_reduce_pre_realized_body
 // REALIZED: %[[VL:.*]] = weft_rvv.setvl %{{.*}} {lmul = "m1", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64}
 // REALIZED: weft_rvv.with_vl %[[VL]] attributes
-// REALIZED-SAME: selected_variant = @rvv_strided_input_dot
 // REALIZED: %[[LHS:.*]] = weft_rvv.strided_load
 // REALIZED-SAME: !weft_rvv.vector<i16, "mf2">
 // REALIZED: %[[RHS:.*]] = weft_rvv.strided_load

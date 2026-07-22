@@ -23,11 +23,6 @@ llvm::Error makeRVVPluginError(llvm::Twine message) {
       llvm::errc::invalid_argument);
 }
 
-mlir::FlatSymbolRefAttr symbolRef(mlir::OpBuilder &builder,
-                                  llvm::StringRef symbol) {
-  return mlir::FlatSymbolRefAttr::get(builder.getContext(), symbol);
-}
-
 mlir::Operation *createRealizedSetVL(mlir::OpBuilder &builder,
                                      mlir::Location loc, mlir::Value nValue,
                                      std::int64_t sew, llvm::StringRef lmul,
@@ -42,27 +37,12 @@ mlir::Operation *createRealizedSetVL(mlir::OpBuilder &builder,
 
 weft::rvv::WithVLOp createRealizedWithVL(
     mlir::OpBuilder &builder, mlir::Location loc, mlir::Value vlValue,
-    weft::exec::KernelOp kernel, weft::exec::VariantOp variant,
-    VariantEmissionRole role, mlir::ArrayAttr requires, std::int64_t sew,
+    std::int64_t sew,
     llvm::StringRef lmul, weft::rvv::PolicyAttr policy) {
   mlir::OperationState state(loc, "weft_rvv.with_vl");
   state.addOperands(vlValue);
   weft::rvv::populateRVVSelectedBodyConfigAttrs(builder, state, sew, lmul,
                                                 policy);
-  state.addAttribute(rvv::getRVVSourceKernelAttrName(),
-                     builder.getStringAttr(kernel.getSymName()));
-  state.addAttribute(rvv::getRVVSelectedVariantAttrName(),
-                     symbolRef(builder, variant.getSymName()));
-  state.addAttribute(rvv::getRVVOriginAttrName(),
-                     builder.getStringAttr(kRVVPluginName));
-  state.addAttribute(rvv::getRVVSelectedPathRoleAttrName(),
-                     builder.getStringAttr(stringifyVariantEmissionRole(role)));
-  state.addAttribute(rvv::getRVVStatusAttrName(),
-                     builder.getStringAttr(rvv::getRVVLoweringBoundaryStatus()));
-  state.addAttribute(rvv::getRVVRequiredCapabilitiesAttrName(), requires);
-  state.addAttribute(rvv::getRVVConstructionProtocolMetadataName(),
-                     builder.getStringAttr(
-                         rvv::getRVVConstructionProtocolVersion()));
   state.addRegion();
   auto withVL = llvm::cast<weft::rvv::WithVLOp>(builder.create(state));
   withVL.getBody().emplaceBlock();
@@ -243,18 +223,14 @@ template <typename BodyOpT>
 weft::rvv::WithVLOp createComputedMaskMemoryWithVL(
     const VariantLoweringBoundaryRequest &request, BodyOpT body,
     std::int64_t sew, llvm::StringRef lmul) {
-  weft::exec::VariantOp variant = request.getVariant();
-  weft::exec::KernelOp kernel = request.getKernel();
   mlir::OpBuilder &builder = request.getBuilder();
   mlir::Location loc = body->getLoc();
-  auto requires = variant->getAttrOfType<mlir::ArrayAttr>("requires");
 
   builder.setInsertionPoint(body.getOperation());
   auto setvl = llvm::cast<weft::rvv::SetVLOp>(
       createRealizedSetVL(builder, loc, body.getN(), sew, lmul,
                           body.getPolicy()));
-  return createRealizedWithVL(builder, loc, setvl.getVl(), kernel, variant,
-                              request.getRole(), requires, sew, lmul,
+  return createRealizedWithVL(builder, loc, setvl.getVl(), sew, lmul,
                               body.getPolicy());
 }
 

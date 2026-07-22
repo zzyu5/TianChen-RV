@@ -56,20 +56,6 @@ constexpr llvm::StringLiteral kFallbackRoleAttrName("fallback_role");
 // scalar plugin's identity: any plugin declaring a fallback-kind capability
 // owns the conservative fallback the front door dispatches to.
 constexpr llvm::StringLiteral kConservativeFallbackCapabilityKind("fallback");
-constexpr llvm::StringLiteral kSourceKernelBoundaryAttrName("source_kernel");
-constexpr llvm::StringLiteral kSelectedVariantAttrName("selected_variant");
-constexpr llvm::StringLiteral kSelectedPathRoleAttrName("selected_path_role");
-constexpr llvm::StringLiteral kStatusAttrName("status");
-constexpr llvm::StringLiteral kRequiredCapabilitiesAttrName(
-    "required_capabilities");
-constexpr llvm::StringLiteral kRVVConstructionProtocolAttrName(
-    "rvv_construction_protocol");
-constexpr llvm::StringLiteral kRVVEmitCRouteMappingAttrName(
-    "rvv_emitc_route_mapping");
-constexpr llvm::StringLiteral kRVVConstructionProtocol(
-    "extension-family-construction-protocol.v1");
-constexpr llvm::StringLiteral kRVVGenericTypedBodyRouteFamily(
-    "rvv-generic-typed-body-emitc-route-family");
 
 mlir::LogicalResult failVectorMaterializer(mlir::Operation *op,
                                            llvm::Twine message) {
@@ -1141,31 +1127,12 @@ weft::rvv::SetVLOp createSetVL(mlir::OpBuilder &builder, mlir::Location loc,
 
 weft::rvv::WithVLOp createWithVL(mlir::OpBuilder &builder, mlir::Location loc,
                                  mlir::Value vl,
-                                 weft::rvv::PolicyAttr policy,
-                                 llvm::StringRef kernelName,
-                                 llvm::StringRef selectedVariantSymbol,
-                                 mlir::ArrayAttr requires) {
+                                 weft::rvv::PolicyAttr policy) {
   mlir::OperationState state(loc, weft::rvv::WithVLOp::getOperationName());
   state.addOperands(vl);
   state.addAttribute("sew", builder.getI64IntegerAttr(32));
   state.addAttribute("lmul", builder.getStringAttr("m1"));
   state.addAttribute("policy", policy);
-  state.addAttribute(kSourceKernelBoundaryAttrName,
-                     builder.getStringAttr(kernelName));
-  state.addAttribute(kSelectedVariantAttrName,
-                     symbolRef(builder, selectedVariantSymbol));
-  state.addAttribute(kOriginAttrName, builder.getStringAttr(getRVVExtensionPluginName()));
-  state.addAttribute(kSelectedPathRoleAttrName,
-                     builder.getStringAttr(
-                         stringifyVariantEmissionRole(
-                             VariantEmissionRole::DispatchCase)));
-  state.addAttribute(kStatusAttrName,
-                     builder.getStringAttr("selected-lowering-boundary"));
-  state.addAttribute(kRequiredCapabilitiesAttrName, requires);
-  state.addAttribute(kRVVConstructionProtocolAttrName,
-                     builder.getStringAttr(kRVVConstructionProtocol));
-  state.addAttribute(kRVVEmitCRouteMappingAttrName,
-                     builder.getStringAttr(kRVVGenericTypedBodyRouteFamily));
   state.addRegion();
   auto withVL = llvm::cast<weft::rvv::WithVLOp>(builder.create(state));
   withVL.getBody().emplaceBlock();
@@ -1432,8 +1399,7 @@ mlir::LogicalResult materializeRVVVectorBinarySourceKernel(
 
   weft::rvv::SetVLOp setvl = createSetVL(builder, loc, n.getResult(), policy);
   weft::rvv::WithVLOp withVL =
-      createWithVL(builder, loc, setvl.getVl(), policy, kernelName,
-                   selectedVariantSymbol, rvvRequires);
+      createWithVL(builder, loc, setvl.getVl(), policy);
 
   mlir::OpBuilder::InsertionGuard withVLGuard(builder);
   builder.setInsertionPointToStart(&withVL.getBody().front());
@@ -1517,8 +1483,7 @@ mlir::LogicalResult materializeRVVVectorCompareSelectSourceKernel(
 
   weft::rvv::SetVLOp setvl = createSetVL(builder, loc, n.getResult(), policy);
   weft::rvv::WithVLOp withVL =
-      createWithVL(builder, loc, setvl.getVl(), policy, kernelName,
-                   selectedVariantSymbol, rvvRequires);
+      createWithVL(builder, loc, setvl.getVl(), policy);
 
   mlir::OpBuilder::InsertionGuard withVLGuard(builder);
   builder.setInsertionPointToStart(&withVL.getBody().front());
@@ -1619,8 +1584,7 @@ mlir::LogicalResult materializeRVVVectorRuntimeScalarCompareSelectSourceKernel(
 
   weft::rvv::SetVLOp setvl = createSetVL(builder, loc, n.getResult(), policy);
   weft::rvv::WithVLOp withVL =
-      createWithVL(builder, loc, setvl.getVl(), policy, kernelName,
-                   selectedVariantSymbol, rvvRequires);
+      createWithVL(builder, loc, setvl.getVl(), policy);
 
   mlir::OpBuilder::InsertionGuard withVLGuard(builder);
   builder.setInsertionPointToStart(&withVL.getBody().front());

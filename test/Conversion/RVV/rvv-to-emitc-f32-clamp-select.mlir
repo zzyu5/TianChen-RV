@@ -19,7 +19,7 @@ module {
       %3 = weft_rvv.runtime_abi_value {c_name = "out", c_type = "float *", ownership = "target-export-abi-owned", purpose = "pre-realized-f32-clamp-select:out", role = "output-buffer"} : !weft_rvv.runtime_abi_value
       %4 = weft_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "pre-realized-f32-clamp-select:n", role = "runtime-element-count"} : index
       %5 = weft_rvv.setvl %4 {lmul = "m1", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !weft_rvv.vl
-      weft_rvv.with_vl %5 attributes {lmul = "m1", origin = "rvv-plugin", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @pre_realized_rvv_f32_clamp_select, sew = 32 : i64, source_kernel = "pre_realized_f32_clamp_select_kernel", status = "selected-lowering-boundary"} {
+      weft_rvv.with_vl %5 attributes {lmul = "m1", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} {
         %6 = weft_rvv.load %0, %5 : !weft_rvv.runtime_abi_value, !weft_rvv.vl -> !weft_rvv.vector<f32, "m1">
         %7 = weft_rvv.splat %1, %5 : f32, !weft_rvv.vl -> !weft_rvv.vector<f32, "m1">
         %8 = weft_rvv.splat %2, %5 : f32, !weft_rvv.vl -> !weft_rvv.vector<f32, "m1">

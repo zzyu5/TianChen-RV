@@ -83,20 +83,6 @@ constexpr llvm::StringLiteral kConservativeFallbackCapabilityKind("fallback");
 constexpr llvm::StringLiteral kOriginAttrName("origin");
 constexpr llvm::StringLiteral kRequiresAttrName("requires");
 constexpr llvm::StringLiteral kFallbackRoleAttrName("fallback_role");
-constexpr llvm::StringLiteral kSourceKernelBoundaryAttrName("source_kernel");
-constexpr llvm::StringLiteral kSelectedVariantAttrName("selected_variant");
-constexpr llvm::StringLiteral kSelectedPathRoleAttrName("selected_path_role");
-constexpr llvm::StringLiteral kStatusAttrName("status");
-constexpr llvm::StringLiteral kRequiredCapabilitiesAttrName(
-    "required_capabilities");
-constexpr llvm::StringLiteral kRVVConstructionProtocolAttrName(
-    "rvv_construction_protocol");
-constexpr llvm::StringLiteral kRVVEmitCRouteMappingAttrName(
-    "rvv_emitc_route_mapping");
-constexpr llvm::StringLiteral kRVVConstructionProtocol(
-    "extension-family-construction-protocol.v1");
-constexpr llvm::StringLiteral kRVVGenericTypedBodyRouteFamily(
-    "rvv-generic-typed-body-emitc-route-family");
 constexpr llvm::StringLiteral kDispatchPolicy(
     "rvv-widening-dot-reduce-source-front-door-case");
 
@@ -424,31 +410,13 @@ weftrvv::SetVLOp createSetVL(mlir::OpBuilder &builder, mlir::Location loc,
 
 weftrvv::WithVLOp createWithVL(mlir::OpBuilder &builder, mlir::Location loc,
                                mlir::Value vl, std::int64_t sew,
-                               llvm::StringRef lmul, weftrvv::PolicyAttr policy,
-                               llvm::StringRef kernelName,
-                               llvm::StringRef selectedVariantSymbol,
-                               mlir::ArrayAttr requires) {
+                               llvm::StringRef lmul,
+                               weftrvv::PolicyAttr policy) {
   mlir::OperationState state(loc, weftrvv::WithVLOp::getOperationName());
   state.addOperands(vl);
   state.addAttribute("sew", builder.getI64IntegerAttr(sew));
   state.addAttribute("lmul", builder.getStringAttr(lmul));
   state.addAttribute("policy", policy);
-  state.addAttribute(kSourceKernelBoundaryAttrName,
-                     builder.getStringAttr(kernelName));
-  state.addAttribute(kSelectedVariantAttrName,
-                     symbolRef(builder, selectedVariantSymbol));
-  state.addAttribute(kOriginAttrName,
-                     builder.getStringAttr(getRVVExtensionPluginName()));
-  state.addAttribute(kSelectedPathRoleAttrName,
-                     builder.getStringAttr(stringifyVariantEmissionRole(
-                         VariantEmissionRole::DispatchCase)));
-  state.addAttribute(kStatusAttrName,
-                     builder.getStringAttr("selected-lowering-boundary"));
-  state.addAttribute(kRequiredCapabilitiesAttrName, requires);
-  state.addAttribute(kRVVConstructionProtocolAttrName,
-                     builder.getStringAttr(kRVVConstructionProtocol));
-  state.addAttribute(kRVVEmitCRouteMappingAttrName,
-                     builder.getStringAttr(kRVVGenericTypedBodyRouteFamily));
   state.addRegion();
   auto withVL = llvm::cast<weftrvv::WithVLOp>(builder.create(state));
   withVL.getBody().emplaceBlock();
@@ -692,8 +660,7 @@ mlir::LogicalResult materializeKernel(
   weftrvv::SetVLOp setvl =
       createSetVL(builder, loc, n.getResult(), anchorSEW, loadLMUL, policy);
   weftrvv::WithVLOp withVL =
-      createWithVL(builder, loc, setvl.getVl(), anchorSEW, loadLMUL, policy,
-                   kernelName, selectedVariantSymbol, rvvRequires);
+      createWithVL(builder, loc, setvl.getVl(), anchorSEW, loadLMUL, policy);
 
   mlir::OpBuilder::InsertionGuard withVLGuard(builder);
   builder.setInsertionPointToStart(&withVL.getBody().front());

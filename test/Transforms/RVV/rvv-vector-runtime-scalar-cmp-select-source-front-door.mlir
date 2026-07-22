@@ -68,11 +68,6 @@ module attributes {weft_rvv.source_front_door = "bounded_vector_runtime_scalar_c
 // MATERIALIZED-SAME: lmul = "m1"
 // MATERIALIZED-SAME: sew = 32
 // MATERIALIZED: weft_rvv.with_vl %[[EQ_VL]]
-// MATERIALIZED-SAME: required_capabilities = [@rvv]
-// MATERIALIZED-SAME: rvv_construction_protocol = "extension-family-construction-protocol.v1"
-// MATERIALIZED-SAME: rvv_emitc_route_mapping = "rvv-generic-typed-body-emitc-route-family"
-// MATERIALIZED-SAME: selected_variant = @rvv_vector_runtime_scalar_cmp_select_eq
-// MATERIALIZED-SAME: source_kernel = "rvv_vector_runtime_scalar_cmp_select_eq_from_vector_source"
 // MATERIALIZED: weft_rvv.load
 // MATERIALIZED-SAME: -> !weft_rvv.vector<i32, "m1">
 // MATERIALIZED: weft_rvv.splat

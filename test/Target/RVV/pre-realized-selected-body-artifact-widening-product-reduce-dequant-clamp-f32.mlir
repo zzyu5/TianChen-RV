@@ -59,7 +59,6 @@ module {
 // with_vl; the low_precision_resource.* facts below survive on the single scope (same
 // selected Gearbox candidate source -> fact VALUES unchanged). Numerics HW-validated
 // on ssh rvv (tolerance=1e-05).
-// REALIZED-DAG: selected_variant = @pre_realized_body_rvv_product_reduce_dequant_clamp
 // The structural unroll_factor (=2) the conversion reads is stamped on with_vl, and
 // the typed body is a single product/reduce slice + inline dequant + f32 clamp + store.
 // REALIZED-DAG: unroll_factor = 2 : i64

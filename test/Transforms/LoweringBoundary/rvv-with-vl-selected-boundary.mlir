@@ -11,16 +11,8 @@ module {
       %vl = weft_rvv.setvl %n {lmul = "m1", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !weft_rvv.vl
       weft_rvv.with_vl %vl attributes {
         lmul = "m1",
-        origin = "rvv-plugin",
         policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>,
-        required_capabilities = [@rvv],
-        rvv_construction_protocol = "extension-family-construction-protocol.v1",
-        rvv_emitc_route_mapping = "rvv-generic-typed-body-emitc-route-family",
-        selected_path_role = "direct variant",
-        selected_variant = @rvv_i32_add,
-        sew = 32 : i64,
-        source_kernel = "rvv_i32m1_add_selected_boundary",
-        status = "selected-lowering-boundary"
+        sew = 32 : i64
       } {
         %lhs = weft_rvv.load %lhs_ptr, %vl : !weft_rvv.runtime_abi_value, !weft_rvv.vl -> !weft_rvv.vector<i32, "m1">
         %rhs = weft_rvv.load %rhs_ptr, %vl : !weft_rvv.runtime_abi_value, !weft_rvv.vl -> !weft_rvv.vector<i32, "m1">
@@ -41,16 +33,8 @@ module {
       %vl = weft_rvv.setvl %n {lmul = "m1", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !weft_rvv.vl
       weft_rvv.with_vl %vl attributes {
         lmul = "m1",
-        origin = "rvv-plugin",
         policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>,
-        required_capabilities = [@rvv],
-        rvv_construction_protocol = "extension-family-construction-protocol.v1",
-        rvv_emitc_route_mapping = "rvv-generic-typed-body-emitc-route-family",
-        selected_path_role = "direct variant",
-        selected_variant = @rvv_i32_sub,
-        sew = 32 : i64,
-        source_kernel = "rvv_i32m1_sub_selected_boundary",
-        status = "selected-lowering-boundary"
+        sew = 32 : i64
       } {
         %lhs = weft_rvv.load %lhs_ptr, %vl : !weft_rvv.runtime_abi_value, !weft_rvv.vl -> !weft_rvv.vector<i32, "m1">
         %rhs = weft_rvv.load %rhs_ptr, %vl : !weft_rvv.runtime_abi_value, !weft_rvv.vl -> !weft_rvv.vector<i32, "m1">
@@ -71,16 +55,8 @@ module {
       %vl = weft_rvv.setvl %n {lmul = "m1", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !weft_rvv.vl
       weft_rvv.with_vl %vl attributes {
         lmul = "m1",
-        origin = "rvv-plugin",
         policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>,
-        required_capabilities = [@rvv],
-        rvv_construction_protocol = "extension-family-construction-protocol.v1",
-        rvv_emitc_route_mapping = "rvv-generic-typed-body-emitc-route-family",
-        selected_path_role = "direct variant",
-        selected_variant = @rvv_i32_mul,
-        sew = 32 : i64,
-        source_kernel = "rvv_i32m1_mul_selected_boundary",
-        status = "selected-lowering-boundary"
+        sew = 32 : i64
       } {
         %lhs = weft_rvv.load %lhs_ptr, %vl : !weft_rvv.runtime_abi_value, !weft_rvv.vl -> !weft_rvv.vector<i32, "m1">
         %rhs = weft_rvv.load %rhs_ptr, %vl : !weft_rvv.runtime_abi_value, !weft_rvv.vl -> !weft_rvv.vector<i32, "m1">
@@ -94,18 +70,10 @@ module {
 
 // CHECK-LABEL: weft.exec.kernel @rvv_i32m1_add_selected_boundary
 // CHECK: weft_rvv.with_vl
-// CHECK-SAME: rvv_construction_protocol = "extension-family-construction-protocol.v1"
-// CHECK-SAME: selected_variant = @rvv_i32_add
-// CHECK-SAME: source_kernel = "rvv_i32m1_add_selected_boundary"
-// CHECK-SAME: status = "selected-lowering-boundary"
 // CHECK: weft_rvv.binary
 // CHECK-LABEL: weft.exec.kernel @rvv_i32m1_sub_selected_boundary
 // CHECK: weft_rvv.with_vl
-// CHECK-SAME: selected_variant = @rvv_i32_sub
-// CHECK-SAME: source_kernel = "rvv_i32m1_sub_selected_boundary"
 // CHECK: weft_rvv.binary
 // CHECK-LABEL: weft.exec.kernel @rvv_i32m1_mul_selected_boundary
 // CHECK: weft_rvv.with_vl
-// CHECK-SAME: selected_variant = @rvv_i32_mul
-// CHECK-SAME: source_kernel = "rvv_i32m1_mul_selected_boundary"
 // CHECK: weft_rvv.binary

@@ -32,7 +32,6 @@ module {
 // REALIZED-NOT: weft_rvv.typed_widening_product_reduce_pre_realized_body
 // REALIZED: %[[VL:.*]] = weft_rvv.setvl %{{.*}} {lmul = "m1", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64}
 // REALIZED: weft_rvv.with_vl %[[VL]] attributes
-// REALIZED-SAME: selected_variant = @pre_realized_u8_product_reduce_rvv
 // REALIZED: %[[LHS:.*]] = weft_rvv.load
 // REALIZED-SAME: !weft_rvv.vector<ui8, "mf4">
 // REALIZED: %[[RHS:.*]] = weft_rvv.load

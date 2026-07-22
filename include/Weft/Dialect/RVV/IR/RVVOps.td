@@ -314,14 +314,12 @@ def WithVLOp : WEFTRVV_Op<"with_vl",
     by setvl and are verified for compatibility when the consumed VL is visibly
     defined by a weft_rvv.setvl op.
 
-    On the selected generic typed materialized EmitC artifact path, this op is
-    also the selected construction-template boundary. In that role it may carry
-    generic selected-boundary conformance mirrors such as source kernel,
-    selected variant, origin, selected path role, status, required
-    capabilities, and RVV-owned route/config handoff attributes. Those facts
-    mirror provider-owned route/config decisions for validation and artifact
-    handoff; they are not descriptor fields, acceptance state, dtype authority,
-    route authority, or compute semantics.
+    In a constructed RVV family body this op carries only the bounded physical
+    configuration and structural schedule selected by the formula. Variant
+    ownership is represented by physical nesting, capability and path legality
+    remain on the exec/target side, and artifact projection is derived from the
+    exact typed body. Source, selection, status, protocol, and EmitC-route
+    mirrors are therefore deliberately not part of this operation.
 
     This op is a structural prerequisite for RVV control/body lowering work
     only. It does not model VLEN/vlenb hardware facts, deleted local
@@ -336,14 +334,6 @@ def WithVLOp : WEFTRVV_Op<"with_vl",
     OptionalAttr<I64Attr>:$sew,
     OptionalAttr<StrAttr>:$lmul,
     OptionalAttr<WEFTRVV_PolicyAttr>:$policy,
-    OptionalAttr<StrAttr>:$source_kernel,
-    OptionalAttr<FlatSymbolRefAttr>:$selected_variant,
-    OptionalAttr<StrAttr>:$origin,
-    OptionalAttr<StrAttr>:$selected_path_role,
-    OptionalAttr<StrAttr>:$status,
-    OptionalAttr<ArrayAttr>:$required_capabilities,
-    OptionalAttr<StrAttr>:$rvv_construction_protocol,
-    OptionalAttr<StrAttr>:$rvv_emitc_route_mapping,
     OptionalAttr<I64Attr>:$unroll_factor
   );
   let regions = (region SizedRegion<1>:$body);
