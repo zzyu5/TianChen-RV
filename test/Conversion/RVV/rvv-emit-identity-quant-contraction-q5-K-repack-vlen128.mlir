@@ -63,7 +63,6 @@ module {
 // CONSTRUCT-SAME: main_term_form = "unrolled"
 // CONSTRUCT-SAME: n_subblocks = 8
 // CONSTRUCT-SAME: scale_model = "superblock-d.dmin-fp16-plus-bsums-min-8-subblocks-qh5"
-// CONSTRUCT-SAME: weft_rvv.contraction_algorithm = "repack"
 // CONSTRUCT-SAME: weft_rvv.weight_layout_contract = "x16"
 // CONSTRUCT-SAME: weight_block_stride = 2816
 // CONSTRUCT-SAME: weight_dmin_byte_offset = 32

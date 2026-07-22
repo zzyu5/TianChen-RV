@@ -46,7 +46,6 @@ module {
 // CONSTRUCT: weft_rvv.typed_repack_gemm_loop_body
 // CONSTRUCT-SAME: activation_interleave = 4
 // CONSTRUCT-SAME: fold_model = "grid_sign_dualscale_eighth"
-// CONSTRUCT-SAME: weft_rvv.contraction_algorithm = "repack"
 // CONSTRUCT-SAME: weft_rvv.weight_layout_contract = "x16"
 // CONSTRUCT-SAME: weight_block_stride = 1824
 // The GEMM grid core brick has BOTH the block_index and strip_row_offset anti-bypass ties.

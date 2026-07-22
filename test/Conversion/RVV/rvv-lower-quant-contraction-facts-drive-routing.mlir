@@ -43,9 +43,6 @@ module {
 // CHECK-NOT: weft_rvv.repack_gemv_q4_0_q8_0
 // CHECK: weft_rvv.typed_repack_gemv_loop_body
 // CHECK-SAME: half_lanes = 16 : i64
-// CHECK-SAME: weft_rvv.contraction_algorithm = "repack"
-// CHECK-SAME: weft_rvv.path_materialization = "realized"
-// CHECK-SAME: weft_rvv.path_selection_reason = "repack-kept-q4_0-vlen128-decode"
 // CHECK-SAME: weft_rvv.weight_layout_contract = "x16"
 // CHECK-SAME: weight_block_stride = 288 : i64
 // CHECK-SAME: weight_interleave = 16 : i64

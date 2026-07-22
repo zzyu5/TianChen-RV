@@ -1,9 +1,10 @@
 //===- RVVUnifiedScheduleMaterialization.cpp ------------------------------===//
 //
-// Compatibility pass entry for the walk-all RVV schedule formula.  It discovers
-// every TunableScheduleOpInterface and constructs a complete final schedule, or
-// validates an explicitly supplied complete schedule.  Partial/illegal plans
-// fail; no provenance stamp or no-clobber lifecycle exists here.
+// Explicit tuning/candidate-inspection entry for the walk-all RVV schedule
+// formula. Production construction invokes the same owner through the RVV
+// formula lifecycle, so this pass is never a required field-completion stage.
+// It constructs or validates a complete final schedule; partial/illegal plans
+// fail and no provenance stamp or no-clobber lifecycle exists here.
 //
 //===----------------------------------------------------------------------===//
 

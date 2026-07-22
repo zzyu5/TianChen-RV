@@ -3,9 +3,8 @@
 // Track B auto-lowering front door (the "type-Triton-ish backend" first block):
 // the COMPILER auto-constructs the weft_rvv RVV-dialect body for a GENERIC
 // vector-dialect signed widening int8 dot-reduce, instead of a per-kernel hand
-// emitter. The integer-core LMUL anchor is the RETURN VALUE of the shared
-// block-dot schedule authority (enumerateBlockDotShapeCandidates +
-// selectGenericSchedule) fed resolveRVVMinimumVLEN(module) -- NOT a hand switch --
+// emitter. The integer-core LMUL anchor is the typed RVVSourceScheduleFormula
+// result over source/capability facts,
 // the SAME generic op emits an e8m2-form body at VLEN128 and an e8m1-form body at
 // VLEN256 (the capability flip, exactly the q8_0 brick #1 shape, but from a
 // generic vector.multi_reduction with no per-kernel emitter).
@@ -40,6 +39,7 @@
 #include "Weft/Plugin/RVV/RVVCapabilityProfile.h"
 #include "Weft/Plugin/RVV/RVVExtensionPlugin.h"
 #include "Weft/Plugin/RVV/RVVGearboxSchedule.h"
+#include "Weft/Plugin/RVV/RVVSourceScheduleFormula.h"
 #include "Weft/Support/CapabilityModel.h"
 #include "Weft/Transforms/VariantMaterialization.h"
 
@@ -327,11 +327,9 @@ matchBoundedWideningDotReduceSourceFunc(mlir::func::FuncOp func) {
 // (2) The capability-fact-driven integer-core LMUL anchor.
 //===----------------------------------------------------------------------===//
 
-// Select the integer-core LMUL anchor for the K=32 signed-int8 dot-reduce from the
-// NAMED closed form getRVVEffectiveWidthInvariantLMUL(VLEN, sew, blockLen) in the
-// gearbox header -- NOT a hand `vlen<256 ? "m2" : "m1"` switch and NO LONGER the
-// enumerateBlockDotShapeCandidates + selectGenericSchedule argmin fallback (census2
-// "turn the argmin into a named f"). The robust single-block body consumes ONLY the
+// The RVVSourceScheduleFormula owner constructs the integer-core LMUL anchor for
+// the K=32 signed-int8 dot-reduce from typed geometry and canonical capability.
+// The robust single-block body consumes only the returned
 // integer_core_lmul knob, so for this FIXED K=32 int8 block the resource-best legal
 // anchor is exactly the WIDTH-INVARIANT one: the LMUL whose per-strip VLMAX equals
 // the 32-block, so its vector register group holds a CONSTANT 256-bit effective
@@ -347,19 +345,15 @@ std::optional<std::string>
 selectIntegerCoreLMUL(mlir::ModuleOp module, llvm::StringRef march,
                       llvm::StringRef isaVectorHints) {
   std::int64_t minimumVLEN = resolveRVVMinimumVLEN(module, march, isaVectorHints);
-
-  // The K=32 int8 integer core strips at SEW8 (the i8 load -- getRVVBlockDotStripSEW
-  // on the m1/m2 anchors), over the anchor set {m1, m2}. The width-invariant closed
-  // form returns the LMUL whose VLMAX == kContractionBlockLen (32); it fail-closes
-  // to "" only on an empty candidate set, and returns the widest default when no
-  // guaranteed VLEN >= 128 fact exists (byte-exact no-march path).
-  static constexpr llvm::StringRef kCoreLMULs[] = {"m1", "m2"};
-  RVVWidthInvariantLMULChoice choice = getRVVEffectiveWidthInvariantLMUL(
-      minimumVLEN, /*sew=*/getRVVBlockDotStripSEW("m1"),
-      /*blockLen=*/kContractionBlockLen, kCoreLMULs);
-  if (choice.lmul.empty())
-    return std::nullopt; // empty candidate set -> fail-closed (I7).
-  return choice.lmul.str();
+  llvm::Expected<RVVSourceSchedulePlan> plan =
+      constructRVVSourceScheduleFormula(
+          {RVVSourceScheduleMechanism::EffectiveWidthInvariant,
+           /*sew=*/8, /*blockLength=*/kContractionBlockLen, {"m1", "m2"}},
+          {minimumVLEN, resolveRVVVectorRegisterBudget(module)},
+          RVVSourceScheduleNoStaticContext{});
+  if (!plan)
+    return std::nullopt;
+  return plan->integerCoreLMUL;
 }
 
 //===----------------------------------------------------------------------===//

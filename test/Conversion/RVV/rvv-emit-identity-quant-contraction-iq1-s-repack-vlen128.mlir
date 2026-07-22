@@ -58,7 +58,6 @@ module {
 // CONSTRUCT-SAME: fold_model = "grid_ternary_delta_eighth"
 // CONSTRUCT-SAME: half_lanes = 8
 // CONSTRUCT-SAME: scale_model = "superblock-d.fp16-grid-ternary-delta-singlescale-nomin-eighth"
-// CONSTRUCT-SAME: weft_rvv.contraction_algorithm = "repack"
 // CONSTRUCT-SAME: weft_rvv.weight_layout_contract = "x16"
 // CONSTRUCT-SAME: weight_block_stride = 1312
 // The in-region block_index-tied grid integer-core BRICK, decode_model iq1_s + the

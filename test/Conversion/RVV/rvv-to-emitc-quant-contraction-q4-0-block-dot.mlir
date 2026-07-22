@@ -1,4 +1,4 @@
-// RUN: weft-opt %s --weft-rvv-lower-quant-contraction --weft-rvv-materialize-schedule=march=rv64gcv --weft-rvv-lower-to-emitc | FileCheck %s
+// RUN: weft-opt %s --weft-rvv-lower-quant-contraction --weft-rvv-lower-to-emitc | FileCheck %s
 
 // OPTION-2 STAGE A -- the abstract, algorithm-UNCOMMITTED
 // weft_rvv.quant_contraction op lowered through the IDENTITY-DEFAULT pass

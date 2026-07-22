@@ -70,7 +70,6 @@ module {
 // CONSTRUCT-SAME: fold_model = "grid_sign_dual_entry_single_scale_unit"
 // CONSTRUCT-SAME: half_lanes = 8
 // CONSTRUCT-SAME: scale_model = "superblock-d.fp16-grid-explicitsign-dual-entry-4bit-scale-nomin-unit"
-// CONSTRUCT-SAME: weft_rvv.contraction_algorithm = "repack"
 // CONSTRUCT-SAME: weft_rvv.weight_layout_contract = "x16"
 // The repacked stride is 2720, NOT iq3_xxs's 1696: SAME dual-entry index count (8 per
 // sub-block), but each index is a u16 rather than a u8, because iq3_s's index is 9 bits

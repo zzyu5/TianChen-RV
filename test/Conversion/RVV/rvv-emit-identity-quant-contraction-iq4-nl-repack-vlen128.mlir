@@ -55,7 +55,6 @@ module {
 // CONSTRUCT-SAME: fold_model = "codebook_flat_single_scale"
 // CONSTRUCT-SAME: half_lanes = 8
 // CONSTRUCT-SAME: scale_model = "flat.fp16-single-scale-codebook-nomin"
-// CONSTRUCT-SAME: weft_rvv.contraction_algorithm = "repack"
 // CONSTRUCT-SAME: weft_rvv.weight_layout_contract = "x16"
 // CONSTRUCT-SAME: weight_block_stride = 288
 // The in-region block_index-tied codebook integer-core BRICK, decode_model iq4_nl + the

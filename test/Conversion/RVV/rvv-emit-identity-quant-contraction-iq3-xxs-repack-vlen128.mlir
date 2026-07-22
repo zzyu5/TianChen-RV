@@ -61,7 +61,6 @@ module {
 // CONSTRUCT-SAME: fold_model = "grid_sign_dual_entry_single_scale_quarter"
 // CONSTRUCT-SAME: half_lanes = 8
 // CONSTRUCT-SAME: scale_model = "superblock-d.fp16-grid-sign-dual-entry-4bit-scale-nomin-quarter"
-// CONSTRUCT-SAME: weft_rvv.contraction_algorithm = "repack"
 // CONSTRUCT-SAME: weft_rvv.weight_layout_contract = "x16"
 // The repacked stride is 1696, NOT iq2_xxs's 1184: the grid-index strip DOUBLES (512 B ->
 // 1024 B) because a uint32 entry covers half a group, so each group needs TWO indices.

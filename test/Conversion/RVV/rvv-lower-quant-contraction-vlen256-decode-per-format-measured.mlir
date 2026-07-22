@@ -52,9 +52,6 @@ module {
 // VLEN256-NOT: weft_rvv.q5_0_q8_0_block_dot
 // VLEN256: weft_rvv.typed_repack_gemv_loop_body
 // VLEN256-SAME: half_lanes = 16 : i64
-// VLEN256-SAME: weft_rvv.contraction_algorithm = "repack"
-// VLEN256-SAME: weft_rvv.path_materialization = "realized"
-// VLEN256-SAME: weft_rvv.path_selection_reason = "repack-kept-vlen256-decode-measured-beneficial"
 // VLEN256-SAME: weft_rvv.weight_layout_contract = "x16"
 // VLEN256-SAME: weight_interleave = 16 : i64
 // VLEN256: weft_rvv.repack_lane_wise_q4_x_i8_dot
@@ -68,5 +65,3 @@ module {
 // VLEN128-NOT: weft_rvv.q5_0_q8_0_block_dot
 // VLEN128: weft_rvv.typed_repack_gemv_loop_body
 // VLEN128-SAME: half_lanes = 8 : i64
-// VLEN128-SAME: weft_rvv.contraction_algorithm = "repack"
-// VLEN128-SAME: weft_rvv.path_selection_reason = "repack-kept-q4_0-vlen128-decode"

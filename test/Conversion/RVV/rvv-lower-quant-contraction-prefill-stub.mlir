@@ -43,9 +43,6 @@ module {
 // DEFERRED-NOT: weft_rvv.quant_contraction
 // DEFERRED-NOT: weft_rvv.repack_gemv_q4_0_q8_0
 // DEFERRED: weft_rvv.q4_0_q8_0_block_dot
-// DEFERRED-SAME: weft_rvv.contraction_algorithm = "repack"
-// DEFERRED-SAME: weft_rvv.path_materialization = "deferred-stage-c"
-// DEFERRED-SAME: weft_rvv.path_selection_reason = "repack-kept-q4_0-prefill"
 
 // REALIZED (VLEN128): the prefill Repack selection is CONSTRUCTED as the typed
 // weft_rvv.typed_repack_gemm_loop_body REGION (the block-as-lane GEMM the PREFILL
@@ -67,9 +64,6 @@ module {
 // REALIZED-SAME: activation_block_stride = 136 : i64
 // REALIZED-SAME: activation_interleave = 4 : i64
 // REALIZED-SAME: half_lanes = 16 : i64
-// REALIZED-SAME: weft_rvv.contraction_algorithm = "repack"
-// REALIZED-SAME: weft_rvv.path_materialization = "realized"
-// REALIZED-SAME: weft_rvv.path_selection_reason = "repack-kept-q4_0-prefill"
 // REALIZED-SAME: weft_rvv.weight_layout_contract = "x16"
 // REALIZED-SAME: weight_block_stride = 288 : i64
 // REALIZED: weft_rvv.repack_gemm_lane_wise_q4_x_i8_dot

@@ -34,6 +34,7 @@
 #include "Weft/Plugin/RVV/RVVCapabilityProfile.h"
 #include "Weft/Plugin/RVV/RVVExtensionPlugin.h"
 #include "Weft/Plugin/RVV/RVVGearboxSchedule.h"
+#include "Weft/Plugin/RVV/RVVSourceScheduleFormula.h"
 #include "Weft/Plugin/RVV/RVVMonolithicBlockDotFamily.h"
 #include "Weft/Support/CapabilityModel.h"
 #include "Weft/Support/DeclaredInstanceHash.h"
@@ -3000,7 +3001,7 @@ void createDispatch(mlir::OpBuilder &builder, mlir::Location loc,
 // keys_evaluated). The sink is a pure side effect: option-gated OFF by default and
 // writes to a stream only, so it NEVER touches the constructed IR or the exported
 // object -- the byte-identity of the untuned construction is preserved. reason
-// rides ONLY on the chooseFillOptimalLMUL output (it cannot be forged here).
+// mirrors only the already-constructed RVVSourceScheduleFormula result.
 // ---------------------------------------------------------------------------
 
 void appendScheduleAttributionTimestamp(llvm::raw_ostream &os, bool noTimestamp) {
@@ -3018,8 +3019,8 @@ void appendScheduleAttributionTimestamp(llvm::raw_ostream &os, bool noTimestamp)
 }
 
 std::string buildScheduleFillAttributionRecord(
-    llvm::StringRef kernelName, llvm::ArrayRef<llvm::StringRef> candidates,
-    const RVVFillLMULChoice &choice, std::int64_t minimumVLEN,
+    llvm::StringRef kernelName, llvm::ArrayRef<std::string> candidates,
+    llvm::StringRef chosen, llvm::StringRef reason, std::int64_t minimumVLEN,
     const RVVNumericsTierChoice &numericsChoice,
     llvm::StringRef declaredInstanceHash, bool noTimestamp) {
   std::string line;
@@ -3027,18 +3028,18 @@ std::string buildScheduleFillAttributionRecord(
   // Canonical top-level key order (sorted): candidates, chosen,
   // declared_instance_hash, kernel, minimum_vlen, numerics_reason,
   // numerics_tier, reason, ts. numerics_reason/numerics_tier ride ONLY on the
-  // chooseNumericsTier output (they cannot be forged here), exactly as reason
-  // rides only on chooseFillOptimalLMUL -- the [GAP-NUM] tier is a schedule-stage
-  // policy pick attributed at the SAME sink as the fill-LMUL pick.
+  // chooseNumericsTier output (they cannot be forged here), exactly as the
+  // fill-LMUL attribution mirrors the formula result. The [GAP-NUM] tier is a
+  // schedule-stage policy pick attributed at the SAME sink.
   os << '{';
   os << "\"candidates\":[";
   for (std::size_t index = 0; index < candidates.size(); ++index) {
     if (index)
       os << ',';
-    os << llvm::json::Value(candidates[index].str());
+    os << llvm::json::Value(candidates[index]);
   }
   os << ']';
-  os << ",\"chosen\":" << llvm::json::Value(choice.lmul.str());
+  os << ",\"chosen\":" << llvm::json::Value(chosen.str());
   os << ",\"declared_instance_hash\":"
      << llvm::json::Value(declaredInstanceHash.str());
   os << ",\"kernel\":" << llvm::json::Value(kernelName.str());
@@ -3048,8 +3049,7 @@ std::string buildScheduleFillAttributionRecord(
             stringifyRVVNumericsTierReason(numericsChoice.reason).str());
   os << ",\"numerics_tier\":"
      << llvm::json::Value(stringifyRVVNumericsTier(numericsChoice.tier).str());
-  os << ",\"reason\":"
-     << llvm::json::Value(stringifyRVVFillLMULReason(choice.reason).str());
+  os << ",\"reason\":" << llvm::json::Value(reason.str());
   os << ",\"ts\":";
   appendScheduleAttributionTimestamp(os, noTimestamp);
   os << '}';
@@ -3392,18 +3392,26 @@ materializeKernel(mlir::OpBuilder &builder, llvm::StringRef kernelName,
                                     isIq4NlTypedFlat;
   const std::int64_t typedFlatBlockLen =
       isTypedFlatHalfBlock ? (typedFlatQk / 2) : typedFlatQk;
-  llvm::SmallVector<llvm::StringRef, 2> typedFlatLMULCandidates;
+  llvm::SmallVector<std::string, 2> typedFlatLMULCandidates;
   if (isQ80TypedFlat)
     typedFlatLMULCandidates = {"m1", "m2"};
   else
     typedFlatLMULCandidates = {"m1"};
   const std::int64_t minimumVLEN = resolveRVVMinimumVLEN(
       source.func->getParentOfType<mlir::ModuleOp>(), march, isaVectorHints);
-  const RVVFillLMULChoice fillChoice = chooseFillOptimalLMUL(
-      static_cast<unsigned>(minimumVLEN < 0 ? 0 : minimumVLEN), /*sew=*/8,
-      static_cast<unsigned>(typedFlatBlockLen < 0 ? 0 : typedFlatBlockLen),
-      typedFlatLMULCandidates);
-  const llvm::StringRef typedFlatLmul = fillChoice.lmul;
+  llvm::Expected<RVVSourceSchedulePlan> sourceSchedule =
+      constructRVVSourceScheduleFormula(
+          {RVVSourceScheduleMechanism::FillOptimal,
+           /*sew=*/8, typedFlatBlockLen, typedFlatLMULCandidates},
+          {minimumVLEN,
+           resolveRVVVectorRegisterBudget(
+               source.func->getParentOfType<mlir::ModuleOp>())},
+          RVVSourceScheduleNoStaticContext{});
+  if (!sourceSchedule) {
+    source.func.emitError() << llvm::toString(sourceSchedule.takeError());
+    return mlir::failure();
+  }
+  const llvm::StringRef typedFlatLmul = sourceSchedule->integerCoreLMUL;
   const llvm::StringRef configLMUL = typedFlatLoopPath ? typedFlatLmul : "m1";
 
   // The per-block reduce seed (0), a variant-scope value that dominates the
@@ -3651,8 +3659,10 @@ materializeKernel(mlir::OpBuilder &builder, llvm::StringRef kernelName,
     const RVVNumericsTierChoice numericsChoice = chooseNumericsTier(
         numericsReassocOk, /*kernelIsFpOrderSensitive=*/true);
     *attributionStream << buildScheduleFillAttributionRecord(
-                              kernelName, typedFlatLMULCandidates, fillChoice,
-                              minimumVLEN, numericsChoice, declaredInstanceHash,
+                              kernelName, typedFlatLMULCandidates,
+                              sourceSchedule->integerCoreLMUL,
+                              sourceSchedule->analyticReason, minimumVLEN,
+                              numericsChoice, declaredInstanceHash,
                               attributionNoTimestamp)
                        << "\n";
   }

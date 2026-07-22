@@ -14,12 +14,10 @@
 // M1 empirical proof stands as the byte-exactness record. The FileCheck below
 // asserts the codebook emit directly.
 
-// Anti-bypass / "byte-exact is contingent on the offset" divergence: rewiring the
-// codebook-gather product's HIGH q8 activation load quant offset (18 -> 20) genuinely
-// moves the emitted high-half load address (the load offset is SOURCED from the
-// region load op, not silently hardcoded), so the offset-20 emit is NO LONGER
-// byte-identical to the offset-18 baseline (the literal "20" is absent from it).
-// RUN: sed 's/quant_byte_offset = 18 : i64/quant_byte_offset = 20 : i64/' %s | weft-opt --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=HIGHOFF
+// Anti-bypass: changing only the typed high-half load must not create a second
+// emitter decision. Formula construction owns the final half-block plan and
+// rejects the conflicting 20-byte offset before emission.
+// RUN: sed 's/quant_byte_offset = 18 : i64/quant_byte_offset = 20 : i64/' %s | not weft-opt --weft-rvv-lower-to-emitc 2>&1 | FileCheck %s --check-prefix=HIGHOFF
 
 // The FULL iq4_nl (ggml IQ4_NL x Q8_0) typed flat block-dot loop body -- the CODEBOOK
 // (2nd primitive class) sibling of the q4_0/q5_0 typed loops. M1 constructed-WEAK
@@ -112,6 +110,4 @@ module {
 // Fail-closed on the fold_model (I7).
 // BADFOLD: currently supports only fold_model
 
-// Anti-bypass: the mutated high-half quant offset propagates into the emitted load
-// address (literal "20" is absent from the byte-exact offset-18 baseline emit).
-// HIGHOFF: literal "20" : !emitc.opaque<"size_t">
+// HIGHOFF: typed activation load offsets conflict with the flat formula plan

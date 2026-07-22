@@ -37,9 +37,8 @@ namespace weft::plugin::rvv {
 // STAY (this adds a SEPARATE rung-3 front door, like dequant-vs-reduction).
 //
 // CAPABILITY framing (no flip claimed). The capability consultation is the SAME
-// shared block-dot schedule authority the rung-1/2 front doors use
-// (selectIntegerCoreLMUL: enumerateBlockDotShapeCandidates + selectGenericSchedule
-// fed resolveRVVMinimumVLEN(module)), run as the LEGALITY GATE (fail-closed if the
+// RVVSourceScheduleFormula owner the rung-1/2 front doors use, run as the
+// LEGALITY GATE (fail-closed if the
 // integer-core path is pruned), NOT as the nibble anchor source. q4_0's nibble
 // half-block integer core is pinned at i8mf4-i16mf2-i32m1 at every Zvl128b tier --
 // there is NO VLEN128-vs-VLEN256 byte-flip here (the documented q4_0 no-flip form;

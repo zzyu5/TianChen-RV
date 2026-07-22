@@ -4105,7 +4105,8 @@ def GgmlBlockDotQ40Q80Op
     I64Attr:$activation_high_byte_offset,
     OptionalAttr<StrAttr>:$integer_core_lmul,
     OptionalAttr<I64Attr>:$multi_block_factor,
-    OptionalAttr<StrAttr>:$strip_elision
+    OptionalAttr<StrAttr>:$strip_elision,
+    OptionalAttr<I64Attr>:$minimum_vlen
   );
   let results = (outs AnyType:$result);
 

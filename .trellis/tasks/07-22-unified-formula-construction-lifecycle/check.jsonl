@@ -1,5 +1,5 @@
-{"file":"test/Plugin/FormulaCatalogTest.cpp","reason":"catalog、live owner registry、production caller 与 dependency truth"}
-{"file":"test/Plugin/RVVFormulaDecisionTest.cpp","reason":"typed formula candidate/legality/selector 与 g/c/ω 因果性"}
+{"file":"test/Plugin/FormulaCatalogTest.cpp","reason":"flat/source/composite formula、live owner/case/catalog linkage、production caller 与 ConstructedWeak 边界"}
+{"file":"test/Plugin/RVVFormulaDecisionTest.cpp","reason":"九个 flat live leaf、source candidate-domain、typed g/c/ω 因果性与非法输入 fail closed"}
 {"file":"test/Conversion/RVV/","reason":"真实 front door、complete schedule、mechanical emission 与 missing/partial/illegal 负例"}
 {"file":"test/Target/RVV/","reason":"selected-body/composite/route/artifact/ABI end-to-end"}
 {"file":"test/Scripts/formula-construction-authority.test","reason":"compatibility pass、special branch、reason attrs、emitter replay 与 hidden default denylist"}

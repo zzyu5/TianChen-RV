@@ -15,38 +15,22 @@
 
 #include "Weft/Plugin/RVV/RVVQuantizeRowStreamFrontDoor.h"
 #include "Weft/Plugin/RVV/RVVFormulaCatalog.h"
-#include "Weft/Plugin/RVV/RVVQuantizeFormula.h"
+#include "Weft/Plugin/RVV/RVVFormulaConstruction.h"
 
 #include "Weft/Dialect/RVV/IR/RVVDialect.h"
-#include "Weft/Dialect/RVV/IR/RVVQuantizeRowConstruction.h"
 #include "Weft/Plugin/ExtensionPlugin.h"
 
 #include "mlir/IR/BuiltinOps.h"
-#include "mlir/IR/PatternMatch.h"
 #include "mlir/Pass/Pass.h"
-#include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Error.h"
 
 #include <memory>
-#include <optional>
 
 namespace weft::plugin::rvv {
 namespace {
 
 namespace weftrvv = ::weft::rvv;
-
-// One pending abstract quantize op: its generic Operation*, the three ABI values
-// the shared construction needs (input f32 base / output byte buffer / runtime
-// element count), and the typed semantic leaf determined by the source op.  The
-// formula, not this record or the emitter, constructs provenance and layout facts.
-struct PendingQuant {
-  mlir::Operation *op;
-  mlir::Value input;
-  mlir::Value output;
-  mlir::Value n;
-  weftrvv::QuantizeRowLeaf leaf;
-};
 
 class MaterializeRVVQuantizeRowStreamFrontDoorPass final
     : public mlir::PassWrapper<
@@ -71,47 +55,8 @@ public:
   }
 
   void runOnOperation() final {
-    mlir::ModuleOp module = getOperation();
-    mlir::IRRewriter rewriter(module.getContext());
-
-    // Collect first, then rewrite: constructTypedQuantizeRowLoopBody erases each
-    // abstract op, so mutating during the walk would be unsafe.  Source identity is
-    // converted once into the typed geometry leaf consumed by the formula.
-    llvm::SmallVector<PendingQuant> pending;
-    module.walk([&](weftrvv::GgmlQuantizeRowQ80Op op) {
-      pending.push_back({op.getOperation(), op.getInput(), op.getOutput(),
-                         op.getElementCount(), weftrvv::QuantizeRowLeaf::Q8_0});
-    });
-    module.walk([&](weftrvv::GgmlQuantizeRowQ81Op op) {
-      pending.push_back({op.getOperation(), op.getInput(), op.getOutput(),
-                         op.getElementCount(), weftrvv::QuantizeRowLeaf::Q8_1});
-    });
-    module.walk([&](weftrvv::GgmlQuantizeRowQ8KOp op) {
-      pending.push_back({op.getOperation(), op.getInput(), op.getOutput(),
-                         op.getElementCount(), weftrvv::QuantizeRowLeaf::Q8_K});
-    });
-
-    for (const PendingQuant &p : pending) {
-      std::optional<weftrvv::QuantizeRowStreamFacts> facts =
-          constructQuantizeRowPlan(QuantizeRowGeometryFacts{p.leaf},
-                                   QuantizeRowNoCapabilityInput{},
-                                   QuantizeRowNoStaticContext{});
-      if (!facts) {
-        p.op->emitError() << "quantize_row formula rejected typed leaf '"
-                          << weftrvv::stringifyQuantizeRowLeaf(p.leaf) << "'";
-        signalPassFailure();
-        return;
-      }
-      if (mlir::failed(weftrvv::constructTypedQuantizeRowLoopBody(
-              rewriter, p.op, p.input, p.output, p.n, *facts))) {
-        p.op->emitError()
-            << "quantize_row-stream front door failed to construct the typed "
-               "region for leaf '"
-            << weftrvv::stringifyQuantizeRowLeaf(p.leaf) << "'";
-        signalPassFailure();
-        return;
-      }
-    }
+    if (mlir::failed(constructRVVQuantizeRowFormulaBodies(getOperation())))
+      signalPassFailure();
   }
 };
 

@@ -58,9 +58,6 @@ module {
 // VLEN128-NOT: weft_rvv.quant_contraction
 // VLEN128: weft_rvv.typed_repack_gemv_loop_body
 // VLEN128-SAME: half_lanes = 16 : i64
-// VLEN128-SAME: weft_rvv.contraction_algorithm = "repack"
-// VLEN128-SAME: weft_rvv.path_materialization = "realized"
-// VLEN128-SAME: weft_rvv.path_selection_reason = "repack-kept-q8_0-memory-bound-vlen128-decode"
 // VLEN128-SAME: weft_rvv.weight_layout_contract = "x16"
 
 // (VLEN256 tier) FAIL-CLOSED: no q8_0 block-dot decline path exists; refuse rather than

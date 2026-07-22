@@ -26,6 +26,13 @@
 #include <utility>
 
 namespace weft::plugin::rvv {
+
+llvm::StringRef getRVVCapabilityID() { return "rvv"; }
+
+llvm::StringRef getRVVCapabilityKind() { return "isa-vector"; }
+
+llvm::StringRef getRVVPreferredCapabilitySymbol() { return "rvv"; }
+
 namespace {
 
 constexpr llvm::StringLiteral kRVVHartCountCapabilityID("rvv.hart_count");

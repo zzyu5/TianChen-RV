@@ -2,10 +2,13 @@
 #include "Weft/Plugin/ExtensionBundle.h"
 #include "Weft/Plugin/ExtensionPlugin.h"
 #include "Weft/Plugin/RVV/RVVExtensionPlugin.h"
+#include "Weft/Plugin/RVV/RVVCompositeGatherMAccScatterFormula.h"
 #include "Weft/Plugin/RVV/RVVDequantFormula.h"
+#include "Weft/Plugin/RVV/RVVFlatBlockDotFormula.h"
 #include "Weft/Plugin/RVV/RVVFormulaCatalog.h"
 #include "Weft/Plugin/RVV/RVVQuantizeFormula.h"
 #include "Weft/Plugin/RVV/RVVScheduleFormula.h"
+#include "Weft/Plugin/RVV/RVVSourceScheduleFormula.h"
 #include "Weft/Plugin/RVV/RVVSelectedBodyRealization.h"
 
 #include "llvm/ADT/SmallVector.h"
@@ -114,6 +117,9 @@ int main() {
       rvv::formula_catalog::kDequantGridPlan,
       rvv::formula_catalog::kDequantTernaryPlan,
       rvv::formula_catalog::kQuantizeRowConstruction,
+      rvv::formula_catalog::kFlatBlockDotPlan,
+      rvv::formula_catalog::kSourceScheduleFormula,
+      rvv::formula_catalog::kCompositeGatherMAccScatterPlan,
       rvv::formula_catalog::kScheduleFormula,
       rvv::formula_catalog::kLowPrecisionResourceSchedule,
       rvv::formula_catalog::kRepackSchedule,
@@ -127,6 +133,59 @@ int main() {
       return fail(llvm::Twine("unclassified RVV construction authority: ") +
                   id);
   }
+
+  const FormulaDescriptor *flatFormula =
+      byID.lookup(rvv::formula_catalog::kFlatBlockDotPlan);
+  if (!flatFormula)
+    return fail("flat block-dot formula descriptor is absent");
+  constexpr llvm::StringLiteral expectedFlatCases[] = {
+      "q8_0-q8_0", "q4_0-q8_0", "q4_1-q8_1", "q5_0-q8_0",
+      "q5_1-q8_1", "iq4_nl-q8_0", "mxfp4-q8_0", "q1_0-q8_0",
+      "nvfp4-q8_0", "unsupported-or-illegal"};
+  llvm::StringSet<> expectedFlatCaseSet;
+  for (llvm::StringRef semanticCase : expectedFlatCases)
+    expectedFlatCaseSet.insert(semanticCase);
+  llvm::StringSet<> actualFlatCaseSet;
+  for (const std::string &semanticCase : flatFormula->getSemanticCases())
+    actualFlatCaseSet.insert(semanticCase);
+  if (actualFlatCaseSet.size() != expectedFlatCaseSet.size())
+    return fail("flat formula catalog case count differs from the live semantic domain");
+  for (llvm::StringRef semanticCase : expectedFlatCases)
+    if (!actualFlatCaseSet.contains(semanticCase))
+      return fail(llvm::Twine("flat formula catalog lost semantic case: ") +
+                  semanticCase);
+  if (flatFormula->getConstructionStrength() !=
+      FormulaConstructionStrength::ConstructedWeak)
+    return fail("flat block-dot catalog must retain its ConstructedWeak boundary");
+
+  const FormulaDescriptor *sourceScheduleFormula =
+      byID.lookup(rvv::formula_catalog::kSourceScheduleFormula);
+  if (!sourceScheduleFormula ||
+      sourceScheduleFormula->getConstructionStrength() !=
+          FormulaConstructionStrength::Strong)
+    return fail("source schedule formula descriptor is absent or weak");
+  llvm::StringSet<> sourceScheduleCases;
+  for (const std::string &semanticCase :
+       sourceScheduleFormula->getSemanticCases())
+    sourceScheduleCases.insert(semanticCase);
+  for (const rvv::RVVSourceScheduleFormulaCase &semanticCase :
+       rvv::getRVVSourceScheduleFormulaCases())
+    if (!sourceScheduleCases.contains(semanticCase.semanticCase))
+      return fail(llvm::Twine("source schedule catalog lost semantic case: ") +
+                  semanticCase.semanticCase);
+  if (!sourceScheduleCases.contains("unsupported-or-illegal") ||
+      sourceScheduleCases.size() !=
+          rvv::getRVVSourceScheduleFormulaCases().size() + 1)
+    return fail("source schedule catalog has an unowned semantic case");
+
+  const FormulaDescriptor *compositeFormula =
+      byID.lookup(rvv::formula_catalog::kCompositeGatherMAccScatterPlan);
+  if (!compositeFormula ||
+      compositeFormula->getConstructionStrength() !=
+          FormulaConstructionStrength::ConstructedWeak)
+    return fail("composite formula descriptor must retain its weak boundary");
+  if (compositeFormula->getSemanticCases().size() != 2)
+    return fail("composite formula must expose applicable and reject cases");
 
   const FormulaDescriptor *scheduleFormula =
       byID.lookup(rvv::formula_catalog::kScheduleFormula);
@@ -152,9 +211,9 @@ int main() {
   if (!realization)
     return fail("selected-body realization formula is absent");
   if (realization->getSemanticCases().size() !=
-      rvv::getRVVSelectedBodyRealizationOwners().size() + 1)
-    return fail("selected-body formula must enumerate every live owner plus "
-                "the contraction composite case from the owner registry");
+      rvv::getRVVSelectedBodyRealizationOwners().size())
+    return fail("selected-body formula must derive every semantic case from "
+                "the live owner registry without hand-added exceptions");
 
   std::string directKey =
       (rvv::getRVVExtensionPluginName() + llvm::Twine("\n") +
@@ -298,18 +357,22 @@ int main() {
                 "codebook final plan");
 
   for (const ExtensionPlugin *plugin : plugins.getAllPlugins()) {
-    bool hasProposalOwner = false;
+    bool hasProposalOrApplicabilityOwner = false;
     bool hasCostOwner = false;
     for (const FormulaDescriptor &formula : formulas) {
       if (formula.getOwnerPlugin() != plugin->getName())
         continue;
       for (const std::string &entry : formula.getProductionEntries()) {
-        hasProposalOwner |= entry == "plugin:variant-proposal";
+        hasProposalOrApplicabilityOwner |=
+            entry == "plugin:variant-proposal" ||
+            entry == "plugin:variant-applicability";
         hasCostOwner |= entry == "plugin:analytic-cost";
       }
     }
-    if (!hasProposalOwner || !hasCostOwner)
-      return fail(llvm::Twine("plugin lacks proposal/cost formula ownership: ") +
+    if (!hasProposalOrApplicabilityOwner || !hasCostOwner)
+      return fail(llvm::Twine(
+                      "plugin lacks truthful proposal/applicability or cost "
+                      "formula ownership: ") +
                   plugin->getName());
   }
 

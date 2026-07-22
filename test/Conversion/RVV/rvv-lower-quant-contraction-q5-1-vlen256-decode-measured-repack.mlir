@@ -41,14 +41,9 @@ module {
 // VLEN256-NOT: weft_rvv.q5_1_q8_1_block_dot
 // VLEN256: weft_rvv.typed_repack_gemv_loop_body
 // VLEN256-SAME: half_lanes = 16 : i64
-// VLEN256-SAME: weft_rvv.contraction_algorithm = "repack"
-// VLEN256-SAME: weft_rvv.path_materialization = "realized"
-// VLEN256-SAME: weft_rvv.path_selection_reason = "repack-kept-vlen256-decode-measured-beneficial"
 // VLEN256-SAME: weft_rvv.weight_layout_contract = "x16"
 
 // (VLEN128 tier) UNCHANGED capability/regime repack (zero rvv drift).
 // VLEN128-NOT: weft_rvv.quant_contraction
 // VLEN128: weft_rvv.typed_repack_gemv_loop_body
 // VLEN128-SAME: half_lanes = 8 : i64
-// VLEN128-SAME: weft_rvv.contraction_algorithm = "repack"
-// VLEN128-SAME: weft_rvv.path_selection_reason = "repack-kept-q4_0-vlen128-decode"

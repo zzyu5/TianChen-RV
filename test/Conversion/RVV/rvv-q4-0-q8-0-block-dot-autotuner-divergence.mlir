@@ -3,7 +3,7 @@
 //
 // The kernel below carries NO shape knobs (no integer_core_lmul /
 // multi_block_factor / strip_elision) -- the compiler must compute them. The
-// capability-aware autotuner pass (--weft-rvv-materialize-q4-0-schedule) derives
+// capability-aware schedule formula derives
 // the Zvl128b capability fact from the selected -march, enumerates + prunes +
 // ranks + selects the resource-best legal shape, and stamps it; the lowering
 // then emits that shape. Capability enters ONLY through the legality prune (the
@@ -27,12 +27,12 @@
 // onto the SAME attr-less op purely by capability (no lowering involved). This
 // asserts "the compiler PROVABLY SELECTED a different shape" at the selection
 // boundary, independent of the emission detail.
-// RUN: weft-opt %s --weft-rvv-materialize-q4-0-schedule=march=rv64gcv | FileCheck %s --check-prefix=STAMP-FULLV
-// RUN: weft-opt %s --weft-rvv-materialize-q4-0-schedule=march=rv64gc_zve32x | FileCheck %s --check-prefix=STAMP-ZVE32X
+// RUN: weft-opt %s --weft-rvv-materialize-schedule=march=rv64gcv | FileCheck %s --check-prefix=STAMP-FULLV
+// RUN: weft-opt %s --weft-rvv-materialize-schedule=march=rv64gc_zve32x | FileCheck %s --check-prefix=STAMP-ZVE32X
 //
 // Then the EMISSION-LEVEL proof: the selected shape carries through the lowering.
-// RUN: weft-opt %s --weft-rvv-materialize-q4-0-schedule=march=rv64gcv --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=FULLV
-// RUN: weft-opt %s --weft-rvv-materialize-q4-0-schedule=march=rv64gc_zve32x --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=ZVE32X
+// RUN: weft-opt %s --weft-rvv-materialize-schedule=march=rv64gcv --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=FULLV
+// RUN: weft-opt %s --weft-rvv-materialize-schedule=march=rv64gc_zve32x --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=ZVE32X
 
 module {
   weft.exec.kernel @ggml_vec_dot_q4_0_q8_0_kernel {

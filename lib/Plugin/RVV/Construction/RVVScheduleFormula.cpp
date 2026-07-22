@@ -25,6 +25,7 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include <algorithm>
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
@@ -126,11 +127,14 @@ std::optional<RVVScheduleFormulaDescriptor>
 lookupRVVScheduleFormula(llvm::StringRef kernelKey) {
   // These families share one candidate schema.  Only the kernel key, resource
   // budget and executable enumeration differ.
-  if (kernelKey == "q4_0")
-    return makeBlockDotScheduleFormula(
+  if (kernelKey == "q4_0") {
+    RVVScheduleFormulaDescriptor descriptor = makeBlockDotScheduleFormula(
         /*kernelKey=*/"q4_0",
         /*vectorRegisterBudget=*/kRVVQ40ShapeVectorRegisterBudget,
         /*enumerate12=*/enumerateRVVQ40Q80ShapeCandidates);
+    descriptor.minimumVLENAttrName = "minimum_vlen";
+    return descriptor;
+  }
 
   // q1_0 (the BINARY-sign class): a CUSTOM single-knob descriptor (not the shared
   // block-dot factory, whose factor/elision fields q1_0 does not implement). Its
@@ -316,6 +320,39 @@ static mlir::LogicalResult validateFormulaSchema(
   return mlir::success();
 }
 
+static std::optional<std::int64_t> resolveScheduleMinimumVLEN(
+    mlir::Operation *op, const RVVScheduleFormulaDescriptor &descriptor,
+    std::int64_t moduleMinimumVLEN) {
+  if (descriptor.minimumVLENAttrName.empty())
+    return moduleMinimumVLEN;
+
+  mlir::Attribute attr = op->getAttr(descriptor.minimumVLENAttrName);
+  if (!attr)
+    return moduleMinimumVLEN;
+
+  auto integer = llvm::dyn_cast<mlir::IntegerAttr>(attr);
+  if (!integer || integer.getInt() < 0) {
+    op->emitError() << "carries an invalid " << descriptor.minimumVLENAttrName
+                    << " capability input; expected a non-negative i64";
+    return std::nullopt;
+  }
+
+  const std::int64_t bodyMinimumVLEN = integer.getInt();
+  if (moduleMinimumVLEN > 0 && bodyMinimumVLEN != moduleMinimumVLEN) {
+    op->emitError()
+        << "carries a minimum_vlen value inconsistent with the canonical "
+           "capability input used to establish schedule legality";
+    return std::nullopt;
+  }
+
+  // Direct typed-body inputs already carry the capability fact that made their
+  // final schedule legal.  When no module/provider or command-line capability
+  // exists, use that same fact to validate the formula result instead of
+  // manufacturing an unknown-VLEN (0) second world.  A real canonical module
+  // capability, when present, remains authoritative and must agree above.
+  return bodyMinimumVLEN;
+}
+
 mlir::LogicalResult constructRVVSchedulesViaInterface(
     mlir::ModuleOp module, llvm::StringRef march, llvm::StringRef isaVectorHints,
     llvm::StringRef tuneRecord, bool dumpCandidates,
@@ -324,6 +361,8 @@ mlir::LogicalResult constructRVVSchedulesViaInterface(
   // minimum VLEN; the command-line strings are only the existing unprobed
   // fallback used by resolveRVVMinimumVLEN.
   std::int64_t minimumVLEN = resolveRVVMinimumVLEN(module, march, isaVectorHints);
+  std::int64_t vectorRegisterBudget =
+      resolveRVVVectorRegisterBudget(module);
   std::optional<std::string> recordText =
       loadRVVBlockDotTuningRecord(tuneRecord);
 
@@ -351,10 +390,16 @@ mlir::LogicalResult constructRVVSchedulesViaInterface(
                            << kernelKey << "'";
         return mlir::failure();
       }
+      std::optional<std::int64_t> scheduleMinimumVLEN =
+          resolveScheduleMinimumVLEN(iface.getOperation(), *descriptor,
+                                     minimumVLEN);
+      if (!scheduleMinimumVLEN)
+        return mlir::failure();
       RVVScheduleFormulaResult formula = evaluateRVVScheduleFormula(
           *descriptor, RVVScheduleGeometryFacts{kernelKey},
-          RVVScheduleCapabilityFacts{minimumVLEN,
-                                     descriptor->resourceBudget},
+          RVVScheduleCapabilityFacts{
+              *scheduleMinimumVLEN,
+              std::min(descriptor->resourceBudget, vectorRegisterBudget)},
           RVVScheduleNoStaticContext{});
       if (mlir::failed(
               validateFormulaSchema(iface.getOperation(), formula.candidates)))
@@ -375,9 +420,16 @@ mlir::LogicalResult constructRVVSchedulesViaInterface(
       return mlir::failure();
     }
 
+    std::optional<std::int64_t> scheduleMinimumVLEN =
+        resolveScheduleMinimumVLEN(iface.getOperation(), *descriptor,
+                                   minimumVLEN);
+    if (!scheduleMinimumVLEN)
+      return mlir::failure();
     RVVScheduleFormulaResult formula = evaluateRVVScheduleFormula(
         *descriptor, RVVScheduleGeometryFacts{kernelKey},
-        RVVScheduleCapabilityFacts{minimumVLEN, descriptor->resourceBudget},
+        RVVScheduleCapabilityFacts{
+            *scheduleMinimumVLEN,
+            std::min(descriptor->resourceBudget, vectorRegisterBudget)},
         RVVScheduleNoStaticContext{});
     if (mlir::failed(
             validateFormulaSchema(iface.getOperation(), formula.candidates)))
@@ -407,24 +459,19 @@ mlir::LogicalResult constructRVVSchedulesViaInterface(
       if (!matchesLegalCandidate) {
         iface->emitError()
             << "carries a complete final schedule that is not a currently "
-               "legal formula candidate";
+               "legal formula candidate (minimum_vlen="
+            << *scheduleMinimumVLEN << ", resource_budget="
+            << std::min(descriptor->resourceBudget, vectorRegisterBudget)
+            << ")";
         return mlir::failure();
       }
 
       if (!descriptor->minimumVLENAttrName.empty()) {
         mlir::Attribute attr = iface->getAttr(descriptor->minimumVLENAttrName);
-        if (attr) {
-          auto integer = llvm::dyn_cast<mlir::IntegerAttr>(attr);
-          if (!integer || integer.getInt() != minimumVLEN) {
-            iface->emitError()
-                << "carries a minimum_vlen value inconsistent with the "
-                   "capability input used to establish schedule legality";
-            return mlir::failure();
-          }
-        } else {
+        if (!attr) {
           mlir::Builder builder(module.getContext());
           iface->setAttr(descriptor->minimumVLENAttrName,
-                         builder.getI64IntegerAttr(minimumVLEN));
+                         builder.getI64IntegerAttr(*scheduleMinimumVLEN));
         }
       }
       continue;
@@ -439,8 +486,8 @@ mlir::LogicalResult constructRVVSchedulesViaInterface(
       iface->emitError() << "schedule formula produced no legal candidate";
       return mlir::failure();
     }
-    constructRVVFinalSchedule(iface.getOperation(), *descriptor, minimumVLEN,
-                              *selected);
+    constructRVVFinalSchedule(iface.getOperation(), *descriptor,
+                              *scheduleMinimumVLEN, *selected);
   }
 
   return mlir::success();

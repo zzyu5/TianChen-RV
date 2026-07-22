@@ -2,6 +2,7 @@
 #include "Weft/Conversion/RVV/RVVToEmitCSupport.h"
 #include "Weft/Dialect/Exec/IR/ExecOps.h"
 #include "Weft/Dialect/RVV/IR/RVVDialect.h"
+#include "Weft/Plugin/RVV/RVVFlatBlockDotFormula.h"
 
 #include "mlir/Dialect/EmitC/IR/EmitC.h"
 #include "mlir/IR/Builders.h"
@@ -30,9 +31,10 @@ mlir::LogicalResult VariantToEmitCFunc::emitQ4_0Q8_0BlockDot(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
     weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
     llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const {
-    // Thin shim: q4_0 offset_binary_nibble / half-block / LeftAssoc instance of the descriptor-driven emitFlatBlockDot.
-    // Resolve the ABI operands + provenance, derive the block-format descriptor
-    // (from `kind`/attrs) + the scheduled BlockDotFacts, emit the shared body.
+    // Thin shim: q4_0 offset_binary_nibble / half-block / LeftAssoc instance of
+    // the descriptor-driven emitFlatBlockDot. Resolve ABI/provenance, project
+    // the formula-produced final flat_* plan plus raw typed geometry, and emit
+    // the shared body without a kind/format decision replay.
     weftrvv::GgmlBlockDotQ40Q80Op blockDot;
     for (mlir::Operation &op : scope.getBody().front()) {
       if (auto bd = llvm::dyn_cast<weftrvv::GgmlBlockDotQ40Q80Op>(op))
@@ -50,7 +52,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitQ4_0Q8_0BlockDot(
                                          "block-dot ABI operand unmapped");
 
     std::optional<FlatBlockDotDescriptor> descriptor =
-        deriveFlatBlockDotDescriptor(blockDot.getOperation());
+        readFinalFlatBlockDotDescriptor(blockDot.getOperation());
     if (!descriptor)
       return rewriter.notifyMatchFailure(blockDot,
                                          "block-dot kind not flat-plain");
@@ -11769,41 +11771,172 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackKQuantGemmBodyQ6K(
     return mlir::success();
   }
 
-std::optional<FlatBlockDotDescriptor>
-deriveFlatBlockDotDescriptor(mlir::Operation *op) {
-  auto kindAttr = op->getAttrOfType<mlir::StringAttr>("kind");
-  if (!kindAttr)
+std::optional<FlatBlockDotComputePlan>
+readFinalFlatBlockDotComputePlan(mlir::Operation *op) {
+  auto bodyFamily = op->getAttrOfType<mlir::StringAttr>(
+      ::weft::plugin::rvv::kRVVFlatBodyFamilyAttr);
+  auto decode = op->getAttrOfType<mlir::StringAttr>(
+      ::weft::plugin::rvv::kRVVFlatDecodePrimitiveAttr);
+  auto fold = op->getAttrOfType<mlir::StringAttr>(
+      ::weft::plugin::rvv::kRVVFlatFoldModelAttr);
+  auto blockLength = op->getAttrOfType<mlir::IntegerAttr>(
+      ::weft::plugin::rvv::kRVVFlatBlockLengthAttr);
+  auto activationQuantOffset = op->getAttrOfType<mlir::IntegerAttr>(
+      ::weft::plugin::rvv::kRVVFlatActivationQuantOffsetAttr);
+  auto weightScale = op->getAttrOfType<mlir::StringAttr>(
+      ::weft::plugin::rvv::kRVVFlatWeightScaleSourceAttr);
+  auto tableName = op->getAttrOfType<mlir::StringAttr>(
+      ::weft::plugin::rvv::kRVVFlatCodebookTableNameAttr);
+  auto offsetBias = op->getAttrOfType<mlir::StringAttr>(
+      ::weft::plugin::rvv::kRVVFlatOffsetBiasAttr);
+  if (!bodyFamily || !decode || !fold || !blockLength ||
+      !activationQuantOffset || !weightScale || !tableName || !offsetBias ||
+      blockLength.getInt() <= 0 || activationQuantOffset.getInt() < 0)
     return std::nullopt;
-  llvm::StringRef kind = kindAttr.getValue();
 
-  auto readI64 = [&](llvm::StringRef name) -> int64_t {
-    return op->getAttrOfType<mlir::IntegerAttr>(name).getInt();
-  };
+  FlatBlockDotComputePlan plan;
+  if (bodyFamily.getValue() == "shared")
+    plan.bodyFamily = FlatBodyFamily::Shared;
+  else if (bodyFamily.getValue() == "binary-two-level")
+    plan.bodyFamily = FlatBodyFamily::BinaryTwoLevel;
+  else if (bodyFamily.getValue() == "nvfp4-codebook")
+    plan.bodyFamily = FlatBodyFamily::NVFP4Codebook;
+  else
+    return std::nullopt;
+
+  if (decode.getValue() == "plain-i8")
+    plan.decodePrimitive = FlatDecodePrimitive::PlainI8;
+  else if (decode.getValue() == "offset-binary-nibble")
+    plan.decodePrimitive = FlatDecodePrimitive::OffsetBinaryNibble;
+  else if (decode.getValue() == "unsigned-nibble")
+    plan.decodePrimitive = FlatDecodePrimitive::UnsignedNibble;
+  else if (decode.getValue() == "five-bit-offset-binary")
+    plan.decodePrimitive = FlatDecodePrimitive::FiveBitOffsetBinary;
+  else if (decode.getValue() == "codebook-gather-nibble")
+    plan.decodePrimitive = FlatDecodePrimitive::CodebookGatherNibble;
+  else if (decode.getValue() == "binary-sign")
+    plan.decodePrimitive = FlatDecodePrimitive::BinarySign;
+  else if (decode.getValue() == "nvfp4-codebook")
+    plan.decodePrimitive = FlatDecodePrimitive::NVFP4Codebook;
+  else
+    return std::nullopt;
+
+  if (fold.getValue() == "sumi-times-scales")
+    plan.foldModel = FlatFoldModel::SumiTimesScales;
+  else if (fold.getValue() == "left-associative")
+    plan.foldModel = FlatFoldModel::LeftAssoc;
+  else if (fold.getValue() == "scales-times-sumi")
+    plan.foldModel = FlatFoldModel::ScalesTimesSumi;
+  else if (fold.getValue() == "scale-plus-min")
+    plan.foldModel = FlatFoldModel::ScalePlusMin;
+  else if (fold.getValue() == "separated-left-associative")
+    plan.foldModel = FlatFoldModel::SeparatedLeftAssoc;
+  else if (fold.getValue() == "binary-two-level")
+    plan.foldModel = FlatFoldModel::BinaryTwoLevel;
+  else if (fold.getValue() == "nvfp4-codebook")
+    plan.foldModel = FlatFoldModel::NVFP4Codebook;
+  else
+    return std::nullopt;
+
+  if (weightScale.getValue() == "fp16")
+    plan.weightScaleSource = FlatWeightScaleSource::Fp16;
+  else if (weightScale.getValue() == "e8m0")
+    plan.weightScaleSource = FlatWeightScaleSource::E8M0;
+  else if (weightScale.getValue() == "ue4m3")
+    plan.weightScaleSource = FlatWeightScaleSource::UE4M3;
+  else if (weightScale.getValue() == "none")
+    plan.weightScaleSource = FlatWeightScaleSource::None;
+  else
+    return std::nullopt;
+
+  if (offsetBias.getValue() == "required")
+    plan.applyOffsetBias = true;
+  else if (offsetBias.getValue() == "none")
+    plan.applyOffsetBias = false;
+  else
+    return std::nullopt;
+
+  plan.blockLen = blockLength.getInt();
+  plan.activationQuantOffset = activationQuantOffset.getInt();
+  plan.codebookTableName = tableName.getValue();
+  const bool shared = plan.bodyFamily == FlatBodyFamily::Shared;
+  const bool binary = plan.bodyFamily == FlatBodyFamily::BinaryTwoLevel;
+  const bool nvfp4 = plan.bodyFamily == FlatBodyFamily::NVFP4Codebook;
+  if (binary &&
+      (plan.decodePrimitive != FlatDecodePrimitive::BinarySign ||
+       plan.foldModel != FlatFoldModel::BinaryTwoLevel ||
+       plan.weightScaleSource != FlatWeightScaleSource::None ||
+       !plan.codebookTableName.empty() || plan.applyOffsetBias))
+    return std::nullopt;
+  if (nvfp4 &&
+      (plan.decodePrimitive != FlatDecodePrimitive::NVFP4Codebook ||
+       plan.foldModel != FlatFoldModel::NVFP4Codebook ||
+       plan.weightScaleSource != FlatWeightScaleSource::UE4M3 ||
+       !plan.codebookTableName.empty() || plan.applyOffsetBias))
+    return std::nullopt;
+  if (shared &&
+      (plan.decodePrimitive == FlatDecodePrimitive::BinarySign ||
+       plan.decodePrimitive == FlatDecodePrimitive::NVFP4Codebook ||
+       plan.foldModel == FlatFoldModel::BinaryTwoLevel ||
+       plan.foldModel == FlatFoldModel::NVFP4Codebook ||
+       plan.weightScaleSource == FlatWeightScaleSource::None ||
+       plan.weightScaleSource == FlatWeightScaleSource::UE4M3))
+    return std::nullopt;
+  const bool codebook =
+      plan.decodePrimitive == FlatDecodePrimitive::CodebookGatherNibble;
+  if (shared && codebook != !plan.codebookTableName.empty())
+    return std::nullopt;
+  if (shared && plan.weightScaleSource == FlatWeightScaleSource::E8M0 &&
+      !codebook)
+    return std::nullopt;
+  if (plan.applyOffsetBias &&
+      plan.decodePrimitive != FlatDecodePrimitive::FiveBitOffsetBinary)
+    return std::nullopt;
+  return plan;
+}
+
+static FlatBlockDotDescriptor
+descriptorFromFinalPlan(const FlatBlockDotComputePlan &plan) {
+  FlatBlockDotDescriptor descriptor;
+  descriptor.decodePrimitive = plan.decodePrimitive;
+  descriptor.foldModel = plan.foldModel;
+  descriptor.blockLen = plan.blockLen;
+  descriptor.activationQuantOffset = plan.activationQuantOffset;
+  descriptor.applyOffsetBias = plan.applyOffsetBias;
+  descriptor.weightScaleSource = plan.weightScaleSource;
+  descriptor.codebookTableName = plan.codebookTableName;
+  return descriptor;
+}
+
+std::optional<FlatBlockDotDescriptor>
+readFinalFlatBlockDotDescriptor(mlir::Operation *op) {
+  std::optional<FlatBlockDotComputePlan> plan =
+      readFinalFlatBlockDotComputePlan(op);
+  if (!plan || plan->bodyFamily != FlatBodyFamily::Shared)
+    return std::nullopt;
+
   auto tryReadI64 = [&](llvm::StringRef name) -> std::optional<int64_t> {
     if (auto attr = op->getAttrOfType<mlir::IntegerAttr>(name))
       return attr.getInt();
     return std::nullopt;
   };
 
-  FlatBlockDotDescriptor d;
-  // Group-A block-format geometry (mirrors the typed I4 op attrs).
-  d.qk = readI64("qk");
-  d.weightStride = readI64("weight_block_stride");
-  d.activationStride = readI64("activation_block_stride");
-  // Quant offsets: most formats carry `quant_byte_offset` (the weight offset; the
-  // activation reuses it unless it has its own `activation_quant_byte_offset`, as
-  // the q5 formats do -- their q8 quants sit past a qh/second-scale field). mxfp4
-  // instead carries DISTINCT `weight_quant_byte_offset` + `activation_quant_byte_
-  // offset` (the E8M0 exponent byte shifts the weight quants off the q8 offset).
-  if (auto wq = tryReadI64("weight_quant_byte_offset")) {
-    d.quantOffset = *wq;
-    d.activationQuantOffset =
-        tryReadI64("activation_quant_byte_offset").value_or(*wq);
-  } else {
-    d.quantOffset = readI64("quant_byte_offset");
-    d.activationQuantOffset =
-        tryReadI64("activation_quant_byte_offset").value_or(d.quantOffset);
-  }
+  FlatBlockDotDescriptor d = descriptorFromFinalPlan(*plan);
+  std::optional<int64_t> qk = tryReadI64("qk");
+  std::optional<int64_t> weightStride = tryReadI64("weight_block_stride");
+  std::optional<int64_t> activationStride =
+      tryReadI64("activation_block_stride");
+  std::optional<int64_t> weightQuantOffset =
+      tryReadI64("weight_quant_byte_offset");
+  if (!weightQuantOffset)
+    weightQuantOffset = tryReadI64("quant_byte_offset");
+  if (!qk || !weightStride || !activationStride || !weightQuantOffset ||
+      plan->activationQuantOffset < 0)
+    return std::nullopt;
+  d.qk = *qk;
+  d.weightStride = *weightStride;
+  d.activationStride = *activationStride;
+  d.quantOffset = *weightQuantOffset;
   if (auto high = tryReadI64("activation_high_byte_offset"))
     d.highOffset = *high;
   if (auto qh = tryReadI64("weight_qh_byte_offset")) {
@@ -11816,61 +11949,15 @@ deriveFlatBlockDotDescriptor(mlir::Operation *op) {
   }
   if (auto asum = tryReadI64("activation_sum_byte_offset"))
     d.activationSumOffset = *asum;
-  // The 16-entry codebook (DenseI8ArrayAttr) is a STRUCTURAL fact off the op, the
-  // 2nd primitive class's table source. Present only on the codebook kinds.
+  // The codebook, when present, remains a structural typed field.
   if (auto cb = op->getAttrOfType<mlir::DenseI8ArrayAttr>("codebook")) {
     d.hasCodebook = true;
     d.codebook = cb.asArrayRef();
   }
 
-  // Group-B primitive + fold + core-LMUL floor, selected by `kind` (unique per
-  // format; `scale_model` is NOT sufficient -- q8_0/q4_0/q5_0 share
-  // "dual-fp16-per-block-d_x.d_y" but have three distinct fp32 fold trees).
-  if (kind == "ggml_q8_0_q8_0_block_dot") {
-    d.decodePrimitive = FlatDecodePrimitive::PlainI8;
-    d.foldModel = FlatFoldModel::SumiTimesScales;
-    d.blockLen = d.qk; // whole 32-element block (no nibble half-split)
-  } else if (kind == "ggml_q4_0_q8_0_block_dot") {
-    d.decodePrimitive = FlatDecodePrimitive::OffsetBinaryNibble;
-    d.foldModel = FlatFoldModel::LeftAssoc;
-    d.blockLen = d.qk / 2; // 16 nibble bytes / q8 half lanes per block
-  } else if (kind == "ggml_q4_1_q8_1_block_dot") {
-    d.decodePrimitive = FlatDecodePrimitive::UnsignedNibble;
-    d.foldModel = FlatFoldModel::ScalePlusMin;
-    d.blockLen = d.qk / 2;
-  } else if (kind == "ggml_q5_0_q8_0_block_dot") {
-    d.decodePrimitive = FlatDecodePrimitive::FiveBitOffsetBinary;
-    d.foldModel = FlatFoldModel::ScalesTimesSumi;
-    d.blockLen = d.qk / 2;
-    d.applyOffsetBias = true; // the `-16` offset-binary bias
-  } else if (kind == "ggml_q5_1_q8_1_block_dot") {
-    d.decodePrimitive = FlatDecodePrimitive::FiveBitOffsetBinary;
-    d.foldModel = FlatFoldModel::ScalePlusMin;
-    d.blockLen = d.qk / 2;
-    d.applyOffsetBias = false; // the bias lives in the per-block MIN scale
-  } else if (kind == "ggml_iq4_nl_q8_0_block_dot") {
-    // The 2nd primitive class: 16-entry int8 codebook gather. m1 anchor floor
-    // (the VLEN-capability gather anchor); the fp32 fold is ggml's iq4_nl
-    // scales-first order (SumiTimesScales, the q8_0 tree). The weight scale is a
-    // plain fp16 read (same as q8_0/q4_0); the codebook table is broadcast once.
-    d.decodePrimitive = FlatDecodePrimitive::CodebookGatherNibble;
-    d.foldModel = FlatFoldModel::SumiTimesScales;
-    d.blockLen = d.qk / 2; // 16 nibble bytes / q8 half lanes per block
-    d.weightScaleSource = FlatWeightScaleSource::Fp16;
-    d.codebookTableName = "weft_iq4_nl_kvalues";
-  } else if (kind == "ggml_mxfp4_q8_0_block_dot") {
-    // The FP4-class codebook: the SAME 16-entry gather as iq4_nl, but the weight
-    // scale is the structured E8M0 -> fp32 half reconstruction (no fp16 weight
-    // field; dual weight/activation quant offsets read above). The fold is ggml's
-    // mxfp4 scales-first order (SumiTimesScales, node-identical to iq4_nl's).
-    d.decodePrimitive = FlatDecodePrimitive::CodebookGatherNibble;
-    d.foldModel = FlatFoldModel::SumiTimesScales;
-    d.blockLen = d.qk / 2;
-    d.weightScaleSource = FlatWeightScaleSource::E8M0;
-    d.codebookTableName = "weft_mxfp4_kvalues";
-  } else {
+  if (d.decodePrimitive == FlatDecodePrimitive::CodebookGatherNibble &&
+      (!d.hasCodebook || d.codebookTableName.empty()))
     return std::nullopt;
-  }
   return d;
 }
 
@@ -13581,6 +13668,10 @@ mlir::FailureOr<mlir::Value> VariantToEmitCFunc::emitFlatIntegerCore(
             opName, role);
         break;
       }
+      case FlatDecodePrimitive::BinarySign:
+      case FlatDecodePrimitive::NVFP4Codebook:
+        llvm_unreachable(
+            "closed whole-body flat families never enter shared strip emission");
       }
       if (mlir::failed(productOr))
         return mlir::failure();
@@ -13804,6 +13895,10 @@ void VariantToEmitCFunc::emitFlatFold(
           // so it never reaches this expression-body switch.
           llvm_unreachable(
               "SeparatedLeftAssoc is emitted before the fused-expression switch");
+        case FlatFoldModel::BinaryTwoLevel:
+        case FlatFoldModel::NVFP4Codebook:
+          llvm_unreachable(
+              "closed whole-body flat families never enter shared fold emission");
         }
         rewriter.create<emitc::YieldOp>(loc, sumfNext);
       }
@@ -13917,21 +14012,12 @@ mlir::FailureOr<FlatBlockCore> VariantToEmitCFunc::emitFlatBlockCore(
 }
 
 
-// M-FLAT loop-scaffold step 1/6: lower the region-carrying
-// weft_rvv.typed_flat_block_dot_loop_body to the byte-exact SKELETON that
-// emitFlatBlockDot emits for its mbf==1 form. The isolated hard bone this step
-// proves is the SSA loop-carried f32 accumulator -> emitc mutable-variable
-// mapping: emitc.for has no iter_args, so the region's carried-IN `acc` block
-// argument maps to a LOAD of the sumf lvalue at the top of the loop body and
-// the typed loop-yield's carried-OUT `acc_next` maps to an emitc.assign back
-// into it at the bottom (the SCFToEmitC / F3-F6 loop-carried-scalar pattern).
-// The seed is the literal `0.0f` emitted directly (ggml's `float sumf = 0.0f;`
-// is a hardcoded zero, not a caller value; the op carries no init operand,
-// mirroring the monolithic block-dot ops). The minimal region body is a single
-// weft_rvv.cross_block_f32_accumulate (brick 3) over a stub term, dispatched
-// through the existing brick emitter; the full per-block primitive chain and
-// full-body byte-exactness are later steps. Only the mbf==1 skeleton form is
-// lowered here; any unroll form is fail-closed (I7).
+// Lower a formula-constructed, complete typed flat block-dot body. The
+// loop-carried f32 accumulator is projected to the EmitC mutable variable, while
+// every compute-family choice comes from the formula-produced flat_* plan and
+// every integer/fold mechanism is wired from the typed region. Incomplete
+// mechanism shells are rejected before this function is entered as a production
+// fallback.
 mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
     weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
@@ -13958,8 +14044,29 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
   llvm::StringRef opName = loopBody.getWEFTEmitCLowerableSourceOpName();
   llvm::StringRef role = loopBody.getWEFTEmitCLowerableSourceRole();
   int64_t qk = loopBody.getQk();
+  std::optional<FlatBlockDotComputePlan> flatPlan =
+      readFinalFlatBlockDotComputePlan(loopBody.getOperation());
+  if (!flatPlan)
+    return rewriter.notifyMatchFailure(
+        loopBody, "flat block-dot body reached emission without a complete "
+                  "formula-produced flat_* computation plan");
 
   auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
+  auto matchesFlatPlanSingleActivationOffset =
+      [&](weftrvv::LoadOp load) {
+        return load && load.getQuantByteOffset() &&
+               static_cast<int64_t>(*load.getQuantByteOffset()) ==
+                   flatPlan->activationQuantOffset;
+      };
+  auto matchesFlatPlanHalfActivationOffsets =
+      [&](weftrvv::LoadOp low, weftrvv::LoadOp high) {
+        return low && high && low.getQuantByteOffset() &&
+               high.getQuantByteOffset() &&
+               static_cast<int64_t>(*low.getQuantByteOffset()) ==
+                   flatPlan->activationQuantOffset &&
+               static_cast<int64_t>(*high.getQuantByteOffset()) ==
+                   flatPlan->activationQuantOffset + flatPlan->blockLen;
+      };
 
   // ===================================================================
   // q1_0 (flat_binary_two_level) BINARY-sign full-body emit. The q1_0
@@ -13974,7 +14081,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
   // (the shared body emits its own), so it returns here. Anti-bypass (I7): the
   // ABI bases are sourced from the BRICK's operands (not the loop op attrs) and
   // the brick's block_index MUST be the region induction variable.
-  if (loopBody.getFoldModel() == "flat_binary_two_level") {
+  if (flatPlan->bodyFamily == FlatBodyFamily::BinaryTwoLevel) {
     weftrvv::GgmlBlockDotQ10Q80BinarySignCoreOp coreOp;
     weftrvv::TypedFlatBlockDotLoopYieldOp yieldOp;
     loopBody.getBody().walk([&](mlir::Operation *bodyOp) {
@@ -13990,6 +14097,12 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
       return rewriter.notifyMatchFailure(
           loopBody, "q1_0 flat_binary_two_level body requires the q1_0 "
                     "binary-sign integer-core brick + the loop yield");
+    if (flatPlan->blockLen != static_cast<int64_t>(coreOp.getQk()) ||
+        flatPlan->activationQuantOffset !=
+            static_cast<int64_t>(coreOp.getActivationQuantByteOffset()))
+      return rewriter.notifyMatchFailure(
+          loopBody, "q1_0 formula plan geometry does not match the typed "
+                    "binary-sign core");
     if (coreBlock.getNumArguments() != 2)
       return rewriter.notifyMatchFailure(
           loopBody, "q1_0 flat_binary_two_level body region must carry exactly "
@@ -14029,11 +14142,12 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
 
     (void)emitQ1_0TypedFlatBlockDotBody(
         rewriter, loc, weightBase, activationBase, outPointer, avlArg, sizeType,
-        opName, role, coreLmul, coreOp.getQk(), coreOp.getWeightBlockStride(),
+        opName, role, coreLmul, flatPlan->blockLen,
+        coreOp.getWeightBlockStride(),
         coreOp.getActivationBlockStride(),
         coreOp.getActivationBlocksPerWeight(),
         coreOp.getWeightQuantByteOffset(),
-        coreOp.getActivationQuantByteOffset());
+        flatPlan->activationQuantOffset);
     return mlir::success();
   }
 
@@ -14052,7 +14166,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
   // body emits its own), so it returns here. Anti-bypass (I7): the ABI bases are
   // sourced from the BRICK's operands (not the loop op attrs) and the brick's
   // block_index MUST be the region induction variable.
-  if (loopBody.getFoldModel() == "flat_nvfp4_codebook") {
+  if (flatPlan->bodyFamily == FlatBodyFamily::NVFP4Codebook) {
     weftrvv::GgmlBlockDotNVFP4Q80CodebookCoreOp coreOp;
     weftrvv::TypedFlatBlockDotLoopYieldOp yieldOp;
     loopBody.getBody().walk([&](mlir::Operation *bodyOp) {
@@ -14068,6 +14182,12 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
       return rewriter.notifyMatchFailure(
           loopBody, "nvfp4 flat_nvfp4_codebook body requires the nvfp4 "
                     "codebook integer-core brick + the loop yield");
+    if (flatPlan->blockLen != static_cast<int64_t>(coreOp.getQkSub()) ||
+        flatPlan->activationQuantOffset !=
+            static_cast<int64_t>(coreOp.getActivationQuantByteOffset()))
+      return rewriter.notifyMatchFailure(
+          loopBody, "nvfp4 formula plan geometry does not match the typed "
+                    "codebook core");
     if (coreBlock.getNumArguments() != 2)
       return rewriter.notifyMatchFailure(
           loopBody, "nvfp4 flat_nvfp4_codebook body region must carry exactly "
@@ -14108,13 +14228,18 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
 
     (void)emitNVFP4BlockDotBodyShared(
         rewriter, loc, weightBase, activationBase, outPointer, avlArg, sizeType,
-        opName, role, coreLmul, coreOp.getQk(), coreOp.getQkSub(),
+        opName, role, coreLmul, coreOp.getQk(), flatPlan->blockLen,
         coreOp.getWeightBlockStride(), coreOp.getActivationBlockStride(),
         coreOp.getWeightQuantByteOffset(),
-        coreOp.getActivationQuantByteOffset(),
+        flatPlan->activationQuantOffset,
         coreOp.getActivationHighByteOffset(), coreOp.getCodebook());
     return mlir::success();
   }
+
+  if (flatPlan->bodyFamily != FlatBodyFamily::Shared)
+    return rewriter.notifyMatchFailure(
+        loopBody, "flat_* body family is not implemented by this typed loop "
+                  "realizer");
 
   // All remaining flat-loop families consume a complete construction-time
   // schedule.  The two closed whole-body families above do not use these axes.
@@ -14141,6 +14266,18 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
   weftrvv::CodebookGatherXI8ProductOp peekCodebookGather;
   loopBody.getBody().walk(
       [&](weftrvv::CodebookGatherXI8ProductOp o) { peekCodebookGather = o; });
+  const bool planUsesCodebook =
+      flatPlan->decodePrimitive == FlatDecodePrimitive::CodebookGatherNibble;
+  if (planUsesCodebook != static_cast<bool>(peekCodebookTable) ||
+      planUsesCodebook != static_cast<bool>(peekCodebookGather))
+    return rewriter.notifyMatchFailure(
+        loopBody, "formula-produced codebook plan does not match the typed "
+                  "mechanism body");
+  if (peekCodebookTable &&
+      peekCodebookTable.getTableSymbol() != flatPlan->codebookTableName)
+    return rewriter.notifyMatchFailure(
+        loopBody, "formula-produced codebook table name does not match the "
+                  "typed table-broadcast mechanism");
 
   rewriter.create<emitc::VerbatimOp>(loc, routeSourceComment(opName, role));
 
@@ -14214,7 +14351,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
   loopBody.getBody().walk(
       [&](weftrvv::BlockComputedScaleDequantOp o) { peekBrick2 = o; });
   const bool isQ40ScheduleParam =
-      peekBrick2 && loopBody.getFoldModel() == "left_assoc";
+      peekBrick2 && flatPlan->bodyFamily == FlatBodyFamily::Shared &&
+      flatPlan->decodePrimitive == FlatDecodePrimitive::OffsetBinaryNibble;
   // The q8_0 (sumi_times_scales) full body is the SECOND flat fold whose FULL
   // legal {integer_core_lmul, multi_block_factor, strip_elision} cross product is
   // schedule-parameterized (ported from the q4_0 scaffold). q8_0's native anchor
@@ -14226,13 +14364,14 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
   // dedicated codebook branch in the full-body dispatch below (q8_0's whole-block
   // plain-i8 schedule-param path carries no codebook brick, so it is unchanged).
   const bool isQ80ScheduleParam =
-      peekBrick2 && loopBody.getFoldModel() == "sumi_times_scales" &&
+      peekBrick2 && flatPlan->bodyFamily == FlatBodyFamily::Shared &&
+      flatPlan->decodePrimitive == FlatDecodePrimitive::PlainI8 &&
       !peekCodebookGather;
 
   // M-FLAT P2c: the deferred-ordered fold_structure (vector-batched seed-ordered
   // vfredosum.vs cross-block fold) is currently materialized ONLY for the q8_0
   // sumi_times_scales flat body. Fail-closed (I7): a deferred-ordered request
-  // that would fall to the q4_0 branch, the skeleton else, or any body without
+  // that would fall to the q4_0 branch or any body without
   // the full q8_0 integer core must NOT silently emit the per-block schedule
   // (IR-says-deferred / emit-does-per-block is a lie) -- reject it here.
   if (!loopBody.getFoldStructure())
@@ -14245,7 +14384,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
         loopBody,
         "deferred-ordered fold_structure is currently materialized only for the "
         "q8_0 (sumi_times_scales) full flat block-dot body; the other folds "
-        "require the per-block default (later steps)");
+        "require the per-block default for the currently materialized fold");
 
   // [GAP-NUM] the numerics tier (which fp oracle governs the fold). "strict"
   // (default; absent = strict, fail-closed I7) issues the §1 byte-exact fold;
@@ -14266,7 +14405,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
         loopBody,
         "numerics_tier \"relaxed\" is currently materialized only for the q8_0 "
         "(sumi_times_scales) deferred-ordered flat block-dot body; every other "
-        "path must use the strict tier (later steps)");
+        "path must use the strict tier on this materialized body");
 
   if (isQ40ScheduleParam) {
     // ===================================================================
@@ -14355,7 +14494,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
         q40HighLoad.getBuffer() != loopBody.getActivationBase() ||
         !q40WeightLoad.getQuantByteOffset() || !q40LowLoad.getQuantByteOffset() ||
         !q40HighLoad.getQuantByteOffset() || !q40WeightLoad.getBlockStride() ||
-        !q40LowLoad.getBlockStride())
+        !q40LowLoad.getBlockStride() ||
+        !matchesFlatPlanHalfActivationOffsets(q40LowLoad, q40HighLoad))
       return rewriter.notifyMatchFailure(
           loopBody, "q4_0 packed-i4 product operands must be the region's "
                     "per-block loads off the ABI buffers with block_stride + "
@@ -14370,9 +14510,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
 
     // ---- The LeftAssoc fold descriptor + shared emit state (fold only; the
     // integer core is emitted op-by-op below). ----
-    FlatBlockDotDescriptor descriptor;
-    descriptor.decodePrimitive = FlatDecodePrimitive::OffsetBinaryNibble;
-    descriptor.foldModel = FlatFoldModel::LeftAssoc;
+    FlatBlockDotDescriptor descriptor = descriptorFromFinalPlan(*flatPlan);
     BlockDotFacts facts = *finalSchedule;
     FlatBlockDotEmitState st = buildFlatBlockDotEmitState(
         rewriter, descriptor, facts, weightBase, activationBase,
@@ -14397,7 +14535,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
     unsigned setvlSEW = (coreLmul == "mf4") ? 32 : 8;
     llvm::StringRef setvlLmul = (coreLmul == "mf4") ? "m1" : coreLmul;
     std::string innerSetvlCallee = riscvIntrinsicName("vsetvl", setvlSEW, setvlLmul, "");
-    int64_t blockLen = qk / 2; // q4_0 half-block strip.
+    int64_t blockLen = flatPlan->blockLen;
 
     // ---- The per-block q4_0 core, parameterized by (ib, blockOffset,
     // forceRobust). Emits address / brick-1 scales / the op-by-op integer core
@@ -14480,9 +14618,9 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
         valueMap[q40WeightLoad.getLoaded()] = emitLoadTail(
             xb, static_cast<int64_t>(*q40WeightLoad.getQuantByteOffset()));
         valueMap[q40LowLoad.getLoaded()] = emitLoadTail(
-            yb, static_cast<int64_t>(*q40LowLoad.getQuantByteOffset()));
+            yb, flatPlan->activationQuantOffset);
         valueMap[q40HighLoad.getLoaded()] = emitLoadTail(
-            yb, static_cast<int64_t>(*q40HighLoad.getQuantByteOffset()));
+            yb, flatPlan->activationQuantOffset + flatPlan->blockLen);
         mlir::FailureOr<mlir::Value> productOr =
             emitOffsetBinaryDecodeProductValue(
                 rewriter, loc, valueMap.lookup(packedProduct.getWeight()),
@@ -14720,7 +14858,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
     }
     if (!weightLoad || !activationLoad || !weightLoad.getQuantByteOffset() ||
         !activationLoad.getQuantByteOffset() || !weightLoad.getBlockStride() ||
-        !activationLoad.getBlockStride())
+        !activationLoad.getBlockStride() ||
+        !matchesFlatPlanSingleActivationOffset(activationLoad))
       return rewriter.notifyMatchFailure(
           loopBody, "q8_0 integer-core loads must read the weight and activation "
                     "ABI buffers off the loop body, each carrying a block_stride "
@@ -14753,9 +14892,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
     // contraction). The MONOLITH keeps SumiTimesScales (`sumi*(d_x*d_y)`), so the
     // typed emit is INTENTIONALLY no longer byte-exact vs monolith here -- the
     // sanctioned gate migration (monolith retires later), q8_0 only. ----
-    FlatBlockDotDescriptor descriptor;
-    descriptor.decodePrimitive = FlatDecodePrimitive::PlainI8;
-    descriptor.foldModel = FlatFoldModel::SeparatedLeftAssoc;
+    FlatBlockDotDescriptor descriptor = descriptorFromFinalPlan(*flatPlan);
     BlockDotFacts facts = *finalSchedule;
     FlatBlockDotEmitState st = buildFlatBlockDotEmitState(
         rewriter, descriptor, facts, weightBase, activationBase,
@@ -14782,7 +14919,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
     llvm::StringRef setvlLmul = (coreLmul == "mf4") ? "m1" : coreLmul;
     std::string innerSetvlCallee =
         riscvIntrinsicName("vsetvl", setvlSEW, setvlLmul, "");
-    int64_t blockLen = qk; // q8_0 whole-block strip.
+    int64_t blockLen = flatPlan->blockLen;
 
     // ---- The per-block q8_0 core, parameterized by (ib, blockOffset,
     // forceRobust). Mirrors emitQ40Core: emits address / brick-1 scales / the
@@ -14869,7 +15006,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
         valueMap[weightLoad.getLoaded()] = emitLoadTail(
             xb, static_cast<int64_t>(*weightLoad.getQuantByteOffset()));
         valueMap[activationLoad.getLoaded()] = emitLoadTail(
-            yb, static_cast<int64_t>(*activationLoad.getQuantByteOffset()));
+            yb, flatPlan->activationQuantOffset);
         // The signed widening vwmul, emitted from ITS lhs/rhs load-result
         // operands (via the valueMap) -- byte-exact to the monolith's
         // `__riscv_vwmul_vv_i16m4(vx0, vy0, vl)` (lhs=weight first).
@@ -15044,8 +15181,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
       int64_t wStride = static_cast<int64_t>(*weightLoad.getBlockStride());
       int64_t aStride = static_cast<int64_t>(*activationLoad.getBlockStride());
       int64_t wQuantOff = static_cast<int64_t>(*weightLoad.getQuantByteOffset());
-      int64_t aQuantOff =
-          static_cast<int64_t>(*activationLoad.getQuantByteOffset());
+      int64_t aQuantOff = flatPlan->activationQuantOffset;
       int64_t dxScaleStride =
           static_cast<int64_t>(brick1.getLhsBlockStride().value_or(wStride));
       int64_t dyScaleStride =
@@ -15338,9 +15474,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
       }
     }
   } else {
-    // ---- The remaining folds (q4_1 / q5_0 / q5_1) and the step-1-3 skeleton
-    // still materialize only the mbf==1 + elided default; any unroll/robust combo
-    // is a later step (fail-closed, I7). q8_0 (sumi_times_scales) and q4_0
+    // ---- The remaining folds (q4_1 / q5_0 / q5_1) currently materialize only
+    // the mbf==1 + elided default; q8_0 (sumi_times_scales) and q4_0
     // (left_assoc) take the schedule-parameterized branches above. ----
     if (multiBlockFactor != 1 || !stripElided)
       return rewriter.notifyMatchFailure(
@@ -15348,7 +15483,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
           "multi_block_factor>1 and the robust strip form are currently "
           "materialized only for the left_assoc (q4_0) and sumi_times_scales "
           "(q8_0) flat bodies; the other folds require the "
-          "multi_block_factor==1 + strip_elision==elided default (later steps)");
+          "multi_block_factor==1 + strip_elision==elided is the materialized "
+          "plan for this fold family");
 
   // for (size_t ib = 0; ib < nb; ib += 1) { ... }  -- byte-exact to
   // emitFlatBlockDot:5879-5883 (the no-unroll block loop).
@@ -15417,7 +15553,12 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
         coreExtract = o;
     });
 
-    if (brick2) {
+    if (!brick2)
+      return rewriter.notifyMatchFailure(
+          loopBody, "flat block-dot emission requires a complete typed "
+                    "mechanism body; skeleton-only bodies are not a production "
+                    "fallback");
+    {
       // ---- Full q8_0 body: the REGION-DRIVEN gate (defends against a
       // cosmetic attribute-rederive). Every link is checked against the actual
       // region SSA wiring; any break fails closed so the emit provably tracks
@@ -15461,8 +15602,10 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
       weftrvv::BlockFp16MinProductOp q51MinBrick;
       loopBody.getBody().walk(
           [&](weftrvv::BlockFp16MinProductOp o) { q51MinBrick = o; });
-      const bool isQ51Body = loopBody.getFoldModel() == "scale_plus_min" &&
-                             q51FiveBitProduct && q51QhBrick;
+      const bool isQ51Body =
+          flatPlan->decodePrimitive == FlatDecodePrimitive::FiveBitOffsetBinary &&
+          flatPlan->foldModel == FlatFoldModel::ScalePlusMin &&
+          !flatPlan->applyOffsetBias && q51FiveBitProduct && q51QhBrick;
 
       // Fold-tree dispatch. Both branches emit INTO the block loop body and FALL
       // THROUGH to the shared post-loop `*s = sumf` store below (do NOT return
@@ -15482,8 +15625,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
         // (FiveBitOffsetBinary / half-block / ScalePlusMin, applyOffsetBias=false,
         // m1, elided, mbf 1) emitFlatBlockCore read order
         // (dX,dY,mX,sY,qhLow16,qhHigh16). The decode + fold + qh source + MIN are
-        // all selected from the WALKED op identity (anti-bypass gates product + qh
-        // + min), not the fold_model string. ----
+        // the mechanisms that formula construction used to produce the final
+        // flat_* plan; this branch consumes that plan and gates the same ops. ----
         weftrvv::FiveBitOffsetBinaryXI8ProductOp fiveBitProduct = q51FiveBitProduct;
         weftrvv::BlockFiveBitQhSourceOp qhBrick = q51QhBrick;
         weftrvv::BlockFp16MinProductOp minBrick = q51MinBrick;
@@ -15529,7 +15672,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
             highLoad.getBuffer() != loopBody.getActivationBase() ||
             !weightLoad.getQuantByteOffset() || !lowLoad.getQuantByteOffset() ||
             !highLoad.getQuantByteOffset() || !weightLoad.getBlockStride() ||
-            !lowLoad.getBlockStride())
+            !lowLoad.getBlockStride() ||
+            !matchesFlatPlanHalfActivationOffsets(lowLoad, highLoad))
           return rewriter.notifyMatchFailure(
               loopBody,
               "q5_1 five-bit product operands must be the region's per-block "
@@ -15551,10 +15695,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
         // arithmetic delta vs q5_0). Only descriptor.foldModel + the shared state
         // are consumed by emitFlatFold; the integer core + the qh + MIN harvest
         // are emitted op-by-op below.
-        FlatBlockDotDescriptor descriptor;
-        descriptor.decodePrimitive = FlatDecodePrimitive::FiveBitOffsetBinary;
-        descriptor.foldModel = FlatFoldModel::ScalePlusMin;
-        descriptor.applyOffsetBias = false;
+        FlatBlockDotDescriptor descriptor = descriptorFromFinalPlan(*flatPlan);
         BlockDotFacts facts = *finalSchedule;
         FlatBlockDotEmitState st = buildFlatBlockDotEmitState(
             rewriter, descriptor, facts, weightBase, activationBase,
@@ -15662,7 +15803,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
             rewriter, loc, sizeType, innerSetvlCallee, opName, role,
             [&](mlir::OpBuilder &b,
                 mlir::Location l) -> llvm::SmallVector<mlir::Value> {
-              return {sizeLit(qk / 2)};
+              return {sizeLit(flatPlan->blockLen)};
             });
 
         // HETEROGENEOUS loads: the WEIGHT strip is loaded U8 while the two q8
@@ -15704,9 +15845,9 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
         valueMap[weightLoad.getLoaded()] = emitLoadTailU8(
             xb, static_cast<int64_t>(*weightLoad.getQuantByteOffset()));
         valueMap[lowLoad.getLoaded()] =
-            emitLoadTailI8(yb, static_cast<int64_t>(*lowLoad.getQuantByteOffset()));
+            emitLoadTailI8(yb, flatPlan->activationQuantOffset);
         valueMap[highLoad.getLoaded()] = emitLoadTailI8(
-            yb, static_cast<int64_t>(*highLoad.getQuantByteOffset()));
+            yb, flatPlan->activationQuantOffset + flatPlan->blockLen);
 
         // The five-bit offset-binary nibble+qh decode + asymmetric widening
         // product, emitted from the product op's OWN weight/low/high operands (via
@@ -15727,7 +15868,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
                 valueMap.lookup(fiveBitProduct.getActivationHigh()), qhLow16,
                 qhHigh16, chunkOffset, vl, i8CoreType, u8CoreType, u16WideType,
                 i16WideType, coreLmul, wideLmul, 16, wideLmul, "i16", opName,
-                role, /*applyOffsetBias=*/false);
+                role, flatPlan->applyOffsetBias);
         if (mlir::failed(productOr))
           return mlir::failure();
         valueMap[fiveBitProduct.getResult()] = *productOr;
@@ -15827,7 +15968,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
             lowLoad.getBuffer() != loopBody.getActivationBase() ||
             highLoad.getBuffer() != loopBody.getActivationBase() ||
             !weightLoad.getQuantByteOffset() || !lowLoad.getQuantByteOffset() ||
-            !highLoad.getQuantByteOffset())
+            !highLoad.getQuantByteOffset() ||
+            !matchesFlatPlanHalfActivationOffsets(lowLoad, highLoad))
           return rewriter.notifyMatchFailure(
               loopBody,
               "full iq4_nl codebook flat block-dot body requires the region "
@@ -15855,29 +15997,19 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
               brick2, "brick 2 sumi must be the codebook integer-core lane0 "
                       "extract result");
 
-        // The iq4_nl descriptor (byte-exact to deriveFlatBlockDotDescriptor's
-        // ggml_iq4_nl_q8_0_block_dot): CodebookGatherNibble decode + SumiTimesScales
-        // fold, m1 anchor, half-block strip, fp16 weight scale. The Group-A geometry
-        // is sourced from the loop-body attrs (qk / strides) + the region loads'
-        // quant offsets; the codebook is sourced from the table broadcast op.
-        FlatBlockDotDescriptor descriptor;
-        descriptor.decodePrimitive = FlatDecodePrimitive::CodebookGatherNibble;
-        descriptor.foldModel = FlatFoldModel::SumiTimesScales;
+        // The final flat_* plan supplies the codebook decode and fold. Raw
+        // geometry remains sourced from the loop/body operations, and the table
+        // payload remains sourced from the typed broadcast operation.
+        FlatBlockDotDescriptor descriptor = descriptorFromFinalPlan(*flatPlan);
         descriptor.qk = qk;
         descriptor.weightStride = loopBody.getWeightBlockStride();
         descriptor.activationStride = loopBody.getActivationBlockStride();
         descriptor.quantOffset =
             static_cast<int64_t>(*weightLoad.getQuantByteOffset());
-        descriptor.activationQuantOffset =
-            static_cast<int64_t>(*lowLoad.getQuantByteOffset());
-        descriptor.highOffset =
-            static_cast<int64_t>(*highLoad.getQuantByteOffset()) -
-            descriptor.activationQuantOffset;
-        descriptor.blockLen = qk / 2;
-        descriptor.weightScaleSource = FlatWeightScaleSource::Fp16;
+        descriptor.activationQuantOffset = flatPlan->activationQuantOffset;
+        descriptor.highOffset = flatPlan->blockLen;
         descriptor.hasCodebook = true;
         descriptor.codebook = peekCodebookTable.getCodebook();
-        descriptor.codebookTableName = peekCodebookTable.getTableSymbol();
 
         BlockDotFacts facts = *finalSchedule;
         FlatBlockDotEmitState st = buildFlatBlockDotEmitState(
@@ -15891,7 +16023,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
           return mlir::failure();
         emitFlatFold(rewriter, loc, st, core->sumiVar, core->dX, core->dY,
                      core->mX, core->sY);
-      } else if (loopBody.getFoldModel() == "left_assoc") {
+      } else if (flatPlan->decodePrimitive ==
+                 FlatDecodePrimitive::OffsetBinaryNibble) {
         // ---- q4_0 half-block asymmetric offset-binary packed-i4 x i8 core.
         // Lightweight region gate (I7 fail-closed): the region must carry the
         // asymmetric packed-i4 product, the THREE per-block loads (one packed-i4
@@ -15951,7 +16084,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
             highLoad.getBuffer() != loopBody.getActivationBase() ||
             !weightLoad.getQuantByteOffset() || !lowLoad.getQuantByteOffset() ||
             !highLoad.getQuantByteOffset() || !weightLoad.getBlockStride() ||
-            !lowLoad.getBlockStride())
+            !lowLoad.getBlockStride() ||
+            !matchesFlatPlanHalfActivationOffsets(lowLoad, highLoad))
           return rewriter.notifyMatchFailure(
               loopBody,
               "q4_0 packed-i4 product operands must be the region's per-block "
@@ -15974,9 +16108,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
         // The LeftAssoc fold descriptor. Only descriptor.foldModel + the shared
         // state (sumfVar / floatType / i32Type) are consumed by emitFlatFold; the
         // integer core is emitted op-by-op below, NOT via emitFlatBlockCore.
-        FlatBlockDotDescriptor descriptor;
-        descriptor.decodePrimitive = FlatDecodePrimitive::OffsetBinaryNibble;
-        descriptor.foldModel = FlatFoldModel::LeftAssoc;
+        FlatBlockDotDescriptor descriptor = descriptorFromFinalPlan(*flatPlan);
         BlockDotFacts facts = *finalSchedule;
         FlatBlockDotEmitState st = buildFlatBlockDotEmitState(
             rewriter, descriptor, facts, weightBase, activationBase,
@@ -16066,7 +16198,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
             rewriter, loc, sizeType, innerSetvlCallee, opName, role,
             [&](mlir::OpBuilder &b,
                 mlir::Location l) -> llvm::SmallVector<mlir::Value> {
-              return {sizeLit(qk / 2)};
+              return {sizeLit(flatPlan->blockLen)};
             });
 
         // The THREE per-block i8 loads, emitted in the monolith's order (weight ->
@@ -16094,9 +16226,9 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
         valueMap[weightLoad.getLoaded()] = emitLoadTail(
             xb, static_cast<int64_t>(*weightLoad.getQuantByteOffset()));
         valueMap[lowLoad.getLoaded()] =
-            emitLoadTail(yb, static_cast<int64_t>(*lowLoad.getQuantByteOffset()));
+            emitLoadTail(yb, flatPlan->activationQuantOffset);
         valueMap[highLoad.getLoaded()] = emitLoadTail(
-            yb, static_cast<int64_t>(*highLoad.getQuantByteOffset()));
+            yb, flatPlan->activationQuantOffset + flatPlan->blockLen);
 
         // The packed-i4 offset-binary decode + asymmetric widening product,
         // emitted from the packed product op's OWN weight/low/high operands (via
@@ -16153,25 +16285,21 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
         // brick 1 ((float)sumi * d_x) * d_y (LeftAssoc) + brick 3 (sumf + term)
         // fold COLLECTIVELY into the one fused emitc.expression, fed the
         // operand-derived d_x/d_y + the sumi lvalue. emitFlatFold's fold tree is
-        // the gated fold_model attr.
+        // the formula-produced final flat fold plan.
         emitFlatFold(rewriter, loc, st, sumiVar.getResult(), dX, dY,
                      /*mX=*/mlir::Value(), /*sY=*/mlir::Value());
-      } else if (loopBody.getFoldModel() == "sumi_times_scales") {
+      } else if (flatPlan->decodePrimitive == FlatDecodePrimitive::PlainI8) {
 
-      // The q8_0 (plain_i8 / whole-block) descriptor rebuilt from the loop-body
-      // scheduling facts. The int8 quant payload sits past the 2-byte fp16 scale
+      // The q8_0 (plain_i8 / whole-block) descriptor projects the final flat_*
+      // plan plus raw typed geometry. The int8 quant payload sits past the fp16 scale
       // header (quantOffset = stride - qk); q8_0 carries no qh / min / codebook.
       // (This else-branch full-body path is superseded by isQ80ScheduleParam for
       // any brick-2 body; kept in sync with the pinned SeparatedLeftAssoc oracle.)
-      FlatBlockDotDescriptor descriptor;
-      descriptor.decodePrimitive = FlatDecodePrimitive::PlainI8;
-      descriptor.foldModel = FlatFoldModel::SeparatedLeftAssoc;
+      FlatBlockDotDescriptor descriptor = descriptorFromFinalPlan(*flatPlan);
       descriptor.qk = qk;
       descriptor.weightStride = loopBody.getWeightBlockStride();
       descriptor.activationStride = loopBody.getActivationBlockStride();
-      descriptor.blockLen = qk;
       descriptor.quantOffset = descriptor.weightStride - qk;
-      descriptor.activationQuantOffset = descriptor.activationStride - qk;
 
       // ---- W4: the REGION-DRIVEN integer-core chain gate. The full-body emit is
       // driven OP-BY-OP from these ops' operands (below); this gate first pins the
@@ -16363,7 +16491,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
           rewriter, loc, sizeType, innerSetvlCallee, opName, role,
           [&](mlir::OpBuilder &b,
               mlir::Location l) -> llvm::SmallVector<mlir::Value> {
-            return {sizeLit(qk)};
+            return {sizeLit(flatPlan->blockLen)};
           });
 
       // The two per-block i8 loads, each from ITS load op's block base + the
@@ -16391,7 +16519,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
       valueMap[weightLoad.getLoaded()] = emitLoadTail(
           xb, static_cast<int64_t>(*weightLoad.getQuantByteOffset()));
       valueMap[activationLoad.getLoaded()] = emitLoadTail(
-          yb, static_cast<int64_t>(*activationLoad.getQuantByteOffset()));
+          yb, flatPlan->activationQuantOffset);
 
       // The signed widening product, emitted from ITS lhs/rhs load-result
       // operands (via the valueMap) with the vwmul callee + widened type derived
@@ -16450,7 +16578,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
       // the loop-carried sumf lvalue that emitFlatFold loads before the expression.
       emitFlatFold(rewriter, loc, st, sumiVar.getResult(), dX, dY,
                    /*mX=*/mlir::Value(), /*sY=*/mlir::Value());
-      } else if (loopBody.getFoldModel() == "scale_plus_min") {
+      } else if (flatPlan->decodePrimitive ==
+                 FlatDecodePrimitive::UnsignedNibble) {
         // ---- q4_1 half-block asymmetric UNSIGNED-nibble packed-i4 x i8 core +
         // Family-B MIN correction. This is the q4_0 left_assoc op-by-op emit with
         // FOUR deltas: (1) the weight strip is loaded UNSIGNED (u8 / vle8_v_u8m1),
@@ -16459,8 +16588,9 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
         // offset-binary decode, (3) a per-block MIN brick reads m_x/s_y (fp16 at
         // byte offset 2 off the SHARED block bases), and (4) the fold is the
         // ScalePlusMin tree fed the harvested m_x/s_y. Byte-identical to the
-        // monolithic q4_1 mbf1/elided instance; the decode + fold are selected
-        // from the WALKED op identity, not the fold_model string. ----
+        // monolithic q4_1 mbf1/elided instance; formula construction derives the
+        // final decode/fold plan from the walked mechanisms and this branch
+        // consumes it directly. ----
         weftrvv::UnsignedNibbleXI8ProductOp unsignedProduct;
         loopBody.getBody().walk(
             [&](weftrvv::UnsignedNibbleXI8ProductOp o) { unsignedProduct = o; });
@@ -16502,7 +16632,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
             highLoad.getBuffer() != loopBody.getActivationBase() ||
             !weightLoad.getQuantByteOffset() || !lowLoad.getQuantByteOffset() ||
             !highLoad.getQuantByteOffset() || !weightLoad.getBlockStride() ||
-            !lowLoad.getBlockStride())
+            !lowLoad.getBlockStride() ||
+            !matchesFlatPlanHalfActivationOffsets(lowLoad, highLoad))
           return rewriter.notifyMatchFailure(
               loopBody,
               "q4_1 unsigned-nibble product operands must be the region's "
@@ -16525,9 +16656,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
         // The ScalePlusMin fold descriptor. Only descriptor.foldModel + the
         // shared state are consumed by emitFlatFold; the integer core + the min
         // harvest are emitted op-by-op below, NOT via emitFlatBlockCore.
-        FlatBlockDotDescriptor descriptor;
-        descriptor.decodePrimitive = FlatDecodePrimitive::UnsignedNibble;
-        descriptor.foldModel = FlatFoldModel::ScalePlusMin;
+        FlatBlockDotDescriptor descriptor = descriptorFromFinalPlan(*flatPlan);
         BlockDotFacts facts = *finalSchedule;
         FlatBlockDotEmitState st = buildFlatBlockDotEmitState(
             rewriter, descriptor, facts, weightBase, activationBase,
@@ -16610,7 +16739,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
             rewriter, loc, sizeType, innerSetvlCallee, opName, role,
             [&](mlir::OpBuilder &b,
                 mlir::Location l) -> llvm::SmallVector<mlir::Value> {
-              return {sizeLit(qk / 2)};
+              return {sizeLit(flatPlan->blockLen)};
             });
 
         // HETEROGENEOUS loads: the WEIGHT strip is loaded U8 (const uint8_t* /
@@ -16654,9 +16783,9 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
         valueMap[weightLoad.getLoaded()] = emitLoadTailU8(
             xb, static_cast<int64_t>(*weightLoad.getQuantByteOffset()));
         valueMap[lowLoad.getLoaded()] =
-            emitLoadTailI8(yb, static_cast<int64_t>(*lowLoad.getQuantByteOffset()));
+            emitLoadTailI8(yb, flatPlan->activationQuantOffset);
         valueMap[highLoad.getLoaded()] = emitLoadTailI8(
-            yb, static_cast<int64_t>(*highLoad.getQuantByteOffset()));
+            yb, flatPlan->activationQuantOffset + flatPlan->blockLen);
 
         // The unsigned-nibble decode + asymmetric widening product, emitted from
         // the product op's OWN weight/low/high operands (via the valueMap) -- the
@@ -16745,7 +16874,9 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
         // recomputed INSIDE the fused expression, so the min brick's f32 result is
         // gate-only (never materialized standalone).
         emitFlatFold(rewriter, loc, st, sumiVar.getResult(), dX, dY, mX, sY);
-      } else if (loopBody.getFoldModel() == "scales_times_sumi") {
+      } else if (flatPlan->decodePrimitive ==
+                     FlatDecodePrimitive::FiveBitOffsetBinary &&
+                 flatPlan->applyOffsetBias) {
         // ---- q5_0 half-block asymmetric FIVE-BIT offset-binary packed-i4 (+ qh
         // 5th bit, `-16` bias) x i8 core + the ScalesTimesSumi fold. This is the
         // q4_1 op-by-op emit with FIVE deltas: (1) the integer core routes to
@@ -16758,8 +16889,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
         // ScalesTimesSumi tree `sumf + (d_x*d_y)*(float)sumi` with NO min term, and
         // (5) applyOffsetBias is true. Byte-identical to the monolithic q5_0
         // (five_bit_offset_binary / half-block / ScalesTimesSumi, m1, elided, mbf
-        // 1) instance; the decode + fold + qh source are selected from the WALKED
-        // op identity, not the fold_model string. ----
+        // 1) instance; formula construction derives the final decode/fold/bias
+        // plan from the walked mechanisms and this branch consumes it directly. ----
         weftrvv::FiveBitOffsetBinaryXI8ProductOp fiveBitProduct;
         loopBody.getBody().walk(
             [&](weftrvv::FiveBitOffsetBinaryXI8ProductOp o) {
@@ -16808,7 +16939,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
             highLoad.getBuffer() != loopBody.getActivationBase() ||
             !weightLoad.getQuantByteOffset() || !lowLoad.getQuantByteOffset() ||
             !highLoad.getQuantByteOffset() || !weightLoad.getBlockStride() ||
-            !lowLoad.getBlockStride())
+            !lowLoad.getBlockStride() ||
+            !matchesFlatPlanHalfActivationOffsets(lowLoad, highLoad))
           return rewriter.notifyMatchFailure(
               loopBody,
               "q5_0 five-bit product operands must be the region's per-block "
@@ -16829,10 +16961,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
         // The ScalesTimesSumi fold descriptor. Only descriptor.foldModel + the
         // shared state are consumed by emitFlatFold; the integer core + the qh
         // harvest are emitted op-by-op below, NOT via emitFlatBlockCore.
-        FlatBlockDotDescriptor descriptor;
-        descriptor.decodePrimitive = FlatDecodePrimitive::FiveBitOffsetBinary;
-        descriptor.foldModel = FlatFoldModel::ScalesTimesSumi;
-        descriptor.applyOffsetBias = true;
+        FlatBlockDotDescriptor descriptor = descriptorFromFinalPlan(*flatPlan);
         BlockDotFacts facts = *finalSchedule;
         FlatBlockDotEmitState st = buildFlatBlockDotEmitState(
             rewriter, descriptor, facts, weightBase, activationBase,
@@ -16942,7 +17071,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
             rewriter, loc, sizeType, innerSetvlCallee, opName, role,
             [&](mlir::OpBuilder &b,
                 mlir::Location l) -> llvm::SmallVector<mlir::Value> {
-              return {sizeLit(qk / 2)};
+              return {sizeLit(flatPlan->blockLen)};
             });
 
         // HETEROGENEOUS loads: the WEIGHT strip is loaded U8 (const uint8_t* /
@@ -16985,9 +17114,9 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
         valueMap[weightLoad.getLoaded()] = emitLoadTailU8(
             xb, static_cast<int64_t>(*weightLoad.getQuantByteOffset()));
         valueMap[lowLoad.getLoaded()] =
-            emitLoadTailI8(yb, static_cast<int64_t>(*lowLoad.getQuantByteOffset()));
+            emitLoadTailI8(yb, flatPlan->activationQuantOffset);
         valueMap[highLoad.getLoaded()] = emitLoadTailI8(
-            yb, static_cast<int64_t>(*highLoad.getQuantByteOffset()));
+            yb, flatPlan->activationQuantOffset + flatPlan->blockLen);
 
         // The five-bit offset-binary nibble+qh decode + asymmetric widening
         // product, emitted from the product op's OWN weight/low/high operands (via
@@ -17010,7 +17139,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
                 valueMap.lookup(fiveBitProduct.getActivationHigh()), qhLow16,
                 qhHigh16, chunkOffset, vl, i8CoreType, u8CoreType, u16WideType,
                 i16WideType, coreLmul, wideLmul, 16, wideLmul, "i16", opName,
-                role, /*applyOffsetBias=*/true);
+                role, flatPlan->applyOffsetBias);
         if (mlir::failed(productOr))
           return mlir::failure();
         valueMap[fiveBitProduct.getResult()] = *productOr;
@@ -17075,46 +17204,6 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
                       "left_assoc (q4_0), scale_plus_min (q4_1 min-only / q5_1 "
                       "five-bit+min), and scales_times_sumi (q5_0) folds; the "
                       "other flat fold trees are later steps");
-      }
-    } else {
-      // ---- Step 1-3 SKELETON body (brick 3 stub, or brick 1 + brick 3): the
-      // per-op brick lowering. The carried-IN acc maps to a LOAD of the sumf
-      // lvalue at the TOP of the loop body; the carried-OUT acc_next maps to an
-      // emitc.assign back into it at the BOTTOM (emitFlatBlockDot:5757,:5829).
-      valueMap[coreBlock.getArgument(0)] = blockLoop.getInductionVar();
-      valueMap[coreBlock.getArgument(1)] =
-          rewriter.create<emitc::LoadOp>(loc, floatType, sumfVar).getResult();
-      for (mlir::Operation &op : coreBlock) {
-        if (auto scaleProduct =
-                llvm::dyn_cast<weftrvv::BlockFp16ScaleProductOp>(op)) {
-          if (mlir::failed(emitBlockFp16ScaleProduct(
-                  rewriter, loc, scaleProduct, valueMap,
-                  /*bodyVL=*/mlir::Value())))
-            return mlir::failure();
-        } else if (auto accumulate =
-                       llvm::dyn_cast<weftrvv::CrossBlockF32AccumulateOp>(op)) {
-          if (mlir::failed(emitCrossBlockF32Accumulate(
-                  rewriter, loc, accumulate, valueMap,
-                  /*bodyVL=*/mlir::Value())))
-            return mlir::failure();
-        } else if (auto yield =
-                       llvm::dyn_cast<weftrvv::TypedFlatBlockDotLoopYieldOp>(
-                           op)) {
-          mlir::Value accNext = valueMap.lookup(yield.getAccNext());
-          if (!accNext)
-            return rewriter.notifyMatchFailure(yield,
-                                               "loop yield acc_next unmapped");
-          rewriter.create<emitc::VerbatimOp>(
-              loc, assignComment("sumf", opName, role));
-          rewriter.create<emitc::AssignOp>(loc, sumfVar, accNext);
-        } else {
-          return rewriter.notifyMatchFailure(
-              &op,
-              "skeleton loop body lowers the per-block scale product (brick 1) "
-              "and the cross-block fold (brick 3); a full body must carry brick "
-              "2 (the computed-scale dequant) so the region-driven full-chain "
-              "path takes over");
-        }
       }
     }
   }

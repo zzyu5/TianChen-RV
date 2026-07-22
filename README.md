@@ -64,26 +64,27 @@ The repository already contains:
 - deployed ggml, representative strong-opponent and end-to-end result ledgers;
 - an official bench runner, master table and run lineage directories.
 
-These assets do not mean the project is finished. The common authority foundation
-now enumerates registered/direct construction entries in one lightweight catalog
-while keeping evaluation in family-local typed formulas. The row quantize/dequantize
-cut and several resource formulas are real, but the project-wide authority boundary
-is still under active horizontal closure: the generic schedule owner is not yet
-called by every direct/lower-quant entry, Q40/GEMM compatibility schedule passes are
-still public, lower-quant can emit an incomplete schedule tuple, and composite body
-construction still has a registry-bypassing special branch. See
+These assets do not mean the project is finished. The current production authority
+boundary has completed its horizontal cutover: registered/direct construction entries
+are enumerated by the lightweight catalog while evaluation remains in family-local
+typed formulas; generic and source schedules use the same construction lifecycle;
+lower-quant outputs complete legal schedules; composite realization is a real registry
+owner; and obsolete Q40/GEMM compatibility passes and non-semantic decision mirrors
+have been removed.
+
+For flat block-dot kernels, formula construction now produces the final `flat_*`
+computation plan—body family, decode, fold, block length, activation offset, scale
+source, table identity where one really exists, and bias. EmitC consumes that plan
+directly and fails closed on missing, partial, unknown, or mechanism-conflicting input;
+it does not recover a second decision from `kind`, `format`, or historical
+`fold_model` fields. See
 [formula/construction architecture](.trellis/spec/architecture/公式层与覆盖.md) and
 [ISSUE-128](.trellis/spec/issues/发射器与架构.md).
 
-The target remains one formula → legality → thin selector → final typed body path;
-the current foundation must not be described as having already achieved it. Even
-after that authority boundary closes, catalog coverage is not strong reconstruction.
-Entries marked `ConstructedWeak` still depend on complete mechanical leaves and must
-not be counted as passing the delete-leaf reconstruction criterion.
-
-Even after that authority boundary closes, catalog coverage is not strong
-reconstruction. Entries marked `ConstructedWeak` still depend on complete mechanical
-leaves and must not be counted as passing the delete-leaf reconstruction criterion.
+This authority convergence is not strong reconstruction. Entries marked
+`ConstructedWeak` still depend on complete mechanical leaves and must not be counted
+as passing the delete-leaf criterion: after deleting a point implementation,
+`g/c/ω + mechanisms + formula` must independently rebuild the same instance.
 
 The current contract is the registry-derived formula catalog plus
 [formula/construction architecture](.trellis/spec/architecture/公式层与覆盖.md).

@@ -79,12 +79,6 @@ llvm::Error registerWeftOptPasses(
   mlir::registerPass([] {
     return weft::transforms::createMaterializeRVVSchedulePass();
   });
-  mlir::registerPass([] {
-    return weft::transforms::createMaterializeRVVQ40SchedulePass();
-  });
-  mlir::registerPass([] {
-    return weft::transforms::createMaterializeRVVGemmSchedulePass();
-  });
   mlir::registerPass([&plugins] {
     return weft::transforms::createMaterializeEmitCLowerableRoutesPass(
         plugins);

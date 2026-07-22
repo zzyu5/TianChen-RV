@@ -86,13 +86,9 @@ module {
 // VLEN128-NOT: weft_rvv.repack_gemv_q4_0_q8_0
 // VLEN128: weft_rvv.typed_repack_gemv_loop_body
 // VLEN128-SAME: half_lanes = 16 : i64
-// VLEN128-SAME: weft_rvv.contraction_algorithm = "repack"
-// VLEN128-SAME: weft_rvv.path_materialization = "realized"
-// VLEN128-SAME: weft_rvv.path_selection_reason = "repack-kept-q4_0-vlen128-decode"
 // [档 C#9 full-LMUL[B]] the accumulator-LMUL selection reason (m1/mf2 provenance,
 // previously discarded): r51g [GAP-P1]-loosen board-MEASURED q4_0 => WIDE m1 chain
 // (GEVM 2.3-2.5x / GEMM 1.24x faster, spill-free, byte-exact; see FINDING).
-// VLEN128-SAME: weft_rvv.repack_accumulator_lmul_selection_reason = "measured"
 // VLEN128-SAME: weft_rvv.weight_layout_contract = "x16"
 // VLEN128-SAME: weight_block_stride = 288 : i64
 // VLEN128-SAME: weight_interleave = 16 : i64
@@ -108,12 +104,7 @@ module {
 // VLEN256-NOT: weft_rvv.quant_contraction
 // VLEN256-NOT: weft_rvv.repack_gemv_q4_0_q8_0
 // VLEN256: weft_rvv.q4_0_q8_0_block_dot
-// VLEN256-SAME: weft_rvv.contraction_algorithm = "block-dot"
-// VLEN256-SAME: weft_rvv.path_materialization = "realized"
-// VLEN256-SAME: weft_rvv.path_selection_reason = "block-dot-decline-vlen256-decode-measured-negative"
 
 // DEFAULT-NOT: weft_rvv.quant_contraction
 // DEFAULT-NOT: weft_rvv.repack_gemv_q4_0_q8_0
 // DEFAULT: weft_rvv.q4_0_q8_0_block_dot
-// DEFAULT-SAME: weft_rvv.contraction_algorithm = "block-dot"
-// DEFAULT-SAME: weft_rvv.path_materialization = "realized"

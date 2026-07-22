@@ -16,11 +16,14 @@
 #include "Weft/Plugin/RVV/RVVQuantizeFormula.h"
 #include "Weft/Plugin/RVV/RVVEmitCRoutePlanning.h"
 #include "Weft/Plugin/RVV/RVVCodebookDotSourceFrontDoor.h"
+#include "Weft/Plugin/RVV/RVVCompositeGatherMAccScatterFormula.h"
+#include "Weft/Plugin/RVV/RVVFlatBlockDotFormula.h"
 #include "Weft/Plugin/RVV/RVVMonolithicBlockDotFamily.h"
 #include "Weft/Plugin/RVV/RVVMonolithicBlockDotSourceFrontDoor.h"
 #include "Weft/Plugin/RVV/RVVPackedI4DotSourceFrontDoor.h"
 #include "Weft/Plugin/RVV/RVVReductionSourceFrontDoor.h"
 #include "Weft/Plugin/RVV/RVVScheduleFormula.h"
+#include "Weft/Plugin/RVV/RVVSourceScheduleFormula.h"
 #include "Weft/Plugin/RVV/RVVSelectedBodyRealization.h"
 #include "Weft/Plugin/RVV/RVVVectorSourceFrontDoor.h"
 #include "Weft/Support/RuntimeABI.h"
@@ -51,9 +54,6 @@ namespace construction = weft::plugin::construction;
 
 constexpr llvm::StringLiteral kRVVPluginName("rvv-plugin");
 constexpr llvm::StringLiteral kRVVPluginVersion("0.1.0");
-constexpr llvm::StringLiteral kRVVCapabilityID("rvv");
-constexpr llvm::StringLiteral kRVVCapabilityKind("isa-vector");
-constexpr llvm::StringLiteral kRVVPreferredCapabilitySymbol("rvv");
 constexpr llvm::StringLiteral kRVVPolicyAttrName("weft_rvv.policy");
 constexpr llvm::StringLiteral kOriginAttrName("origin");
 
@@ -75,7 +75,8 @@ llvm::Error makeRVVPluginError(llvm::Twine message) {
 
 bool hasAvailableRVVCapability(const VariantProposalRequest &request) {
   return request.getKernel() &&
-         request.getCapabilities().isCapabilityAvailableByID(kRVVCapabilityID);
+         request.getCapabilities().isCapabilityAvailableByID(
+             rvv::getRVVCapabilityID());
 }
 
 bool variantContainsExplicitTypedRVVBody(weft::exec::VariantOp variant) {
@@ -435,19 +436,11 @@ llvm::StringRef getRVVExtensionPluginName() { return kRVVPluginName; }
 
 llvm::StringRef getRVVExtensionPluginVersion() { return kRVVPluginVersion; }
 
-llvm::StringRef getRVVCapabilityID() { return kRVVCapabilityID; }
-
-llvm::StringRef getRVVCapabilityKind() { return kRVVCapabilityKind; }
-
-llvm::StringRef getRVVPreferredCapabilitySymbol() {
-  return kRVVPreferredCapabilitySymbol;
-}
-
 llvm::StringRef getRVVPolicyAttrName() { return kRVVPolicyAttrName; }
 
 RVVExtensionPlugin::RVVExtensionPlugin() {
   capabilities.push_back(PluginCapability(
-      kRVVCapabilityID, kRVVCapabilityKind,
+      rvv::getRVVCapabilityID(), rvv::getRVVCapabilityKind(),
       "RVV first-slice vector ISA capability participation; target "
       "availability is supplied by weft.exec.capability metadata"));
 }
@@ -508,12 +501,14 @@ void RVVExtensionPlugin::collectFormulaDescriptors(
       formula::kVariantConstruction, "operator/rvv-variant",
       FormulaResultKind::CandidateSet,
       FormulaConstructionStrength::ConstructedWeak,
-      "RVVVariantProposalGeometry", {"high-level-op", "kernel-semantics"},
+      "RVVVariantApplicabilityGeometry", {},
       FormulaAxisUse::Decisive, "RVVCapabilityProjection", {"rvv-available"},
       FormulaAxisUse::HonestNull, "RVVVariantNoStaticContext");
-  variant.addSemanticCase("rvv-capability-applicable");
+  variant.getGeometryAxis().set(FormulaAxisUse::HonestNull,
+                                "RVVVariantApplicabilityGeometry");
+  variant.addSemanticCase("explicit-typed-rvv-input-required");
   variant.addSemanticCase("rvv-capability-unavailable");
-  variant.addProductionEntry("plugin:variant-proposal");
+  variant.addProductionEntry("plugin:variant-applicability");
   out.push_back(std::move(variant));
 
   FormulaDescriptor cost = makeDescriptor(
@@ -577,8 +572,9 @@ void RVVExtensionPlugin::collectFormulaDescriptors(
   addSingleSource(formula::kDequantizeRowConstruction,
                   "operator/dequantize-row", "DequantizeRowStreamFacts",
                   {"format", "qk", "layout", "decode-mechanism"},
-                  FormulaAxisUse::HonestNull,
-                  "DequantizeRowConstructionNoCapabilityInput", {},
+                  FormulaAxisUse::Decisive,
+                  "OptionalCodebookGatherCapabilityFacts",
+                  {"minimum-vlen", "supported-sew", "supported-lmul"},
                   "typed-streaming-dequantize-row",
                   formula::kDequantizeRowSourceEntry,
                   FormulaConstructionStrength::ConstructedWeak);
@@ -671,6 +667,50 @@ void RVVExtensionPlugin::collectFormulaDescriptors(
     descriptor.addProductionEntry(entry);
     out.push_back(std::move(descriptor));
   };
+  FormulaDescriptor flat = makeDescriptor(
+      formula::kFlatBlockDotPlan, "operator/block-dot",
+      FormulaResultKind::TypedPlan, FormulaConstructionStrength::ConstructedWeak,
+      "RVVFlatBlockDotGeometryFacts",
+      {"typed-leaf", "qk", "sub-block-length", "weight-quant-offset",
+       "activation-quant-offset"},
+      FormulaAxisUse::HonestNull, "RVVFlatBlockDotNoCapabilityInput", {},
+      FormulaAxisUse::HonestNull, "RVVFlatBlockDotNoStaticContext");
+  for (const RVVFlatBlockDotFormulaCase &semanticCase :
+       getRVVFlatBlockDotFormulaCases())
+    flat.addSemanticCase(semanticCase.semanticCase);
+  flat.addSemanticCase("unsupported-or-illegal");
+  flat.addProductionEntry("internal:flat-block-dot-plan");
+  out.push_back(std::move(flat));
+
+  FormulaDescriptor sourceSchedule = makeDescriptor(
+      formula::kSourceScheduleFormula, "operator/source-schedule",
+      FormulaResultKind::ResourceSchedule, FormulaConstructionStrength::Strong,
+      "RVVSourceScheduleGeometryFacts",
+      {"mechanism", "sew", "block-length", "candidate-lmuls"},
+      FormulaAxisUse::Decisive, "RVVSourceScheduleCapabilityFacts",
+      {"minimum-vlen", "vector-register-budget"}, FormulaAxisUse::HonestNull,
+      "RVVSourceScheduleNoStaticContext");
+  for (const RVVSourceScheduleFormulaCase &semanticCase :
+       getRVVSourceScheduleFormulaCases())
+    sourceSchedule.addSemanticCase(semanticCase.semanticCase);
+  sourceSchedule.addSemanticCase("unsupported-or-illegal");
+  sourceSchedule.addProductionEntry("internal:source-schedule-formula");
+  out.push_back(std::move(sourceSchedule));
+
+  FormulaDescriptor composite = makeDescriptor(
+      formula::kCompositeGatherMAccScatterPlan,
+      "operator/selected-body/composite", FormulaResultKind::TypedPlan,
+      FormulaConstructionStrength::ConstructedWeak,
+      "RVVCompositeGatherMAccScatterGeometryFacts",
+      {"sew", "lmul", "policy", "predicate-kind", "index-eew", "offset-unit"},
+      FormulaAxisUse::Decisive,
+      "RVVCompositeGatherMAccScatterCapabilityFacts", {"supports-typed-config"},
+      FormulaAxisUse::HonestNull,
+      "RVVCompositeGatherMAccScatterNoStaticContext");
+  composite.addSemanticCase("gather-macc-scatter");
+  composite.addSemanticCase("unsupported-or-illegal");
+  composite.addProductionEntry("internal:composite-gather-macc-scatter-plan");
+  out.push_back(std::move(composite));
   auto addDequantPlan =
       [&](llvm::StringRef id, llvm::StringRef gType,
           std::initializer_list<llvm::StringRef> gFields,
@@ -814,16 +854,13 @@ void RVVExtensionPlugin::collectFormulaDescriptors(
   FormulaDescriptor realization = makeDescriptor(
       formula::kSelectedBodyRealization, "operator/selected-body",
       FormulaResultKind::DeterministicConstruction,
-      FormulaConstructionStrength::Strong, "SelectedRVVBodyFacts",
+      FormulaConstructionStrength::ConstructedWeak, "SelectedRVVBodyFacts",
       {"selected-body-kind", "typed-plan"}, FormulaAxisUse::Decisive,
       "RVVCapabilityProjection", {"supported-lmul", "isa-features"},
       FormulaAxisUse::HonestNull, "RealizationNoStaticContext");
   for (const RVVSelectedBodyRealizationOwner &owner :
        getRVVSelectedBodyRealizationOwners())
     realization.addSemanticCase(owner.familyName);
-  // This composite is a construction case inside the contraction owner rather
-  // than a fourteenth registry owner; keep that distinction visible.
-  realization.addSemanticCase("contraction/composite-gather-macc-scatter");
   realization.addProductionEntry("internal:selected-body-realization");
   out.push_back(std::move(realization));
 }
@@ -933,7 +970,7 @@ RVVExtensionPlugin::estimateVariantCost(const VariantCostRequest &request,
   // enforces it), so fail closed otherwise; consulting it here makes the
   // cross-paradigm score auditable (capability-fact -> score).
   const support::CapabilityDescriptor *vectorCapability =
-      request.getCapabilities().lookupProviderByID(kRVVCapabilityID);
+      request.getCapabilities().lookupProviderByID(rvv::getRVVCapabilityID());
   if (!vectorCapability || !vectorCapability->isAvailable())
     return makeRVVPluginError(
         "RVV cost estimation requires an available RVV isa-vector capability id "

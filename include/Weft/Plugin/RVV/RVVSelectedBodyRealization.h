@@ -17,10 +17,18 @@ struct RVVSelectedBodyRealizationOwner {
   using ConsumerPredicate = bool (*)(mlir::Operation *);
   using RealizationHook = llvm::Expected<weft::rvv::WithVLOp> (*)(
       const VariantLoweringBoundaryRequest &, mlir::Operation *);
+  using VariantPredicate = bool (*)(weft::exec::VariantOp);
+  using VariantRealizationHook = llvm::Expected<weft::rvv::WithVLOp> (*)(
+      const VariantLoweringBoundaryRequest &);
 
   llvm::StringLiteral familyName;
   ConsumerPredicate isConsumer = nullptr;
   RealizationHook realize = nullptr;
+  // Composite owners consume a complete variant-level typed construction
+  // result rather than one pre-realized leaf operation. The dispatcher treats
+  // these fields exactly like body owners and never names a family branch.
+  VariantPredicate isVariantConsumer = nullptr;
+  VariantRealizationHook realizeVariant = nullptr;
 };
 
 struct RVVPreRealizedSelectedBodyMatch {

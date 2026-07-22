@@ -105,10 +105,6 @@ module {
 // weight stride 288 >= activation stride 136 selects col_outer by the layout
 // prior; the AlreadyLean fold has exactly one realized Plain tiling body.
 // CONSTRUCT-SAME: loop_order = "col_outer"
-// CONSTRUCT-SAME: weft_rvv.contraction_algorithm = "repack"
-// CONSTRUCT-SAME: weft_rvv.path_materialization = "realized"
-// CONSTRUCT-SAME: weft_rvv.path_selection_reason = "repack-kept-q4_0-prefill"
-// CONSTRUCT-SAME: weft_rvv.repack_accumulator_lmul_selection_reason = "measured"
 
 
 // CONSTRUCT-SAME: weft_rvv.weight_layout_contract = "x16"

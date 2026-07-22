@@ -14,8 +14,9 @@
 // capability-fact-driven selectContractionAlgorithm. Routing reads the structured
 // facts, NEVER the (now optional) quant format LABEL: deleting `quant` and keeping
 // the facts selects the IDENTICAL algorithm and constructs the IDENTICAL region.
-// The decision is stamped on the lowered op as three INERT audit attrs
-// (weft_rvv.*) so it is provable in-IR and lit-CHECKable.
+// The decision is consumed immediately by final typed body construction. Reason
+// and measurement-key values remain transient and are not serialized as a
+// second representation of the computation.
 //
 // STAGE C1 (this file, the in-IR BRIDGE): the pass now LOWERS a repack-SELECTED
 // request to the REAL weft_rvv.repack_gemv_q4_0_q8_0 op and DECLARES the kernel's
@@ -48,9 +49,9 @@
 //
 // The block-dot identity branch DROPS the abstract op's column_count (nc)
 // operand: the block-dot kernel (ggml_vec_dot_q4_0_q8_0) writes ONE fp32 and
-// delegates the M/N loops to ggml's mul_mat caller (a bare 4-operand vec_dot). NO
-// schedule attrs are stamped -- those remain MaterializeRVVQ40Schedule's job
-// downstream. On any module with no quant_contraction op the pass is a no-op.
+// delegates the M/N loops to ggml's mul_mat caller (a bare 4-operand vec_dot).
+// Every successful lowering is completed by the unified schedule formula in the
+// same pass invocation; no downstream field-completion pass is required.
 //
 //===----------------------------------------------------------------------===//
 
@@ -63,6 +64,7 @@
 #include "Weft/Plugin/RVV/RVVFormulaDecision.h"
 #include "Weft/Plugin/RVV/RVVGearboxSchedule.h"
 #include "Weft/Plugin/RVV/RVVRepackScheduleFormula.h"
+#include "Weft/Plugin/RVV/RVVScheduleFormula.h"
 #include "Weft/Support/CapabilityModel.h"
 #include "Weft/Support/DeclaredInstanceHash.h"
 
@@ -89,17 +91,6 @@ namespace weft::transforms {
 
 namespace {
 
-// The inert audit-attr names the stage-B pass stamps on the lowered concrete op.
-// They are pure provenance (no SEW/LMUL/policy/dataflow config) -- the EmitC
-// emitter ignores them, exactly like the MaterializeRVVQ40Schedule pass's
-// additive "weft_rvv.q4_0_schedule.*" trail -- so the emitted C is byte-identical
-// with them present. The block-dot verifier's attribute allow-list is widened to
-// accept this bounded namespace (RVVDialectWideningOps.cpp isAllowedBlockDotAttr).
-constexpr llvm::StringLiteral kAlgorithmAttr = "weft_rvv.contraction_algorithm";
-constexpr llvm::StringLiteral kReasonAttr = "weft_rvv.path_selection_reason";
-constexpr llvm::StringLiteral kMaterializationAttr =
-    "weft_rvv.path_materialization";
-
 // The option-2 stage-C1 OUTPUT CONTRACT carrier (carrier A, the in-IR op attr).
 // When the bridge realizes a repack-SELECTED request as the real repack-GEMV op
 // it stamps weft_rvv.weight_layout_contract = "x16": the DECLARED requirement
@@ -110,19 +101,6 @@ constexpr llvm::StringLiteral kMaterializationAttr =
 // (RVVDialectWideningOps.cpp GgmlRepackGemvQ40Q80Op::verify isAllowedAttr).
 constexpr llvm::StringLiteral kWeightLayoutContractAttr =
     "weft_rvv.weight_layout_contract";
-
-// [档 C#9 / full-LMUL[B]] the repack accumulator-LMUL (m1 whole-LMUL vs mf2 fractional
-// core) selection PROVENANCE the front-door stamps on every constructed repack loop
-// body op, parallel to the path/tiling/loop-order reason attrs. Pure INERT discardable
-// provenance (the EmitC emitter derives the widening chain from integer_core_lmul /
-// half_lanes -- it NEVER reads this reason), so stamping it is byte-exact: it records
-// WHY m1/mf2 was chosen ("correctness-rvv0p7" / "measured" / "capability-default-mf2")
-// so every cell answers the "why this accumulator LMUL" question. Previously the
-// A2 centralizes the reason/key mirror in one stamp helper for all repack builders.
-constexpr llvm::StringLiteral kAccumulatorLmulReasonAttr =
-    "weft_rvv.repack_accumulator_lmul_selection_reason";
-constexpr llvm::StringLiteral kAccumulatorLmulMeasurementKeyAttr =
-    "weft_rvv.repack_accumulator_lmul_measurement_key";
 
 // The RVV vector register file is 32 architectural vector registers as a HARD ISA
 // fact (rvv1.0 v0..v31), independent of VLEN -- the register-budget capability fact
@@ -1357,20 +1335,6 @@ buildRepackAccumulatorLMULDecision(weftrvv::GgmlQuantContractionOp op,
   return pluginrvv::selectRepackAccumulatorLMUL(formula, selectionInput);
 }
 
-template <typename LoopOp>
-void stampRepackAccumulatorLMULDecision(
-    mlir::OpBuilder &builder, LoopOp loop,
-    const pluginrvv::RepackAccumulatorLMULDecision &decision) {
-  loop->setAttr(kAccumulatorLmulReasonAttr,
-                builder.getStringAttr(
-                    pluginrvv::stringifyRepackAccumulatorLMULReason(
-                        decision.reason)));
-  if (decision.measurementKey)
-    loop->setAttr(kAccumulatorLmulMeasurementKeyAttr,
-                  builder.getStringAttr(
-                      decision.measurementKey->scaleModel));
-}
-
 class RVVLowerQuantContractionPass final
     : public impl::RVVLowerQuantContractionBase<RVVLowerQuantContractionPass> {
 public:
@@ -1385,7 +1349,13 @@ public:
             return mlir::WalkResult::interrupt();
           return mlir::WalkResult::advance();
         });
-    if (result.wasInterrupted())
+    if (result.wasInterrupted()) {
+      signalPassFailure();
+      return;
+    }
+    if (mlir::failed(pluginrvv::constructRVVSchedulesViaInterface(
+            module, march, isaVectorHints, tuneRecord, dumpCandidates,
+            /*onlyOpType=*/std::nullopt)))
       signalPassFailure();
   }
 
@@ -1518,9 +1488,8 @@ private:
   // provider op (the pulled pipe -- resolveRVVMinimumVLEN; -march is the un-probed
   // fallback, NOT the op's advisory min_vlen attr), lift the committed WHAT axes,
   // and ask the pure fact-driven selector which algorithm to commit to. Both
-  // branches emit the byte-identical block-dot body (Option (i)), differentiated
-  // only by the inert audit attrs -- so the emitted C is unchanged on every cell
-  // and the repack EFFECT is honestly deferred to stage C.
+  // The selected candidate is realized directly; there is no reason/stamp state
+  // for a downstream pass to reinterpret.
   mlir::LogicalResult lowerOne(weftrvv::GgmlQuantContractionOp op) {
     // Read the per-format OPPONENT FACTS from the op's structured attrs -- routing
     // is fact-driven, NOT keyed on the (now optional) quant format label.
@@ -1747,7 +1716,7 @@ private:
                 "block-dot identity lowering is q4_0-nibble-only, which would "
                 "MISCOMPILE the iq2_xxs grid/sign weights as nibbles)";
 
-    return lowerToBlockDot(op, selection);
+    return lowerToBlockDot(op);
   }
 
   // STAGE C1 bridge (M-FLAT REPACK, region form): realize a repack-SELECTED,
@@ -1857,13 +1826,8 @@ private:
     auto loop = llvm::cast<weftrvv::TypedRepackGemvLoopBodyOp>(
         builder.create(loopState));
 
-    // The in-compiler decision audit (the same INERT provenance triple the
-    // block-dot branch stamps) PLUS the stage-C1 DECLARED OUTPUT CONTRACT. These
-    // are discardable, emitter-inert, dialect-namespaced provenance attrs.
-    loop->setAttr(kAlgorithmAttr, builder.getStringAttr("repack"));
-    loop->setAttr(kReasonAttr, builder.getStringAttr(selection.reason));
-    stampRepackAccumulatorLMULDecision(builder, loop, accLmulDecision);
-    loop->setAttr(kMaterializationAttr, builder.getStringAttr("realized"));
+    // The x16 layout contract is semantic and remains on the final typed body;
+    // selection reasons and measurement keys stay transient.
     loop->setAttr(kWeightLayoutContractAttr, builder.getStringAttr("x16"));
 
     // Region entry args: block_index (index) FOLLOWED by numHalves loop-carried
@@ -2082,12 +2046,7 @@ private:
     auto loop = llvm::cast<weftrvv::TypedRepackGemmLoopBodyOp>(
         builder.create(loopState));
 
-    // The in-compiler decision audit (the same INERT provenance triple the GEVM
-    // branch stamps) PLUS the stage-C1 DECLARED OUTPUT CONTRACT.
-    loop->setAttr(kAlgorithmAttr, builder.getStringAttr("repack"));
-    loop->setAttr(kReasonAttr, builder.getStringAttr(selection.reason));
-    stampRepackAccumulatorLMULDecision(builder, loop, accLmulDecision);
-    loop->setAttr(kMaterializationAttr, builder.getStringAttr("realized"));
+    // Keep only the semantic x16 layout contract on the final typed body.
     loop->setAttr(kWeightLayoutContractAttr, builder.getStringAttr("x16"));
 
     // Region entry args: block_index (index), strip_row_offset (index), FOLLOWED
@@ -2240,10 +2199,6 @@ private:
     auto loop = llvm::cast<weftrvv::TypedRepackGemvLoopBodyOp>(
         builder.create(loopState));
 
-    loop->setAttr(kAlgorithmAttr, builder.getStringAttr("repack"));
-    loop->setAttr(kReasonAttr, builder.getStringAttr(selection.reason));
-    stampRepackAccumulatorLMULDecision(builder, loop, accLmulDecision);
-    loop->setAttr(kMaterializationAttr, builder.getStringAttr("realized"));
     loop->setAttr(kWeightLayoutContractAttr, builder.getStringAttr("x16"));
 
     mlir::Block &body = loop.getBody().emplaceBlock();
@@ -2413,10 +2368,6 @@ private:
     auto loop = llvm::cast<weftrvv::TypedRepackGemmLoopBodyOp>(
         builder.create(loopState));
 
-    loop->setAttr(kAlgorithmAttr, builder.getStringAttr("repack"));
-    loop->setAttr(kReasonAttr, builder.getStringAttr(selection.reason));
-    stampRepackAccumulatorLMULDecision(builder, loop, accLmulDecision);
-    loop->setAttr(kMaterializationAttr, builder.getStringAttr("realized"));
     loop->setAttr(kWeightLayoutContractAttr, builder.getStringAttr("x16"));
 
     mlir::Block &body = loop.getBody().emplaceBlock();
@@ -2559,10 +2510,6 @@ private:
     auto loop = llvm::cast<weftrvv::TypedRepackGemvLoopBodyOp>(
         builder.create(loopState));
 
-    loop->setAttr(kAlgorithmAttr, builder.getStringAttr("repack"));
-    loop->setAttr(kReasonAttr, builder.getStringAttr(selection.reason));
-    stampRepackAccumulatorLMULDecision(builder, loop, accLmulDecision);
-    loop->setAttr(kMaterializationAttr, builder.getStringAttr("realized"));
     loop->setAttr(kWeightLayoutContractAttr, builder.getStringAttr("x16"));
 
     mlir::Block &body = loop.getBody().emplaceBlock();
@@ -2732,10 +2679,6 @@ private:
     auto loop = llvm::cast<weftrvv::TypedRepackGemmLoopBodyOp>(
         builder.create(loopState));
 
-    loop->setAttr(kAlgorithmAttr, builder.getStringAttr("repack"));
-    loop->setAttr(kReasonAttr, builder.getStringAttr(selection.reason));
-    stampRepackAccumulatorLMULDecision(builder, loop, accLmulDecision);
-    loop->setAttr(kMaterializationAttr, builder.getStringAttr("realized"));
     loop->setAttr(kWeightLayoutContractAttr, builder.getStringAttr("x16"));
 
     mlir::Block &body = loop.getBody().emplaceBlock();
@@ -2883,10 +2826,6 @@ private:
     auto loop = llvm::cast<weftrvv::TypedRepackGemvLoopBodyOp>(
         builder.create(loopState));
 
-    loop->setAttr(kAlgorithmAttr, builder.getStringAttr("repack"));
-    loop->setAttr(kReasonAttr, builder.getStringAttr(selection.reason));
-    stampRepackAccumulatorLMULDecision(builder, loop, accLmulDecision);
-    loop->setAttr(kMaterializationAttr, builder.getStringAttr("realized"));
     loop->setAttr(kWeightLayoutContractAttr, builder.getStringAttr("x16"));
 
     mlir::Block &body = loop.getBody().emplaceBlock();
@@ -3063,10 +3002,6 @@ private:
     auto loop = llvm::cast<weftrvv::TypedRepackGemmLoopBodyOp>(
         builder.create(loopState));
 
-    loop->setAttr(kAlgorithmAttr, builder.getStringAttr("repack"));
-    loop->setAttr(kReasonAttr, builder.getStringAttr(selection.reason));
-    stampRepackAccumulatorLMULDecision(builder, loop, accLmulDecision);
-    loop->setAttr(kMaterializationAttr, builder.getStringAttr("realized"));
     loop->setAttr(kWeightLayoutContractAttr, builder.getStringAttr("x16"));
 
     mlir::Block &body = loop.getBody().emplaceBlock();
@@ -3209,10 +3144,6 @@ private:
     auto loop = llvm::cast<weftrvv::TypedRepackGemvLoopBodyOp>(
         builder.create(loopState));
 
-    loop->setAttr(kAlgorithmAttr, builder.getStringAttr("repack"));
-    loop->setAttr(kReasonAttr, builder.getStringAttr(selection.reason));
-    stampRepackAccumulatorLMULDecision(builder, loop, accLmulDecision);
-    loop->setAttr(kMaterializationAttr, builder.getStringAttr("realized"));
     loop->setAttr(kWeightLayoutContractAttr, builder.getStringAttr("x16"));
 
     mlir::Block &body = loop.getBody().emplaceBlock();
@@ -3374,10 +3305,6 @@ private:
     auto loop = llvm::cast<weftrvv::TypedRepackGemmLoopBodyOp>(
         builder.create(loopState));
 
-    loop->setAttr(kAlgorithmAttr, builder.getStringAttr("repack"));
-    loop->setAttr(kReasonAttr, builder.getStringAttr(selection.reason));
-    stampRepackAccumulatorLMULDecision(builder, loop, accLmulDecision);
-    loop->setAttr(kMaterializationAttr, builder.getStringAttr("realized"));
     loop->setAttr(kWeightLayoutContractAttr, builder.getStringAttr("x16"));
 
     mlir::Block &body = loop.getBody().emplaceBlock();
@@ -3532,10 +3459,6 @@ private:
     auto loop = llvm::cast<weftrvv::TypedRepackGemvLoopBodyOp>(
         builder.create(loopState));
 
-    loop->setAttr(kAlgorithmAttr, builder.getStringAttr("repack"));
-    loop->setAttr(kReasonAttr, builder.getStringAttr(selection.reason));
-    stampRepackAccumulatorLMULDecision(builder, loop, accLmulDecision);
-    loop->setAttr(kMaterializationAttr, builder.getStringAttr("realized"));
     loop->setAttr(kWeightLayoutContractAttr, builder.getStringAttr("x16"));
 
     // Region entry args: block_index (index) FOLLOWED by numHalves loop-carried
@@ -3707,10 +3630,6 @@ private:
     auto loop = llvm::cast<weftrvv::TypedRepackGemmLoopBodyOp>(
         builder.create(loopState));
 
-    loop->setAttr(kAlgorithmAttr, builder.getStringAttr("repack"));
-    loop->setAttr(kReasonAttr, builder.getStringAttr(selection.reason));
-    stampRepackAccumulatorLMULDecision(builder, loop, accLmulDecision);
-    loop->setAttr(kMaterializationAttr, builder.getStringAttr("realized"));
     loop->setAttr(kWeightLayoutContractAttr, builder.getStringAttr("x16"));
 
     // Region entry args: block_index (index), strip_row_offset (index), FOLLOWED
@@ -3872,10 +3791,6 @@ private:
     auto loop = llvm::cast<weftrvv::TypedRepackGemvLoopBodyOp>(
         builder.create(loopState));
 
-    loop->setAttr(kAlgorithmAttr, builder.getStringAttr("repack"));
-    loop->setAttr(kReasonAttr, builder.getStringAttr(selection.reason));
-    stampRepackAccumulatorLMULDecision(builder, loop, accLmulDecision);
-    loop->setAttr(kMaterializationAttr, builder.getStringAttr("realized"));
     loop->setAttr(kWeightLayoutContractAttr, builder.getStringAttr("x16"));
 
     mlir::Block &body = loop.getBody().emplaceBlock();
@@ -4056,10 +3971,6 @@ private:
     auto loop = llvm::cast<weftrvv::TypedRepackGemmLoopBodyOp>(
         builder.create(loopState));
 
-    loop->setAttr(kAlgorithmAttr, builder.getStringAttr("repack"));
-    loop->setAttr(kReasonAttr, builder.getStringAttr(selection.reason));
-    stampRepackAccumulatorLMULDecision(builder, loop, accLmulDecision);
-    loop->setAttr(kMaterializationAttr, builder.getStringAttr("realized"));
     loop->setAttr(kWeightLayoutContractAttr, builder.getStringAttr("x16"));
 
     mlir::Block &body = loop.getBody().emplaceBlock();
@@ -4200,10 +4111,6 @@ private:
     auto loop = llvm::cast<weftrvv::TypedRepackGemvLoopBodyOp>(
         builder.create(loopState));
 
-    loop->setAttr(kAlgorithmAttr, builder.getStringAttr("repack"));
-    loop->setAttr(kReasonAttr, builder.getStringAttr(selection.reason));
-    stampRepackAccumulatorLMULDecision(builder, loop, accLmulDecision);
-    loop->setAttr(kMaterializationAttr, builder.getStringAttr("realized"));
     loop->setAttr(kWeightLayoutContractAttr, builder.getStringAttr("x16"));
 
     mlir::Block &body = loop.getBody().emplaceBlock();
@@ -4374,10 +4281,6 @@ private:
     auto loop = llvm::cast<weftrvv::TypedRepackGemmLoopBodyOp>(
         builder.create(loopState));
 
-    loop->setAttr(kAlgorithmAttr, builder.getStringAttr("repack"));
-    loop->setAttr(kReasonAttr, builder.getStringAttr(selection.reason));
-    stampRepackAccumulatorLMULDecision(builder, loop, accLmulDecision);
-    loop->setAttr(kMaterializationAttr, builder.getStringAttr("realized"));
     loop->setAttr(kWeightLayoutContractAttr, builder.getStringAttr("x16"));
 
     mlir::Block &body = loop.getBody().emplaceBlock();
@@ -4509,10 +4412,6 @@ private:
     auto loop = llvm::cast<weftrvv::TypedRepackGemvLoopBodyOp>(
         builder.create(loopState));
 
-    loop->setAttr(kAlgorithmAttr, builder.getStringAttr("repack"));
-    loop->setAttr(kReasonAttr, builder.getStringAttr(selection.reason));
-    stampRepackAccumulatorLMULDecision(builder, loop, accLmulDecision);
-    loop->setAttr(kMaterializationAttr, builder.getStringAttr("realized"));
     loop->setAttr(kWeightLayoutContractAttr, builder.getStringAttr("x16"));
 
     mlir::Block &body = loop.getBody().emplaceBlock();
@@ -4682,10 +4581,6 @@ private:
     auto loop = llvm::cast<weftrvv::TypedRepackGemmLoopBodyOp>(
         builder.create(loopState));
 
-    loop->setAttr(kAlgorithmAttr, builder.getStringAttr("repack"));
-    loop->setAttr(kReasonAttr, builder.getStringAttr(selection.reason));
-    stampRepackAccumulatorLMULDecision(builder, loop, accLmulDecision);
-    loop->setAttr(kMaterializationAttr, builder.getStringAttr("realized"));
     loop->setAttr(kWeightLayoutContractAttr, builder.getStringAttr("x16"));
 
     mlir::Block &body = loop.getBody().emplaceBlock();
@@ -4747,15 +4642,10 @@ private:
     return mlir::success();
   }
 
-  // Option (i): emit the byte-identical weft_rvv.q4_0_q8_0_block_dot body for BOTH
-  // the BlockDot-selected (realized) and the Repack-selected (deferred-stage-c)
-  // cases, reconstructing today's hand-authored attrs verbatim and DROPPING
-  // column_count (nc). The ONLY per-cell difference is the three inert audit attrs
-  // recording the in-compiler decision. The emitted C is byte-identical to today
-  // on every path; the repack op is materialized by stage C, never here.
-  mlir::LogicalResult
-  lowerToBlockDot(weftrvv::GgmlQuantContractionOp op,
-                  const pluginrvv::ContractionSelection &selection) {
+  // Construct the final block-dot body atomically. The algorithm choice is
+  // consumed by the selected typed target itself; it is not serialized again as
+  // provenance that a later layer could mistake for compute authority.
+  mlir::LogicalResult lowerToBlockDot(weftrvv::GgmlQuantContractionOp op) {
     mlir::OpBuilder builder(op);
 
     // Operands: DROP column_count (nc) -- the block-dot vec_dot delegates M/N to
@@ -4778,24 +4668,13 @@ private:
         /*quant_byte_offset=*/static_cast<uint64_t>(op.getQuantByteOffset()),
         /*activation_high_byte_offset=*/
         static_cast<uint64_t>(op.getActivationHighByteOffset()),
-        // NO schedule knobs -- MaterializeRVVQ40Schedule stamps them downstream,
-        // exactly as today.
+        // Schedule fields are initially absent only inside this builder call;
+        // runOnOperation invokes the unified schedule formula before the pass can
+        // succeed, so this state is never a successful production output.
         /*integer_core_lmul=*/::mlir::StringAttr(),
         /*multi_block_factor=*/::mlir::IntegerAttr(),
-        /*strip_elision=*/::mlir::StringAttr());
-
-    // Stamp the in-compiler decision as INERT audit attrs (emitter-ignored
-    // provenance, like weft_rvv.q4_0_schedule.*). Repack-selected records that
-    // the repack DECISION is real but its weight materialization is deferred to
-    // stage C; BlockDot-selected records the choice as fully realized.
-    bool isRepack =
-        selection.algorithm == pluginrvv::ContractionAlgorithm::Repack;
-    blockDot->setAttr(kAlgorithmAttr,
-                      builder.getStringAttr(isRepack ? "repack" : "block-dot"));
-    blockDot->setAttr(kReasonAttr, builder.getStringAttr(selection.reason));
-    blockDot->setAttr(kMaterializationAttr,
-                      builder.getStringAttr(isRepack ? "deferred-stage-c"
-                                                     : "realized"));
+        /*strip_elision=*/::mlir::StringAttr(),
+        /*minimum_vlen=*/::mlir::IntegerAttr());
 
     op.getResult().replaceAllUsesWith(blockDot.getResult());
     op.erase();

@@ -717,7 +717,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitMXFP4Q8_0BlockDot(
           "(materialize-schedule on a VLEN>=128 target) -- fail-closed (I7)");
 
     std::optional<FlatBlockDotDescriptor> descriptor =
-        deriveFlatBlockDotDescriptor(blockDot.getOperation());
+        readFinalFlatBlockDotDescriptor(blockDot.getOperation());
     if (!descriptor)
       return rewriter.notifyMatchFailure(blockDot,
                                          "block-dot kind not flat-codebook");

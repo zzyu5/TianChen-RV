@@ -1,6 +1,8 @@
 // RUN: weft-opt %s --weft-rvv-lower-to-emitc | FileCheck %s
 // RUN: sed 's|// R1 ||' %s | not weft-opt --weft-rvv-lower-to-emitc 2>&1 | FileCheck %s --check-prefix=REJECT
 // RUN: sed 's|// R2 ||' %s | not weft-opt --weft-rvv-lower-to-emitc 2>&1 | FileCheck %s --check-prefix=REJECT-NESTED
+// RUN: sed 's|kind = "typed_flat_block_dot_loop_body"|weft_rvv.flat_body_family = "shared", kind = "typed_flat_block_dot_loop_body"|' %s | not weft-opt --weft-rvv-lower-to-emitc 2>&1 | FileCheck %s --check-prefix=PARTIAL-PLAN
+// RUN: sed 's|kind = "typed_flat_block_dot_loop_body"|weft_rvv.flat_body_family = "shared", weft_rvv.flat_decode_primitive = "offset-binary-nibble", weft_rvv.flat_fold_model = "left-associative", weft_rvv.flat_block_length = 16 : i64, weft_rvv.flat_activation_quant_byte_offset = 2 : i64, weft_rvv.flat_weight_scale_source = "fp16", weft_rvv.flat_codebook_table_name = "", weft_rvv.flat_offset_bias = "none", kind = "typed_flat_block_dot_loop_body"|' %s | not weft-opt --weft-rvv-lower-to-emitc 2>&1 | FileCheck %s --check-prefix=FORGED-PLAN
 
 // M-FLAT loop-scaffold step 4/6 -- the loop-aware ALLOWLIST RECURSIVE validator
 // (the strong-form [L-8] gate; core-invariants I5/I7). It recursively walks the
@@ -22,8 +24,8 @@
 // driver (the loop op flows through THIS lowering pass, never the pre-realized
 // realization owner), so the fail-closed diagnostic reaches stderr reliably.
 //
-// - The base module (no sed) is the POSITIVE case: a legal loop body (brick 3 +
-//   the typed yield) passes the validator and lowers.
+// - The base module (no sed) is the POSITIVE case: a complete q8_0 mechanism
+//   body passes formula construction and the validator, then lowers.
 // - `sed 's|// R1 ||'` injects a TOP-LEVEL opaque emitc.verbatim into the loop
 //   region -> fail-closed reject (REJECT).
 // - `sed 's|// R2 ||'` injects an opaque emitc.verbatim NESTED inside an
@@ -39,7 +41,7 @@ module {
       %vy = weft_rvv.runtime_abi_value {c_name = "vy", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "loop-body:activation", role = "rhs-input-buffer"} : !weft_rvv.runtime_abi_value
       %s = weft_rvv.runtime_abi_value {c_name = "s", c_type = "float *", ownership = "target-export-abi-owned", purpose = "loop-body:out", role = "output-buffer"} : !weft_rvv.runtime_abi_value
       %n = weft_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "loop-body:n", role = "runtime-element-count"} : index
-      %term = weft_rvv.runtime_abi_value {c_name = "stub_term", c_type = "float", ownership = "target-export-abi-owned", purpose = "loop-body:stub-term", role = "lower-bound-scalar-value"} : f32
+      %zero_seed = weft_rvv.runtime_abi_value {c_name = "zero_seed", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "loop-body:reduce-seed", role = "accumulator-input-buffer"} : !weft_rvv.runtime_abi_value
       %vl = weft_rvv.setvl %n {lmul = "m2", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, sew = 8 : i64} : index -> !weft_rvv.vl
       weft_rvv.with_vl %vl attributes {lmul = "m2", origin = "rvv-plugin", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @rvv_flat_loop_allowlist, sew = 8 : i64, source_kernel = "rvv_flat_loop_allowlist_kernel", status = "selected-lowering-boundary"} {
         weft_rvv.typed_flat_block_dot_loop_body %vx, %vy, %s, %n attributes {kind = "typed_flat_block_dot_loop_body", qk = 32 : i64, weight_block_stride = 34 : i64, activation_block_stride = 34 : i64, fold_model = "sumi_times_scales", integer_core_lmul = "m2", multi_block_factor = 1 : i64, strip_elision = "elided", fold_structure = "per-block", numerics_tier = "strict"} {
@@ -49,7 +51,14 @@ module {
           // R2 weft_rvv.with_vl %r2vl attributes {lmul = "m2", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, sew = 8 : i64} {
           // R2   %r2 = weft_rvv.q4_0_q8_0_block_dot %vx, %vy, %s, %n, %r2vl {kind = "ggml_q4_0_q8_0_block_dot", scale_model = "dual-fp16-per-block-d_x.d_y", qk = 32 : i64, weight_block_stride = 18 : i64, activation_block_stride = 34 : i64, quant_byte_offset = 2 : i64, activation_high_byte_offset = 16 : i64, integer_core_lmul = "mf4", multi_block_factor = 1 : i64, strip_elision = "robust"} : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index, !weft_rvv.vl -> !weft_rvv.vector<i32, "m1">
           // R2 } : !weft_rvv.vl
-          %acc_next = weft_rvv.cross_block_f32_accumulate %acc, %term {kind = "cross_block_f32_scalar_accumulate", accumulate_order = "strict-ascending-block-carried"} : f32, f32 -> f32
+          %dd = weft_rvv.block_fp16_scale_product %vx, %vy block %block_index : index {kind = "dual_fp16_per_block_scale_product", scale_model = "dual-fp16-per-block-d_x.d_y", lhs_block_stride = 34 : i64, rhs_block_stride = 34 : i64} : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value -> f32
+          %wv = weft_rvv.load %vx, %vl block %block_index : index {block_stride = 34 : i64, quant_byte_offset = 2 : i64} : !weft_rvv.runtime_abi_value, !weft_rvv.vl -> !weft_rvv.vector<i8, "m2">
+          %av = weft_rvv.load %vy, %vl block %block_index : index {block_stride = 34 : i64, quant_byte_offset = 2 : i64} : !weft_rvv.runtime_abi_value, !weft_rvv.vl -> !weft_rvv.vector<i8, "m2">
+          %prod = weft_rvv.widening_product %wv, %av, %vl {kind = "signed_widening_product", product_relation = "signed-i8m2xi8m2-to-i16m4"} : !weft_rvv.vector<i8, "m2">, !weft_rvv.vector<i8, "m2">, !weft_rvv.vl -> !weft_rvv.vector<i16, "m4">
+          %red = weft_rvv.standalone_reduce %prod, %zero_seed, %vl {accumulator_layout = "scalar-i32-seed-lane0-from-accumulator-input", kind = "signed_widening_reduce_add", result_layout = "store-standalone-reduction-lane0-to-output-scalar"} : !weft_rvv.vector<i16, "m4">, !weft_rvv.runtime_abi_value, !weft_rvv.vl -> !weft_rvv.vector<i32, "m1">
+          %sumi = weft_rvv.typed_vector_lane0_to_scalar_extract %red, %vl {kind = "vector_lane0_to_scalar_i32_extract", extract_relation = "i32m1-lane0-to-scalar-i32"} : !weft_rvv.vector<i32, "m1">, !weft_rvv.vl -> i32
+          %bterm = weft_rvv.block_computed_scale_dequant %sumi, %dd {kind = "computed_scale_sumi_dequant", dequant_relation = "scalar-i32-sumi-to-f32-computed-scale-f32"} : i32, f32 -> f32
+          %acc_next = weft_rvv.cross_block_f32_accumulate %acc, %bterm {kind = "cross_block_f32_scalar_accumulate", accumulate_order = "strict-ascending-block-carried"} : f32, f32 -> f32
           weft_rvv.typed_flat_block_dot_loop_yield %acc_next : f32
         } : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index
       } : !weft_rvv.vl
@@ -57,8 +66,7 @@ module {
   }
 }
 
-// The legal body (brick 3 + typed yield) passes the allowlist validator and
-// lowers to the byte-exact loop skeleton (the emitc.func exists).
+// The complete legal body passes the allowlist validator and lowers.
 // CHECK-NOT: weft_rvv.
 // CHECK: emitc.func @weft_emitc_rvv_flat_loop_allowlist_kernel_rvv_flat_loop_allowlist(
 // CHECK: return
@@ -75,3 +83,9 @@ module {
 // non-recursive single-block blocklist could not see one level deeper). This is
 // the literal [L-8] opaque-helper leak the strong-form gate exists to catch.
 // REJECT-NESTED: 'weft_rvv.q4_0_q8_0_block_dot' op is not in the M-FLAT typed flat block-dot loop-body allowlist
+
+// A caller cannot supply a partial final plan, nor forge a complete plan that
+// conflicts with the concrete typed mechanism body. Formula construction owns
+// the atomic tuple and rejects both before emission.
+// PARTIAL-PLAN: carries a partial flat block-dot formula plan
+// FORGED-PLAN: carries a flat block-dot formula plan inconsistent with its typed geometry

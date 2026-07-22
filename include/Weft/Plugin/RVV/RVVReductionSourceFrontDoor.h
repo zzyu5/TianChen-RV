@@ -23,8 +23,8 @@ namespace weft::plugin::rvv {
 // vector.multi_reduction<add> + scalar store) and AUTO-CONSTRUCTS the weft_rvv
 // load/widening_product/standalone_reduce/store body the unchanged EmitC emitter
 // consumes. The integer-core LMUL anchor is NOT hardcoded: it is the return value
-// of the shared block-dot schedule authority (enumerateBlockDotShapeCandidates +
-// selectGenericSchedule) fed resolveRVVMinimumVLEN(module), so the SAME generic op
+// of RVVSourceScheduleFormula over typed source and canonical capability facts,
+// so the SAME generic op
 // emits an e8m2-form body at VLEN128 and an e8m1-form body at VLEN256.
 std::unique_ptr<::mlir::Pass>
 createMaterializeRVVReductionSourceFrontDoorPass(

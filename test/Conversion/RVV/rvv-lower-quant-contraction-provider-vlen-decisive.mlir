@@ -4,15 +4,15 @@
 // The in-IR RVV capability provider declares a TYPED minimum_vlen = 256, while the
 // lower-quant-contraction pass is driven with a CONFLICTING -march (rv64gcv =>
 // guaranteed VLEN 128). The two facts DISAGREE on purpose:
-//   * At VLEN 256 the fact-driven selector commits to "block-dot"; at VLEN 128 it
-//     commits to "repack". So the contraction_algorithm the pass stamps is a
-//     DECISIVE observable of WHICH VLEN fact the consumer read.
+//   * At VLEN 256 the fact-driven selector constructs the block-dot typed body;
+//     at VLEN 128 it constructs the repack typed body. The resulting operation
+//     identity is the decisive observable of which capability fact was read.
 //   * If it follows the PROVIDER fact (minimum_vlen 256 => "block-dot") the pipe is
 //     TRULY PULLED: resolveRVVMinimumVLEN read the in-IR capability object, NOT a
 //     local deriveMinimumVLEN(-march) re-parse.
 //   * If it followed the -march re-parse (128 => "repack") the march bypass would
 //     still be alive -- the FALSE-GREEN this task forbids.
-// contraction_algorithm = "block-dot" == GREEN (bypass dead, provider authoritative).
+// A block-dot typed body with minimum_vlen=256 is GREEN (provider authoritative).
 //
 // The companion strip-width decisive test proves the SAME pull for the schedule-
 // layer consumer; this one proves it for the front-door quant-contraction consumer.
@@ -38,9 +38,9 @@ module attributes {"weft.exec.emit_c_identifier_scope" = "kernel"} {
   }
 }
 
-// The abstract quant_contraction op is CONSUMED into a typed region; the stamped
-// contraction_algorithm follows the PROVIDER minimum_vlen=256 ("block-dot"), NOT
-// the conflicting -march=rv64gcv (which alone would give "repack" at VLEN 128).
-// Pipeline truly pulled: the consumer read the in-IR capability fact, not -march.
-// DECISIVE: contraction_algorithm = "block-dot"
-// DECISIVE-NOT: contraction_algorithm = "repack"
+// The abstract quant_contraction op is consumed into the block-dot typed body
+// using the provider minimum_vlen=256, not the conflicting march's VLEN 128.
+// DECISIVE-NOT: weft_rvv.quant_contraction
+// DECISIVE-NOT: weft_rvv.typed_repack_gemv_loop_body
+// DECISIVE: weft_rvv.q4_0_q8_0_block_dot
+// DECISIVE-SAME: minimum_vlen = 256 : i64

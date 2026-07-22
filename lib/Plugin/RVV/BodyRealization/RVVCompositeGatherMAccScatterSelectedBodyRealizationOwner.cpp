@@ -2,6 +2,7 @@
 
 #include "Weft/Dialect/RVV/IR/RVVConfigContract.h"
 #include "Weft/Plugin/RVV/RVVConstructionProtocol.h"
+#include "Weft/Plugin/RVV/RVVCompositeGatherMAccScatterFormula.h"
 #include "Weft/Plugin/RVV/RVVEmitCRoutePlanning.h"
 #include "Weft/Plugin/RVV/RVVGearboxSchedule.h"
 #include "Weft/Plugin/RVV/RVVRuntimeAVLVLControl.h"
@@ -626,6 +627,10 @@ bool hasPreRealizedRVVCompositeGatherMAccScatterOwnerCandidate(
     weft::exec::VariantOp variant) {
   CompositeGatherMAccScatterBodies bodies =
       collectCompositeGatherMAccScatterBodies(variant);
+  // A single typed leaf is owned by its ordinary selected-body owner.  The
+  // composite owner is a variant-level owner only once the variant actually
+  // presents a cross-family cluster; it then validates that the cluster is
+  // exactly gather + MAcc + scatter and fails closed on partial composites.
   return bodies.ownedBodyCount > 1;
 }
 
@@ -663,6 +668,19 @@ realizePreRealizedRVVCompositeGatherMAccScatterOwner(
           variant, request.getCapabilities(), *runtimeControlPlan);
   if (!targetFacts)
     return targetFacts.takeError();
+  llvm::Expected<RVVCompositeGatherMAccScatterPlan> formulaPlan =
+      constructRVVCompositeGatherMAccScatterFormula(
+          {/*sew=*/sew,
+           /*lmul=*/lmul.str(),
+           /*policy=*/bodies->gather.getPolicy(),
+           /*predicateKind=*/bodies->gather.getPredicateKind().str(),
+           /*indexEEW=*/
+               static_cast<std::int64_t>(bodies->gather.getIndexEew()),
+           /*offsetUnit=*/bodies->gather.getOffsetUnit().str()},
+          {/*supportsTypedConfig=*/targetFacts->hasFacts()},
+          RVVCompositeGatherMAccScatterNoStaticContext{});
+  if (!formulaPlan)
+    return formulaPlan.takeError();
 
   builder.setInsertionPoint(firstBody);
   auto setvl = llvm::cast<weft::rvv::SetVLOp>(
@@ -679,52 +697,54 @@ realizePreRealizedRVVCompositeGatherMAccScatterOwner(
   builder.setInsertionPointToStart(&withVL.getBody().front());
   auto compareLhsLoad =
       llvm::cast<weft::rvv::LoadOp>(createRealizedGenericLoad(
-          builder, loc, bodies->gather.getLhs(), setvl.getVl(), sew, lmul));
+          builder, loc, bodies->gather.getLhs(), setvl.getVl(),
+          formulaPlan->sew, formulaPlan->lmul));
   auto rhsScalarSplat =
       llvm::cast<weft::rvv::SplatOp>(createRealizedGenericSplat(
-          builder, loc, bodies->gather.getRhsScalar(), setvl.getVl(), sew,
-          lmul));
+          builder, loc, bodies->gather.getRhsScalar(), setvl.getVl(),
+          formulaPlan->sew, formulaPlan->lmul));
   auto payloadLoad =
       llvm::cast<weft::rvv::LoadOp>(createRealizedGenericLoad(
-          builder, loc, bodies->macc.getRhs(), setvl.getVl(), sew, lmul));
+          builder, loc, bodies->macc.getRhs(), setvl.getVl(),
+          formulaPlan->sew, formulaPlan->lmul));
   auto accumulatorLoad =
       llvm::cast<weft::rvv::LoadOp>(createRealizedGenericLoad(
-          builder, loc, bodies->macc.getAcc(), setvl.getVl(), sew, lmul));
+          builder, loc, bodies->macc.getAcc(), setvl.getVl(),
+          formulaPlan->sew, formulaPlan->lmul));
   auto oldDestinationLoad =
       llvm::cast<weft::rvv::LoadOp>(createRealizedGenericLoad(
-          builder, loc, bodies->gather.getDestination(), setvl.getVl(), sew,
-          lmul));
+          builder, loc, bodies->gather.getDestination(), setvl.getVl(),
+          formulaPlan->sew, formulaPlan->lmul));
   auto indexLoad =
       llvm::cast<weft::rvv::IndexLoadOp>(createRealizedGenericIndexLoad(
           builder, loc, bodies->gather.getIndex(), setvl.getVl(),
-          static_cast<std::int64_t>(bodies->gather.getIndexEew()), lmul));
+          formulaPlan->indexEEW, formulaPlan->lmul));
   auto compare = llvm::cast<weft::rvv::CompareOp>(
       createRealizedGenericCompare(builder, loc, compareLhsLoad.getLoaded(),
                                    rhsScalarSplat.getBroadcast(),
                                    setvl.getVl(),
-                                   bodies->gather.getPredicateKind()));
+                                   formulaPlan->predicateKind));
   auto maskedIndexedLoad =
       llvm::cast<weft::rvv::MaskedIndexedLoadOp>(
           createRealizedGenericMaskedIndexedLoad(
               builder, loc, bodies->gather.getSource(),
               indexLoad.getLoaded(), compare.getMask(),
               oldDestinationLoad.getLoaded(), setvl.getVl(),
-              static_cast<std::int64_t>(bodies->gather.getIndexEew()),
-              bodies->gather.getOffsetUnit(),
-              bodies->gather.getInactiveLanePolicy()));
+              formulaPlan->indexEEW, formulaPlan->offsetUnit,
+              formulaPlan->gatherInactiveLanePolicy));
   auto maskedMAcc = llvm::cast<weft::rvv::MaskedMAccOp>(
       createRealizedGenericMaskedMAcc(
           builder, loc, compare.getMask(), maskedIndexedLoad.getLoaded(),
           payloadLoad.getLoaded(), accumulatorLoad.getLoaded(), setvl.getVl(),
-          bodies->macc.getMaskRole(), bodies->macc.getMaskSource(),
-          bodies->macc.getMaskMemoryForm(), bodies->macc.getAccumulatorLayout(),
-          bodies->macc.getResultLayout()));
+          formulaPlan->maskRole, formulaPlan->maskSource,
+          formulaPlan->maskMemoryForm, formulaPlan->accumulatorLayout,
+          formulaPlan->resultLayout));
   createRealizedGenericMaskedIndexedStore(
       builder, loc, bodies->scatter.getDestination(), indexLoad.getLoaded(),
       compare.getMask(), maskedMAcc.getResult(), setvl.getVl(),
-      static_cast<std::int64_t>(bodies->scatter.getIndexEew()),
-      bodies->scatter.getOffsetUnit(), bodies->scatter.getIndexUniqueness(),
-      bodies->scatter.getInactiveLanePolicy());
+      formulaPlan->indexEEW, formulaPlan->offsetUnit,
+      formulaPlan->scatterIndexUniqueness,
+      formulaPlan->scatterInactiveLanePolicy);
 
   mlir::Value maccLhsPlaceholder = bodies->macc.getLhs();
   mlir::Value scatterSourcePlaceholder = bodies->scatter.getSource();

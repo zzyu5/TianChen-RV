@@ -14,21 +14,17 @@
 
 #include "Weft/Plugin/RVV/RVVDequantizeRowStreamFrontDoor.h"
 #include "Weft/Plugin/RVV/RVVFormulaCatalog.h"
-#include "Weft/Plugin/RVV/RVVDequantFormula.h"
+#include "Weft/Plugin/RVV/RVVFormulaConstruction.h"
 
-#include "Weft/Dialect/RVV/IR/RVVDequantizeRowConstruction.h"
 #include "Weft/Dialect/RVV/IR/RVVDialect.h"
 #include "Weft/Plugin/ExtensionPlugin.h"
 
 #include "mlir/IR/BuiltinOps.h"
-#include "mlir/IR/PatternMatch.h"
 #include "mlir/Pass/Pass.h"
-#include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Error.h"
 
 #include <memory>
-#include <optional>
 
 namespace weft::plugin::rvv {
 namespace {
@@ -60,55 +56,8 @@ public:
   }
 
   void runOnOperation() final {
-    mlir::ModuleOp module = getOperation();
-    mlir::IRRewriter rewriter(module.getContext());
-
-    // Collect first, then rewrite: constructTypedDequantizeRowLoopBody erases each
-    // abstract op, so mutating during the walk would be unsafe.
-    llvm::SmallVector<weftrvv::GgmlDequantizeRowOp> deqOps;
-    module.walk(
-        [&](weftrvv::GgmlDequantizeRowOp op) { deqOps.push_back(op); });
-
-    for (weftrvv::GgmlDequantizeRowOp deqOp : deqOps) {
-      std::optional<weftrvv::DequantizeRowStreamFacts> facts =
-          weftrvv::lookupDequantizeRowStreamFacts(deqOp.getFormat());
-      if (!facts) {
-        deqOp.emitError()
-            << "dequantize_row-stream front door has no typed construction for "
-               "format '"
-            << deqOp.getFormat() << "'";
-        signalPassFailure();
-        return;
-      }
-      llvm::Expected<std::optional<CodebookGatherCapabilityFacts>> capability =
-          projectDequantizeRowCapability(
-              deqOp.getOperation(), *facts,
-              "dequantize-row inspection front door");
-      if (!capability) {
-        deqOp.emitError() << llvm::toString(capability.takeError());
-        signalPassFailure();
-        return;
-      }
-      llvm::Expected<weftrvv::DequantizeRowConstruction> construction =
-          constructDequantizeRowFormula(*facts, *capability);
-      if (!construction) {
-        deqOp.emitError() << llvm::toString(construction.takeError());
-        signalPassFailure();
-        return;
-      }
-      if (mlir::failed(weftrvv::constructTypedDequantizeRowLoopBody(
-              rewriter, deqOp, *construction))) {
-        deqOp.emitError()
-            << "dequantize_row-stream front door failed to construct the typed "
-               "region for decode_model '"
-            << deqOp.getFormat() << "'";
-        signalPassFailure();
-        return;
-      }
-    }
-
-    // Stop after the complete typed formula result has become the final body.
-    // The emitter sees no preselection/partial-plan state.
+    if (mlir::failed(constructRVVDequantizeRowFormulaBodies(getOperation())))
+      signalPassFailure();
   }
 };
 

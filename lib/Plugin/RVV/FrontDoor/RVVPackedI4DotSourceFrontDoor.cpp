@@ -24,9 +24,8 @@
 // dequant-vs-reduction.
 //
 // CAPABILITY framing -- NO FLIP claimed. The capability consultation is the SAME
-// shared block-dot schedule authority the rung-1/2 front doors use
-// (selectIntegerCoreLMUL: enumerateBlockDotShapeCandidates + selectGenericSchedule
-// fed resolveRVVMinimumVLEN(module)), run as the LEGALITY GATE (fail-closed via I7
+// RVVSourceScheduleFormula owner the rung-1/2 front doors use, run as the
+// LEGALITY GATE (fail-closed via I7
 // if the integer-core path is pruned), NOT as the nibble anchor source. q4_0's
 // nibble HALF-block integer core is pinned at i8mf4-i16mf2-i32m1 at every Zvl128b
 // tier -- there is NO VLEN128-vs-VLEN256 byte-flip here. This is the documented
@@ -49,6 +48,7 @@
 #include "Weft/Plugin/RVV/RVVCapabilityProfile.h"
 #include "Weft/Plugin/RVV/RVVExtensionPlugin.h"
 #include "Weft/Plugin/RVV/RVVGearboxSchedule.h"
+#include "Weft/Plugin/RVV/RVVSourceScheduleFormula.h"
 #include "Weft/Support/CapabilityModel.h"
 #include "Weft/Transforms/VariantMaterialization.h"
 
@@ -209,36 +209,15 @@ std::optional<std::string>
 selectIntegerCoreLMUL(mlir::ModuleOp module, llvm::StringRef march,
                       llvm::StringRef isaVectorHints) {
   std::int64_t minimumVLEN = resolveRVVMinimumVLEN(module, march, isaVectorHints);
-
-  static constexpr llvm::StringLiteral kCoreLMULs[] = {"m1", "m2"};
-  RVVBlockDotKernelDescriptor descriptor{
-      /*coreLMULs=*/kCoreLMULs,
-      /*quantFormat=*/"plain-int8",
-      /*blockLen=*/kContractionBlockLen,
-      /*stripSEW=*/getRVVBlockDotStripSEW,
-      /*vectorRegisterCost=*/getRVVQ80ShapeVectorRegisterCost};
-  // factorCap=1: the gate reasons about the single-block robust integer core; the
-  // multi_block unroll axis is a separate Win-A brick, not folded in here.
-  descriptor.factorCap = 1;
-
-  llvm::SmallVector<RVVBlockDotShapeCandidate, 18> typed =
-      enumerateBlockDotShapeCandidates(descriptor, minimumVLEN,
-                                       kRVVQ80ShapeVectorRegisterBudget);
-  llvm::SmallVector<GenericScheduleCandidate> candidates;
-  for (const RVVBlockDotShapeCandidate &candidate : typed)
-    candidates.push_back(toGenericBlockDotCandidate(candidate));
-
-  static constexpr llvm::StringRef kRequiredKnobKeys[] = {"lmul"};
-  std::optional<GenericScheduleSelection> selected = selectGenericSchedule(
-      candidates, /*recordText=*/std::nullopt,
-      /*kernelKey=*/"packed_i4_offset_binary_dot_i8", march, kRequiredKnobKeys);
-  if (!selected)
-    return std::nullopt; // every candidate pruned -> fail-closed (I7).
-
-  for (const NamedKnob &knob : selected->candidate.knobs)
-    if (knob.recordKey == "lmul")
-      return knob.value;
-  return std::nullopt;
+  llvm::Expected<RVVSourceSchedulePlan> plan =
+      constructRVVSourceScheduleFormula(
+          {RVVSourceScheduleMechanism::PlainInt8BlockDot,
+           /*sew=*/8, /*blockLength=*/kContractionBlockLen, {"m1", "m2"}},
+          {minimumVLEN, resolveRVVVectorRegisterBudget(module)},
+          RVVSourceScheduleNoStaticContext{});
+  if (!plan)
+    return std::nullopt;
+  return plan->integerCoreLMUL;
 }
 
 //===----------------------------------------------------------------------===//

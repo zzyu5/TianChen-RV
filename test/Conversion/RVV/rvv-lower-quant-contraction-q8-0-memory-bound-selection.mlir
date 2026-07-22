@@ -56,9 +56,6 @@ module {
 // V128-NOT: weft_rvv.quant_contraction
 // V128-NOT: weft_rvv.q8_0_q8_0_block_dot
 // V128: weft_rvv.typed_repack_gemv_loop_body
-// V128-SAME: weft_rvv.contraction_algorithm = "repack"
-// V128-SAME: weft_rvv.path_materialization = "realized"
-// V128-SAME: weft_rvv.path_selection_reason = "repack-kept-q8_0-memory-bound-vlen128-decode"
 // V128-SAME: weft_rvv.weight_layout_contract = "x16"
 //
 // (DEFAULT VLEN0) fact 3 declines the memory arm; q8_0 has no block-dot fallback so

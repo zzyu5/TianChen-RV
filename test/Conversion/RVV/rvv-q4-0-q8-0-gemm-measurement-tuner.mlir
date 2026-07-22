@@ -23,17 +23,17 @@
 // M (=6), NOT the static default (=4), and tags the provenance distinctly with
 // the recorded ns. measured(M=6) != default(M=4) is a VISIBLE proof the record
 // drove the choice.
-// RUN: weft-opt %s "--weft-rvv-materialize-gemm-schedule=march=rv64gcv tune-record=%S/Inputs/gemm-measurement-tuning-record.txt" | FileCheck %s --check-prefix=MEASURED
+// RUN: weft-opt %s "--weft-rvv-materialize-schedule=march=rv64gcv tune-record=%S/Inputs/gemm-measurement-tuning-record.txt" | FileCheck %s --check-prefix=MEASURED
 
 // (2) No record -- the SAME pass falls back to the static default M (=4, the safe
 // cache-friendly tile), with no measured_ns.
-// RUN: weft-opt %s --weft-rvv-materialize-gemm-schedule=march=rv64gcv | FileCheck %s --check-prefix=FALLBACK
+// RUN: weft-opt %s --weft-rvv-materialize-schedule=march=rv64gcv | FileCheck %s --check-prefix=FALLBACK
 
 // (3) Stale record (fail-closed, I7) -- a record naming M=16 (outside the legal
 // band, vreg ceiling 8) must NOT be stamped; the pass revalidates the recorded M
 // against the current band, finds it illegal, and falls back to the static
 // default M (=4).
-// RUN: weft-opt %s "--weft-rvv-materialize-gemm-schedule=march=rv64gcv tune-record=%S/Inputs/gemm-stale-tuning-record.txt" | FileCheck %s --check-prefix=STALE
+// RUN: weft-opt %s "--weft-rvv-materialize-schedule=march=rv64gcv tune-record=%S/Inputs/gemm-stale-tuning-record.txt" | FileCheck %s --check-prefix=STALE
 
 module {
   weft.exec.kernel @gemm {

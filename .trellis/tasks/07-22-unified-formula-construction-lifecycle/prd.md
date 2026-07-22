@@ -98,22 +98,27 @@ EmitC / route / verifier
 这不要求大一统 Formula IR、provider service、universal verifier 或通用 mechanism AST。
 family-local typed C++/MLIR owner 仍是 compute authority。
 
-## 完成门
+## 完成门（2026-07-22 实现审计结果）
 
-- [ ] quant/dequant 的 lifecycle 与显式 front door 复用同一 domain construction owner；
-- [ ] project-level RVV lifecycle 构造/验证所有 tunable schedules；
-- [ ] lower-quant 所有成功输出携带完整、合法 final schedule，无补字段中间态；
-- [ ] Q40/GEMM compatibility schedule pass、API、registration 与 RUN line 为零；
-- [ ] composite 是真实 selected-body registry owner，并消费 typed formula result；
-- [ ] registry/caller/catalog 三者由同一 live owner 枚举，删除手工 `+1` 例外；
-- [ ] source-frontdoor 的承重解析规则输出 typed result，body builder 不重选；
-- [ ] emitter 内 kind/format→primitive/fold/offset 的 compute replay 为零；
-- [ ] non-semantic reason/selection/measurement mirror 退出 production IR 与 allowlist；
-- [ ] complete/absent/partial/illegal、unsupported、empty legal set 全部 fail-closed 行为受测；
-- [ ] decisive g/c/ω edge 通过真实入口改变 final typed result/code，honest-null 不伪造影响；
-- [ ] authority test 检查真实 caller/symbol/registry，不再只查旧名字；
-- [ ] focused unit/lit、script self-test、完整 `check-weft`、`git diff --check` 全绿；
-- [ ] spec/issue 只在上述事实成立后改回完成，task 记录最终 commit，工作区干净。
+- [x] quant/dequant 的 lifecycle 与显式 front door 复用同一 domain construction owner；
+- [x] project-level RVV lifecycle 构造/验证所有 tunable schedules；
+- [x] lower-quant 所有成功输出携带完整、合法 final schedule，无补字段中间态；
+- [x] Q40/GEMM compatibility schedule pass、API、registration 与 RUN line 为零；
+- [x] composite 是真实 selected-body registry owner，并消费 typed formula result；
+- [x] registry/caller/catalog 三者由同一 live owner 枚举，删除手工 `+1` 例外；
+- [x] source-frontdoor 的承重解析规则输出 typed result，body builder 不重选；
+- [x] emitter 内 kind/format→primitive/fold/offset 的 compute replay 为零；
+- [x] non-semantic reason/selection/measurement mirror 退出 production IR 与 allowlist；
+- [x] complete/absent/partial/illegal、unsupported、empty legal set 全部 fail-closed 行为受测；
+- [x] decisive g/c/ω edge 通过真实入口改变 final typed result/code，honest-null 不伪造影响；
+- [x] authority test 检查真实 caller/symbol/registry，不再只查旧名字；
+- [x] focused unit/lit、script self-test、完整 `check-weft`、`git diff --check` 全绿；
+- [x] spec/issue 已按上述事实更新；最终 commit pin、task 状态和工作区洁净度在提交收尾时记录。
+
+本次实现的 flat block-dot 边界必须单独保留：`flat_*` 是 formula 产生的最终计算
+plan，emitter 直接消费；`kind`、`format` 和历史 `fold_model` 不拥有第二决策权。
+这关闭的是 authority/lifecycle 收敛，不是 delete-leaf strong reconstruction；当前
+catalog 与 selected-body 仍诚实标记 `ConstructedWeak`。
 
 ## 明确不做
 

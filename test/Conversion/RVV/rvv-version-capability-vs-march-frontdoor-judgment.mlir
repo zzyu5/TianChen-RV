@@ -54,7 +54,6 @@ module {
 // MARCH-DEFAULT: weft_rvv.typed_repack_gemv_loop_body
 // MARCH-DEFAULT-SAME: half_lanes = 8 : i64
 // MARCH-DEFAULT-SAME: integer_core_lmul = "mf2"
-// MARCH-DEFAULT-SAME: weft_rvv.repack_accumulator_lmul_selection_reason = "capability-default-mf2"
 
 // The capability file declares rvv_version = "0.7" while -march stays rv64gcv (1.0):
 // the provider fact WINS => isRVV0p7 => the mandatory whole-LMUL m1 chain. The
@@ -62,7 +61,6 @@ module {
 // CAP-RVV07: weft_rvv.typed_repack_gemv_loop_body
 // CAP-RVV07-SAME: half_lanes = 16 : i64
 // CAP-RVV07-SAME: integer_core_lmul = "m1"
-// CAP-RVV07-SAME: weft_rvv.repack_accumulator_lmul_selection_reason = "correctness-rvv0p7"
 
 // A VLEN-only provider can make repack structurally reachable, but it does not
 // prove whether fractional LMUL exists.  With no rvv_version and no -march

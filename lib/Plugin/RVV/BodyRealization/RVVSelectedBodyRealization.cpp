@@ -61,7 +61,10 @@ getRVVSelectedBodyRealizationOwnerRegistry() {
       {"computed-mask memory", isPreRealizedRVVComputedMaskMemoryClusterOp,
        realizePreRealizedRVVComputedMaskMemoryOwner},
       {"segment2 memory", isPreRealizedRVVSegment2MemoryOwnerOp,
-       realizePreRealizedRVVSegment2MemoryOwner}};
+       realizePreRealizedRVVSegment2MemoryOwner},
+      {"composite/gather-macc-scatter", nullptr, nullptr,
+       hasPreRealizedRVVCompositeGatherMAccScatterOwnerCandidate,
+       realizePreRealizedRVVCompositeGatherMAccScatterOwner}};
   return owners;
 }
 
@@ -133,34 +136,6 @@ findUniquePreRealizedRVVSelectedBody(weft::exec::VariantOp variant) {
         "pre-realized weft_rvv body when no realized setvl/with_vl body is "
         "present");
 
-  bool hasRuntimeScalarIndexedGather = false;
-  bool hasRuntimeScalarComputedMaskMAcc = false;
-  bool hasRuntimeScalarIndexedScatter = false;
-  for (mlir::Operation *body : bodies) {
-    llvm::StringRef opName = body->getName().getStringRef();
-    hasRuntimeScalarIndexedGather |=
-        opName ==
-        "weft_rvv.typed_runtime_scalar_computed_mask_indexed_gather_"
-        "pre_realized_body";
-    hasRuntimeScalarComputedMaskMAcc |=
-        opName ==
-        "weft_rvv.typed_runtime_scalar_computed_mask_macc_pre_realized_body";
-    hasRuntimeScalarIndexedScatter |=
-        opName ==
-        "weft_rvv.typed_runtime_scalar_computed_mask_indexed_scatter_"
-        "pre_realized_body";
-  }
-  if (hasRuntimeScalarIndexedGather && hasRuntimeScalarComputedMaskMAcc &&
-      hasRuntimeScalarIndexedScatter)
-    return makeRVVPluginError(
-        "selected RVV realization found a Stage2 runtime-scalar computed-mask "
-        "indexed gather-MAcc-scatter pre-realized composite assembled from "
-        "separate gather, MAcc, and scatter family bodies; this is "
-        "fail-closed until one composite selected-body realization owner "
-        "imports the typed gather, accumulator/MAcc, scatter, mask, index, "
-        "runtime ABI, and AVL/VL facts into one realized weft_rvv body before "
-        "provider route construction");
-
   return makeRVVPluginError(
       "selected RVV realization requires exactly one registry-owned "
       "pre-realized weft_rvv body when no realized setvl/with_vl body is "
@@ -223,8 +198,24 @@ realizePreRealizedRVVSelectedBody(
         "pre-realized RVV selected-body realization requires materialized "
         "kernel and variant");
 
-  if (hasPreRealizedRVVCompositeGatherMAccScatterOwnerCandidate(variant))
-    return realizePreRealizedRVVCompositeGatherMAccScatterOwner(request);
+  const RVVSelectedBodyRealizationOwner *variantOwner = nullptr;
+  for (const RVVSelectedBodyRealizationOwner &owner :
+       getRVVSelectedBodyRealizationOwnerRegistry()) {
+    if (!owner.isVariantConsumer || !owner.isVariantConsumer(variant))
+      continue;
+    if (variantOwner)
+      return makeRVVPluginError(
+          "selected RVV variant matches multiple variant-level body "
+          "realization owners");
+    variantOwner = &owner;
+  }
+  if (variantOwner) {
+    if (!variantOwner->realizeVariant)
+      return makeRVVPluginError(
+          llvm::Twine("variant-level selected-body owner '") +
+          variantOwner->familyName + "' has no realization hook");
+    return variantOwner->realizeVariant(request);
+  }
 
   llvm::Expected<mlir::Operation *> bodyOp =
       findUniquePreRealizedRVVSelectedBody(variant);

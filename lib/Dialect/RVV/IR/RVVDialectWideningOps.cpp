@@ -1629,17 +1629,15 @@ mlir::LogicalResult GgmlBlockDotQ40Q80Op::verify() {
            name == "activation_block_stride" || name == "quant_byte_offset" ||
            name == "activation_high_byte_offset" ||
            name == "integer_core_lmul" || name == "multi_block_factor" ||
-           name == "strip_elision" ||
-           // The option-2 stage-B IN-COMPILER contraction-path SELECTION audit
-           // trail. The RVVLowerQuantContraction pass stamps which contraction
-           // ALGORITHM it selected from capability facts (repack vs block-dot),
-           // the stable reason token, and whether the choice is realized here or
-           // its weight materialization is deferred to stage C. Pure provenance
-           // mirror metadata (I4): it records the in-compiler decision, it does
-           // not carry executable config -- emitter-inert, exactly like the
-           name == "weft_rvv.contraction_algorithm" ||
-           name == "weft_rvv.path_selection_reason" ||
-           name == "weft_rvv.path_materialization";
+           name == "strip_elision" || name == "minimum_vlen" ||
+           name == "weft_rvv.flat_decode_primitive" ||
+           name == "weft_rvv.flat_fold_model" ||
+           name == "weft_rvv.flat_block_length" ||
+           name == "weft_rvv.flat_activation_quant_byte_offset" ||
+           name == "weft_rvv.flat_weight_scale_source" ||
+           name == "weft_rvv.flat_codebook_table_name" ||
+           name == "weft_rvv.flat_body_family" ||
+           name == "weft_rvv.flat_offset_bias";
   };
   for (mlir::NamedAttribute attr : op->getAttrs()) {
     llvm::StringRef attrName = attr.getName().getValue();
@@ -3236,12 +3234,6 @@ mlir::LogicalResult GgmlRepackGemvQ50Q80Op::verify() {
            name == "activation_quant_byte_offset" ||
            name == "weight_interleave" || name == "half_lanes" ||
            name == "integer_core_lmul" ||
-           // The same in-IR stage-B/C1 SELECTION-audit + DECLARED OUTPUT
-           // CONTRACT carrier names the block-dot sibling carries (see the q4_0
-           // verifier): pure declared provenance, emitter-inert.
-           name == "weft_rvv.contraction_algorithm" ||
-           name == "weft_rvv.path_selection_reason" ||
-           name == "weft_rvv.path_materialization" ||
            name == "weft_rvv.weight_layout_contract";
   };
   for (mlir::NamedAttribute attr : op->getAttrs()) {
@@ -4895,7 +4887,15 @@ mlir::LogicalResult GgmlBlockDotMXFP4Q80Op::verify() {
            name == "activation_quant_byte_offset" ||
            name == "activation_high_byte_offset" || name == "codebook" ||
            name == "integer_core_lmul" || name == "multi_block_factor" ||
-           name == "strip_elision" || name == "minimum_vlen";
+           name == "strip_elision" || name == "minimum_vlen" ||
+           name == "weft_rvv.flat_decode_primitive" ||
+           name == "weft_rvv.flat_fold_model" ||
+           name == "weft_rvv.flat_block_length" ||
+           name == "weft_rvv.flat_activation_quant_byte_offset" ||
+           name == "weft_rvv.flat_weight_scale_source" ||
+           name == "weft_rvv.flat_codebook_table_name" ||
+           name == "weft_rvv.flat_body_family" ||
+           name == "weft_rvv.flat_offset_bias";
   };
   for (mlir::NamedAttribute attr : op->getAttrs()) {
     llvm::StringRef attrName = attr.getName().getValue();

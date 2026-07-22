@@ -56,9 +56,6 @@ module {
 // VLEN128-NOT: weft_rvv.quant_contraction
 // VLEN128: weft_rvv.typed_repack_gemv_loop_body
 // VLEN128-SAME: half_lanes = 16 : i64
-// VLEN128-SAME: weft_rvv.contraction_algorithm = "repack"
-// VLEN128-SAME: weft_rvv.path_materialization = "realized"
-// VLEN128-SAME: weft_rvv.path_selection_reason = "repack-kept-q4_0-vlen128-decode"
 // VLEN128-SAME: weft_rvv.weight_layout_contract = "x16"
 
 // (VLEN256 tier) FAIL-CLOSED: the q4_0-only decline route refuses the q4_1 plus-min scale_model

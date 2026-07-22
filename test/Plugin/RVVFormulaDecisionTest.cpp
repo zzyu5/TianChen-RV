@@ -2,9 +2,11 @@
 
 #include "Weft/Plugin/RVV/RVVFormulaDecision.h"
 #include "Weft/Plugin/RVV/RVVContractionPathSelection.h"
+#include "Weft/Plugin/RVV/RVVFlatBlockDotFormula.h"
 #include "Weft/Plugin/RVV/RVVLowPrecisionResourceFormula.h"
 #include "Weft/Plugin/RVV/RVVRepackScheduleFormula.h"
 #include "Weft/Plugin/RVV/RVVScheduleFormula.h"
+#include "Weft/Plugin/RVV/RVVSourceScheduleFormula.h"
 
 #include "llvm/ADT/Twine.h"
 #include "llvm/Support/raw_ostream.h"
@@ -517,6 +519,158 @@ int runGenericScheduleFormulaTest() {
   return 0;
 }
 
+int runSourceScheduleFormulaTest() {
+  pluginrvv::RVVSourceScheduleCapabilityFacts capability{
+      /*minimumVLEN=*/256,
+      /*vectorRegisterBudget=*/32};
+
+  auto plainM2 = pluginrvv::constructRVVSourceScheduleFormula(
+      {pluginrvv::RVVSourceScheduleMechanism::PlainInt8BlockDot,
+       /*sew=*/8, /*blockLength=*/32, {"m2"}},
+      capability, pluginrvv::RVVSourceScheduleNoStaticContext{});
+  if (!plainM2 || plainM2->integerCoreLMUL != "m2")
+    return fail("plain-int8 source formula must consume its admitted LMUL set");
+
+  auto codebookM1 = pluginrvv::constructRVVSourceScheduleFormula(
+      {pluginrvv::RVVSourceScheduleMechanism::CodebookGather,
+       /*sew=*/8, /*blockLength=*/16, {"m1"}},
+      capability, pluginrvv::RVVSourceScheduleNoStaticContext{});
+  if (!codebookM1 || codebookM1->integerCoreLMUL != "m1")
+    return fail("codebook source formula must restrict generated candidates to g");
+
+  auto outsideGeneratedDomain =
+      pluginrvv::constructRVVSourceScheduleFormula(
+          {pluginrvv::RVVSourceScheduleMechanism::CodebookGather,
+           /*sew=*/8, /*blockLength=*/16, {"m4"}},
+          capability, pluginrvv::RVVSourceScheduleNoStaticContext{});
+  if (outsideGeneratedDomain)
+    return fail("a source LMUL outside the generated domain must fail closed");
+  llvm::consumeError(outsideGeneratedDomain.takeError());
+
+  llvm::outs() << "source schedule formula: generated candidates intersect g; "
+                  "empty intersection rejects\n";
+  return 0;
+}
+
+int runFlatBlockDotFormulaTest() {
+  auto construct = [](pluginrvv::RVVFlatBlockDotLeaf leaf, int64_t qk,
+                      int64_t subBlockLength = 0)
+      -> llvm::Expected<pluginrvv::RVVFlatBlockDotPlan> {
+    return pluginrvv::constructRVVFlatBlockDotFormula(
+        {/*leaf=*/leaf,
+         /*qk=*/qk,
+         /*subBlockLength=*/subBlockLength,
+         /*weightQuantByteOffset=*/2,
+         /*activationQuantByteOffset=*/2},
+        pluginrvv::RVVFlatBlockDotNoCapabilityInput{},
+        pluginrvv::RVVFlatBlockDotNoStaticContext{});
+  };
+  auto require = [&](pluginrvv::RVVFlatBlockDotLeaf leaf, int64_t qk,
+                     int64_t subBlockLength = 0)
+      -> std::optional<pluginrvv::RVVFlatBlockDotPlan> {
+    auto plan = construct(leaf, qk, subBlockLength);
+    if (!plan) {
+      llvm::errs() << "FAIL: valid flat formula rejected: "
+                   << llvm::toString(plan.takeError()) << "\n";
+      return std::nullopt;
+    }
+    return std::move(*plan);
+  };
+
+  auto q80 = require(pluginrvv::RVVFlatBlockDotLeaf::Q80Q80, 32);
+  auto q40 = require(pluginrvv::RVVFlatBlockDotLeaf::Q40Q80, 32);
+  auto q41 = require(pluginrvv::RVVFlatBlockDotLeaf::Q41Q81, 32);
+  auto q50 = require(pluginrvv::RVVFlatBlockDotLeaf::Q50Q80, 32);
+  auto q51 = require(pluginrvv::RVVFlatBlockDotLeaf::Q51Q81, 32);
+  auto iq4 = require(pluginrvv::RVVFlatBlockDotLeaf::IQ4NLQ80, 32);
+  auto mxfp4 = require(pluginrvv::RVVFlatBlockDotLeaf::MXFP4Q80, 32);
+  auto q10 = require(pluginrvv::RVVFlatBlockDotLeaf::Q10Q80, 128);
+  auto nvfp4 =
+      require(pluginrvv::RVVFlatBlockDotLeaf::NVFP4Q80, 64, 16);
+  if (!q80 || !q40 || !q41 || !q50 || !q51 || !iq4 || !mxfp4 ||
+      !q10 || !nvfp4)
+    return 1;
+
+  if (q80->decodePrimitive != "plain-i8" ||
+      q80->foldModel != "separated-left-associative" ||
+      q80->blockLength != 32 || q40->decodePrimitive != "offset-binary-nibble" ||
+      q40->foldModel != "left-associative" || q40->blockLength != 16)
+    return fail("q8_0 and q4_0 must construct distinct complete flat plans");
+  if (q41->decodePrimitive != "unsigned-nibble" ||
+      q41->foldModel != "scale-plus-min" ||
+      q50->decodePrimitive != "five-bit-offset-binary" ||
+      q50->foldModel != "scales-times-sumi" ||
+      q50->offsetBias != "required" ||
+      q51->foldModel != "scale-plus-min" || q51->offsetBias != "none")
+    return fail("q4_1/q5_0/q5_1 decode, fold, and bias must remain distinct");
+  if (iq4->weightScaleSource != "fp16" ||
+      iq4->codebookTableName != "weft_iq4_nl_kvalues" ||
+      mxfp4->weightScaleSource != "e8m0" ||
+      mxfp4->codebookTableName != "weft_mxfp4_kvalues")
+    return fail("IQ4_NL and MXFP4 must preserve scale-source/table identity");
+  if (q10->bodyFamily != "binary-two-level" ||
+      q10->decodePrimitive != "binary-sign" ||
+      q10->weightScaleSource != "none" || !q10->codebookTableName.empty() ||
+      nvfp4->bodyFamily != "nvfp4-codebook" ||
+      nvfp4->decodePrimitive != "nvfp4-codebook" ||
+      nvfp4->weightScaleSource != "ue4m3" ||
+      nvfp4->blockLength != 16 || !nvfp4->codebookTableName.empty())
+    return fail("closed q1_0/NVFP4 body families must carry honest final fields");
+
+  auto shiftedActivation = pluginrvv::constructRVVFlatBlockDotFormula(
+      {/*leaf=*/pluginrvv::RVVFlatBlockDotLeaf::Q40Q80,
+       /*qk=*/32,
+       /*subBlockLength=*/0,
+       /*weightQuantByteOffset=*/2,
+       /*activationQuantByteOffset=*/6},
+      pluginrvv::RVVFlatBlockDotNoCapabilityInput{},
+      pluginrvv::RVVFlatBlockDotNoStaticContext{});
+  if (!shiftedActivation || shiftedActivation->activationQuantByteOffset != 6)
+    return fail("flat formula must consume the activation offset into its plan");
+
+  auto oddQ40 = construct(pluginrvv::RVVFlatBlockDotLeaf::Q40Q80, 33);
+  if (oddQ40)
+    return fail("odd q4_0 qk must fail flat formula construction");
+  llvm::consumeError(oddQ40.takeError());
+
+  auto negativeWeightOffset = pluginrvv::constructRVVFlatBlockDotFormula(
+      {/*leaf=*/pluginrvv::RVVFlatBlockDotLeaf::Q40Q80,
+       /*qk=*/32,
+       /*subBlockLength=*/0,
+       /*weightQuantByteOffset=*/-1,
+       /*activationQuantByteOffset=*/2},
+      pluginrvv::RVVFlatBlockDotNoCapabilityInput{},
+      pluginrvv::RVVFlatBlockDotNoStaticContext{});
+  if (negativeWeightOffset)
+    return fail("flat formula must reject an invalid weight quant offset");
+  llvm::consumeError(negativeWeightOffset.takeError());
+
+  auto negativeActivationOffset = pluginrvv::constructRVVFlatBlockDotFormula(
+      {/*leaf=*/pluginrvv::RVVFlatBlockDotLeaf::Q40Q80,
+       /*qk=*/32,
+       /*subBlockLength=*/0,
+       /*weightQuantByteOffset=*/2,
+       /*activationQuantByteOffset=*/-1},
+      pluginrvv::RVVFlatBlockDotNoCapabilityInput{},
+      pluginrvv::RVVFlatBlockDotNoStaticContext{});
+  if (negativeActivationOffset)
+    return fail("flat formula must reject an invalid activation quant offset");
+  llvm::consumeError(negativeActivationOffset.takeError());
+  auto missingNV = construct(pluginrvv::RVVFlatBlockDotLeaf::NVFP4Q80, 64, 0);
+  if (missingNV)
+    return fail("NVFP4 without a sub-block length must reject");
+  llvm::consumeError(missingNV.takeError());
+  auto oversizedNV =
+      construct(pluginrvv::RVVFlatBlockDotLeaf::NVFP4Q80, 64, 128);
+  if (oversizedNV)
+    return fail("NVFP4 sub-block length larger than qk must reject");
+  llvm::consumeError(oversizedNV.takeError());
+
+  llvm::outs() << "flat block-dot formula: all live leaf mechanisms construct "
+                  "closed final plans; invalid geometry rejects\n";
+  return 0;
+}
+
 int runLowPrecisionConstructionFormulaTest() {
   pluginrvv::RVVLowPrecisionResourceGeometryFacts g{
       pluginrvv::RVVLowPrecisionContractionResourceOperation::
@@ -659,6 +813,10 @@ int main() {
   if (int result = runRepackScheduleFormulaTest())
     return result;
   if (int result = runGenericScheduleFormulaTest())
+    return result;
+  if (int result = runSourceScheduleFormulaTest())
+    return result;
+  if (int result = runFlatBlockDotFormulaTest())
     return result;
   if (int result = runLowPrecisionConstructionFormulaTest())
     return result;

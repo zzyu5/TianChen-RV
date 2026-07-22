@@ -55,7 +55,6 @@ module {
 // CONSTRUCT-SAME: half_lanes = 8
 // CONSTRUCT-SAME: n_subblocks = 8
 // CONSTRUCT-SAME: scale_model = "superblock.fp16-signed6-scale-codebook-nomin"
-// CONSTRUCT-SAME: weft_rvv.contraction_algorithm = "repack"
 // CONSTRUCT-SAME: weft_rvv.weight_layout_contract = "x16"
 // CONSTRUCT-SAME: weight_block_stride = 2176
 // CONSTRUCT-SAME: weight_scales_byte_offset = 64

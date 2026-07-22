@@ -19,9 +19,20 @@
 # RUN: not rg -n 'Weft/Conversion/RVV/RVVFormulaConstruction.h|lib/Conversion/RVV/RVVFormulaConstruction.cpp' %S/../../include %S/../../lib %S/../../tools
 # RUN: not rg -n 'constructRVVStandaloneDequantScheduleFormula\(' %S/../../lib --glob '!**/Plugin/RVV/Construction/RVVFormulaConstruction.cpp'
 # RUN: rg -n 'constructRVVStandaloneDequantScheduleFormula\(' %S/../../lib/Plugin/RVV/Construction/RVVFormulaConstruction.cpp | FileCheck %s --check-prefix=DEQUANT-OWNER
+# RUN: not rg -n 'deriveFlatBlockDotDescriptor|flat-arms' %S/../../include %S/../../lib %S/../../tools
+# RUN: not rg -n 'weft-rvv-materialize-(q4-0|gemm)-schedule|MaterializeRVV(Q40|Gemm)Schedule' %S/../../include %S/../../lib %S/../../tools
+# RUN: not rg -n 'selectGenericSchedule|chooseFillOptimalLMUL' %S/../../lib/Plugin/RVV/FrontDoor
+# RUN: sed -n '/VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(/,/^}/p' %S/../../lib/Conversion/RVV/RVVToEmitCBlockQuantLinear.cpp | rg 'readFinalFlatBlockDotComputePlan' | FileCheck %s --check-prefix=FLAT-PLAN-READ
+# RUN: sed -n '/VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(/,/^}/p' %S/../../lib/Conversion/RVV/RVVToEmitCBlockQuantLinear.cpp | not rg 'getFoldModel\(|getAttr(OfType)?<[^>]+>\("(kind|format|fold_model)"\)|getAttr\("(kind|format|fold_model)"\)|skeleton loop body lowers'
+# RUN: not rg -n 'descriptor\.(decodePrimitive|foldModel|applyOffsetBias)[[:space:]]*=[[:space:]]*(Flat|true|false)' %S/../../lib/Conversion/RVV/RVVToEmitCBlockQuantLinear.cpp
+# RUN: rg -n 'descriptor\.(decodePrimitive|foldModel|applyOffsetBias)[[:space:]]*=[[:space:]]*plan\.' %S/../../lib/Conversion/RVV/RVVToEmitCBlockQuantLinear.cpp | FileCheck %s --check-prefix=FLAT-PLAN-PROJECTION
 # RUN: FileCheck %s --check-prefix=CONSTRUCTION-ORDER < %S/../../lib/Transforms/EmissionReadiness.cpp
 
 # DEQUANT-OWNER: constructRVVStandaloneDequantScheduleFormula(
+# FLAT-PLAN-READ: readFinalFlatBlockDotComputePlan
+# FLAT-PLAN-PROJECTION: descriptor.decodePrimitive = plan.decodePrimitive
+# FLAT-PLAN-PROJECTION-NEXT: {{.*}}descriptor.foldModel = plan.foldModel
+# FLAT-PLAN-PROJECTION: descriptor.applyOffsetBias = plan.applyOffsetBias
 # CONSTRUCTION-ORDER-LABEL: class MaterializeEmissionPlansPass final
 # CONSTRUCTION-ORDER: void runOnOperation() override {
 # CONSTRUCTION-ORDER-NEXT: if (llvm::Error error = registry->constructFormulaPlans(getOperation())) {

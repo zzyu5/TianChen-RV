@@ -14,3 +14,10 @@
 {"file":"tools/weft-opt/weft-opt.cpp","reason":"删除 compatibility registration"}
 {"file":"lib/Dialect/RVV/IR/RVVDialectWideningOps.cpp","reason":"删除 reason/provenance allowlist，不重放 formula"}
 {"file":"lib/Conversion/RVV/","reason":"把 compute descriptor 决定前移，emitter 机械消费 final typed plan"}
+{"file":"include/Weft/Plugin/RVV/RVVFlatBlockDotFormula.h","reason":"flat live semantic cases 与 final flat_* plan 的唯一 typed contract"}
+{"file":"lib/Plugin/RVV/Construction/RVVFlatBlockDotFormula.cpp","reason":"从 typed leaf geometry 构造 body/decode/fold/block/offset/scale/table/bias 完整 plan"}
+{"file":"include/Weft/Plugin/RVV/RVVSourceScheduleFormula.h","reason":"source-frontdoor schedule 的 typed g/c/result 与同源 semantic case 集合"}
+{"file":"lib/Plugin/RVV/Construction/RVVSourceScheduleFormula.cpp","reason":"生成候选与输入 LMUL domain 求交后构造唯一 source schedule，空集拒绝"}
+{"file":"include/Weft/Plugin/RVV/RVVCompositeGatherMAccScatterFormula.h","reason":"composite variant-level typed g/c 与 complete realization plan"}
+{"file":"lib/Plugin/RVV/Construction/RVVCompositeGatherMAccScatterFormula.cpp","reason":"composite legality 与完整 gather-MAcc-scatter mechanism composition"}
+{"file":"test/Plugin/RVVFormulaDecisionTest.cpp","reason":"flat/source formula case、输入因果性与空域/非法 geometry 负例"}

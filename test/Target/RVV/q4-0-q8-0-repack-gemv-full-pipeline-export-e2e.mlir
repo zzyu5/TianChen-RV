@@ -98,10 +98,6 @@ module {
 // CONSTRUCT: weft_rvv.typed_repack_gemv_loop_body
 // CONSTRUCT-SAME: half_lanes = 16 : i64
 // CONSTRUCT-SAME: integer_core_lmul = "m1"
-// CONSTRUCT-SAME: weft_rvv.contraction_algorithm = "repack"
-// CONSTRUCT-SAME: weft_rvv.path_materialization = "realized"
-// CONSTRUCT-SAME: weft_rvv.path_selection_reason = "repack-kept-q4_0-vlen128-decode"
-// CONSTRUCT-SAME: weft_rvv.repack_accumulator_lmul_selection_reason = "measured"
 // CONSTRUCT-SAME: weft_rvv.weight_layout_contract = "x16"
 // CONSTRUCT-SAME: weight_block_stride = 288 : i64
 // CONSTRUCT: weft_rvv.repack_lane_wise_q4_x_i8_dot

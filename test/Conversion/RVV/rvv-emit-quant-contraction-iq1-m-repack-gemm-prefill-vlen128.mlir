@@ -50,7 +50,6 @@ module {
 // CONSTRUCT-SAME: activation_interleave = 4
 // CONSTRUCT-SAME: fold_model = "grid_ternary_delta_groupsum_eighth"
 // CONSTRUCT-SAME: half_lanes = 8
-// CONSTRUCT-SAME: weft_rvv.contraction_algorithm = "repack"
 // CONSTRUCT-SAME: weft_rvv.weight_layout_contract = "x16"
 // CONSTRUCT-SAME: weight_block_stride = 1824
 // The in-region grid GEMM core BRICK. The weight_sign_byte_offset SLOT carries the PER-GROUP

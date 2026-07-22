@@ -63,20 +63,19 @@ T2 != attribution to C2.
 ----------------------------------------------------------------------------
 At least four distinct things are called a 描述符 here:
   (1) k<Fmt>DecodeFacts       front-door decode facts record   <- D1 MEASURES THIS
-  (2) FlatBlockDotDescriptor  emitter-side flat block-dot descriptor, built by
-                              deriveFlatBlockDotDescriptor's per-`kind` switch
-                              arms ("平面描述符 7 kind")        <- `flat-arms` mode
+  (2) RVVFlatBlockDotPlan     formula-owned final flat computation plan, built
+                              from the finite typed mechanism leaf domain
+                                                              <- `flat-formula`
   (3) N-operand 通用路由描述符  routing descriptor (总纲v3 [B-1])
   (4) 调度描述符               schedule descriptor (LMUL knobs)
-D1 covers (1) ONLY. (1) is a DECLARATIVE constexpr record; (2) is IMPERATIVE
-switch-arm code. Their line counts are NOT the same quantity and must NEVER be
-summed, averaged, or plotted together. The flat formats (q8_0/q4_0/q4_1/q5_0/
-q5_1) have NO (1) -- but they DO have (2), so "no descriptor" would be false;
-T2 says "no DecodeFacts record" and names the other mechanism instead.
+D1 covers (1) ONLY. The formula leaf inventory in (2) is a semantic case set,
+not a LOC quantity, and must NEVER be summed, averaged, or plotted with D1.
+The flat formats have no (1), but they do have a formula-produced final plan;
+T2 therefore says "no DecodeFacts record" rather than "no descriptor".
 
 USAGE
     e6_descriptor_cost.py emit            # per-format table + JSON, from source
-    e6_descriptor_cost.py flat-arms       # mechanism (2), separately, NOT in T2
+    e6_descriptor_cost.py flat-formula    # mechanism (2), separately, NOT in T2
     e6_descriptor_cost.py check-redline   # assert descriptor data never on C2 rows
     e6_descriptor_cost.py c2-rows         # the canonical C2 filter (what C2 may eat)
 """
@@ -344,65 +343,64 @@ def cmd_check_redline():
     return 0
 
 
-FLAT_SRC = os.path.join(REPO, "lib/Conversion/RVV/RVVToEmitCBlockQuantLinear.cpp")
-ARM_RE = re.compile(r'^\s*(?:\}\s*else\s+)?if\s*\(kind\s*==\s*"(\w+)"\)\s*\{\s*$')
+FLAT_FORMULA_SRC = os.path.join(
+    REPO, "lib/Plugin/RVV/Construction/RVVFlatBlockDotFormula.cpp"
+)
+FLAT_CASE_RE = re.compile(r"^\s*case\s+RVVFlatBlockDotLeaf::(\w+)\s*:\s*$")
 
 
-def cmd_flat_arms():
-    """Descriptor mechanism (2): deriveFlatBlockDotDescriptor's per-`kind` arms.
+def cmd_flat_formula():
+    """List the formula-owned finite flat leaf cases at the pinned HEAD.
 
-    Emitted SEPARATELY and deliberately NOT written into T2's descriptor_LOC:
-    an imperative switch arm and a declarative constexpr record are different
-    quantities. Summing them would be the file-count-as-line-count class of
-    error this project has already paid for once.
+    This is a semantic inventory only. It deliberately reports no LOC metric
+    and writes nothing into T2: formula cases and DecodeFacts records are
+    different evidence units.
     """
-    lines, dirty = read_source(FLAT_SRC)
+    lines, dirty = read_source(FLAT_FORMULA_SRC)
     start = next(
-        i for i, l in enumerate(lines) if l.startswith("deriveFlatBlockDotDescriptor(")
+        i for i, line in enumerate(lines)
+        if "constructRVVFlatBlockDotFormula(" in line
     )
-    end = next(i for i in range(start, len(lines)) if lines[i] == "}")
-    arms = [(i, ARM_RE.match(lines[i]).group(1)) for i in range(start, end)
-            if ARM_RE.match(lines[i])]
-    # The chain CLOSE: the fail-closed `} else {` (or a bare `}`) after the last
-    # arm. Without this the last arm silently swallows the fail-closed arm +
-    # `return d;` + the function brace -- an over-count. (This tool's first
-    # version did exactly that and reported mxfp4=15; re-emit after the fix for
-    # the current value. Convention: an arm owns its own `} else if (...) {`
-    # line, so arms tile the chain with no gap and no double-count.)
-    last = arms[-1][0]
-    chain_close = next(
-        i for i in range(last + 1, end + 1)
-        if re.match(r"^\s*\}\s*else\s*\{\s*$", lines[i]) or re.match(r"^\s*\}\s*$", lines[i])
-    )
-    print(f"# Descriptor mechanism (2): FlatBlockDotDescriptor per-`kind` arms")
-    print(f"# source : {os.path.relpath(FLAT_SRC, REPO)}"
-          f":{start+1}-{end+1} (deriveFlatBlockDotDescriptor)")
-    print(f"# pin    : HEAD={head_sha()}  (measured on the HEAD BLOB, not the worktree)")
+    depth = 0
+    opened = False
+    end = None
+    for i in range(start, len(lines)):
+        depth += lines[i].count("{")
+        if lines[i].count("{"):
+            opened = True
+        depth -= lines[i].count("}")
+        if opened and depth == 0:
+            end = i
+            break
+    if end is None:
+        sys.exit("FATAL: unterminated constructRVVFlatBlockDotFormula")
+    cases = [
+        (i + 1, match.group(1))
+        for i in range(start, end + 1)
+        if (match := FLAT_CASE_RE.match(lines[i]))
+    ]
+    if not cases:
+        sys.exit("FATAL: no RVVFlatBlockDotLeaf cases found")
+    names = [name for _, name in cases]
+    if len(names) != len(set(names)):
+        sys.exit("FATAL: duplicate RVVFlatBlockDotLeaf formula case")
+
+    print("# Flat computation mechanism (2): formula-owned final plan cases")
+    print(f"# source : {os.path.relpath(FLAT_FORMULA_SRC, REPO)}:{start+1}-{end+1}")
+    print(f"# pin    : HEAD={head_sha()}  (read from the HEAD blob)")
     if dirty:
-        print(f"# ★ NOTE : the WORKING TREE copy of this file differs from HEAD (a")
-        print(f"#          concurrent line owns lib/). Numbers below are the PIN's,")
-        print(f"#          which is what is reproducible. Re-pin after that line lands.")
-    print(f"# unit   : arm_raw_LOC = raw physical lines from the `if (kind==\"X\") {{`")
-    print(f"#          line to the line before the next arm / chain close.")
-    print(f"# ★ NOT comparable with D1 and NOT written to T2. Do not sum.")
-    print()
-    print(f"  {'kind':<34}{'lines':<16}{'arm_raw_LOC':>12}")
-    print("  " + "-" * 60)
-    bounds = [a[0] for a in arms] + [chain_close]
-    for idx, (ln, kind) in enumerate(arms):
-        # arm ends where the next arm's `} else if` line begins (that line
-        # belongs to the NEXT arm), or at the chain close for the last arm.
-        stop = bounds[idx + 1]
-        n = stop - ln
-        print(f"  {kind:<34}:{ln+1}-{stop:<10}{n:>12}")
-    print(f"\n  arms: {len(arms)}  (corroborates the C8 report's 平面描述符 7 kind)")
+        print("# NOTE   : worktree differs; re-run after committing to update the pin")
+    print("# unit   : finite semantic leaf identity (NOT LOC; NOT a T2 value)")
+    for line, name in cases:
+        print(f"  {name:<18} :{line}")
+    print(f"\n  formula leaf cases: {len(cases)}")
     return 0
 
 
 def main():
     cmds = {
         "emit": cmd_emit,
-        "flat-arms": cmd_flat_arms,
+        "flat-formula": cmd_flat_formula,
         "check-redline": cmd_check_redline,
         "c2-rows": cmd_c2_rows,
     }

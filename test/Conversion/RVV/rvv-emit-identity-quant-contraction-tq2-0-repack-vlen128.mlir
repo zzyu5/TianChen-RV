@@ -57,7 +57,6 @@ module {
 // CONSTRUCT-SAME: fold_model = "ternary_single_fp16_scale"
 // CONSTRUCT-SAME: half_lanes = 8
 // CONSTRUCT-SAME: scale_model = "superblock-d.fp16-single-scale-2bit-ternary-nomin"
-// CONSTRUCT-SAME: weft_rvv.contraction_algorithm = "repack"
 // CONSTRUCT-SAME: weft_rvv.weight_layout_contract = "x16"
 // CONSTRUCT-SAME: weight_block_stride = 1056
 // The in-region block_index-tied ternary integer-core BRICK, decode_model tq2_0.

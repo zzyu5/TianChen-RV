@@ -39,6 +39,7 @@
 #define WEFT_PLUGIN_RVV_RVVMONOLITHICBLOCKDOTFAMILY_H
 
 #include "Weft/Dialect/RVV/IR/RVVDialect.h"
+#include "Weft/Plugin/RVV/RVVFlatBlockDotFormula.h"
 #include "Weft/Support/RuntimeABI.h"
 
 #include "mlir/IR/Operation.h"
@@ -2207,49 +2208,58 @@ resolveSelectedMonolithicBlockDotBodyEntry(mlir::Operation *op) {
   }
   if (op->getName().getStringRef() ==
       weft::rvv::TypedFlatBlockDotLoopBodyOp::getOperationName()) {
-    // Derive the SCHEMA-NATIVE selector from the loop body's OWN attributes (the
-    // fold_model fact + a five-bit qh-source brick) -- no monolith op-name is
-    // consulted. scale_plus_min tiebreaker: a five-bit qh-source brick => q5_1,
-    // else q4_1. This resolves the export entry by its typedFlatLoopSelector, so
-    // the typed path no longer depends on any GgmlBlockDotQ*Op existing.
-    auto foldModel = op->getAttrOfType<mlir::StringAttr>("fold_model");
-    bool hasFiveBitQh = false;
-    op->walk([&](weft::rvv::BlockFiveBitQhSourceOp) { hasFiveBitQh = true; });
-    // iq4_nl (CODEBOOK class) shares q8_0's "sumi_times_scales" Q8Default fold but
-    // carries a codebook-gather integer core, so it exports through its OWN 4-role
-    // Flat entry. A codebook_gather_x_i8_product brick in the loop body breaks the
-    // Q8Default tie to Iq4NlCodebook (q8_0/q4_0's plain/offset-binary cores carry no
-    // such brick, so their Q8Default resolution is byte-unchanged).
-    bool hasCodebookGather = false;
-    op->walk([&](weft::rvv::CodebookGatherXI8ProductOp) {
-      hasCodebookGather = true;
-    });
-    TypedFlatBlockDotLoopSelector selector =
-        (foldModel && foldModel.getValue() == "scale_plus_min")
-            ? (hasFiveBitQh
-                   ? TypedFlatBlockDotLoopSelector::ScalePlusMinFiveBitQh
-                   : TypedFlatBlockDotLoopSelector::ScalePlusMin)
-        : (foldModel && foldModel.getValue() == "scales_times_sumi")
-            ? TypedFlatBlockDotLoopSelector::ScalesTimesSumi
-        // q1_0: the UNIQUE flat fold_model "flat_binary_two_level" (the
-        // four-sub-block binary-sign two-level fold) resolves to its OWN 4-role
-        // Flat entry -- keyed off the fold_model directly (no monolith op-name),
-        // BEFORE the Q8Default fall-through, so the export ABI arity is 4 not 8.
-        : (foldModel && foldModel.getValue() == "flat_binary_two_level")
-            ? TypedFlatBlockDotLoopSelector::Q10BinarySign
-        // nvfp4: the UNIQUE flat fold_model "flat_nvfp4_codebook" (the
-        // four-sub-block UE4M3-codebook per-sub-block fold) resolves to its OWN
-        // 4-role Flat entry -- keyed off the fold_model directly (no monolith
-        // op-name), BEFORE the Q8Default fall-through, so the export ABI arity is 4
-        // not 8. nvfp4's monolithic codebook-core brick is NOT the decomposed
-        // CodebookGatherXI8ProductOp, so it does not trip the hasCodebookGather tie.
-        : (foldModel && foldModel.getValue() == "flat_nvfp4_codebook")
-            ? TypedFlatBlockDotLoopSelector::NVFP4Codebook
-        : hasCodebookGather
-            ? TypedFlatBlockDotLoopSelector::Iq4NlCodebook
-            : TypedFlatBlockDotLoopSelector::Q8Default;
+    // Route identity consumes the same final formula plan as emission.  The
+    // older fold_model/qh/codebook reclassification duplicated compute
+    // knowledge in the route layer and could disagree with the constructed
+    // body.  Missing or unknown flat_* fields therefore fail closed here.
+    auto bodyFamily =
+        op->getAttrOfType<mlir::StringAttr>(kRVVFlatBodyFamilyAttr);
+    auto decode =
+        op->getAttrOfType<mlir::StringAttr>(kRVVFlatDecodePrimitiveAttr);
+    auto fold =
+        op->getAttrOfType<mlir::StringAttr>(kRVVFlatFoldModelAttr);
+    auto bias =
+        op->getAttrOfType<mlir::StringAttr>(kRVVFlatOffsetBiasAttr);
+    auto weightScale = op->getAttrOfType<mlir::StringAttr>(
+        kRVVFlatWeightScaleSourceAttr);
+    if (!bodyFamily || !decode || !fold || !bias || !weightScale)
+      return nullptr;
+
+    std::optional<TypedFlatBlockDotLoopSelector> selector;
+    if (bodyFamily.getValue() == "binary-two-level" &&
+        decode.getValue() == "binary-sign" &&
+        fold.getValue() == "binary-two-level")
+      selector = TypedFlatBlockDotLoopSelector::Q10BinarySign;
+    else if (bodyFamily.getValue() == "nvfp4-codebook" &&
+             decode.getValue() == "nvfp4-codebook" &&
+             fold.getValue() == "nvfp4-codebook")
+      selector = TypedFlatBlockDotLoopSelector::NVFP4Codebook;
+    else if (bodyFamily.getValue() == "shared" &&
+             decode.getValue() == "unsigned-nibble" &&
+             fold.getValue() == "scale-plus-min")
+      selector = TypedFlatBlockDotLoopSelector::ScalePlusMin;
+    else if (bodyFamily.getValue() == "shared" &&
+             decode.getValue() == "five-bit-offset-binary" &&
+             fold.getValue() == "scale-plus-min" &&
+             bias.getValue() == "none")
+      selector = TypedFlatBlockDotLoopSelector::ScalePlusMinFiveBitQh;
+    else if (bodyFamily.getValue() == "shared" &&
+             decode.getValue() == "five-bit-offset-binary" &&
+             fold.getValue() == "scales-times-sumi" &&
+             bias.getValue() == "required")
+      selector = TypedFlatBlockDotLoopSelector::ScalesTimesSumi;
+    else if (bodyFamily.getValue() == "shared" &&
+             decode.getValue() == "codebook-gather-nibble" &&
+             weightScale.getValue() == "fp16")
+      selector = TypedFlatBlockDotLoopSelector::Iq4NlCodebook;
+    else if (bodyFamily.getValue() == "shared" &&
+             (decode.getValue() == "plain-i8" ||
+              decode.getValue() == "offset-binary-nibble"))
+      selector = TypedFlatBlockDotLoopSelector::Q8Default;
+    if (!selector)
+      return nullptr;
     for (const MonolithicBlockDotOpEntry &entry : monolithicBlockDotOpTable())
-      if (entry.typedFlatLoopSelector == selector)
+      if (entry.typedFlatLoopSelector == *selector)
         return &entry;
   }
   return nullptr;

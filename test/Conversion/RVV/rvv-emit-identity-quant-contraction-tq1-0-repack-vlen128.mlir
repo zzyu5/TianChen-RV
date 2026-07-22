@@ -57,7 +57,6 @@ module {
 // CONSTRUCT-SAME: fold_model = "ternary_single_fp16_scale"
 // CONSTRUCT-SAME: half_lanes = 8
 // CONSTRUCT-SAME: scale_model = "superblock-d.fp16-single-scale-base3-ternary-nomin"
-// CONSTRUCT-SAME: weft_rvv.contraction_algorithm = "repack"
 // CONSTRUCT-SAME: weft_rvv.weight_layout_contract = "x16"
 // CONSTRUCT-SAME: weight_block_stride = 864
 // CONSTRUCT-SAME: weight_qh_byte_offset = 800

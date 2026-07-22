@@ -1,9 +1,10 @@
-// Absence is legal only before formula construction.  Entering the emission
-// boundary with an attr-less tunable op must fail; the emitter cannot recreate
-// an old family default from missing fields.
+// Absence is legal only before formula construction.  With no minimum-VLEN
+// capability, the q1 formula has an empty legal set and must fail at the
+// construction cut; the emitter is never reached and cannot recreate an old
+// family default from missing fields.
 //
 // RUN: not weft-opt %s --weft-rvv-lower-to-emitc 2>&1 | FileCheck %s
-// CHECK: reached RVV emission without a complete final schedule
+// CHECK: schedule formula produced no legal candidate
 
 module {
   weft.exec.kernel @q1_missing_final_schedule_kernel {

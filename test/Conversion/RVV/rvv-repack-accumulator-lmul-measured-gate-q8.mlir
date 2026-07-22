@@ -62,8 +62,6 @@ module {
 // CHECK: weft_rvv.typed_repack_gemv_loop_body
 // CHECK-SAME: half_lanes = 16 : i64
 // CHECK-SAME: integer_core_lmul = "m1"
-// CHECK-SAME: weft_rvv.repack_accumulator_lmul_measurement_key = "dual-fp16-per-block-d_x.d_y-full-i8"
-// CHECK-SAME: weft_rvv.repack_accumulator_lmul_selection_reason = "measured"
 
 // q5_1 nibble+min+qh: NO measured row => the mf2 default holds (no-blind-widest;
 // the prefill GEMM m1 core spills, so it is NOT flipped). The SAME construction
@@ -71,4 +69,3 @@ module {
 // CHECK: weft_rvv.typed_repack_gemv_loop_body
 // CHECK-SAME: half_lanes = 8 : i64
 // CHECK-SAME: integer_core_lmul = "mf2"
-// CHECK-SAME: weft_rvv.repack_accumulator_lmul_selection_reason = "capability-default-mf2"

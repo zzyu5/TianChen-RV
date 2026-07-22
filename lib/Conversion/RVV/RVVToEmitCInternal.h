@@ -96,6 +96,14 @@ enum class FlatDecodePrimitive {
   UnsignedNibble,
   FiveBitOffsetBinary,
   CodebookGatherNibble,
+  BinarySign,
+  NVFP4Codebook,
+};
+
+enum class FlatBodyFamily {
+  Shared,
+  BinaryTwoLevel,
+  NVFP4Codebook,
 };
 
 // The per-block WEIGHT scale source. Fp16 is the sanctioned `(float)*(const
@@ -106,6 +114,8 @@ enum class FlatDecodePrimitive {
 enum class FlatWeightScaleSource {
   Fp16,
   E8M0,
+  UE4M3,
+  None,
 };
 
 // The per-block fp32 fold model. The fold is grouped into ONE emitc.expression
@@ -114,8 +124,8 @@ enum class FlatWeightScaleSource {
 // (fp non-associativity). There are FOUR distinct trees in-tree -- q5_0's
 // ScalesTimesSumi is a DISTINCT emitc sequence from q8_0's SumiTimesScales even
 // though both carry scale_model "dual-fp16-per-block-d_x.d_y" (the operand +
-// emission order of the outer mul differ), so fold_model keys off `kind`, not
-// `scale_model`:
+// emission order of the outer mul differ). The formula-produced final plan
+// carries this choice; the emitter never reconstructs it from kind or format:
 //   SumiTimesScales -> sumf + (float)sumi * (d_x * d_y)   (q8_0 MONOLITH)
 //   LeftAssoc       -> sumf + (float)sumi * d_x * d_y      (q4_0)
 //   ScalesTimesSumi -> sumf + (d_x * d_y) * (float)sumi    (q5_0)
@@ -133,15 +143,30 @@ enum class FlatFoldModel {
   ScalesTimesSumi,
   ScalePlusMin,
   SeparatedLeftAssoc,
+  BinaryTwoLevel,
+  NVFP4Codebook,
+};
+
+/// Formula-produced computation plan.  It contains only closed semantic/code
+/// choices; block strides and other raw geometry remain on the typed operation.
+/// Emitters read this plan and never translate kind/format/fold_model again.
+struct FlatBlockDotComputePlan {
+  FlatBodyFamily bodyFamily = FlatBodyFamily::Shared;
+  FlatDecodePrimitive decodePrimitive = FlatDecodePrimitive::PlainI8;
+  FlatFoldModel foldModel = FlatFoldModel::SumiTimesScales;
+  int64_t blockLen = 0;
+  int64_t activationQuantOffset = 0;
+  bool applyOffsetBias = false;
+  FlatWeightScaleSource weightScaleSource = FlatWeightScaleSource::Fp16;
+  llvm::StringRef codebookTableName;
 };
 
 // The block-format + primitive facts the shared emitFlatBlockDot body reads to
 // generate a flat-plain (q4_0/q8_0/q4_1/q5_0/q5_1) block-dot. The Group-A
 // geometry fields mirror the typed op attrs (I4); the Group-B primitive/fold
 // fields lift the decode-primitive + fold-model selection from op-identity to
-// descriptor fields. deriveFlatBlockDotDescriptor builds it from the op's
-// `kind` + attr-presence; the LMUL / unroll / elision schedule facts stay in
-// BlockDotFacts, read as a complete formula result by the caller.
+// descriptor fields. The pre-emission formula lifecycle materializes the
+// primitive/fold fields; the emitter only decodes that complete final plan.
 struct FlatBlockDotDescriptor {
   FlatDecodePrimitive decodePrimitive = FlatDecodePrimitive::PlainI8;
   FlatFoldModel foldModel = FlatFoldModel::SumiTimesScales;
@@ -161,7 +186,7 @@ struct FlatBlockDotDescriptor {
   int64_t qhOffset = 0;
   // The 5-bit offset-binary `-16` bias: true for q5_0, false for q5_1 (its bias
   // lives in the per-block MIN scale, like q4_1).
-  bool applyOffsetBias = true;
+  bool applyOffsetBias = false;
   // The Family-B MIN/SUM correction: read m_x/s_y and fold the second product.
   bool hasMinTerm = false;
   int64_t weightMinOffset = 0;
@@ -177,14 +202,17 @@ struct FlatBlockDotDescriptor {
   FlatWeightScaleSource weightScaleSource = FlatWeightScaleSource::Fp16;
 };
 
-// Build a FlatBlockDotDescriptor from a GgmlBlockDot* op's `kind` string + its
-// block-format attrs (attr-presence for the optional-by-format ones). This is
-// the emitter-side mirror of the front-door family table: the `kind` selects
-// the decode primitive / fold model, and
-// the I4 geometry attrs fill the block-format fields. Returns std::nullopt for a
-// non-flat-plain kind (the caller keeps its bespoke emitter).
+// Read the complete final flat block-dot formula plan. Missing/partial/unknown
+// plan fields fail closed; no kind/format/fold_model mapping or historical
+// default is reconstructed here.
+std::optional<FlatBlockDotComputePlan>
+readFinalFlatBlockDotComputePlan(mlir::Operation *op);
+
+// Read that same final computation plan plus the monolithic op's raw typed
+// geometry. This is only a projection helper for the two remaining direct
+// monolithic entry points; it does not make any code-shape decision.
 std::optional<FlatBlockDotDescriptor>
-deriveFlatBlockDotDescriptor(mlir::Operation *op);
+readFinalFlatBlockDotDescriptor(mlir::Operation *op);
 
 // The shared per-block emit state the factored flat-block-dot core methods
 // (emitFlatBlockCore / emitFlatIntegerCore / emitFlatFold) read. It bundles the

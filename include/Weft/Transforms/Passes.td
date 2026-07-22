@@ -402,114 +402,6 @@ def MaterializeRVVSchedule
   ];
 }
 
-def MaterializeRVVQ40Schedule
-    : Pass<"weft-rvv-materialize-q4-0-schedule", "::mlir::ModuleOp"> {
-  let summary = "Construct or validate the ggml Q4_0 x Q8_0 block-dot final schedule";
-  let description = [{
-    The N3 capability/resource-aware autotuner for the ggml Q4_0 x Q8_0 block
-    dot-product. Given a selected RVV -march (a profile selection), it derives
-    the Zvl128b capability fact through the plugin-local capability authority
-    (deriveHasZvl128b), enumerates the bounded Q4_0 shape candidate space
-    (integer_core_lmul {mf4,m1} x multi_block_factor {1,2,4} x strip_elision
-    {robust,elided}), PRUNES each candidate by legality (strip_elision "elided"
-    is correct only at the m1 anchor on a Zvl128b target) and by the
-    vector-register-file budget, RANKS the legal candidates by a principled,
-    CAPABILITY-BLIND structural cost (per-block reduction count, inner strip-loop
-    serialization, outer-loop latency-overlap amortized by the multi-block
-    factor), and SELECTS the min-cost legal shape. It writes exactly the final
-    integer_core_lmul / multi_block_factor / strip_elision fields. A complete
-    explicit plan must match a legal candidate; a partial plan fails.
-
-    This is the COMPILER SELECTING the kernel shape, DERIVED from capability +
-    resource facts -- NOT a lookup table: the only place the capability enters is
-    the legality prune; the cost model is a pure structural function. The SAME
-    argmin therefore DIVERGES by capability -- a full-V (rv64gcv, Zvl128b)
-    profile selects the strip-elided shape, while a
-    constrained zve32x profile has the elided shapes pruned and the same argmin
-    selects the robust strip-loop shape. One capability fact -> N1 legality
-    divergence -> N3 capability-keyed shape divergence, on a real llama.cpp
-    kernel. (No performance claim: any vs-ggml delta is un-sealed until [PERF-1]
-    eight-gate passes; see NG-4.)
-
-    Per core-invariants, the schedule is derived from the validated ISA tier and the
-    structural resource facts, never inferred from ABI strings / family names /
-    route ids, and no hardware is probed (I5); a candidate that fails the
-    capability/anchor/budget prune is dropped fail-closed and if every candidate
-    is pruned the pass fails (I7). The pass does not lower, emit code,
-    benchmark, or claim runtime evidence; it selects the *how*, never the *what*
-    (the dot-product is byte-exact for every legal shape).
-  }];
-  let options = kRVVBlockDotScheduleOptions;
-  let constructor =
-      "::weft::transforms::createMaterializeRVVQ40SchedulePass()";
-  let dependentDialects = [
-    "::weft::rvv::WEFTRVVDialect"
-  ];
-}
-
-def MaterializeRVVGemmSchedule
-    : Pass<"weft-rvv-materialize-gemm-schedule", "::mlir::ModuleOp"> {
-  let summary = "Construct or validate the ggml Q4_0 x Q8_0 GEMM activation-column schedule";
-  let description = [{
-    The N3 MEASUREMENT-backed autotuner for the ggml Q4_0 x Q8_0 FULL GEMM
-    (weft_rvv.q4_0_q8_0_gemm) M-block -- the inner activation-column block M, the
-    one knob that sets how many activation columns share each hoisted weight
-    decode. It REUSES the EXACT tune-once -> cache -> read architecture the
-    block-dot measurement tuner (--weft-rvv-materialize-q4-0-schedule, INC-10)
-    established: it ENUMERATES the bounded M band {1,2,4,6,8}, PRUNES by the
-    vreg-ceiling resource bound (M <= 8; never a capability gate -- every M is
-    byte-exact on any RVV target), then either selects the MEASURED-fastest M read
-    from a cached tuning record (the genuine N3 '实测胜出') or falls back to the
-    static prior M (the safe cache-friendly tile M=4). Only the final
-    activation_cols field enters IR; a partial or illegal explicit plan fails.
-
-    Unlike the block-dot autotuner, M is NOT capability-gated -- it is a cache/L1
-    + vreg/unroll resource knob whose optimum is NOISY and analytically
-    UNPREDICTABLE (gemv-perf-scoping.md section 2b: M_opt proportional 1/K; INC-25
-    G2: M=4 wins ~1.04x while M=6 REGRESSES ~0.857x on register pressure at
-    K=4096). A static cost model cannot reliably predict that M6 vreg-pressure
-    cliff, so the win is the MEASURED pick (M=4 over M=6), NOT a capability
-    divergence. The dump-candidates mode emits the FULL legal band (incl. the
-    over-blocking M6/M8 the static proxy deems suboptimal) so the offline tune
-    driver MEASURES the whole band -- the BOARD ranks, not the cost proxy.
-
-    Per core-invariants, M is derived from the validated resource facts + the
-    cached measurement, never inferred from ABI strings / family names / route
-    ids, and no hardware is probed at compile time (I5); a stale record naming a
-    now-illegal M is fail-closed (revalidated against the current band) and if
-    every candidate is pruned the pass fails (I7). The pass selects the
-    *how* (the column-block), never the *what* (every output is byte-exact for
-    every legal M).
-  }];
-  let options = [
-    Option<"march", "march", "std::string", /*default=*/"\"\"",
-           "Selected RISC-V -march the tuning record is keyed on (the GEMM M-block "
-           "is not capability-gated; the -march keys the record entry for reuse + "
-           "the stale/revalidate fail-closed demo).">,
-    Option<"isaVectorHints", "isa-vector-hints", "std::string",
-           /*default=*/"\"\"",
-           "Optional probed isa/vector-hint string (reserved for parity with the "
-           "block-dot passes; the M-block legality does not consume it).">,
-    Option<"tuneRecord", "tune-record", "std::string", /*default=*/"\"\"",
-           "Optional path to a MEASUREMENT tuning record. When set and it carries "
-           "a still-legal entry for (kernel, capability-march), the pass selects the "
-           "MEASURED-fastest M (the genuine N3 '实测胜出') instead of the static "
-           "default. Absent / stale / unreadable => the pass falls back to the "
-           "static default M (the record is an advisory cache, never a correctness "
-           "authority).">,
-    Option<"dumpCandidates", "dump-candidates", "bool", /*default=*/"false",
-           "Dump the LEGAL M band (the single source of truth for the vreg-ceiling "
-           "prune) for the offline tune driver to consume, then exit without "
-           "mutating IR. Includes the over-blocking M6/M8 -- the driver MEASURES the "
-           "full band; the board ranks, not the cost proxy.">
-  ];
-  let constructor =
-      "::weft::transforms::createMaterializeRVVGemmSchedulePass()";
-  let dependentDialects = [
-    "::weft::rvv::WEFTRVVDialect"
-  ];
-}
-
 def MaterializeEmitCLowerableRoutes
     : Pass<"weft-materialize-emitc-lowerable-routes", "::mlir::ModuleOp"> {
   let summary = "Materialize plugin-owned EmitC lowerable routes through the common route interface";
@@ -593,40 +485,21 @@ def RVVLowerToEmitC
 
 def RVVLowerQuantContraction
     : Pass<"weft-rvv-lower-quant-contraction", "::mlir::ModuleOp"> {
-  let summary = "Select + lower the abstract weft_rvv.quant_contraction op to a concrete contraction op (stage-B capability-fact-driven path selection)";
+  let summary = "Construct a complete typed contraction body and final RVV schedule from formula inputs";
   let description = [{
-    The option-2 front-of-pipeline pass that lowers the abstract,
-    algorithm-UNCOMMITTED weft_rvv.quant_contraction op to a CONCRETE
-    contraction op, running BEFORE the EmitC lowering.
+    Consumes typed contraction geometry, canonical RVV capability facts and the
+    bounded GEMV/GEMM regime. The family-local formula constructs the complete
+    legal algorithm set and analytic prior; qualified measurement may select
+    only an existing legal candidate. The selected result is realized directly
+    as the final typed contraction/repack body.
 
-    STAGE B makes "the COMPILER itself selects repack-vs-block-dot from
-    capability facts" actually true. Per quant_contraction request the pass
-    derives the target VLEN from the selected -march (deriveMinimumVLEN -- the
-    SAME capability authority every other capability-gated pass uses; the op's
-    advisory min_vlen attr is NOT the source), lifts the committed WHAT attrs
-    (quant, m_regime), and calls the pure, branch-free, capability-fact-driven
-    selectContractionAlgorithm. The decision is stamped on the lowered op as
-    three INERT audit attrs (weft_rvv.contraction_algorithm /
-    path_selection_reason / path_materialization) so it is provable in-IR.
-
-    THE CRUX (Option (i)): the concrete repack target needs pre-interleaved
-    block_q4_0x16 weights the abstract op's PLAIN stride-18 weights cannot
-    supply -- that plain->x16 weight materialization is stage C. So this pass
-    emits the BYTE-IDENTICAL weft_rvv.q4_0_q8_0_block_dot body for BOTH the
-    Repack-SELECTED and the BlockDot-SELECTED branches, differentiating ONLY via
-    the inert audit attrs (Repack-selected => path_materialization =
-    "deferred-stage-c"). So the emitted C is byte-identical on EVERY path: the
-    compiler MAKES + RECORDS the selection in-compiler (the N3 novelty) with NO
-    e2e algorithm switch and NO perf claim; the e2e materialization is stage C.
-
-    The block-dot branch DROPS the abstract op's column_count (nc) operand: the
-    block-dot kernel (ggml_vec_dot_q4_0_q8_0) writes ONE fp32 and delegates the
-    M/N loops to ggml's mul_mat caller, so it is a bare 4-operand vec_dot. The
-    abstract op carries nc ALWAYS so a later repack branch can reach it; here it
-    is dropped to keep the emitted C byte-identical. NO schedule attrs are
-    stamped (integer_core_lmul / multi_block_factor / strip_elision) -- those
-    remain the downstream MaterializeRVVQ40Schedule pass's job. On any module
-    with no quant_contraction op the pass is a structural no-op.
+    Before the pass succeeds, the same unified schedule formula used by the
+    project-level construction lifecycle constructs or validates every tunable
+    operation in the module. Consequently no successful output contains a
+    missing or partial schedule tuple, and no downstream Q4/GEMM compatibility
+    materializer is required. Formula reasons and measurement keys remain
+    transient; only code-affecting typed fields and the real x16 layout contract
+    enter IR. Unsupported geometry or an empty legal set fails closed.
   }];
   let options = kRVVBlockDotScheduleOptions;
   let constructor =

@@ -7,9 +7,10 @@
 // (integer_core_lmul = "mf2", minimum_vlen = 256). At VLEN256 mf2's VLMAX = 16 = a FULL
 // mf2 register (the 16-lane nibble-pair half-block exactly fills it; at VLEN128 mf2 ->
 // VLMAX 8 < 16 breaks the codebook gather, which the verifier gates on minimum_vlen >=
-// 256), and multi_block_factor = 2 keeps two independent blocks in flight. NO memory
-// layout / algorithm change vs the m1 form -- only the LMUL spelling + unroll move (pure
-// backend Win-A lowering); the vwredsum reduction destination + seed STAY m1.
+// 256). The formula's closed codebook candidate set keeps multi_block_factor = 1;
+// no memory-layout or algorithm change occurs versus the m1 form. The only
+// capability-driven code-shape change is the LMUL spelling, while the vwredsum
+// reduction destination and seed stay m1.
 //
 // NON-NULL divergence proof: the mf2 / vwmul i16m1 / vwredsum i16m1 bytes here DIFFER
 // from the VLEN128 m1 / vwmul i16m2 / vwredsum i16m2 emit.
@@ -24,7 +25,7 @@ module {
       %vy = weft_rvv.runtime_abi_value {c_name = "vy", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "q8-act", role = "rhs-input-buffer"} : !weft_rvv.runtime_abi_value
       %vl = weft_rvv.setvl %n {lmul = "m1", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !weft_rvv.vl
       weft_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @ggml_vec_dot_mxfp4_q8_0, sew = 32 : i64, source_kernel = "ggml_vec_dot_mxfp4_q8_0_kernel_vl256", status = "selected-lowering-boundary"} {
-        %dot = weft_rvv.mxfp4_q8_0_block_dot %vx, %vy, %s, %n, %vl {kind = "ggml_mxfp4_q8_0_block_dot", scale_model = "e8m0-half-shared-exponent-per-block", qk = 32 : i64, weight_block_stride = 17 : i64, activation_block_stride = 34 : i64, weight_quant_byte_offset = 1 : i64, activation_quant_byte_offset = 2 : i64, activation_high_byte_offset = 16 : i64, codebook = array<i8: 0, 1, 2, 3, 4, 6, 8, 12, 0, -1, -2, -3, -4, -6, -8, -12>, integer_core_lmul = "mf2", multi_block_factor = 2 : i64, strip_elision = "elided", minimum_vlen = 256 : i64} : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index, !weft_rvv.vl -> !weft_rvv.vector<i32, "m1">
+        %dot = weft_rvv.mxfp4_q8_0_block_dot %vx, %vy, %s, %n, %vl {kind = "ggml_mxfp4_q8_0_block_dot", scale_model = "e8m0-half-shared-exponent-per-block", qk = 32 : i64, weight_block_stride = 17 : i64, activation_block_stride = 34 : i64, weight_quant_byte_offset = 1 : i64, activation_quant_byte_offset = 2 : i64, activation_high_byte_offset = 16 : i64, codebook = array<i8: 0, 1, 2, 3, 4, 6, 8, 12, 0, -1, -2, -3, -4, -6, -8, -12>, integer_core_lmul = "mf2", multi_block_factor = 1 : i64, strip_elision = "elided", minimum_vlen = 256 : i64} : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index, !weft_rvv.vl -> !weft_rvv.vector<i32, "m1">
       } : !weft_rvv.vl
     }
   }

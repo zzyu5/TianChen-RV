@@ -29,9 +29,8 @@
 // rung-3 front door, like dequant-vs-reduction.
 //
 // CAPABILITY framing -- the codebook DOES flip (the q4_0 sibling did NOT). The
-// capability consultation is the SAME shared schedule authority the rung-1/2 front
-// doors use (selectCodebookCoreLMUL: enumerateRVVCodebookShapeCandidates +
-// selectGenericSchedule fed resolveRVVMinimumVLEN(module)), but here the SELECTED i8
+// capability consultation is the same RVVSourceScheduleFormula owner the rung-1/2
+// front doors use, but here the selected i8
 // anchor is THREADED into the body types (NOT pinned). At VLEN128 only m1 reaches
 // VLMAX 16 (the 16-entry table needs every lane indexable; mf2 -> 8 < 16 is
 // PRUNED), so the emit is vrgather_vv_i8m1 + i16m2 product; at VLEN256 mf2 is
@@ -52,6 +51,7 @@
 #include "Weft/Plugin/RVV/RVVCapabilityProfile.h"
 #include "Weft/Plugin/RVV/RVVExtensionPlugin.h"
 #include "Weft/Plugin/RVV/RVVGearboxSchedule.h"
+#include "Weft/Plugin/RVV/RVVSourceScheduleFormula.h"
 #include "Weft/Support/CapabilityModel.h"
 #include "Weft/Transforms/VariantMaterialization.h"
 
@@ -210,25 +210,15 @@ std::optional<std::string>
 selectCodebookCoreLMUL(mlir::ModuleOp module, llvm::StringRef march,
                        llvm::StringRef isaVectorHints) {
   std::int64_t minimumVLEN = resolveRVVMinimumVLEN(module, march, isaVectorHints);
-
-  llvm::SmallVector<RVVBlockDotShapeCandidate, 12> typed =
-      enumerateRVVCodebookShapeCandidates(
-          minimumVLEN, kRVVCodebookShapeVectorRegisterBudget);
-  llvm::SmallVector<GenericScheduleCandidate> candidates;
-  for (const RVVBlockDotShapeCandidate &candidate : typed)
-    candidates.push_back(toGenericBlockDotCandidate(candidate));
-
-  static constexpr llvm::StringRef kRequiredKnobKeys[] = {"lmul"};
-  std::optional<GenericScheduleSelection> selected = selectGenericSchedule(
-      candidates, /*recordText=*/std::nullopt,
-      /*kernelKey=*/"codebook_gather_x_i8_product", march, kRequiredKnobKeys);
-  if (!selected)
-    return std::nullopt; // every candidate pruned -> fail-closed (I7).
-
-  for (const NamedKnob &knob : selected->candidate.knobs)
-    if (knob.recordKey == "lmul")
-      return knob.value;
-  return std::nullopt;
+  llvm::Expected<RVVSourceSchedulePlan> plan =
+      constructRVVSourceScheduleFormula(
+          {RVVSourceScheduleMechanism::CodebookGather,
+           /*sew=*/8, /*blockLength=*/16, {"m1", "mf2"}},
+          {minimumVLEN, resolveRVVVectorRegisterBudget(module)},
+          RVVSourceScheduleNoStaticContext{});
+  if (!plan)
+    return std::nullopt;
+  return plan->integerCoreLMUL;
 }
 
 //===----------------------------------------------------------------------===//

@@ -51,7 +51,6 @@ module {
 // CONSTRUCT-SAME: fold_model = "grid_sign_dualscale_eighth"
 // CONSTRUCT-SAME: half_lanes = 8
 // CONSTRUCT-SAME: scale_model = "superblock-d.fp16-grid-sign-dualscale-nomin-eighth"
-// CONSTRUCT-SAME: weft_rvv.contraction_algorithm = "repack"
 // CONSTRUCT-SAME: weft_rvv.weight_layout_contract = "x16"
 // CONSTRUCT-SAME: weight_block_stride = 1824
 // The in-region block_index-tied grid integer-core BRICK, decode_model iq2_xs + the

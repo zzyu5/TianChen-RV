@@ -49,7 +49,6 @@ module {
 // CONSTRUCT-SAME: activation_bsums_byte_offset = 1040
 // CONSTRUCT-SAME: activation_interleave = 4
 // CONSTRUCT-SAME: fold_model = "grid_ternary_delta_eighth"
-// CONSTRUCT-SAME: weft_rvv.contraction_algorithm = "repack"
 // CONSTRUCT-SAME: weft_rvv.weight_layout_contract = "x16"
 // CONSTRUCT-SAME: weight_block_stride = 1312
 // The in-region grid GEMM core BRICK. The weight_sign_byte_offset SLOT carries the +-1
