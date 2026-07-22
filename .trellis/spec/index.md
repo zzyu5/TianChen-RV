@@ -31,6 +31,8 @@ operator-to-kernel compiler / execution-layer software stack。它接收 canonic
 `P=(S,g,ω)`，先绑定 construction family 与 typed capability，再由 family-local 可执行专家
 知识构造专化 kernel。RISC-V ggml/llama.cpp 风格量化推理是当前旗舰 reference
 realization 和主要压力域；GPU 是 V2 明确引入的第二 execution paradigm 目标，尚未实现。
+这里 `pre-schedule` 只描述 source problem 尚未携带 family-specific execution mapping；
+LMUL、tile、warp、pipeline 等 schedule 正是 family construction 的输出。
 
 它不是：
 
@@ -175,12 +177,14 @@ tools/bench/bench --self-test
 
 当前 Weft-RV registered/direct production path 已统一到 artifact-neutral
 construction-before-artifact：target/profile 先绑定 origin family 与 typed `c_f`，再由
-`ExtensionPlugin::constructFormulaPlans` 构造或资格化 final typed body/plan，并由
-`hasConstructedFinalBody` 报告 completion。`ExtensionPlugin` 的 base implementation
-fail closed；RVV、IME、Scalar、Demo、Toy、Template 与 TensorExtLite 都显式实现该
-family lifecycle，Offload 显式 unsupported。随后
+`ExtensionPlugin::constructFormulaPlans(FamilyConstructionRequest,
+FamilyConstructionResult)` 为绑定 variant 构造 exact final typed operation/root，或显式返回
+unsupported。公共编排只检查 exact result 存在且属于绑定 kernel/variant，不解释 family
+compute，也不再 module-scan 重发现 body。`ExtensionPlugin` 的 base implementation fail
+closed；RVV、IME、Scalar、Demo、Toy、Template 与 TensorExtLite 都显式实现该 family
+lifecycle，Offload 显式 unsupported。随后
 `convertConstructedModuleWithBackendEmitter` / `tryConvertConstructedModuleWithRegisteredBackend`
-只消费已构造模块；artifact registry 与 driver 不再拥有 construction hook。
+只消费已构造 exact result；artifact registry 与 driver 不再拥有 construction hook。
 
 RVV quantize/dequantize、repack、通用 schedule、selected-body 与 flat block-dot 已沿既有
 typed formula 链构造，其中 `flat_*` 是 formula 产生的最终计算 plan，emitter 直接读取，
@@ -189,10 +193,11 @@ dequant 与 IME 的 MAC/tile 选择也在 emission 前形成 family-local final 
 Demo/Toy/Template/TensorExtLite 以已资格化 final typed body 加固定机械 route 实现，不另造
 通用 plan/provider。
 
-这里的 artifact-neutral 结论是公共 lifecycle 与 caller authority 已迁出 EmitC driver，
-不是说所有 legacy family metadata 已经清零。确定性 family 仍存在
-`emitc_route_mapping`/manifest qualification；它是下一项 A/B 横向重构要删除的历史协议，
-不得成为 future GPU construction 模板。
+当前 A/B 横向重构的第一项结构切面已经删除确定性 family 的
+`emitc_route_mapping`/construction manifest、typed-role replay、route provider、通用
+readiness verifier、字符串 role/status/interface 镜像和 metadata-only lowering boundary。
+保留的 artifact ABI/callee 常量只机械投影 exact typed body，不参与 construction、legality
+或 compute。这一完成不等于其它 `ConstructedWeak` leaf 已经 strong。
 
 这证明的是当前可达 production authority 和 caller 已横向收敛，不是所有知识都达到强
 因式分解。仍标为 `ConstructedWeak` 的完整 leaf，只有在删除该逐点实现后能由

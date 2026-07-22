@@ -5,6 +5,11 @@
 > 本文综合《高级 AI 思想 3》《高级 AI 思想 4》与当前代码/spec 事实，定义 Weft
 > 引入 GPU 之后应采用的完整系统抽象，以及真正实现 GPU 之前必须完成的横向重构。
 > 它不是 GPU 已实现声明，也不覆盖两柱、六律和既有主公式的权威。
+>
+> 术语校准：本文中的 `pre-schedule` 指 canonical source problem 尚未携带
+> family-specific execution schedule；Weft construction 本身负责产生 LMUL、tile、warp、
+> pipeline 等 schedule。`backend` 只在指 artifact lowerer/toolchain 时使用；拥有公式、
+> legality 与 typed body 的对象统一称 construction family。
 
 ---
 
@@ -57,7 +62,7 @@ V2 的总研究问题是：
 
 Weft 在系统边界上是：
 
-> **位于图级处理之后、目标执行映射之前的自动 operator-to-kernel compiler。**
+> **位于图级处理之后、family-specific 执行映射之前的自动 operator-to-kernel compiler。**
 
 Weft 在内部架构上是：
 
@@ -123,10 +128,11 @@ Weft                         总方法与 compiler architecture
    └─ AMD-GPU                future construction family
 ```
 
-`Weft-RV`/`Weft-GPU` 是系统实例分组，不是 formula candidate，也不是一个必须吞掉所有
-vendor 差异的巨型 plugin。本文中的 family `f` 指真正拥有 capability projection、formula、
-legality、typed body 和 artifact contract 的 construction family，例如 RVV、IME、Scalar、
-未来 NVIDIA-GPU 或 AMD-GPU。
+`Weft-RV`/`Weft-GPU` 是 execution-paradigm realization 分组，不是 formula candidate，也
+不是一个必须吞掉所有 vendor 差异的巨型 plugin。本文中的 family `f` 指真正拥有
+capability projection、formula、legality 与 typed construction result 的 construction
+family，例如 RVV、IME、Scalar、未来 NVIDIA-GPU 或 AMD-GPU。Artifact contract/lowerer
+与 family construction 相接，但不是 family identity 或 compute 的判定来源。
 
 当前仓库和工程名可以继续使用 TianchenRV/Weft-RV；无需在架构重构前做大规模改名。
 
@@ -213,9 +219,11 @@ P=(S,g,\omega)
 
 - `S`：operator semantics。它规定数学/离散语义、operand roles 与结果语义；
 - `g`：typed representation facts。它规定 format、encoding、packing、layout、
-  shape/geometry 及与表示相关的事实，但不携带目标执行选择；
-- `ω`：bounded static context。它只包含真实承重的 regime、必要 shape bucket、静态
-  memory form 或 policy，不包含 runtime data distribution 与 winner memory。
+  逻辑 shape/geometry 及与表示相关的事实，但不携带目标执行选择；
+- `ω`：bounded static context。它只包含不属于 representation 本身、但真实承重的
+  regime、必要 usage/shape bucket、静态 memory form 或 policy，不包含 runtime data
+  distribution 与 winner memory。某个 shape 事实只能在 `g` 或 `ω` 有一个 owner；family
+  projection 可以派生视图，但不得双写成两个决定来源。
 
 `S` 的引入不改变原主公式。进入一个具名 operator/family formula 时，`S` 已由 source op
 和 formula domain 固定，原公式继续只显式写 `g/c/ω`。
@@ -275,8 +283,9 @@ V2 只增加作用域说明：
 - `m`、`f^A`、`θ`、legality 与 `Emit_v` 都由 `f` 的 typed owner 持有；
 - `c` 是 `c_f`，不是一个同时塞入 RVV/GPU/IME optional 字段的巨型对象；
 - `K` 是已经可由 final typed body 表达的完整候选实现，不是 family/leaf 标签；
-- `Emit_v` 仍是构造式中把已确定 mechanisms/parameters 机械组成可执行候选的投影；
-  最终 object/cubin/hsaco packaging 属于下游 artifact lowering，不获得新的 compute authority。
+- `Emit_v` 是构造式中把已确定 mechanisms/parameters 组成完整候选 `K` 的 family-local
+  构造投影。它不是 C++ emitter、artifact registry 或 NVVM/ROCDL backend；最终
+  object/cubin/hsaco packaging 属于下游 artifact lowering，不获得新的 compute authority。
 
 没有必要另立一套“GPU 主公式”，也不把 family 名写进原公式正文。若需要讨论多个 family，
 可以把 `f` 作为外层作用域标记，但它不是新的 selector 变量。
@@ -474,9 +483,9 @@ Weft 决定执行结构；标准 MLIR/LLVM toolchain 负责目标指令和 artif
 
 ---
 
-## 7. 两柱与六律的 V2 读法
+## 7. V2 不改写两柱与六律
 
-### 7.1 两根柱不变
+### 7.1 两根柱沿用既有定义
 
 #### P1：能力驱动、类型化、可复用的扩展架构
 
@@ -492,7 +501,9 @@ GPU 是 P1 的强压力测试：若新增 NVIDIA-GPU 需要改写 RVV formula、
 RISC-V 与 GPU 的知识内容不同，但都必须从 `g/c/ω` 真实产生 code-affecting 结构，不能只
 返回标签让 emitter 取回手写 kernel。
 
-### 7.2 六律不重写，只扩大适用对象
+### 7.2 六律沿用既有定义，GPU 只作为未来检验域
+
+下列内容是既有六律在 V2 系统边界上的检查项，不是新版本或重新解释：
 
 1. **变化有唯一 typed owner**：`S`、`g`、`ω`、`c_f`、family formula/body、artifact/runtime
    分别归位；
@@ -505,7 +516,8 @@ RISC-V 与 GPU 的知识内容不同，但都必须从 `g/c/ω` 真实产生 cod
 6. **合格的双向知识积累**：win/loss/wall/wash 更新 formula、capability、measurement 或
    boundary，不产生逐设备 point 特判。
 
-`S` 只补足系统外部问题边界；它不把六律从 `g/c/ω` 构造哲学改造成新理论。
+`S` 只补足系统外部 operator semantics 的住址；它不进入原主公式改写 `g/c/ω`，也不把
+六律改造成新理论。未来 GPU 的作用只是检查同一不变量能否跨范式成立。
 
 ---
 
@@ -550,20 +562,24 @@ measurement 只修正合法残差，artifact lowerer 无 compute authority。
 - shared EmitC conversion 只有一个 `applyPartialConversion` harness；
 - direct pass、registry、translate 与 artifact 路径 fail closed；
 - `ExtensionPlugin` base construction fail closed，所有 live production family 显式实现
-  `constructFormulaPlans` / `hasConstructedFinalBody`；
+  variant-scoped `constructFormulaPlans(FamilyConstructionRequest, FamilyConstructionResult)`；
 - target/profile 在 construction 前绑定 origin family 与 typed `c_f`；
-- `TypedBackendEmissionDriver` 没有 construction hook，constructed-only API 只消费 final
-  typed body/plan；
+- family construction 返回 exact typed operation/root 或 explicit unsupported；公共编排只
+  检查结果存在、仍属于绑定 kernel/variant，并把该 exact result 传给 artifact query；
+- `TypedBackendEmissionDriver` 没有 construction hook，constructed-only API 不扫描 module
+  重发现 body，只消费已传入的 final typed body/plan；
 - `emitc.func` 只属于 current EmitC artifact completion gate；
 - mixed-family body 在 standalone materialization 前拒绝；
+- Demo、Toy、Template 与 TensorExtLite 的 construction manifest、typed-role replay、route
+  provider、通用 readiness verifier、role/status/interface 字符串镜像和 metadata-only
+  `lowering_boundary` 已退出 production；它们保留 family-local typed body、legality 与纯
+  artifact ABI/callee 常量，artifact 常量不参与 compute；
 - `ConstructedWeak` 与 strong reconstruction 的界线保持诚实。
 
-这里的“artifact-neutral”首先是 lifecycle/caller 边界：family construction 已不再由
-EmitC driver 拥有，且公共构造接口不以 `emitc.func` 宣告完成。它不宣称所有历史
-family-local qualification metadata 已经清除；Demo、Toy、Template 与 TensorExtLite 的
-现有确定性协议仍把 `emitc_route_mapping`/manifest 作为临时合法性条件。该残留属于下一项
-A 线横向清理对象，不能升级为公共 construction contract，也不能成为未来 GPU family 的
-抽象。
+这里的“artifact-neutral”不仅指 lifecycle/caller 已迁出 EmitC driver，也指确定性 family
+不再用 artifact route/manifest 判定 construction 完成。但这仍只是 authority 与结构收敛：
+typed body 是否已经包含可由 mechanisms/formula 重建的完整执行知识，仍须按
+delete-leaf reconstruction 单独验证。
 
 这些资产必须保留，后续 A/B 闭环、GPU family 或强重建工作都不能恢复旧 emitter
 authority。
@@ -575,10 +591,10 @@ construction 仍在 EmitC driver，也不能因此跳过 RISC-V 旗舰 realizati
 
 1. `P=(S,g,ω)` ownership 已可枚举，但真实 code-affecting `g/c/ω` 与 mechanism/formula
    仍分散在若干 family leaf、front door、schedule 与 conversion 中；
-2. 确定性 family 的旧 route/manifest qualification 仍需从 construction legality 与
-   provider/replay 结构中横向清理；不能把 EmitC route id 当成 `g/c/ω` 或 final compute；
-3. `ConstructedWeak` final leaf 仍需多 topology 的 delete-leaf reconstruction 才能升级 strong
+2. `ConstructedWeak` final leaf 仍需多 topology 的 delete-leaf reconstruction 才能升级 strong
    construction；
+3. Scalar 等路径若 formula 只生成参数字典、而完整算法仍住 artifact leaf，仍须提升为
+   family-local typed mechanism/body；确定性 typed root 不能替代这项证明；
 4. formula causal fan-out、capability counterfactual、analytic-only 与 bounded residual 的
    作用边界仍需直接实验；
 5. 重构后的 current artifact 必须重新经过 correctness、deployed symbol、strong opponent 与
@@ -669,10 +685,10 @@ canonical problem/source entry
 - 没有 production compatibility middle path。
 
 完成该 task 只证明“系统已经具备正确接入 GPU family 的结构”，不证明 GPU 已支持，也不
-表示科研主线应立即转向 GPU。下一 task 先横向闭合 RISC-V 旗舰 realization 的 A/B 两线：
-执行知识因式分解、强重建、formula causality、current artifact correctness 与真实性能。
-其中现有 deterministic family 的 route/manifest qualification 仍是 A 线清理项；它不构成
-GPU 接入模板，也不授权恢复新的通用 verifier/provider。
+表示科研主线应立即转向 GPU。当前 A/B 横向 task 先闭合 RISC-V 旗舰 realization 的执行
+知识因式分解、强重建、formula causality、current artifact correctness 与真实性能。
+其中 deterministic family 的 route/manifest qualification 已在该 task 的第一项横向清理中
+退役；这项完成不代表其余 leaf 已 strong，也不授权恢复新的通用 verifier/provider。
 
 ---
 
@@ -782,7 +798,7 @@ GPU correctness/performance。
 
 - ISSUE-131 保留 rebase 前 construction lifecycle 被 EmitC 绑住的历史问题，当前已关闭；
 - 第一个 task 已完成 artifact-neutral horizontal rebase；
-- 下一 task 是 executable-knowledge A/B horizontal closure，不实现 GPU；
+- 当前 task 是 executable-knowledge A/B horizontal closure，不实现 GPU；
 - GPU implementation 仍须之后另建，不作为 A/B task 的隐藏子项。
 
 ---

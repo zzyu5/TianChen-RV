@@ -22,6 +22,13 @@
 > `.trellis/tasks/07-23-executable-knowledge-ab-horizontal-closure/`：先在 RISC-V 旗舰
 > realization 上闭合 A 线执行知识重建与 B 线重构后性能因果，再考虑 GPU family。
 > 完整方法定义见 [项目全景与 Spec 重构前方法基线 V2](./项目全景与Spec重构前方法基线v2.md)。
+>
+> **2026-07-23 A 线当前切面**：family construction 现在返回 exact typed
+> operation/root，公共编排不再 module-scan 重发现 body。Demo、Toy、Template 与
+> TensorExtLite 的 manifest/typed-role replay、route provider、通用 readiness verifier、
+> 字符串 role/status/interface 镜像和 metadata-only lowering boundary 已退出 production；
+> artifact 只保留 ABI/callee 等机械常量。这一切面已完成并不等于 Scalar/RVV/IME 的完整
+> leaf 都能由 `g/c/ω + mechanisms + formula` 重建，后者仍是当前横向 task 的核心门。
 
 ## 一、发生了什么
 

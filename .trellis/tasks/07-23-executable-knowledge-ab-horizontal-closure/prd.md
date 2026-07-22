@@ -42,6 +42,32 @@ P=(S,g,ω) + Bind(P,t)=(f,c_f)
 代码施工可以按依赖顺序进行，但最终合入不得停在一个 family、一个 operator 或一个
 topology 的纵向切片，也不得保留旧路径作为兼容退路。
 
+## 当前实施状态（2026-07-23）
+
+本 task 已开工，但尚未完成。已经横向闭合的结构切面是：
+
+- `FamilyConstructionResult` 携带本次调用产生的 exact typed operation/root；公共层不再以
+  module scan、body metadata 或 universal verifier 重发现 construction completion；
+- RVV formula construction 绑定 selected variant 与其 `c_f`，artifact direct path 不再自行
+  触发 module-wide construction；
+- readiness/plan/artifact query 直接接收 exact construction result；
+- Demo、Toy、Template、TensorExtLite 的 route provider、construction manifest、typed-role
+  replay、role/status/interface 字符串镜像、通用 readiness verifier 与 metadata-only
+  lowering boundary 已删除；保留的 family contract 只含 legality 与纯 artifact ABI/callee
+  常量；
+- 上述切面完成时全量 lit 为 `980/980`。
+
+仍未闭合、因此 task 不能标为 completed 的主体包括：
+
+- Scalar/RVV/IME 及其它 production leaf 中剩余的完整算法 authority 与 plan dictionary；
+- decisive `g/c/ω` counterfactual、mechanism fan-out 与 honest-null 因果测试；
+- 多 topology delete-leaf strong reconstruction；
+- official runner 的 current-artifact 四臂消融、winner residual 稀疏性与 deployed/e2e paired
+  regression。
+
+这份状态只帮助恢复施工，不改变下面的完成门，也不把已完成的结构删除冒充 strong
+reconstruction 或 GPU readiness。
+
 ## A 线：执行知识与代码结构
 
 ### 1. 真实 production surface
@@ -188,7 +214,7 @@ A 线回答“知识是否集中、可组合、可扩展并真实构造”；B �
   candidate/legal set、final plan/body 与 consumer；
 - [ ] selected-stamp、provider-driven compute、formula replay、plan mirror、hidden default 与
   compatibility middle path 从 production 清零；
-- [ ] artifact route id/manifest/evidence metadata 不再参与 family construction legality、
+- [x] artifact route id/manifest/evidence metadata 不再参与 family construction legality、
   candidate、final-body completion 或 compute；
 - [ ] RVV `flat_*`、IME/Scalar final computation plan 与 artifact mechanical projection 边界保持；
 - [ ] decisive/honest-null/capability counterfactual/rule fan-out 测试覆盖真实 code-affecting

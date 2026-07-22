@@ -3,7 +3,7 @@
   "name": "executable-knowledge-ab-horizontal-closure",
   "title": "执行知识 A/B 横向闭环重构",
   "description": "在已完成的 artifact-neutral construction 底座上，横向重构所有 current compute-bearing family 的 formula/mechanism/final-body 结构，并把多 topology delete-leaf reconstruction 与当前 artifact 的 correctness、deployed、strong-opponent、e2e 性能证据闭合成同一条因果链；本 task 不实现 GPU。",
-  "status": "planning",
+  "status": "in_progress",
   "dev_type": "refactor",
   "scope": "project-wide-research-implementation",
   "package": null,

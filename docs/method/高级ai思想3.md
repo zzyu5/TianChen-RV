@@ -1,5 +1,32 @@
 # 可以接 GPU，而且这其实可能是最自然的“第二实例”
 
+> 文档性质：教师方向讨论稿，经项目侧校准后作为 V2 的思想来源，不是稳定 spec。
+> 最终术语、当前/目标状态和工程契约以
+> [《项目全景与 Spec 重构前方法基线 V2》](./项目全景与Spec重构前方法基线v2.md)
+> 与 `.trellis/spec/` 为准。
+
+## 项目侧校准：先固定五个不许混用的对象
+
+本文后续出现的宽泛 “backend” 一词，应按语境拆成：
+
+| 对象 | 含义 |
+|---|---|
+| execution paradigm / realization grouping | RISC-V 与 GPU 这类跨计算范式实例分组 |
+| construction family | RVV、IME、Scalar、future NVIDIA-GPU、future AMD-GPU 等拥有公式与 typed body 的 owner |
+| capability profile | 同一 family 下的具体目标能力实例，例如不同 GPU generation/profile |
+| final typed construction result | family 公式与 mechanisms 已经构造完成的 computation body/plan |
+| artifact lowerer/backend | 机械消费 typed result 并交给 EmitC/LLVM/NVVM/ROCDL 等 toolchain 的物化层 |
+
+还需固定四条校准：
+
+1. GPU 不重新解释两柱、六律或原主公式；它只是未来第二执行范式上的验证域；
+2. 原公式中的 `Emit_v(c)` 是候选构造式内部的组合/实现投影，不是当前 C++
+   `emitter`、artifact registry 或 NVVM lowering；
+3. RISC-V/GPU 不直接充当同一个 selector 中的 candidates。AOT target/profile 先绑定
+   construction family，之后只在该 family 内构造、合法化和选择；
+4. 本文描述的是目标态。当前仓库尚无 GPU capability、formula、typed body、artifact、
+   runtime 或硬件证据，不能写成“已经支持 GPU”。
+
 但先把最关键的边界说清楚：
 
 > **Weft 可以扩展成同时支持 RISC-V 和 GPU 的 execution-layer 算子编译器。**
@@ -20,7 +47,9 @@ RISC-V 是第一个、也是目前最完整的实例；GPU 可以成为第二个
 
 可以把项目的总问题稳定成：
 
-> **如何设计一个可扩展的 execution-layer 算子编译器，使 operator、数据格式、硬件能力和 backend family 可以独立演化，同时仍允许每个目标执行专家级专化，生成有竞争力的 kernel？**
+> **如何设计一个可扩展的 execution-layer 算子编译器，使 operator、数据格式、硬件能力、
+> construction family 与 artifact 路径可以独立演化，同时仍允许每个目标执行专家级专化，
+> 生成有竞争力的 kernel？**
 
 这里存在一个非常清楚的矛盾：
 
@@ -33,7 +62,7 @@ RISC-V 是第一个、也是目前最完整的实例；GPU 可以成为第二个
 目标特化做得越深
 → 性能越高
 → 越容易退化成
-  operator × format × board × backend 的逐点实现
+  operator × format × target profile × construction family 的逐点实现
 ```
 
 Weft 要回答的不是“能不能生成 kernel”，而是：
@@ -46,13 +75,14 @@ ARS 的正式编辑裁决其实仍保留了这个定位：Weft 是完整 executi
 
 ---
 
-# 二、两根柱完全不用改
+# 二、两根柱的定义不改，GPU 只增加未来验证域
 
 ## 柱一：可扩展性来自能力驱动、类型化的 execution-layer 模板
 
-它现在可以被解释为：
+沿用项目既有定义。GPU 目标态额外检验的是：
 
-> operator、format、target capability 和 backend family 的变化分别进入自己的 typed owner，而不是形成完整乘积。
+> operator、format、target capability、construction family 和 artifact 的变化分别进入自己的
+> typed owner，而不是形成完整乘积。
 
 在 RISC-V 上，碎片化来自：
 
@@ -81,7 +111,8 @@ ARS 的正式编辑裁决其实仍保留了这个定位：Weft 是完整 executi
 
 ## 柱二：高性能来自可执行知识
 
-它在 GPU 上仍然成立，只是专家知识的内容不同。
+柱二的定义同样不改。GPU 目标态中的专家知识内容与 RISC-V 不同，但仍须由原有
+`g/c/ω` 构造关系真实生成 code-affecting typed result。
 
 RISC-V 上的知识可能是：
 
@@ -113,11 +144,12 @@ facts + capability + context
 → 构造高性能执行方案
 ```
 
-不统一的是每个 backend 的具体机制和公式。
+不统一的是每个 construction family 的具体机制、公式、资源模型和 typed body。
 
 这点非常重要：
 
-> **跨 backend 共享的是构造契约，不是同一套 kernel 模板、同一个 Plan 类或同一套调参公式。**
+> **跨 execution paradigm 共享的是构造责任边界，不是同一套 kernel 模板、同一个 Plan
+> 类或同一套调参公式。**
 
 现有 ARS 审计也已经明确：RVV 与 IME 应共享 `g/c/ω` 的角色和构造—选择—实现的因果边界，但不应被迫共享同一个 C++ Plan、相同 op 类型或相同资源模型。GPU 也应按同样原则接入。
 
@@ -129,11 +161,11 @@ facts + capability + context
 
 可以把目标硬件分成：
 
-[
+\[
 \text{稳定的 family skeleton}
 +
 \text{随目标变化的 capability}
-]
+\]
 
 ## RISC-V 的 skeleton
 
@@ -217,9 +249,9 @@ MLIR 本身已经以这种方式组织 GPU：通用 `gpu` dialect 表示 launch�
 | Format facts (g)        | bit packing、scale、zero/min、codebook、layout           | RVV intrinsic 或 GPU MMA 名称     |
 | Static context (\omega) | op、decode/prefill、shape、layout、regime                | GPU stages 或 RVV LMUL          |
 | Capability role (c)     | “目标能做什么”的 typed 概念                                   | 一张包含所有平台 optional 字段的巨型 struct |
-| Pipeline contract       | construct → boundary → select → typed body → realize | 同一个 physical Plan              |
+| Pipeline contract       | construct → legality → select → typed body → artifact | 同一个 physical Plan              |
 | Measurement rule        | 只修正合法候选排序                                            | 相同 measurement key/schema      |
-| Backend body            | typed、可被机械实现                                         | 相同 body op、相同资源模型              |
+| Final typed body        | 完整、可被 artifact lowerer 机械消费                           | 相同 body op、相同资源模型              |
 | Formula形式               | (f^A(g,c,\omega))                                    | 相同公式内容                         |
 
 最准确的一句话是：
@@ -228,70 +260,48 @@ MLIR 本身已经以这种方式组织 GPU：通用 `gpu` dialect 表示 launch�
 
 ---
 
-# 六、现有主公式能不能直接覆盖 GPU
+# 六、现有主公式如何作用于未来 GPU family
 
-可以，不需要改变公式的本质。
+不需要修改公式；只在正文中说明公式总是在一个已经绑定的 construction family 作用域内
+求值。不要另写 GPU 版主公式，也不要给原公式增加新的选择变量。
 
-你们现在的公式：
+项目既有公式原样保留：
 
-[
+\[
 \theta_{i,v}=f^A_{i,v}(g,c,\omega)
-]
+\]
 
-[
+\[
 K_{v,\omega}(g,c)
-=================
-
+=
 Emit_v(c)\circ
 \bigoplus_i
-\left{
+\left\{
 m_{i,v}(g,\omega)
 \text{ with }
 \theta_{i,v}
-\right}
-]
+\right\}
+\]
 
-可以把 (v) 和 (Emit_v) 理解为 family-local。
-
-为了说明 GPU，可以在正文解释中临时加 family 下标：
-
-[
-K^{(f)}_{v,\omega}(g,c_f)
-=========================
-
-Emit^{(f)}*v(c_f)
-\circ
-\bigoplus_i
-\left{
-m^{(f)}*{i,v}(g,\omega)
-\text{ with }
-\theta^{(f)}_{i,v}
-\right}
-]
-
-其中：
-
-[
-f\in
-{
-RVV,\ IME,\ Scalar,\ NVIDIA\ GPU,\ AMD\ GPU
-}
-]
-
-这不是新公式，只是在原公式上明确：
+外层 target binding 已经得到 `(f,c_f)`，所以式中的 `c` 就是当前 family 的 `c_f`，
+`v/m/f^A/θ/K` 的 owner 也都在 `f` 内。这里尤其要避免名称误导：`Emit_v(c)` 表示把已确定
+的 mechanisms 与参数组成完整候选实现 `K` 的构造投影；最终 C/object/cubin/hsaco 的
+packaging 属于其后的 artifact lowerer。由此明确：
 
 * capability 是 family-local 的；
 * mechanism 是 family-local 的；
 * formula 是 family-local 的；
-* realization 是 family-local 的。
+* typed construction result 是 family-local 的；
+* artifact lowering 不能反向决定上述任何内容。
 
-CPU 和 GPU 也不应被同一个性能 selector 当作候选，除非你们以后真的实现跨设备 runtime dispatch。
+RISC-V 和 GPU 也不应被同一个性能 selector 当作候选，除非未来真的实现并验证跨设备
+runtime dispatch。
 
 正常 AOT 场景是：
 
 ```text
 target profile
-→ 先确定 backend family
+→ 先绑定 construction family
 → 再在该 family 内构造和选择候选
 ```
 
@@ -309,9 +319,9 @@ MLIR 官方 GPU lowering pipeline明确要求输入已经是显式并行的 GPU 
 
 从：
 
-[
+\[
 op,\ shape,\ regime
-]
+\]
 
 推导：
 
@@ -422,10 +432,10 @@ measurement 只负责：
 
 所以柱二在 GPU 上仍是：
 
-[
+\[
 \boxed{
 \text{高性能}
-==========
+=
 
 \text{格式语义专化}
 +
@@ -435,7 +445,7 @@ measurement 只负责：
 +
 \text{有限经验修正}
 }
-]
+\]
 
 ---
 
@@ -516,7 +526,9 @@ TVM 当前包含高层 Relax、TensorIR/TIRx、规则式 GPU scheduling、MetaSc
 
 更合适的定位是：
 
-> **Weft 提供 TVM-like 的跨目标性能可移植目标，但停留在更窄的 post-operator execution layer，专门解决碎片化 capability、复杂格式和 backend-local 专家知识的组合问题。**
+> **Weft 提供 TVM-like 的跨目标性能可移植目标，但停留在更窄的 post-graph、
+> pre-family-schedule operator execution layer，专门解决碎片化 capability、复杂格式和
+> family-local 专家知识的组合问题。**
 
 一句话：
 
@@ -573,7 +585,8 @@ warp / block / shared memory / MMA
 
 最后的主张可以变成：
 
-> **一种统一但不抹平硬件差异的 execution-layer contract：共享 operator/data semantics 与专化流程，同时允许 backend-local 专家知识构造完全不同的高性能 kernel。**
+> **一种统一但不抹平硬件差异的 execution-layer contract：共享 operator/data semantics 与
+> 专化责任边界，同时允许 family-local 专家知识构造完全不同的高性能 kernel。**
 
 我认为这比把 novelty 收缩为“深入 QIGen 的 bitwidth leaf 以下”更符合整个项目的身份。06 文档中的 QIGen 差分仍可保留为 RISC-V/量化 slice 的 related-work 边界，但不应成为整个 compiler 的定义。该文档本身也声明它不修改两柱和系统定位，只调整特定 novelty 边界。
 
@@ -627,7 +640,7 @@ operator semantics S
 
 ---
 
-## GPU backend 工作：较大
+## GPU construction family 与 artifact 工作：较大
 
 真正高性能的 GPU family 不是“加一个 emitter”即可完成。
 
@@ -644,7 +657,8 @@ operator semantics S
 
 所以更准确的判断是：
 
-> **不会推翻现有 compiler，但会新增一个真正的 backend family。**
+> **不会推翻现有 compiler，但会新增一个真正的 construction family 及其 GPU artifact/
+> runtime。**
 
 公共核心不应大改，backend 工程量会相当可观。
 
@@ -705,7 +719,7 @@ SIMT 或 tensor-core path
 
 ## 柱一实验
 
-增加 GPU backend 时记录：
+增加 GPU construction family 时记录：
 
 * source dialect 是否修改；
 * format facts 是否修改；
@@ -825,7 +839,7 @@ GPU lowerer 不再重新选 tile。
 
 ### C1：Extensible execution-layer architecture
 
-operator、format、capability 和 backend family 的变化保持局部。
+operator、format、capability、construction family 与 artifact 的变化保持局部。
 
 ### C2：Executable family-local specialization
 
@@ -863,15 +877,15 @@ operator、format、capability 和 backend family 的变化保持局部。
 
 最核心的一句话是：
 
-[
+\[
 \boxed{
 \text{统一构造契约}
 \quad+\quad
-\text{非统一的 backend 专家知识}
+\text{非统一的 family-local 专家知识}
 \quad=\quad
 \text{可扩展且高性能}
 }
-]
+\]
 
 这应当成为接下来整个项目的总纲。
 

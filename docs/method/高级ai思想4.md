@@ -1,8 +1,28 @@
 # 最终判断
 
-另一个 AI 的定义**方向上更接近正确答案**，但还需要做一个关键校准：
+> 文档性质：教师方向讨论稿，经项目侧校准后作为 V2 的思想来源，不是稳定 spec。
+> 最终系统边界以
+> [《项目全景与 Spec 重构前方法基线 V2》](./项目全景与Spec重构前方法基线v2.md)
+> 与 `.trellis/spec/` 为准。本文中的“应当”描述目标态，不自动等于当前代码已经做到。
 
-> **Weft 应当是一个基于 MLIR 的、有限领域的自动算子编译器；它拥有一个较高于目标执行细节、但远低于完整模型图的语义输入层，以及 RVV、IME、GPU 等 family-specific 的低层执行 IR。**
+## 项目侧校准
+
+1. `post-graph、pre-schedule` 的 `pre-schedule` 指 canonical source problem 尚未携带
+   family execution schedule；Weft 的 family-local construction 正是负责产生 LMUL、tile、
+   warp、pipeline 等执行计划，不是说 Weft 不生成 schedule。
+2. canonical source 是一份 `P=(S,g,ω)` typed contract，不强制新建通用高层 tensor/tile
+   IR；现有 named source op 与 adapter 可以共同实现它。
+3. source/problem、construction family、final typed result、artifact lowerer 是四个不同
+   工位。GPU 必须从 source problem 构造自己的 typed body，不能从 RVV body 或 `flat_*`
+   plan 再发射。
+4. 新增 `S` 只是把系统外部 operator semantics 说清；进入具名 operator/family 后，原
+   `θ=f^A(g,c,ω)` 与 `K` 构造式、两柱和六律均不改写。
+
+这份讨论的方向可作为 V2 输入，但必须按上面的项目边界校准：
+
+> **Weft 的目标身份是一个基于 MLIR 的、有限领域的自动算子编译器；它拥有高于目标
+> 执行细节、远低于完整模型图的 typed source/problem contract，以及 RVV、IME、Scalar、
+> future GPU 等 family-specific 的低层执行 IR。**
 
 所以答案不是三选一：
 
@@ -12,13 +32,13 @@
 
 更准确的关系是：
 
-[
+\[
 \boxed{
 \text{Weft 在系统边界上是 operator compiler，}
 \quad
 \text{在内部架构上是 execution-layer compiler。}
 }
-]
+\]
 
 这两句话并不矛盾。
 
@@ -48,7 +68,7 @@
 
 ```text
 目标无关
-→ backend family 已选
+→ construction family 已绑定
 → tile / LMUL / warp 已选
 → intrinsic / asm 已选
 ```
@@ -85,7 +105,7 @@ quantized_contraction
 
 ---
 
-# 二、Weft 最合适的位置：post-graph，pre-schedule
+# 二、Weft 最合适的位置：post-graph，pre-family-schedule
 
 以前使用过的：
 
@@ -95,11 +115,11 @@ quantized_contraction
 
 更准确的是：
 
-> **post-graph, pre-schedule operator compiler**
+> **post-graph, pre-family-schedule operator compiler**
 
 中文：
 
-> **位于图级编译之后、目标执行映射之前的算子编译器。**
+> **位于图级编译之后、family-specific 执行映射之前的算子编译器。**
 
 完整位置是：
 
@@ -132,9 +152,9 @@ Torch / StableHLO / TOSA / GGML / 其他前端
 
 上传定义中给出的系统级接口：
 
-[
+\[
 K=\operatorname{Compile}(S,g,\omega,c)
-]
+\]
 
 以及“输入是尚未决定具体实现的语义程序”这一判断，是非常准确的。
 
@@ -148,9 +168,9 @@ K=\operatorname{Compile}(S,g,\omega,c)
 
 应该是：
 
-[
+\[
 P=(S,g,\omega)
-]
+\]
 
 即 operator semantics、representation facts 和 static context。
 
@@ -181,13 +201,13 @@ P=(S,g,\omega)
 
 当 operator (S) 已经确定后，进入你们现有核心：
 
-[
+\[
 g,c,\omega
 \rightarrow
 m_i,\theta_i
 \rightarrow
 typed\ body
-]
+\]
 
 也就是说：
 
@@ -340,13 +360,13 @@ StableHLO/TOSA adapter
 
 输入：
 
-[
+\[
 S,g,\omega,c
-]
+\]
 
 构造：
 
-* backend family；
+* bound construction family 内的 candidate 与执行结构；
 * mechanisms；
 * loop/dataflow；
 * LMUL/tile；
@@ -613,7 +633,8 @@ adapter 不决定：
 
 柱一现在回答：
 
-> 同一个 source problem 能否跨不同 format、capability 和 backend 自动编译；新增格式、能力或 backend 时，compiler 修改是否保持局部？
+> 同一个 source problem 能否跨不同 format、capability 和 construction family 自动编译；
+> 新增格式、能力、family 或 artifact lowerer 时，compiler 修改是否保持局部？
 
 source 层稳定，family 层局部扩展。
 
@@ -635,24 +656,23 @@ source 层稳定，family 层局部扩展。
 
 系统级接口可以写：
 
-[
+\[
 P=(S,g,\omega)
-]
+\]
 
-[
+\[
 \operatorname{Compile}_f(P,c_f)\rightarrow K_f
-]
+\]
 
 进入某个 operator/family 后，继续使用你们原有公式：
 
-[
+\[
 \theta_{i,v}=f^A_{i,v}(g,c,\omega)
-]
+\]
 
-[
+\[
 K_{v,\omega}(g,c)
-=================
-
+=
 Emit_v(c)\circ
 \bigoplus_i
 \left{
@@ -660,7 +680,10 @@ m_{i,v}(g,\omega)
 \text{ with }
 \theta_{i,v}
 \right}
-]
+\]
+
+这里的 `Emit_v(c)` 是原候选构造式内部的 family-local 组合/实现投影，不是 artifact
+emitter。最终 EmitC/NVVM/ROCDL/object packaging 在完整 typed `K` 形成之后机械进行。
 
 两者不是两个竞争的理论核心：
 
@@ -713,12 +736,12 @@ m_{i,v}(g,\omega)
 
 因此，这次不是把原项目从低层彻底改成高层，而是把原先混在一起的两个层次正式分开：
 
-[
+\[
 \boxed{
 \text{语义输入层}
 ;\xrightarrow{\text{Weft 自动构造}};
 \text{低层执行 IR}
 }
-]
+\]
 
 原来的低层 MLIR继续存在，并且仍是实现核心；新明确的只是：**它应该是编译结果的一部分，而不是要求普通使用者提前写好的全部输入。**

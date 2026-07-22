@@ -4,6 +4,10 @@ Weft is an extensible, MLIR-based automatic operator-to-kernel compiler and exec
 
 The project is not a general-purpose graph/tensor compiler and does not introduce a new high-level tensor/tile IR. It owns the post-graph, pre-schedule operator execution layer: canonical problem intake, target/family binding, construction, legality, selection, typed bodies, artifact realization, ABI/runtime integration and evidence. The design goal is an ecosystem in which new operators and targets remain local without giving up expert-quality specialization.
 
+Here, “pre-schedule” means the source problem has not already chosen a
+family-specific execution schedule. Weft construction itself produces LMUL/tile/warp/
+pipeline decisions; artifact lowering does not choose them again.
+
 ## Research direction: two pillars
 
 ### Pillar 1: a typed, capability-driven extension template
@@ -80,19 +84,24 @@ materialization, direct RVV conversion, translate and artifact export all invoke
 family-owned construction seam before the construction-blind backend registry.
 `TypedBackendEmissionDriver` no longer owns a construction hook, and `emitc.func` is
 only the success gate for the current EmitC artifact. RVV, IME, Scalar, Demo, Toy,
-Template and TensorExtLite are construction-qualified; Offload remains explicitly
-unsupported. Scalar q2/dequant and IME MAC/tile decisions are frozen into family-local
-final plans before emission, while deterministic small families qualify a complete
-typed body for their current mechanical artifact path. Catalog/backend inventories are
-checked separately and neither is compute authority. See
+Template and TensorExtLite return an exact family-local typed construction result;
+Offload remains explicitly unsupported. Common orchestration checks only exact-result
+existence/ownership and passes it to the artifact query instead of rediscovering a body
+by scanning module metadata. Scalar q2/dequant and IME MAC/tile decisions are frozen
+into family-local final plans before emission, while deterministic small families
+construct a typed body for their current mechanical artifact path. Catalog/backend
+inventories are checked separately and neither is compute authority. See
 [ISSUE-129 and ISSUE-131](.trellis/spec/issues/发射器与架构.md).
 
 That lifecycle cutover is a structural prerequisite, not the end of the research
-refactor. Some code-affecting knowledge and legacy route/manifest protocols still live
-across leaves, front doors, schedules and conversions; `ConstructedWeak` entries have
-not thereby passed delete-leaf reconstruction. The next project-wide task therefore
-closes the A/B lines horizontally across the current RISC-V realization: factor
-mechanisms and formulas, remove provider/replay/mirror authority, prove multi-topology
+refactor. Deterministic-family construction manifests, typed-role replay, route
+providers, generic readiness verification, string role/status/interface mirrors and
+metadata-only lowering boundaries have been retired; pure artifact ABI/callee
+constants no longer decide construction. Other code-affecting knowledge still lives
+across complete leaves, front doors, schedules and conversions, and
+`ConstructedWeak` entries have not thereby passed delete-leaf reconstruction. The
+current project-wide task therefore closes the A/B lines horizontally across the
+RISC-V realization: factor mechanisms and formulas, prove multi-topology
 reconstruction, and re-establish current-artifact correctness and performance
 causality. GPU implementation starts only after this closure and will not be
 registered as another EmitC emitter or consume an RVV body/`flat_*` plan. See the
