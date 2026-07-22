@@ -189,19 +189,24 @@ dequant 与 IME 的 MAC/tile 选择也在 emission 前形成 family-local final 
 Demo/Toy/Template/TensorExtLite 以已资格化 final typed body 加固定机械 route 实现，不另造
 通用 plan/provider。
 
+这里的 artifact-neutral 结论是公共 lifecycle 与 caller authority 已迁出 EmitC driver，
+不是说所有 legacy family metadata 已经清零。确定性 family 仍存在
+`emitc_route_mapping`/manifest qualification；它是下一项 A/B 横向重构要删除的历史协议，
+不得成为 future GPU construction 模板。
+
 这证明的是当前可达 production authority 和 caller 已横向收敛，不是所有知识都达到强
 因式分解。仍标为 `ConstructedWeak` 的完整 leaf，只有在删除该逐点实现后能由
 `g/c/ω + mechanisms + formula` 重建同一实例时，才可升级 strong construction。后续工程
 重点是继续做 mechanism factorization、能力因果与该删除实验，而不是重开兼容入口。
 
 V2 的首轮横向重构已经把 canonical problem 之后的 target/family binding 与 family
-construction 从 EmitC driver 迁入 artifact-neutral plugin lifecycle。`emitc.func` 现在只保留
-为 current EmitC artifact 的完整 legalization gate，不再代表 construction completion；GPU
-也没有被注册成 EmitC emitter。本轮没有创建 GPU dialect/backend，后续 GPU family 必须复用
-同一 construction contract，并拥有自己的 typed body 与 artifact lowering。
+construction 从 EmitC driver 迁入 artifact-neutral plugin lifecycle，并闭合 current
+source/direct/translate/artifact callers。`emitc.func` 现在只保留为 current EmitC artifact 的
+完整 legalization gate，不再代表 construction completion；GPU 也没有被注册成 EmitC
+emitter。
 
-公共底座与上述切换也不表示每个 `ConstructedWeak` leaf 已经完成强义重建。关闭剩余
-公开 authority inversion 后，应在同一横向结构上推进：
+公共底座与上述切换不表示每个 `ConstructedWeak` leaf 已经完成强义重建。下一阶段按 A/B
+两线在同一横向结构上推进，而不是立即实现 GPU：
 
 1. 横向审查现有 leaf 中仍未提升为 mechanism、typed parameter 或 formula 的知识；
 2. 让更多实例通过 delete-leaf reconstruction，而不是继续增加 opaque leaf；
@@ -209,6 +214,10 @@ construction 从 EmitC driver 迁入 artifact-neutral plugin lifecycle。`emitc.
 4. 保持新增 operator、format、capability、mechanism、formula、residual 与 backend 的
    owner/入口清楚，不重新形成双 authority；
 5. 在统一路径上继续 deployed ggml、代表性强对手、e2e 与正负性能证据。
+
+对应实施入口是
+`.trellis/tasks/07-23-executable-knowledge-ab-horizontal-closure/`。GPU family 必须在该闭环
+之后复用同一 construction contract，并拥有自己的 typed body 与 artifact lowering。
 
 强 reconstruction 可以按真实 mechanism 逐步增强，但 formula authority 不能退回按五类
 dequant、单一 operator 或第二 family 分裂的新旧双轨。

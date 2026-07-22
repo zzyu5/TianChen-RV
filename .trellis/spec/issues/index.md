@@ -167,7 +167,7 @@
 | [门与工具](./门与工具.md) | 门体清算（054–060）· runner 与工具挂载（067–069 · 082 · 083 · 085 · 087 · 090–094）· bench 通道与 harness（096–099 · 104 · 105 · 114）· 工具默认失锚（108）· T-X≠S1（110） | 28 |
 | [spec树与治理](./spec树与治理.md) | 登记簿治理（066）· spec 树自身的缺口（070–074 · 086 · 089）· 旧强制治理裁决（075–080）· 旧 goal 退役与 T-X 归属（095 · 103） | 16 |
 
-**总条数 = 131**（ISSUE-001..ISSUE-131，**零缺号 · 零重号**）。状态分布（leading-token 口径）：**待裁 58 · RESOLVED 31 · 待施工 15 · 已就绪 8 · 阻塞 8 · 已施工 3 · 已裁 2 · 已修 2 · 回门待扫 1 · APPLIED-DEFAULT 1 · 已退役 1 · 裁准拆分 1**（Σ=131）。本行由 `.trellis/scripts/issues_census.py` 于 2026-07-23 机算刷新；后续禁止手抄沿用。
+**总条数 = 131**（ISSUE-001..ISSUE-131，**零缺号 · 零重号**）。状态分布（leading-token 口径）：**待裁 58 · RESOLVED 32 · 待施工 14 · 已就绪 8 · 阻塞 8 · 已施工 3 · 已裁 2 · 已修 2 · 回门待扫 1 · APPLIED-DEFAULT 1 · 已退役 1 · 裁准拆分 1**（Σ=131）。本行由 `.trellis/scripts/issues_census.py` 于 2026-07-23 机算刷新；后续禁止手抄沿用。
 
 > **计数谓词（机算 · 禁手写小计）**：按 `### ISSUE-NNN` 切块、取每块最后一个 `- **状态**：` 行统计（子块内的重复状态行不重复计）。2026-07-17 §七③ `docs/` 归档轮收官实测：总数 **94** / 零缺号 / 零重号；分布 **待裁 58 · 待施工 14 · 阻塞 10 · 已就绪 9 · 已裁·已落地 2 · 已退役 1**。〔本轮 +1 = ISSUE-094（`--drift` 漂移门），经用户裁后**已退役**、不占待裁额。同轮并行写入者新增 090–093 并结清 2 条，故前几行的「93 / 60·14·10·9」是彼时口径、非漂移 —— **本行数字禁手抄，一律按上述谓词现算**。〕**同轮订正三处既存漂移**：ISSUE-089 在 [§三 全册索引](#三全册索引) **缺行**（本层自称「唯一入口索引」却查不到该号）· canon与措辞 条数 10→11（088 未计）· spec树与治理 条数 13→14（089 未计）。
 
@@ -309,7 +309,7 @@
 | ISSUE-128 | 横向公式生命周期的 registry、schedule 与 emitter 旁路收敛 | RESOLVED | 发射器与架构 |
 | ISSUE-129 | 非 RVV direct backend 绕过 construction-before-emission | RESOLVED | 发射器与架构 |
 | ISSUE-130 | RVV 公开 lowering cut 的 fail-open 与入口分裂 | RESOLVED | 发射器与架构 |
-| ISSUE-131 | Family construction lifecycle 被 EmitC artifact contract 绑定 | 待施工 | 发射器与架构 |
+| ISSUE-131 | Family construction lifecycle 被 EmitC artifact contract 绑定 | RESOLVED | 发射器与架构 |
 
 ---
 

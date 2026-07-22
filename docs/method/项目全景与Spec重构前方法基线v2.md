@@ -558,21 +558,31 @@ measurement 只修正合法残差，artifact lowerer 无 compute authority。
 - mixed-family body 在 standalone materialization 前拒绝；
 - `ConstructedWeak` 与 strong reconstruction 的界线保持诚实。
 
-这些资产必须保留，后续 caller closure、GPU family 或强重建工作都不能恢复旧 emitter
+这里的“artifact-neutral”首先是 lifecycle/caller 边界：family construction 已不再由
+EmitC driver 拥有，且公共构造接口不以 `emitc.func` 宣告完成。它不宣称所有历史
+family-local qualification metadata 已经清除；Demo、Toy、Template 与 TensorExtLite 的
+现有确定性协议仍把 `emitc_route_mapping`/manifest 作为临时合法性条件。该残留属于下一项
+A 线横向清理对象，不能升级为公共 construction contract，也不能成为未来 GPU family 的
+抽象。
+
+这些资产必须保留，后续 A/B 闭环、GPU family 或强重建工作都不能恢复旧 emitter
 authority。
 
-### 9.2 当前仍需完成的验收与后续结构工作
+### 9.2 当前仍需完成的 A/B 主线
 
-Artifact-neutral 主体切换已经完成；剩余工作不能被误写成 construction 仍在 EmitC driver：
+Artifact-neutral 主体切换、caller closure 与完整回归已经完成；剩余工作不能被误写成
+construction 仍在 EmitC driver，也不能因此跳过 RISC-V 旗舰 realization 的方法闭环：
 
-1. source request 仍主要以 loose `Operation*`、front-door pass 与 family-specific attrs
-   传递，尚未形成清楚、可枚举的 `P=(S,g,ω)` ownership contract。
-2. production source/direct/pass/translate/artifact caller 必须逐条接受 construction-before-
-   artifact closure 与负例审计，不能只依赖接口存在或 catalog 数量；
-3. `ConstructedWeak` final leaf 仍需 delete-leaf reconstruction 才能升级 strong
+1. `P=(S,g,ω)` ownership 已可枚举，但真实 code-affecting `g/c/ω` 与 mechanism/formula
+   仍分散在若干 family leaf、front door、schedule 与 conversion 中；
+2. 确定性 family 的旧 route/manifest qualification 仍需从 construction legality 与
+   provider/replay 结构中横向清理；不能把 EmitC route id 当成 `g/c/ω` 或 final compute；
+3. `ConstructedWeak` final leaf 仍需多 topology 的 delete-leaf reconstruction 才能升级 strong
    construction；
-4. full catalog/inventory、behavior negative tests 与 `check-weft` 仍是本轮验收门，不由本文
-   预先宣告通过。
+4. formula causal fan-out、capability counterfactual、analytic-only 与 bounded residual 的
+   作用边界仍需直接实验；
+5. 重构后的 current artifact 必须重新经过 correctness、deployed symbol、strong opponent 与
+   e2e paired regression，不能继承历史 leaf 的性能结论。
 
 因此现在也不能把 GPU 简化为：
 
@@ -584,11 +594,11 @@ Artifact-neutral 主体切换已经完成；剩余工作不能被误写成 const
 
 ---
 
-## 10. GPU 之前的第一个横向重构（已实施的结构基线）
+## 10. GPU 前置的 artifact-neutral 横向重构（已完成）
 
 首个 task 定义为 **artifact-neutral family construction rebase**，而不是 GPU
-implementation；本轮代码已经实施其主体切换，本节继续作为实现与验收准则，不改写为 GPU
-完成声明。
+implementation；主体提交已完成结构切换、caller closure 与完整回归。本节保留其架构结果，
+不改写为 GPU 完成声明。
 
 ### 10.1 重构目标
 
@@ -645,7 +655,7 @@ canonical problem/source entry
 
 ### 10.5 完成判据
 
-只有同时满足以下事实，才可以开始 GPU family：
+本次 task 已同时满足：
 
 - 每个 production source entry 都能说明自己的 `S/g/ω`；
 - target/family binding 在 construction 前完成，common artifact code 不按 family 名分支；
@@ -658,13 +668,17 @@ canonical problem/source entry
 - current full test、catalog/registry、source/direct/artifact negative tests 全绿；
 - 没有 production compatibility middle path。
 
-完成该 task 只证明“系统已经具备正确接入 GPU family 的结构”，不证明 GPU 已支持。
+完成该 task 只证明“系统已经具备正确接入 GPU family 的结构”，不证明 GPU 已支持，也不
+表示科研主线应立即转向 GPU。下一 task 先横向闭合 RISC-V 旗舰 realization 的 A/B 两线：
+执行知识因式分解、强重建、formula causality、current artifact correctness 与真实性能。
+其中现有 deterministic family 的 route/manifest qualification 仍是 A 线清理项；它不构成
+GPU 接入模板，也不授权恢复新的通用 verifier/provider。
 
 ---
 
-## 11. 后续 GPU realization 的完整方向
+## 11. A/B 闭环之后的 GPU realization 方向
 
-在 artifact-neutral rebase 完成 caller closure 与验收后，GPU 可以按真正 family 接入：
+在 artifact-neutral rebase 与 RISC-V 旗舰 A/B 闭环完成后，GPU 才按真正 family 接入：
 
 1. NVIDIA capability profiles；
 2. source/problem applicability；
@@ -766,10 +780,10 @@ GPU correctness/performance。
 
 ### Issues / Tasks
 
-- issue 保留 rebase 前 construction lifecycle 被 EmitC 绑住的历史问题，并继续记录本轮
-  caller closure 与验收边界；
-- 第一个 task 只实施 artifact-neutral horizontal rebase，当前主体切换已经落地；
-- GPU implementation 仍须另建，不作为本轮 task 的隐藏子项。
+- ISSUE-131 保留 rebase 前 construction lifecycle 被 EmitC 绑住的历史问题，当前已关闭；
+- 第一个 task 已完成 artifact-neutral horizontal rebase；
+- 下一 task 是 executable-knowledge A/B horizontal closure，不实现 GPU；
+- GPU implementation 仍须之后另建，不作为 A/B task 的隐藏子项。
 
 ---
 

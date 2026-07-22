@@ -67,11 +67,12 @@ family-local typed evaluator；旧 decision provider/helper/replay、emitter
 redecision 与兼容旁路退出生产链。这里的“横向完成”指单一构造权威，不表示每个
 逐点 leaf 已经达到 strong reconstruction。
 
-V2 的下一步不是实现 GPU，而是先做 artifact-neutral family construction 横向重基：
-把 canonical problem、target/family binding 和 family construction 从当前 EmitC backend
-语境中拆出，同时保持所有 current family、source/direct caller 与 fail-closed 路径统一。
-完成后再沿相同 construction contract 接入 GPU family。Mechanism factorization、能力因果与
-delete-leaf reconstruction 继续保留，但不得借 V2 建立大一统 Formula IR 或 universal Plan。
+Artifact-neutral family construction 横向重基已经完成：canonical problem、target/family
+binding 与 family construction 不再寄居于 EmitC backend，所有 current family 与
+source/direct/translate/artifact caller 共享 construction-before-artifact 主链。V2 的下一步
+仍不是实现 GPU，而是在 RISC-V 旗舰 realization 上横向闭合 mechanism factorization、公式
+因果、delete-leaf reconstruction 与重构后真实性能；不得借此建立大一统 Formula IR 或
+universal Plan。完成 A/B 闭环后，GPU 才沿同一 construction contract 作为完整 family 接入。
 
 ## Quality Check
 

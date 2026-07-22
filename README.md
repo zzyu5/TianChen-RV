@@ -75,24 +75,29 @@ lower-quant outputs complete legal schedules; composite realization is a real re
 owner; and obsolete Q40/GEMM compatibility passes and non-semantic decision mirrors
 have been removed.
 
-The same boundary now covers backend emission itself. Every supported driver must run
-family-local construction before conversion; registry clone, public materialization,
-direct RVV conversion, translate and artifact paths share that hook. RVV, IME, Scalar,
-Demo, Toy, Template and TensorExtLite are construction-qualified; Offload remains
-explicitly unsupported. Scalar q2/dequant and IME MAC/tile decisions are frozen into
-conversion-local final plans before emission, while deterministic small families use a
-qualified final typed body plus a fixed mechanical route. Catalog/backend inventory is
-bidirectionally checked but is not compute authority. See
-[ISSUE-129](.trellis/spec/issues/发射器与架构.md).
+The construction boundary is now artifact-neutral. Registry clone, public
+materialization, direct RVV conversion, translate and artifact export all invoke a
+family-owned construction seam before the construction-blind backend registry.
+`TypedBackendEmissionDriver` no longer owns a construction hook, and `emitc.func` is
+only the success gate for the current EmitC artifact. RVV, IME, Scalar, Demo, Toy,
+Template and TensorExtLite are construction-qualified; Offload remains explicitly
+unsupported. Scalar q2/dequant and IME MAC/tile decisions are frozen into family-local
+final plans before emission, while deterministic small families qualify a complete
+typed body for their current mechanical artifact path. Catalog/backend inventories are
+checked separately and neither is compute authority. See
+[ISSUE-129 and ISSUE-131](.trellis/spec/issues/发射器与架构.md).
 
-This current convergence is still tied to the EmitC artifact class: non-RVV construction
-is triggered from `TypedBackendEmissionDriver::prepareForConversion`, and the shared
-conversion success gate requires `emitc.func`. The next project-wide refactor moves
-family construction to an artifact-neutral lifecycle before any EmitC/NVVM/other
-artifact driver. GPU implementation starts only after that cutover; GPU will not be
-registered as another EmitC emitter or consume an RVV body/`flat_*` plan. See
-[ISSUE-131](.trellis/spec/issues/发射器与架构.md) and the
-[V2 method baseline](docs/method/项目全景与Spec重构前方法基线v2.md).
+That lifecycle cutover is a structural prerequisite, not the end of the research
+refactor. Some code-affecting knowledge and legacy route/manifest protocols still live
+across leaves, front doors, schedules and conversions; `ConstructedWeak` entries have
+not thereby passed delete-leaf reconstruction. The next project-wide task therefore
+closes the A/B lines horizontally across the current RISC-V realization: factor
+mechanisms and formulas, remove provider/replay/mirror authority, prove multi-topology
+reconstruction, and re-establish current-artifact correctness and performance
+causality. GPU implementation starts only after this closure and will not be
+registered as another EmitC emitter or consume an RVV body/`flat_*` plan. See the
+[V2 method baseline](docs/method/项目全景与Spec重构前方法基线v2.md) and the
+[A/B horizontal closure task](.trellis/tasks/07-23-executable-knowledge-ab-horizontal-closure/prd.md).
 
 For flat block-dot kernels, formula construction now produces the final `flat_*`
 computation plan—body family, decode, fold, block length, activation offset, scale

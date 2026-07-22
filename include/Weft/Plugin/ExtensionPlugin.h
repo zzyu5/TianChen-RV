@@ -680,9 +680,11 @@ public:
   virtual llvm::Error verifyExecutableConstructionConformance() const;
   virtual void collectFormulaDescriptors(
       llvm::SmallVectorImpl<FormulaDescriptor> &out) const;
-  /// Construct or validate every family-owned formula plan before downstream
-  /// legality, selection, or artifact lowering consumes the typed body.  This
-  /// is a required production-family contract. The base implementation fails
+  /// Construct or validate every family-owned final formula plan before
+  /// artifact lowering consumes the typed body. Candidate construction,
+  /// legality and bounded selection remain family-local and may already have
+  /// produced the selected typed carrier at this lifecycle cut. This is a
+  /// required production-family contract. The base implementation fails
   /// closed so protocol-focused test plugins need not invent compute, but no
   /// live family can obtain implicit construction success.
   virtual llvm::Error constructFormulaPlans(mlir::ModuleOp module) const;

@@ -22,9 +22,25 @@ canonical operator problem P=(S,g,ω)
 完成后，future NVIDIA/AMD family 可以沿与 RVV 同构的 construction contract 接入，并使用
 自己的 artifact class；不是接收 RVV body，也不是在 EmitC emitter 中重新构造 GPU kernel。
 
-## 当前代码事实与问题
+## 完成结果
 
-以下事实必须由开工时当前 HEAD 重新反向枚举，不因本 PRD 固定数字：
+主体实现固定在 `01f55f3fab63ae923cb61109000f02ee6e7bad01`。所有 current production
+family 已迁入 plugin-owned、artifact-neutral construction lifecycle；EmitC registry/driver
+只接收 constructed body/plan。RVV recursive typed-body qualification 也属于同一 family
+construction cut，direct 与 registry 路径不再分叉。完整 `check-weft` 通过，GPU dialect、GPU
+body、GPU artifact/runtime 均未创建。
+
+这只关闭 construction 被 EmitC artifact 绑定的结构问题，不证明 `ConstructedWeak` 已达到
+strong reconstruction，也不表示下一步应立即实现 GPU。RISC-V 旗舰 realization 的执行知识
+因式分解、formula causality 与重构后真实性能仍须先完成 A/B 横向闭环。
+这里完成的是公共 lifecycle/caller/API cutover；Demo、Toy、Template、TensorExtLite 的旧
+`emitc_route_mapping`/manifest qualification 仍是 family-local 历史债，已明确移交下一项
+A/B 横向任务整体删除，不能据此声称物理协议已经完全 artifact-free。
+
+## 开工代码事实与问题（历史基线）
+
+以下是本 task 创建时的开工事实，用于解释为什么需要本次 cutover；不再代表完成后的
+current API：
 
 1. `ExtensionPlugin::constructFormulaPlans(ModuleOp)` 有默认成功实现；目前只有 RVV plugin
    覆写；
@@ -104,7 +120,7 @@ artifact route。
 - 完成 formula、legality、optional bounded selection 与 required schedule；
 - 明确 unsupported/reject；
 - 没有 base-class 默认成功 no-op；
-- completion result 不引用 EmitC type、`emitc.func`、route id 或 artifact metadata；
+- 公共 completion result/type 不引用 EmitC type、`emitc.func`、route id 或 artifact metadata；
 - family-local typed result 不通过 universal `Any`/FormulaResult 传递。
 
 优先复用/收敛现有 `ExtensionPlugin` lifecycle，而不是再建立平行 provider registry。具体
@@ -173,25 +189,26 @@ problem/binding
 
 ## 完成门
 
-- [ ] 当前 registry、source front door、public pass/direct API、translate 与 artifact 的完整
+- [x] 当前 registry、source front door、public pass/direct API、translate 与 artifact 的完整
   production-entry inventory 已由代码生成/反向枚举；
-- [ ] 每个 production source entry 有唯一 `S/g/ω` owner 与 operator domain；
-- [ ] target/profile 在 construction 前绑定唯一 family 与 typed `c_f`；
-- [ ] every live production family 显式实现 artifact-neutral construction，base 默认成功为零；
-- [ ] Offload 保持 explicit unsupported，不用空 construction/driver 冒充支持；
-- [ ] construction completion API 不依赖 EmitC 类型、`emitc.func`、route id 或 metadata；
-- [ ] current EmitC drivers 只消费 construction-qualified final body，内部不再调用同义
+- [x] 每个 production source entry 有唯一 `S/g/ω` owner 与 operator domain；
+- [x] target/profile 在 construction 前绑定唯一 family 与 typed `c_f`；
+- [x] every live production family 显式实现 artifact-neutral construction，base 默认成功为零；
+- [x] Offload 保持 explicit unsupported，不用空 construction/driver 冒充支持；
+- [x] 公共 construction completion API 不依赖 EmitC 类型、`emitc.func`、route id 或
+  metadata；legacy family-local route/manifest qualification 作为后续 A/B 清理项显式记录；
+- [x] current EmitC drivers 只消费 construction-qualified final body，内部不再调用同义
   construction owner；
-- [ ] public pass、direct API、materialization、translate 与 artifact 全部调用同一
+- [x] public pass、direct API、materialization、translate 与 artifact 全部调用同一
   construction-before-artifact lifecycle；
-- [ ] missing/ambiguous/mixed/unconstructed/partial/conflicting/unsupported 均 fail closed；
-- [ ] quantize/dequantize、Scalar/IME final plan 与 RVV `flat_*` authority 回归保持；
-- [ ] construction inventory、formula catalog、source entry 与 artifact inventory 分立且双向
+- [x] missing/ambiguous/mixed/unconstructed/partial/conflicting/unsupported 均 fail closed；
+- [x] quantize/dequantize、Scalar/IME final plan 与 RVV `flat_*` authority 回归保持；
+- [x] construction inventory、formula catalog、source entry 与 artifact inventory 分立且双向
   可核，不用字符串 inventory 调度 compute；
-- [ ] 旧 construction hook、compat adapter、emitter recovery 与 artifact-side family binding
+- [x] 旧 construction hook、compat adapter、emitter recovery 与 artifact-side family binding
   为零；
-- [ ] focused behavior tests、catalog/registry tests、full `check-weft`、JSON/diff checks 通过；
-- [ ] spec/issues 按最终代码事实更新，task 固定主体 commit，工作区干净。
+- [x] focused behavior tests、catalog/registry tests、full `check-weft`、JSON/diff checks 通过；
+- [x] spec/issues 按最终代码事实更新，task 固定主体 commit，工作区干净。
 
 ## 验证矩阵
 
@@ -229,6 +246,8 @@ problem/binding
 
 ## 完成后的下一步
 
-只有本 task 完成后才创建首个 GPU family implementation task。下一 task 从 canonical problem
-和 typed GPU capability 开始，依次建立 GPU mechanisms/formulas、legality、typed body、
-artifact/runtime 与 evidence；绝不从 current EmitC emitter 或 RVV final body 开始。
+下一 task 仍是 RISC-V 旗舰 realization 的横向重构，而不是 GPU implementation：
+`.trellis/tasks/07-23-executable-knowledge-ab-horizontal-closure/`。它在已经干净的
+construction/artifact 边界上，同步推进 A 线的 formula/mechanism/strong reconstruction 与
+B 线的 current-artifact correctness/performance 因果闭环。只有这条主线不再依赖逐点完整
+authority、并且重构后真实性能得到 paired evidence，才另建 GPU family task。

@@ -1990,9 +1990,10 @@ materializeSelectedEmitCArtifactModule(
   llvm::StringRef routeDescription =
       config.routeDescription.empty() ? config.routeID : config.routeDescription;
 
-  // Materialize through the table-driven backend-emission registry. Each
-  // matching family runs construction before conversion on a clone, and a
-  // result is accepted only after full legalization: an EmitC function exists,
+  // Materialize through the table-driven backend-emission registry. Family
+  // construction on the owned clone completed above; the registry is now a
+  // construction-blind artifact consumer. A result is accepted only after
+  // full legalization: an EmitC function exists,
   // no backend op/type or unrealized cast remains, and the handoff contract
   // matches. There is no metadata/string-route implementation fallback; a body
   // without a fully legalizing family driver is rejected below.

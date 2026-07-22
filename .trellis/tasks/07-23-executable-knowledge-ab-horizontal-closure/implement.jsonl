@@ -1,0 +1,12 @@
+{"file":".trellis/tasks/07-23-executable-knowledge-ab-horizontal-closure/prd.md","reason":"A/B 横向范围、禁止项、联合闭环与完成门"}
+{"file":"docs/method/README.md","reason":"A/B 两线的第一性定义、错误方向与当前接手基线"}
+{"file":"docs/method/项目全景与Spec重构前方法基线v2.md","reason":"P=(S,g,ω)、family binding、跨 family 边界与 GPU 后置关系"}
+{"file":".trellis/spec/architecture/变体流水线.md","reason":"原构造公式、legality-first、thin selector 与 flat_* final-plan authority"}
+{"file":".trellis/spec/architecture/公式层与覆盖.md","reason":"formula ownership、axis consumption、construction strength 与 coverage 分类"}
+{"file":".trellis/spec/architecture/执行问题与家族边界.md","reason":"artifact-neutral family lifecycle 与 current/future family 边界"}
+{"file":".trellis/spec/measurement/index.md","reason":"official runner、correctness、lineage 与真硬件证据入口"}
+{"file":"include/Weft/Plugin/FormulaCatalog.h","reason":"只读 production problem/formula inventory，禁止作为 compute dispatcher"}
+{"file":"lib/Plugin/RVV/Construction","reason":"RVV formula/mechanism/final-plan 横向重构主面"}
+{"file":"lib/Plugin/IME/IMEFormulaConstruction.cpp","reason":"IME family-local computation-plan owner"}
+{"file":"lib/Plugin/Scalar/ScalarFormulaConstruction.cpp","reason":"Scalar family-local computation-plan owner"}
+{"file":"tools/bench/bench","reason":"B 线 current artifact official measurement 入口"}

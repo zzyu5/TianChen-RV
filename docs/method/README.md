@@ -16,9 +16,11 @@
 > automatic operator-to-kernel compiler，canonical problem 为 `P=(S,g,ω)`。Target/profile
 > 在 construction 前绑定 family 与 `c_f`；family construction 必须先于且独立于 EmitC/
 > NVVM 等 artifact。RISC-V 仍是当前旗舰，GPU 是第二 execution paradigm 目标但尚未
-> 实现。首个任务是
-> `.trellis/tasks/07-23-artifact-neutral-family-construction-rebase/`：横向迁出
-> EmitC driver 中的 construction lifecycle，不创建 GPU backend。
+> 实现。首个任务
+> `.trellis/tasks/07-23-artifact-neutral-family-construction-rebase/` 已横向迁出
+> EmitC driver 中的 construction lifecycle且未创建 GPU backend。下一 task 仍是
+> `.trellis/tasks/07-23-executable-knowledge-ab-horizontal-closure/`：先在 RISC-V 旗舰
+> realization 上闭合 A 线执行知识重建与 B 线重构后性能因果，再考虑 GPU family。
 > 完整方法定义见 [项目全景与 Spec 重构前方法基线 V2](./项目全景与Spec重构前方法基线v2.md)。
 
 ## 一、发生了什么

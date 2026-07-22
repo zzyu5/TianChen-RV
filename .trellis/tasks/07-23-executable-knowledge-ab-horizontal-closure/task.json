@@ -1,0 +1,43 @@
+{
+  "id": "executable-knowledge-ab-horizontal-closure",
+  "name": "executable-knowledge-ab-horizontal-closure",
+  "title": "执行知识 A/B 横向闭环重构",
+  "description": "在已完成的 artifact-neutral construction 底座上，横向重构所有 current compute-bearing family 的 formula/mechanism/final-body 结构，并把多 topology delete-leaf reconstruction 与当前 artifact 的 correctness、deployed、strong-opponent、e2e 性能证据闭合成同一条因果链；本 task 不实现 GPU。",
+  "status": "planning",
+  "dev_type": "refactor",
+  "scope": "project-wide-research-implementation",
+  "package": null,
+  "priority": "P0",
+  "creator": "codex",
+  "assignee": "codex",
+  "createdAt": "2026-07-23",
+  "completedAt": null,
+  "branch": "refactor/full-refactor-m1",
+  "base_branch": "refactor/full-refactor-m1",
+  "worktree_path": "/home/kingdom/phdworks/TianchenRV",
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [
+    "docs/method/README.md",
+    "docs/method/项目全景与Spec重构前方法基线v2.md",
+    ".trellis/spec/architecture/变体流水线.md",
+    ".trellis/spec/architecture/公式层与覆盖.md",
+    ".trellis/spec/architecture/执行问题与家族边界.md",
+    ".trellis/spec/measurement/index.md",
+    "include/Weft/Plugin/FormulaCatalog.h",
+    "lib/Plugin/RVV/Construction",
+    "lib/Plugin/IME/IMEFormulaConstruction.cpp",
+    "lib/Plugin/Scalar/ScalarFormulaConstruction.cpp",
+    "tools/bench/bench"
+  ],
+  "notes": "禁止纵向只完成一个 format/operator/formula 后宣告重构完成；q5_1 只能作为局部 reconstruction witness。禁止实现 GPU、改变两柱六律或主公式、建立 universal Formula IR/provider/verifier、恢复 selected-stamp/compatibility/emitter 决策，或让 measurement 创造 compute。",
+  "meta": {
+    "predecessor": "01f55f3fab63ae923cb61109000f02ee6e7bad01",
+    "method_baseline": "docs/method/README.md",
+    "architecture_baseline": "docs/method/项目全景与Spec重构前方法基线v2.md",
+    "research_axis": "extensibility-performance"
+  }
+}
