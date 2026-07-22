@@ -26,13 +26,18 @@ task、旧 goal、旧简报和历史报告不能覆盖当前代码事实，也�
 
 ## 项目定位
 
-Weft 是 high-level MLIR 之后的、能力驱动且可扩展的 MLIR operator compiler / execution-layer software stack。它让 operator、format/layout、target capability、execution mechanism 与 backend family 通过局部 typed extension 接入，再由可执行专家知识构造专化 kernel。RISC-V ggml/llama.cpp 风格量化推理是当前旗舰 reference realization 和主要压力域，不是系统类别的上界。
+Weft 是 post-graph、pre-schedule 的、能力驱动且可扩展的 MLIR automatic
+operator-to-kernel compiler / execution-layer software stack。它接收 canonical problem
+`P=(S,g,ω)`，先绑定 construction family 与 typed capability，再由 family-local 可执行专家
+知识构造专化 kernel。RISC-V ggml/llama.cpp 风格量化推理是当前旗舰 reference
+realization 和主要压力域；GPU 是 V2 明确引入的第二 execution paradigm 目标，尚未实现。
 
 它不是：
 
 - 通用图编译器；
 - 新的高层 tensor/tile IR；
 - 每个硬件一套互不相关 backend；
+- 把 GPU 作为现有 EmitC emitter 或 RVV body 的另一种发射目的地；
 - descriptor 或 metadata 驱动的代码模板系统；
 - 通用在线 autotuner；
 - 已解决动态 sparse/MoE 的 runtime policy。
@@ -70,9 +75,8 @@ qualified measurement 可以在解析合法域内修正排序，但不能创造 
 ## 软件主链
 
 ~~~text
-MLIR operator / kernel-level input
-  → plugin-local typed facts g + bounded context ω
-  → canonical capability c
+canonical operator problem P=(S,g,ω)
+  → typed target/profile binding (family f, capability c_f)
   → catalogued plugin-local formula / construction
       · typed candidate or plan
       · legality/resource bounds
@@ -82,12 +86,15 @@ MLIR operator / kernel-level input
       · qualified winner if still legal
       · otherwise analytic prior or named fallback
   → selected typed body
-  → plugin route provider
-  → common EmitC / target artifact
+  → family artifact driver
+  → current EmitC/native object or future family-specific artifact
   → real hardware evidence when claimed
 ~~~
 
 所有 production operator entry 都必须经过该主链；只有一个确定实现的路径采用 deterministic single-candidate construction 和 honest-null 轴，不得静默绕过。这个主链不要求大一统 Formula IR，也不要求每个职责成为独立物理子系统。公式集合、横向 cutover 与覆盖正本见 [architecture · 公式层与覆盖](./architecture/公式层与覆盖.md)。
+
+canonical problem、family binding 与 construction/artifact 分层正本见
+[architecture · 执行问题与家族边界](./architecture/执行问题与家族边界.md)。
 
 ## 六个 spec layer
 
@@ -166,7 +173,7 @@ tools/bench/bench --self-test
 
 ## 当前工程推进方向
 
-当前 registered/direct production path 已统一到 construction-before-emission：shared
+当前 Weft-RV registered/direct production path 已统一到 construction-before-emission：shared
 backend interface 不再允许隐式 no-op preparation；registry clone、公开 materialization、
 direct RVV conversion、translate 与 artifact 路径都在 family emitter 之前调用同一
 family-local construction owner。RVV、IME、Scalar、Demo、Toy、Template 与
@@ -184,6 +191,12 @@ Demo/Toy/Template/TensorExtLite 以已资格化 final typed body 加固定机械
 因式分解。仍标为 `ConstructedWeak` 的完整 leaf，只有在删除该逐点实现后能由
 `g/c/ω + mechanisms + formula` 重建同一实例时，才可升级 strong construction。后续工程
 重点是继续做 mechanism factorization、能力因果与该删除实验，而不是重开兼容入口。
+
+V2 同时暴露了下一项横向债务：非 RVV family construction 仍主要由 EmitC
+`TypedBackendEmissionDriver::prepareForConversion` 触发，shared success gate 依赖
+`emitc.func`。GPU 实现之前必须把 canonical problem、target/family binding 与 family
+construction 移到 artifact-neutral lifecycle，再让 current EmitC driver 只消费 final body。
+这次重构覆盖所有 current family/caller，不创建 GPU dialect/backend，也不保留双路径。
 
 公共底座与上述切换也不表示每个 `ConstructedWeak` leaf 已经完成强义重建。关闭剩余
 公开 authority inversion 后，应在同一横向结构上推进：

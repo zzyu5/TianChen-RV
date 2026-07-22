@@ -1,6 +1,6 @@
 # Measurement Specs — 统一测量哲学
 
-> **版本**：v7
+> **版本**：v8
 >
 > （版本载体依 [governance · trellis 卫生](../governance/trellis卫生.md) 的「版本号载体 = 层 index 文件头」条**首次建立于 2026-07-17**；此前本层无载体 = 卫生欠账，非"本层此前无条文"。v1 = 建载体时的在册状态，**不追溯编号历史修改**。
 > **v2**（2026-07-17 用户裁「三洞四裁回批」第 0/1/2/3 条落地）：行键定四元组 `(op, format, engine, regime)` + 行 schema 补四个行键字段（[3.3.1](./流水线与行schema.md#331-行-schema规范性)）· `判定` 值域原样收 12 值 ∪ VOID（[3.3.1.1](./流水线与行schema.md#3311-判定-的值域规范性--零预处理机算枚举)）· 值域登记铁律入 [3.6](./流水线与行schema.md#36-其余铁律) · 住址-落点两分入 [3.2](./哲学与目的地.md#32-单一目的地法) 第 4 项。）
@@ -9,8 +9,16 @@
 > **v5**（2026-07-20·B1 measurement-control-plane）：主表改为 recon-only canonical generated view；bench direct-master writer 与空-regime 通配原子退役。四元键分量全部显式非空，`engine∈{rvv,ime,scalar}`、`regime∈{micro-fixed,decode,prefill}`。区分 immutable run event、qualification view 与 canonical master publication；`measured`、T-N-qualified、selection-valid 不再混为一态。
 > **v6**（2026-07-20·B1 原子收口）：真跑与 dry-run 统一为不可省参的完整四元键签名，单参数兼容入口与 dry-run 占位 row/log 退役；T-N 改为 `weft.tn.qualification.v1` 结构化可复算证据，harmonizer 与 recon 双重验证 N≥10、2×noise、bootstrap CI 与 source-run SHA。
 > **v7**（2026-07-20·B2）：runner 路由改为显式闭合 registry，verify/cold 按 op 各有唯一 parser registry；roster membership、route known、parser covered、run eligible 四项分立。旧 `cells/<op>.sh` 猜路与 GEMM parser fallback 退役；scalar route 仅为 dormant implementation fact，ISSUE-061/104、roster 与 NON-Win 边界不变。
+> **v8**（2026-07-23·V2 architecture）：现有 runner、四元行键与 master 继续只定义 Weft-RV
+> 正式测量；future GPU 复用 correctness、lineage、qualification、freshness 与 provenance
+> 原则，但使用 family-specific device/architecture/launch/resource/opponent schema，不把 GPU
+> 字段塞进当前 RISC-V row，也不在 GPU implementation 前创建空 roster/数字。
 
 本层是本项目**一切测量活动的唯一法源**：什么算测量、在哪块板测、用哪条流水线测、跟谁比、结果写到哪、哪些检查作数。凡涉及"跑出数字"的动作以本层为准；**本层未授权的测量动作即非法动作**。
+
+当前全部可执行条文与 runner 都是 Weft-RV measurement contract。V2 GPU architecture
+不授权任何 GPU 数字；GPU family 真正实现后，须由显式 task/用户裁决增加自己的 device、
+launch、resource、opponent 与 runtime schema，同时保持本层统一治理原则。
 
 测量之外的领域见各自的 layer，本层不重抄：已定法条合订见 [canon](../canon/index.md)，架构定法见 [architecture](../architecture/index.md)，证据地图见 [evidence](../evidence/index.md)，队列治理见 [governance](../governance/index.md)，问题登记见 [ISSUES](../issues/index.md)。
 

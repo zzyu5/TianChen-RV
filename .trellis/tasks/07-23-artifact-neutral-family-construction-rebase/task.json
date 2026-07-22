@@ -1,0 +1,43 @@
+{
+  "id": "artifact-neutral-family-construction-rebase",
+  "name": "artifact-neutral-family-construction-rebase",
+  "title": "Artifact-neutral family construction 横向重基",
+  "description": "在实现 GPU 之前，一次性把 canonical execution problem、target/family binding 与所有 current family 的 construction lifecycle 从 EmitC artifact driver 中拆出；EmitC 退回 current artifact consumer，所有 source/direct/pass/translate/artifact caller 继续共享唯一 construction-before-artifact 主链。",
+  "status": "planning",
+  "dev_type": "refactor",
+  "scope": "project-wide-architecture",
+  "package": null,
+  "priority": "P0",
+  "creator": "codex",
+  "assignee": "codex",
+  "createdAt": "2026-07-23",
+  "completedAt": null,
+  "branch": "refactor/full-refactor-m1",
+  "base_branch": "refactor/full-refactor-m1",
+  "worktree_path": "/home/kingdom/phdworks/TianchenRV",
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [
+    ".trellis/spec/architecture/执行问题与家族边界.md",
+    ".trellis/spec/architecture/变体流水线.md",
+    ".trellis/spec/architecture/插件协议.md",
+    ".trellis/spec/architecture/发射与降级.md",
+    ".trellis/spec/issues/发射器与架构.md",
+    "include/Weft/Plugin/ExtensionPlugin.h",
+    "include/Weft/Conversion/EmitC/TypedBackendEmissionDriver.h",
+    "include/Weft/Conversion/EmitC/BackendEmissionRegistry.h",
+    "lib/Plugin/ExtensionPlugin.cpp",
+    "lib/Conversion/EmitC/TypedBackendEmissionDriver.cpp",
+    "lib/Target/TargetArtifactExport.cpp"
+  ],
+  "notes": "对应 ISSUE-131。禁止把本 task 纵向拆成先迁 RVV/某 operator 后保留其它 production path；禁止实现 GPU、建立 universal verifier/provider/Formula IR、恢复 compatibility path，或改变 flat_* final-plan authority、两柱六律和主公式。",
+  "meta": {
+    "issue": "ISSUE-131",
+    "cutover": "RET-F-V2-CONSTRUCTION-ARTIFACT",
+    "architecture_baseline": "docs/method/项目全景与Spec重构前方法基线v2.md",
+    "predecessor": "92c519947d4c0be512d0dcceaf2798a09dfb0a73"
+  }
+}

@@ -1,0 +1,8 @@
+{"file":".trellis/tasks/07-23-artifact-neutral-family-construction-rebase/prd.md","reason":"逐项核对所有完成门及明确非目标"}
+{"file":".trellis/spec/canon/核心不变量.md","reason":"I1/I3/I4/I5/I7/I9：typed problem/capability、零分支、metadata 非权威与 fail closed"}
+{"file":".trellis/spec/architecture/执行问题与家族边界.md","reason":"验证 construction completion 不依赖 artifact、GPU 未被提前实现"}
+{"file":".trellis/spec/architecture/退役与原子合入.md","reason":"验证所有 current caller 同次迁移且旧 hook/adapter 为零"}
+{"file":".trellis/spec/issues/发射器与架构.md","reason":"ISSUE-131 只有在代码事实与 full regression 成立后才能关闭"}
+{"file":"test/Scripts/project-construction-authority.test","reason":"扩展现有全项目 authority、唯一 conversion 与 flat_* no-redecision 静态门"}
+{"file":"test/Conversion/EmitC/mixed-backend-materialization-rejected.mlir","reason":"保持 mixed-owner 在 artifact conversion 前 fail closed"}
+{"file":"test/Conversion/RVV/rvv-to-emitc-unowned-rvv-body-rejected.mlir","reason":"保持 direct public lowering 对未完整 RVV body fail closed"}

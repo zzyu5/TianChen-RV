@@ -1,9 +1,13 @@
 # Canon Specs — 已定法条
 
-> **版本**：v4
+> **版本**：v5
 > **修改途径**：本层版本化，**修改唯一途径 = 用户裁决**；agent 可提案（入 [issues](../issues/index.md)），不可自改。
 > （版本载体依 [governance · trellis 卫生](../governance/trellis卫生.md) 的「版本号载体 = 层 index 文件头」条**首次建立于 2026-07-17**；此前本层无载体 = **卫生欠账**，非「本层此前无条文」。**v1 = 建载体时的在册状态**，**不追溯编号历史修改**。）
 > **v4**（2026-07-20·用户授权 B1 control-plane）：测量事实与正式发布分立；immutable run 只有经 correctness、lineage、freshness、结构化 T-N 资格后，才由 recon-only publisher 进入 canonical master。measured / master-qualified / selection-valid 三轴禁止互推。
+> **v5**（2026-07-23·用户接受 V2/GPU 方向）：系统边界明确为 post-graph、pre-schedule
+> automatic operator-to-kernel compiler；GPU 是第二 execution paradigm 目标，不是 current
+> EmitC emitter。Canonical problem、family binding 与 artifact-neutral construction 成为 GPU
+> 前置边界；两柱、六律、原主公式与 thin selector 保持不变。
 
 本层是本项目**全部已定法条与终裁的唯一合订**：判断"某主张能不能立、某数字能不能报、某格算不算赢"时的**法源**。
 
@@ -45,7 +49,7 @@
 | [缺口与认输](./缺口与认输.md) | [K-6]/[GAP-1] 缺口关闭环 · 认输门槛（零未攻认输）· [K-7] 首次发射律 · [X-0] 接入三问 |
 | [能力模型与插件协议](./能力模型与插件协议.md) | [S-\*] 能力 schema · [F-\*]/[P-\*] 插件与家族判据 · family 准入边界 |
 | [构造强度、mechanism 与选择归因](./覆盖状态机与选择归因.md) | [K-4] strong/weak 构造 · [PAT-\*] typed mechanism · [SEL-\*] 薄选择器 · [D-4] 非权威归因 |
-| [非目标](./非目标.md) | [NG-1..NG-8] 越界即标记 |
+| [非目标](./非目标.md) | [NG-1..NG-10] 越界即标记 |
 | [待裁](./待裁.md) | 正面冲突或悬而未决的条目 + 各自保守默认（**无法条效力**） |
 | [暂定-科研主张](./暂定-科研主张.md) | 当前两柱、六律、C1/C2/C3 组织、性能三层与理想 Evaluation |
 

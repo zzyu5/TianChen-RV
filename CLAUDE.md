@@ -12,16 +12,24 @@ Trellis 是 spec、issue 和可选 task 系统，不是开工许可。小型、�
 
 ## 项目边界
 
-Weft-RV 是 high-level MLIR 之后的 capability-driven execution-layer 参考模板，当前负载域为 ggml/llama.cpp 风格的 RISC-V 量化推理 kernel。它不是通用 tensor compiler，也不引入新的高层 tensor/tile IR。
+Weft 是 post-graph、pre-schedule 的 capability-driven automatic operator-to-kernel compiler；
+Weft-RV 是当前旗舰 realization，负载域为 ggml/llama.cpp 风格的 RISC-V 量化推理 kernel。
+GPU 是 V2 明确引入、但尚未实现的第二 execution paradigm。它不是通用 tensor compiler，
+也不引入新的高层 tensor/tile IR；GPU 不作为 current EmitC emitter 或 RVV body 的另一种
+发射目的地。
 
 当前两柱、六律与 C1/C2/C3 组织见 [canon · 暂定科研主张](.trellis/spec/canon/暂定-科研主张.md)；公式与 selector 的唯一工程正本见 [architecture · 变体流水线](.trellis/spec/architecture/变体流水线.md)。不要从旧 task、旧报告或历史 C3′ 标签重新发明研究主张。
+canonical problem、target/family binding 与 construction/artifact 分层见
+[architecture · 执行问题与家族边界](.trellis/spec/architecture/执行问题与家族边界.md)。
 
 ## 修改纪律
 
 - 先检查工作树和当前实现，保留用户已有改动。
 - 只读与任务相关的 spec，不要求遍历整个 Trellis 树。
 - core/common 不写 family-name branch；compute authority 住 typed extension body。
-- formula 构造 candidate/plan，legality 限定合法域，selector 在合法候选内选择，emitter 机械实现。
+- target/profile 在 construction 前绑定 family；formula 构造 candidate/plan，legality
+  限定合法域，selector 在合法候选内选择，artifact lowerer 机械实现。
+- construction completion 不依赖 EmitC；`emitc.func` 只属于 current EmitC artifact 门。
 - measurement 不能创造 candidate、绕过 legality 或反向定义 compute。
 - 影响稳定契约或暴露新缺口时更新 spec/issues；临时进度不写进稳定 spec。
 - 当前请求完成即可交付；只有缺少必要权限、外部条件或重大方向选择时才停下询问。

@@ -1,0 +1,12 @@
+{"file":".trellis/tasks/07-23-artifact-neutral-family-construction-rebase/prd.md","reason":"本 task 的横向范围、禁止项、原子 cutover 与完成门"}
+{"file":".trellis/spec/architecture/执行问题与家族边界.md","reason":"canonical problem、family binding、construction completion 与 artifact-neutral 正本"}
+{"file":".trellis/spec/architecture/变体流水线.md","reason":"原主公式、legality-first、thin selector 与 authority 顺序唯一数学正本"}
+{"file":".trellis/spec/architecture/公式层与覆盖.md","reason":"production entry、catalog、g/c/ω consumption 与横向覆盖要求"}
+{"file":".trellis/spec/architecture/插件协议.md","reason":"ExtensionPlugin lifecycle、family locality、current EmitC registration 与 future artifact class 边界"}
+{"file":".trellis/spec/architecture/发射与降级.md","reason":"artifact-neutral 上层契约、current EmitC completion gate 与 no-redecision 纪律"}
+{"file":".trellis/spec/architecture/退役与原子合入.md","reason":"RET-F 原子切换、无 compatibility middle path"}
+{"file":".trellis/spec/issues/发射器与架构.md","reason":"ISSUE-131 当前耦合事实、影响面与完成证明"}
+{"file":"docs/method/项目全景与Spec重构前方法基线v2.md","reason":"V2 系统全景、当前/目标边界与 GPU 非 emitter 的第一性解释"}
+{"file":"include/Weft/Plugin/ExtensionPlugin.h","reason":"当前 artifact-neutral lifecycle 候选落点及默认 constructFormulaPlans 缺口"}
+{"file":"include/Weft/Conversion/EmitC/TypedBackendEmissionDriver.h","reason":"当前 construction 与 EmitC conversion preparation 的接口耦合"}
+{"file":"lib/Conversion/EmitC/TypedBackendEmissionDriver.cpp","reason":"当前 prepare、applyPartialConversion、emitc.func completion gate 的真实顺序"}

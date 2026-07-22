@@ -1,8 +1,8 @@
 # Weft-RV MLIR
 
-Weft is an extensible MLIR operator compiler and execution-layer software stack. It lets operators, formats/layouts, target capabilities, execution mechanisms and backend families enter through local typed extensions, then uses capability- and context-conditioned executable knowledge to construct specialized kernels. Fragmented RISC-V quantized inference is the flagship reference realization and primary stress domain, not the upper bound of the compiler category.
+Weft is an extensible, MLIR-based automatic operator-to-kernel compiler and execution-layer software stack. It accepts a semantically complete but execution-undetermined operator problem after graph-level compilation, binds a target construction family, and uses family-local capability- and context-conditioned executable knowledge to construct specialized kernels. Fragmented RISC-V quantized inference is the flagship reference realization and primary stress domain; GPU is the second execution paradigm introduced by the V2 architecture, not a currently implemented backend.
 
-The project is not a general-purpose graph/tensor compiler and does not introduce a new high-level tensor/tile IR. It owns the post-high-level-MLIR operator execution layer: construction, legality, selection, typed bodies, backend realization, ABI/runtime integration and evidence. The design goal is an ecosystem in which new operators and targets remain local without giving up expert-quality specialization.
+The project is not a general-purpose graph/tensor compiler and does not introduce a new high-level tensor/tile IR. It owns the post-graph, pre-schedule operator execution layer: canonical problem intake, target/family binding, construction, legality, selection, typed bodies, artifact realization, ABI/runtime integration and evidence. The design goal is an ecosystem in which new operators and targets remain local without giving up expert-quality specialization.
 
 ## Research direction: two pillars
 
@@ -30,9 +30,8 @@ The current two-pillar, six-law research framing lives in [canon/暂定-科研�
 ## Core design
 
 ~~~text
-MLIR operator / kernel-level input
-  → plugin-local typed facts g + bounded static context ω
-  → canonical capability c
+canonical operator problem P=(S,g,ω)
+  → typed target/profile binding (family f, capability c_f)
   → catalogued plugin-local formula / construction
       · typed candidate or plan
       · legality/resource bounds
@@ -42,11 +41,15 @@ MLIR operator / kernel-level input
       · qualified measured winner if still legal
       · otherwise analytic prior or named fallback
   → selected typed extension body
-  → plugin-local realization / route lowering
-  → common EmitC / target artifact
+  → family-local realization / artifact driver
+      · current EmitC/native object
+      · future family-specific artifact
 ~~~
 
 Every production operator entry follows this path, including deterministic single-candidate construction with honest-null axes. Quantize, dequantize, contraction, elementwise, reduction and different backend families do not keep separate hidden decision worlds. This is not a new Formula IR, a universal expression DSL or a runtime autotuner.
+
+The canonical problem, family-binding and artifact-neutral contract is defined in
+[architecture/执行问题与家族边界.md](.trellis/spec/architecture/执行问题与家族边界.md).
 
 ## Current project assets
 
@@ -81,6 +84,15 @@ conversion-local final plans before emission, while deterministic small families
 qualified final typed body plus a fixed mechanical route. Catalog/backend inventory is
 bidirectionally checked but is not compute authority. See
 [ISSUE-129](.trellis/spec/issues/发射器与架构.md).
+
+This current convergence is still tied to the EmitC artifact class: non-RVV construction
+is triggered from `TypedBackendEmissionDriver::prepareForConversion`, and the shared
+conversion success gate requires `emitc.func`. The next project-wide refactor moves
+family construction to an artifact-neutral lifecycle before any EmitC/NVVM/other
+artifact driver. GPU implementation starts only after that cutover; GPU will not be
+registered as another EmitC emitter or consume an RVV body/`flat_*` plan. See
+[ISSUE-131](.trellis/spec/issues/发射器与架构.md) and the
+[V2 method baseline](docs/method/项目全景与Spec重构前方法基线v2.md).
 
 For flat block-dot kernels, formula construction now produces the final `flat_*`
 computation plan—body family, decode, fold, block length, activation offset, scale
@@ -171,16 +183,18 @@ The plugin protocol is defined in [architecture/插件协议.md](.trellis/spec/a
 
 A family supplies the five-piece acceptance set:
 
-1. capability facts/schema;
+1. problem applicability plus capability facts/schema;
 2. plugin legality;
-3. typed mechanism/body and emission;
+3. family-local construction, typed mechanism/body and artifact lowering;
 4. tests/falsifiers;
 5. ledger/docs/evidence.
 
-Every production family also supplies a catalogued formula/construction contract. A family with no choice uses a deterministic single-candidate construction and honest-null axes; it does not bypass the stage:
+Every production family also supplies a catalogued, artifact-neutral formula/construction contract.
+A family with no choice uses a deterministic single-candidate construction and honest-null axes; it
+does not bypass the stage:
 
 ~~~text
-typed g/c/ω inputs
+canonical problem S/g/ω + bound family capability c_f
 candidate or plan
 legality/resource verdict
 analytic prior
@@ -192,6 +206,9 @@ selected typed result
 Reference family: lib/Plugin/Template/.
 
 The stable formula-layer and coverage contract is in [architecture/公式层与覆盖.md](.trellis/spec/architecture/公式层与覆盖.md).
+The first V2 implementation task is
+[artifact-neutral family construction rebase](.trellis/tasks/07-23-artifact-neutral-family-construction-rebase/prd.md);
+it deliberately does not implement GPU.
 
 ## Measurement
 
@@ -242,6 +259,9 @@ Current tables and run lineage are under experiments/master/, experiments/runs/ 
 - Computation belongs to typed extension-family bodies.
 - Core/common paths do not branch on RVV, IME, Scalar or vendor names.
 - Metadata, reason traces and artifacts are mirrors, not compute authority.
+- Target/profile binds a construction family before formula evaluation; artifact code does not choose the family.
+- Construction completion is artifact-neutral; `emitc.func` is only an EmitC artifact gate.
+- GPU is a V2 architecture target, not a currently supported family or performance claim.
 - Measurement rows cannot create candidates or bypass legality.
 - Emitters do not redo formula or selector decisions.
 - Python is tooling; core compiler implementation remains C++/MLIR/LLVM/TableGen.

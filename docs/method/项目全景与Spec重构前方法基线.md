@@ -1,5 +1,10 @@
 # Weft-RV 项目全景与 Spec 重构前方法基线
 
+> **V2 提示（2026-07-23）**：本文件保留为 V1 纠偏基线。当前方法总纲已由
+> [项目全景与 Spec 重构前方法基线 V2](./项目全景与Spec重构前方法基线v2.md) 扩展为
+> post-graph/pre-schedule canonical problem、artifact-neutral family construction 与 GPU
+> 第二 execution paradigm；两柱、六律与原主公式仍保持。
+
 > **性质**：内部长期维护方法文档，也是下一轮 spec 与代码重构的核心理解基线。它以用户重新确认的项目出发点、[《高级ai思想2》](./高级ai思想2.md)及本文的纠偏综合为主。
 >
 > **参考关系**：[ARS 完整审计](../执行知识因式分解完整审计与收敛设计-2026-07-21/README.md)继续提供 prior、源码反例、QIGen 差分和证据压力，但不是项目类别或重构架构的核心标准；不能用一个近邻下的最窄差分实验反向定义整个 Weft。

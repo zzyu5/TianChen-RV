@@ -12,6 +12,15 @@
 > 单一 construction authority，不是 strong reconstruction；`ConstructedWeak` leaf 与
 > delete-leaf 目标必须继续分开。
 
+> **2026-07-23 V2 方向**：Weft 的外部边界进一步明确为 post-graph、pre-schedule 的
+> automatic operator-to-kernel compiler，canonical problem 为 `P=(S,g,ω)`。Target/profile
+> 在 construction 前绑定 family 与 `c_f`；family construction 必须先于且独立于 EmitC/
+> NVVM 等 artifact。RISC-V 仍是当前旗舰，GPU 是第二 execution paradigm 目标但尚未
+> 实现。首个任务是
+> `.trellis/tasks/07-23-artifact-neutral-family-construction-rebase/`：横向迁出
+> EmitC driver 中的 construction lifecycle，不创建 GPU backend。
+> 完整方法定义见 [项目全景与 Spec 重构前方法基线 V2](./项目全景与Spec重构前方法基线v2.md)。
+
 ## 一、发生了什么
 
 项目原本提出 A/B 两条并行主线：

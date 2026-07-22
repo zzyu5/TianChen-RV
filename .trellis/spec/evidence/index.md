@@ -1,13 +1,18 @@
 # Evidence Specs —— 证据层
 
-**版本**: v5
+**版本**: v6
 
 > **v4**（2026-07-20·B1）：测量记忆证据链补齐 structured T-N、唯一 master publisher 与 control-plane gate 的活锚；旧 design draft/generator 不再作为证据入口。
 > **v5**（2026-07-22）：旧六态/C_construct/provenance 工件降为历史 inventory；当前
 > formula authority 由 catalog/call graph/behavior tests 证明，strong construction 由
 > delete-leaf reconstruction 证明，两者与 correctness/performance 分账。
+> **v6**（2026-07-23）：C3 目标扩展为 RISC-V/GPU cross-paradigm realization；当前只有
+> RISC-V 具备 implementation/hardware evidence。V2 architecture 与 artifact-neutral task
+> 只能作为架构/计划工件，不能支撑 GPU correctness/performance。
 
-> 当前贡献组织已更新为两柱下的 C1 模板、C2 公式系统、C3 性能/系统验证。现有“三贡献证据地图”仍包含旧 C2 边际成本与 C3′ 标签，暂作为工件 inventory 使用，不再定义贡献；重索引登记为 ISSUE-123。
+> 当前贡献组织已更新为两柱下的 C1 architecture、C2 formula system 与 C3
+> cross-paradigm realization。现有“三贡献证据地图”仍包含旧 C2 边际成本与 C3′ 标签，
+> 暂作为工件 inventory 使用，不再定义贡献；重索引登记为 ISSUE-123。GPU 尚无证据行。
 
 本层回答两个问题，且只回答这两个：
 
@@ -50,6 +55,8 @@
 - [ ] 你要引的路径，`test -e` 过吗？不存在的路径只能进 §六 缺口（规则 3）。
 - [ ] 这个实验是**验证既有系统契约**，还是在反向定义结构？后者违 [canon · 核心不变量](../canon/核心不变量.md) I9。
 - [ ] RVV 证据绑到 `ssh rvv` 或另一具名 profile 了吗（I8）？本地 build / lit 只是编译器工具链证据，不是硬件证据。
+- [ ] 若涉及 GPU，是否已有真实 GPU family construction、artifact/runtime 与具名 device
+  run lineage？只有 V2 文档或 GPU-ready interface 时不得写 GPU 支持/性能。
 - [ ] 强义 / 弱义 constructed 的判断有 delete-leaf reconstruction 或等价直接构造
   证据吗？Catalog/provenance 清单不能替代 [L-8]。
 - [ ] Formula authority、strong reconstruction、correctness 和 performance 是否分别
