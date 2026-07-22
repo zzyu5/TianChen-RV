@@ -262,11 +262,7 @@ projectIMEMacLeafArtifact(weft::ime::VmadotMacLeafOp macLeaf, bool batched) {
 /// divergence is exactly the instruction; for the deployed vmadot+batched cells
 /// this is byte-identical to the prior vmadotMacKloopHelperBody() emit.
 std::string selectedMacLeafBody(const IMEMacLeafPlan &sel) {
-  // [档 C#7 归因接线] CONSUME sel.reason (previously a computed-but-dead field): emit
-  // the leaf-batching selection provenance as a leading comment on the materialized
-  // leaf, so the emitted source records WHY this mnemonic / batched-vs-unbatched leaf
-  // was chosen (the same discipline the wide-vmadot [PAT-1] provenance comment
-  // follows). Inert C comment => byte-IDENTICAL integer result; only provenance added.
+  // Preserve the constructed batching choice as an inert source diagnostic.
   std::string provenance =
       std::string("// weft_ime.mac_leaf_batching helper=") + sel.helperName.str() +
       " batched=" + (sel.batched ? "1" : "0") + " reason=" + sel.reason + "\n";
@@ -277,88 +273,35 @@ std::string selectedMacLeafBody(const IMEMacLeafPlan &sel) {
 }
 
 //===----------------------------------------------------------------------===//
-// G6-A M7: the WIDE (output-tiled) vmadot MAC leaf + its [PAT-1] registration.
+// The WIDE (output-tiled) vmadot MAC leaf.
 //
 // A LAYER-4 array-UTILIZATION optimization on the already-mechanized batched vmadot MAC leaf: the
 // WIDE leaf reuses the 4x8 A fragment IN-REGISTER across NJW adjacent column-tiles, so ONE `vle8`
 // of A feeds NJW independent `vmadot` chains (into NJW distinct 4x4 int32 accumulator pairs). This
-// (a) hides the vmadot array latency (NJW MACs in flight instead of a single serialized accumulator
-// chain) and (b) amortizes the A-load + per-tile vsetvli/clear/store entry-exit over NJW tiles. Each
+// It amortizes the A-load + per-tile vsetvli/clear/store entry-exit over two
+// column tiles. Each
 // 4x4 sub-tile still accumulates its kt fragments in the SAME kf order into its OWN accumulator ->
 // the int32 result is BIT-IDENTICAL to NJW separate weft_ime_vmadot_mac_kloop calls (byte-exact by
-// construction: the 0xe210312b vmadot and its integer accumulation order are UNTOUCHED; only the
-// loop/reuse SCHEDULE changes). This is an optimization on the front-door construction, NOT a new
-// brick -- it NEVER moves C_construct. Board-sealed byte-exact on real K1 (md5 f5e77482, the M1..M6
-// q4_0 bridge lineage) + array-util measured (vmadot compute 1.740s@w1 -> 1.095s@w2 (1.59x) ->
-// 0.890s@w4 (1.955x, ~= the vendor's same-silicon headroom)); the full-matmul perf verdict is w2
-// (matmul 1.159x), w4 is measured-negative (compute win real, but its 16-accumulator f32 epilogue
-// spills -> full-matmul NULL).
+// construction: the vmadot instruction and integer accumulation order are
+// untouched; only the loop/reuse schedule changes). The family construction
+// has already selected NJW; artifact lowering does not consult measurements or
+// maintain a second candidate registry.
 //===----------------------------------------------------------------------===//
-
-/// Artifact-only metadata for rendering the already-selected wide schedule.
-/// It has no eligibility predicate and therefore cannot select computation.
-struct IMEWideArtifactMetadata {
-  llvm::StringRef patternId;
-  int njw;
-  llvm::StringRef status;
-  llvm::StringRef metricsHook;
-};
-
-static constexpr IMEWideArtifactMetadata kIMEWideArtifactMetadata[] = {
-    {"IME-VMADOT-TILE-W1-baseline", 1, "mechanized",
-     "test/Conversion/EmitC/ime-q4-0-matmul-tile-materialization.mlir"},
-    {"IME-VMADOT-TILE-W2-Areuse", 2, "mechanized",
-     "test/Target/IME/q4-0-vmadot-tile-wide-int32-oracle.c + "
-     "experiments/active/g6-a-ime-perf-bridge/M7-vmadot-tiling/evidence.md"},
-    {"IME-VMADOT-TILE-W4-Areuse-epilogue-spill", 4, "measured-negative",
-     "experiments/active/g6-a-ime-perf-bridge/M7-vmadot-tiling/evidence.md "
-     "(w4 compute 1.955x but full-matmul NULL: 16-accumulator f32 epilogue spills)"},
-};
 
 /// Artifact projection of the family-constructed wide schedule.
 struct IMEWideDeployPlan {
   int njw = 1;
-  llvm::StringRef patternId;
-  llvm::StringRef statusStr;
-  llvm::StringRef metricsHook;
   std::string reason;
 };
 
 IMEWideDeployPlan
-projectIMEWideArtifact(mlir::Operation *typedBody,
-                       const IMEQuantComputationPlan &computation) {
+projectIMEWideArtifact(const IMEQuantComputationPlan &computation) {
   IMEWideDeployPlan artifact;
   artifact.njw = static_cast<int>(computation.wideNJW);
 
-  for (const IMEWideArtifactMetadata &metadata :
-       kIMEWideArtifactMetadata) {
-    if (metadata.njw != artifact.njw)
-      continue;
-    artifact.patternId = metadata.patternId;
-    artifact.statusStr = metadata.status;
-    artifact.metricsHook = metadata.metricsHook;
-    break;
-  }
-
   if (artifact.njw <= 1) {
-    // The construction plan records only the selected numeric schedule.  This
-    // diagnostic projection is keyed by the typed body identity, not by a
-    // format string or a second scheduling decision.  q4_K is the one current
-    // typed body whose already-selected narrow schedule is backed by the
-    // sealed wide-vmadot measured-negative result.
-    if (llvm::isa<weft::ime::Q4KMatMulTileOp>(typedBody)) {
-      artifact.reason =
-          "bottleneck-shape=epilogue-bound decline (MAC-tiling NULL): q4_K "
-          "wide-vmadot registry status=measured-negative measured 0.909x "
-          "[PAT-1 measured-negative row; experiments/active/"
-          "g6-a-ime-perf-bridge/M7-vmadot-tiling/evidence.md (q4_K@ime "
-          "wide-vmadot 0.909x: super-block two-level 6-bit sc/m + "
-          "S_scale/S_min fold epilogue dominates -> array-util MAC-tiling "
-          "win washes out)]";
-    } else {
-      artifact.reason =
-          "family construction selected the narrow computation schedule";
-    }
+    artifact.reason =
+        "exact typed body carries the narrow computation schedule";
     return artifact;
   }
   artifact.reason =
@@ -382,7 +325,7 @@ projectIMEWideArtifact(mlir::Operation *typedBody,
 /// v2:v3,v4:v5,v10:v11,v12:v13. Fixed parameter names -> no translator SSA name in the asm.
 std::string macKloopHelperBodyWide(llvm::StringRef helperName,
                                    llvm::StringRef mnemonic, int njw) {
-  assert((njw == 2 || njw == 4) && "IME wide vmadot leaf supports NJW in {2,4}");
+  assert(njw == 2 && "the constructed IME wide vmadot leaf uses NJW=2");
   static const char *const bReg[4] = {"v1", "v6", "v7", "v8"};
   static const char *const accLo[4] = {"v2", "v4", "v10", "v12"};
   static const char *const accHi[4] = {"v3", "v5", "v11", "v13"};
@@ -444,16 +387,11 @@ std::string macKloopHelperBodyWide(llvm::StringRef helperName,
   return text;
 }
 
-/// G8 applied=>deployed: emits (at the CURRENT insertion point = module prologue,
-/// BEFORE the format matmul helper that CALLS it) the [PAT-1] registry provenance
-/// comment + the selected WIDE vmadot MAC leaf body, and returns its helper name so
+/// Emits the selected WIDE vmadot MAC leaf body at module scope and returns its
+/// helper name so
 /// the matmul body can be wired to it. Returns "" when the decision declines wide
-/// (njw<=1): the narrow leaf stays the deployed leaf (auto fallback). On decline it
-/// MATERIALIZES the honest-decline provenance comment (never a silent omission -- the
-/// same discipline the q4_K epilogue-bound path already follows), so the VLEN-mismatch
-/// / capability declines land a reason. This closes the "_w2 emitted but never wired
-/// -> dead" gap: the leaf is emitted ONLY when it is deployed, and always at prologue
-/// scope (declared-before-use).
+/// (njw<=1): the narrow leaf stays the deployed leaf. The leaf is emitted only
+/// when the exact typed body selected it, always before use.
 std::string
 emitDeployedWideVmadotLeaf(mlir::ConversionPatternRewriter &rewriter,
                            mlir::Location loc,
@@ -467,11 +405,9 @@ emitDeployedWideVmadotLeaf(mlir::ConversionPatternRewriter &rewriter,
   std::string wideName =
       (kVmadotMacKloopHelperName + "_w" + std::to_string(decision.njw)).str();
   rewriter.create<emitc::VerbatimOp>(
-      loc, std::string("// weft_ime.pat1_tiling=") + decision.patternId.str() +
-               " status=" + decision.statusStr.str() +
-               " njw=" + std::to_string(decision.njw) +
-               " discriminant=vreg_budget deployed=1 metrics_hook=" +
-               decision.metricsHook.str() + " reason=" + decision.reason);
+      loc, std::string("// weft_ime.constructed_wide_schedule njw=") +
+               std::to_string(decision.njw) + " deployed=1 reason=" +
+               decision.reason);
   rewriter.create<emitc::VerbatimOp>(
       loc, macKloopHelperBodyWide(wideName, "vmadot", decision.njw));
   return wideName;
@@ -1170,7 +1106,7 @@ projectIMEQuantArtifact(mlir::Operation *op,
     return mlir::failure();
   return IMEQuantArtifactPlan{
       *computation, *macArtifact,
-      projectIMEWideArtifact(op, *computation)};
+      projectIMEWideArtifact(*computation)};
 }
 /// Lowers a selected IME MAC boundary (`weft.ime.mma` signed / `weft.ime.mma_u`
 /// unsigned) into a standalone EmitC module:
@@ -1570,12 +1506,8 @@ public:
         context, emitc::OpaqueType::get(context, "int32_t"));
     auto longType = emitc::OpaqueType::get(context, "long");
 
-    // G8 wide-vmadot key: the VLEN-parametric capability predicate. The
-    // bottleneck-shape leg consults the per-format MEASURED-NEGATIVE registry keyed on
-    // the tile's weight_format fact (no hardcoded per-format bool): q4_0 has NO
-    // measured-negative row => the leg admits the wide tiling. The selected wide leaf
-    // is DEPLOYED into both the int32 seal kernel and the f32 forward kernel below
-    // (closing applied!=deployed); narrow is the auto fallback.
+    // The exact typed body already carries the family-constructed NJW. Project
+    // that same schedule into the int32 and f32 artifacts.
     std::string wideName;
 
     // Module-scope prologue: include + the validated vmadot MAC leaf + the DEPLOYED
@@ -1761,11 +1693,8 @@ public:
         context, emitc::OpaqueType::get(context, "int32_t"));
     auto longType = emitc::OpaqueType::get(context, "long");
 
-    // G8 wide-vmadot key: the bottleneck-shape leg consults the per-format
-    // MEASURED-NEGATIVE registry keyed on the tile's weight_format fact (no hardcoded
-    // per-format bool): q8_0 has NO measured-negative row => the leg admits the wide
-    // tiling. The selected wide leaf is DEPLOYED into the int32 kernel below (closing
-    // applied!=deployed for q8_0). narrow is the auto fallback.
+    // Project the NJW already carried by the exact typed body into the int32
+    // artifact; no format or measurement policy is re-evaluated here.
     std::string wideName;
 
     // Module-scope prologue: include + the validated vmadot MAC leaf + the DEPLOYED
@@ -1906,14 +1835,9 @@ public:
         context, emitc::OpaqueType::get(context, "float"));
     auto longType = emitc::OpaqueType::get(context, "long");
 
-    // G8 wide-vmadot key: the bottleneck-shape leg consults the per-format
-    // MEASURED-NEGATIVE registry keyed on the tile's weight_format fact: q4_K carries a
-    // `measured-negative` row (board-measured G6-A M7 wide-vmadot 0.909x -- the
-    // super-block two-level 6-bit sc/m + S_scale/S_min fold dominates), so the leg
-    // DECLINES the wide MAC tiling by REGISTRY LOOKUP, NOT a hardcoded bool. The decline
-    // is MATERIALIZED as a provenance comment (honest, not a silent hand-omission); no
-    // wide leaf is emitted and the narrow leaf stays deployed. (The fold-cost bottleneck
-    // MODEL that would DERIVE this decline is deferred to phase 3, the q4_K@ime push.)
+    // The q4_K exact typed body exposes only its narrow two-accumulator
+    // scale/min topology. Artifact lowering records and mechanically realizes
+    // that schedule; it does not infer a performance exclusion.
     // Module-scope prologue: include + the validated vmadot MAC leaf + the q4_K
     // fp16 epilogue helpers + the raw-nibble decode + the 6-bit scale/min unpack +
     // the tiled q4_K two-level-fold kernel (declared-before-use ordering).

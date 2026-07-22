@@ -41,8 +41,11 @@ module {
 // REGION-SAME: ime.weight_format = "q4_K"
 // REGION: weft_ime.q4_K_matmul_tile
 // REGION-SAME: ime_op = "vmadot"
+// REGION-SAME: mac_batched = 1
 // REGION-SAME: mat_k = 256
 // REGION-SAME: weight_format = "q4_K"
+// REGION-SAME: wide_njw = 1
+// REGION-SAME: wide_vlen_bits = 256
 // The typed region is the SIX DECOMPOSED bricks (block_index + int8 activation
 // fragment + TWO int32 accumulators entry args), NOT an opaque helper.
 // REGION: ^bb0(%{{.*}}: index, %{{.*}}: vector<32xi8>, %{{.*}}: vector<16xi32>, %{{.*}}: vector<16xi32>):
@@ -68,17 +71,11 @@ module {
 // EMITC-SAME: register_resident_accumulate=1
 // EMITC-SAME: static inline void weft_ime_vmadot_mac_kloop
 // EMITC-SAME: vmadot    v2, v0, v1
-// G8 wide-vmadot key: q4_K is EPILOGUE-BOUND, so the bottleneck-shape predicate leg
-// DECLINES the wide MAC tiling (materialized honestly as a decline comment; NO wide
-// leaf is emitted -- see --implicit-check-not=mac_kloop_w2 above -- the narrow leaf
-// stays deployed).
+// q4_K's current two-accumulator scale/min topology exposes an honest-null
+// wide-reuse axis. The exact typed body carries NJW=1 and no wide leaf is emitted.
 // EMITC: emitc.verbatim
 // EMITC-SAME: weft_ime.pat1_tiling=decline njw=1
-// EMITC-SAME: bottleneck-shape=epilogue-bound decline
-// The decline is pinned to the per-format MEASURED-NEGATIVE registry FACT (not a bare
-// static prefix): the registry row's board-measured metric + the [PAT-1] provenance.
-// EMITC-SAME: registry status=measured-negative measured 0.909x
-// EMITC-SAME: [PAT-1 measured-negative row
+// EMITC-SAME: exact typed body carries the narrow computation schedule
 // EMITC: emitc.verbatim
 // EMITC-SAME: weft_ime.fp16_epilogue=weft_ime_fp16_to_f32
 // EMITC-SAME: static inline float weft_ime_fp16_to_f32

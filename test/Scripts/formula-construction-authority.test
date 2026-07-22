@@ -19,6 +19,9 @@
 # RUN: not rg -n 'Weft/Conversion/RVV/RVVFormulaConstruction.h|lib/Conversion/RVV/RVVFormulaConstruction.cpp' %S/../../include %S/../../lib %S/../../tools
 # RUN: not rg -n 'constructRVVStandaloneDequantScheduleFormula\(' %S/../../lib --glob '!**/Plugin/RVV/Construction/RVVFormulaConstruction.cpp'
 # RUN: not rg -n 'weft\.scalar\.final_plan|kScalarFinalPlanAttrName|makeScalarPlan|attachScalarFinalPlan|requireScalarPlan|scalarPlanInt|ScalarEmitCConstructionRoute|getScalarEmitCConstructionRoute' %S/../../include %S/../../lib
+# RUN: not rg -n 'weft\.ime\.final_plan|kIMEFinalPlanAttrName|makeIMEFinalPlan|attachIMEFinalPlan|requireIMEFinalPlan|readPlanInteger|IMEWideArtifactMetadata|measured-negative' %S/../../include/Weft/Plugin/IME %S/../../lib/Plugin/IME %S/../../lib/Dialect/IME
+# RUN: rg -n 'getConstructedOperation\(\)->getName\(\)' %S/../../lib/Plugin/IME/IMEExtensionPlugin.cpp | FileCheck %s --check-prefix=IME-EXACT-BODY
+# RUN: rg -n 'OptionalAttr<I64Attr>:\$(mac_batched|wide_njw|wide_vlen_bits)' %S/../../include/Weft/Dialect/IME/IR/IMEOps.td | FileCheck %s --check-prefix=IME-TYPED-SCHEDULE
 # RUN: not rg -n 'OpConversionPattern<weft::scalar::(ComputeSkeletonOp|TernaryQ2Q8BlockDotOp|DequantizeRowQ4Op)' %S/../../lib/Plugin/Scalar/ScalarBackendEmissionDriver.cpp
 # RUN: rg -n 'OpConversionPattern<weft::scalar::(ImmediateCallBodyOp|PackedTernaryDotBodyOp)' %S/../../lib/Plugin/Scalar/ScalarBackendEmissionDriver.cpp | FileCheck %s --check-prefix=SCALAR-TYPED-BODY
 # RUN: rg -n 'constructRVVStandaloneDequantScheduleFormula\(' %S/../../lib/Plugin/RVV/Construction/RVVFormulaConstruction.cpp | FileCheck %s --check-prefix=DEQUANT-OWNER
@@ -34,6 +37,10 @@
 # DEQUANT-OWNER: constructRVVStandaloneDequantScheduleFormula(
 # SCALAR-TYPED-BODY: OpConversionPattern<weft::scalar::ImmediateCallBodyOp
 # SCALAR-TYPED-BODY: OpConversionPattern<weft::scalar::PackedTernaryDotBodyOp
+# IME-EXACT-BODY: getConstructedOperation()->getName()
+# IME-TYPED-SCHEDULE: OptionalAttr<I64Attr>:$mac_batched
+# IME-TYPED-SCHEDULE: OptionalAttr<I64Attr>:$wide_njw
+# IME-TYPED-SCHEDULE: OptionalAttr<I64Attr>:$wide_vlen_bits
 # FLAT-PLAN-READ: readFinalFlatBlockDotComputePlan
 # FLAT-PLAN-PROJECTION: descriptor.decodePrimitive = plan.decodePrimitive
 # FLAT-PLAN-PROJECTION-NEXT: {{.*}}descriptor.foldModel = plan.foldModel

@@ -38,8 +38,11 @@ module {
 // REGION-SAME: ime.weight_format = "q8_0"
 // REGION: weft_ime.q8_0_matmul_tile
 // REGION-SAME: ime_op = "vmadot"
+// REGION-SAME: mac_batched = 1
 // REGION-SAME: mat_k = 256
 // REGION-SAME: weight_format = "q8_0"
+// REGION-SAME: wide_njw = 2
+// REGION-SAME: wide_vlen_bits = 256
 // The typed region is the three DECOMPOSED bricks (block_index + int8 activation
 // fragment + int32 accumulator entry args), NOT an opaque helper.
 // REGION: ^bb0(%{{.*}}: index, %{{.*}}: vector<32xi8>, %{{.*}}: vector<16xi32>):
@@ -64,8 +67,7 @@ module {
 // EMITC-SAME: static inline void weft_ime_vmadot_mac_kloop
 // EMITC-SAME: vmadot    v2, v0, v1
 // EMITC: emitc.verbatim
-// EMITC-SAME: weft_ime.pat1_tiling=IME-VMADOT-TILE-W2-Areuse status=mechanized njw=2
-// EMITC-SAME: discriminant=vreg_budget deployed=1
+// EMITC-SAME: weft_ime.constructed_wide_schedule njw=2 deployed=1
 // EMITC-SAME: rpfIn=1 rpfAcc=2
 // EMITC: emitc.verbatim
 // EMITC-SAME: weft_ime_vmadot_mac_kloop_w2

@@ -531,32 +531,6 @@ bool hasAvailableIMECapability(const VariantProposalRequest &request) {
   return capability && capability->isAvailable();
 }
 
-/// Reads the derived signedness fact stamped on the materialized variant (the
-/// `ime.signedness` plugin-owned attribute). Absent => signed (the first slice).
-/// This is a pure read-back of the capability-derived FACT, so downstream
-/// boundary/emission selection never re-classifies a family name. Returns the
-/// single-fragment boundary op matching the recorded signedness: 'unsigned' =>
-/// weft.ime.mma_u, 'signed_unsigned' => weft.ime.mma_su, 'unsigned_signed' =>
-/// weft.ime.mma_us, else weft.ime.mma.
-llvm::StringRef singleFragmentBoundaryOpForVariant(weft::exec::VariantOp variant) {
-  if (variant) {
-    // The slide window FACT (if recorded) routes to the sliding-window boundary
-    // regardless of signedness (the slide family is the signed form only).
-    auto slide = variant->getAttrOfType<mlir::StringAttr>(kSlideVariantAttrName);
-    if (slide && !slide.getValue().trim().empty() && slide.getValue() != "0")
-      return weft::ime::MMASlideOp::getOperationName();
-    auto signedness =
-        variant->getAttrOfType<mlir::StringAttr>(kSignednessVariantAttrName);
-    if (signedness && signedness.getValue() == kSignednessUnsigned)
-      return weft::ime::MMAUOp::getOperationName();
-    if (signedness && signedness.getValue() == kSignednessMixedSign)
-      return weft::ime::MMASUOp::getOperationName();
-    if (signedness && signedness.getValue() == kSignednessMixedSignUS)
-      return weft::ime::MMAUSOp::getOperationName();
-  }
-  return weft::ime::MMAOp::getOperationName();
-}
-
 mlir::Operation *findSelectedIMEFinalBody(weft::exec::VariantOp variant) {
   if (!variant)
     return nullptr;
@@ -578,6 +552,64 @@ mlir::Operation *findSelectedIMEFinalBody(weft::exec::VariantOp variant) {
     return mlir::WalkResult::advance();
   });
   return found;
+}
+
+llvm::Error validateExactIMEConstructionResult(
+    const VariantEmissionRequest &request) {
+  mlir::Operation *body = request.getConstructedOperation();
+  if (!body)
+    return makeIMEPluginError(
+        "artifact query requires the exact IME operation returned by family "
+        "construction");
+  if (!llvm::isa<weft::ime::MMAOp, weft::ime::MMAUOp,
+                 weft::ime::MMASUOp, weft::ime::MMAUSOp,
+                 weft::ime::MMASlideOp, weft::ime::MatMulOp,
+                 weft::ime::Q40MatMulTileOp, weft::ime::Q80MatMulTileOp,
+                 weft::ime::Q4KMatMulTileOp>(body))
+    return makeIMEPluginError(
+        "family construction returned a non-IME or non-final typed operation");
+  if (!isOperationSelectedForVariant(body, request.getVariant()))
+    return makeIMEPluginError(
+        "exact IME construction result is not bound to the requested variant");
+
+  if (auto op = llvm::dyn_cast<weft::ime::MMAOp>(body)) {
+    if (mlir::failed(op.verify()) ||
+        mlir::failed(ime::requireIMESimpleComputationPlan(body)))
+      return makeIMEPluginError("exact IME mma body is malformed");
+  } else if (auto op = llvm::dyn_cast<weft::ime::MMAUOp>(body)) {
+    if (mlir::failed(op.verify()) ||
+        mlir::failed(ime::requireIMESimpleComputationPlan(body)))
+      return makeIMEPluginError("exact IME mma_u body is malformed");
+  } else if (auto op = llvm::dyn_cast<weft::ime::MMASUOp>(body)) {
+    if (mlir::failed(op.verify()) ||
+        mlir::failed(ime::requireIMESimpleComputationPlan(body)))
+      return makeIMEPluginError("exact IME mma_su body is malformed");
+  } else if (auto op = llvm::dyn_cast<weft::ime::MMAUSOp>(body)) {
+    if (mlir::failed(op.verify()) ||
+        mlir::failed(ime::requireIMESimpleComputationPlan(body)))
+      return makeIMEPluginError("exact IME mma_us body is malformed");
+  } else if (auto op = llvm::dyn_cast<weft::ime::MMASlideOp>(body)) {
+    if (mlir::failed(op.verify()) ||
+        mlir::failed(ime::requireIMESimpleComputationPlan(body)))
+      return makeIMEPluginError("exact IME mma_slide body is malformed");
+  } else if (auto op = llvm::dyn_cast<weft::ime::MatMulOp>(body)) {
+    if (mlir::failed(op.verify()) ||
+        mlir::failed(ime::readIMEMatMulComputationPlan(body)))
+      return makeIMEPluginError("exact IME matmul body is malformed");
+  } else if (auto op = llvm::dyn_cast<weft::ime::Q40MatMulTileOp>(body)) {
+    if (mlir::failed(op.verify()) ||
+        mlir::failed(ime::readIMEQuantComputationPlan(body)))
+      return makeIMEPluginError("exact IME q4_0 tile body is malformed");
+  } else if (auto op = llvm::dyn_cast<weft::ime::Q80MatMulTileOp>(body)) {
+    if (mlir::failed(op.verify()) ||
+        mlir::failed(ime::readIMEQuantComputationPlan(body)))
+      return makeIMEPluginError("exact IME q8_0 tile body is malformed");
+  } else if (auto op = llvm::dyn_cast<weft::ime::Q4KMatMulTileOp>(body)) {
+    if (mlir::failed(op.verify()) ||
+        mlir::failed(ime::readIMEQuantComputationPlan(body)))
+      return makeIMEPluginError("exact IME q4_K tile body is malformed");
+  }
+  return llvm::Error::success();
 }
 
 llvm::Expected<VariantProposal>
@@ -986,9 +1018,7 @@ llvm::Error IMEExtensionPlugin::checkVariantEmissionReadiness(
     return makeIMEPluginError(
         "emission readiness requires an enclosing weft.exec.kernel");
 
-  VariantLegalityRequest legality(request.getVariant(), request.getKernel(),
-                                  request.getCapabilities());
-  if (llvm::Error error = verifyVariantLegality(legality)) {
+  if (llvm::Error error = validateExactIMEConstructionResult(request)) {
     std::string message = llvm::toString(std::move(error));
     out = VariantEmissionStatus::getUnsupported(
         kIMEPluginName, request.getVariant().getSymName(), message);
@@ -1010,40 +1040,10 @@ llvm::Error IMEExtensionPlugin::buildVariantEmissionPlan(
     return makeIMEPluginError(
         "emission planning requires an enclosing weft.exec.kernel");
 
-  VariantLegalityRequest legality(request.getVariant(), request.getKernel(),
-                                  request.getCapabilities());
-  if (llvm::Error error = verifyVariantLegality(legality)) {
-    std::string message = llvm::toString(std::move(error));
-    return makeIMEPluginError(
-        llvm::Twine("selected IME variant @") +
-        request.getVariant().getSymName() +
-        " failed plugin legality before emission planning: " + message);
-  }
-
-  // Re-derive to know whether this is the single-fragment or the tiled-matmul
-  // boundary (a shape fact, not a family-name branch).
-  const support::CapabilityDescriptor *planCapability =
-      request.getCapabilities().lookupProviderByID(kIMECapabilityID);
-  bool isMatmul = false;
-  bool isQ40Weight = false;
-  bool isQ80Weight = false;
-  bool isQ4KWeight = false;
-  if (planCapability) {
-    if (llvm::Expected<IMEMatmulCapability> planDerived =
-            deriveIMEMatmulCapability(*planCapability)) {
-      isMatmul = planDerived->isMatmul;
-      isQ40Weight = planDerived->isQ40Weight;
-      isQ80Weight = planDerived->isQ80Weight;
-      isQ4KWeight = planDerived->isQ4KWeight;
-    } else
-      llvm::consumeError(planDerived.takeError());
-  }
+  if (llvm::Error error = validateExactIMEConstructionResult(request))
+    return error;
   llvm::StringRef boundaryOpName =
-      isQ40Weight ? weft::ime::Q40MatMulTileOp::getOperationName()
-      : isQ80Weight ? weft::ime::Q80MatMulTileOp::getOperationName()
-      : isQ4KWeight ? weft::ime::Q4KMatMulTileOp::getOperationName()
-      : isMatmul  ? weft::ime::MatMulOp::getOperationName()
-                  : singleFragmentBoundaryOpForVariant(request.getVariant());
+      request.getConstructedOperation()->getName().getStringRef();
   out = VariantEmissionPlan::getSupported(
       kIMEPluginName, request.getKernel().getSymName(),
       request.getVariant().getSymName(), request.getRole(),

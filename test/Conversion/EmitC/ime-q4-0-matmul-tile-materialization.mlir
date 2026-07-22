@@ -16,6 +16,9 @@
 // RUN 2 (EMISSION): the full pipeline lowers the region to the q4_0-decode +
 // vmadot MAC EmitC kernel (op-identity driven, I5).
 // RUN: weft-opt %s --weft-materialize-plugin-variants --weft-select-variants --weft-materialize-selected-lowering-boundaries --weft-materialize-emitc-lowerable-routes | FileCheck %s --check-prefix=EMITC --implicit-check-not="weft_rvv" --implicit-check-not="weft_toy"
+// RUN: weft-opt %s --weft-materialize-plugin-variants --weft-select-variants --weft-materialize-selected-lowering-boundaries > %t.constructed
+// RUN: sed 's/, wide_vreg_floor = 7 : i64//' %t.constructed | not weft-opt --weft-materialize-emitc-lowerable-routes 2>&1 | FileCheck %s --check-prefix=PARTIAL
+// RUN: sed 's/wide_njw = 2 : i64/wide_njw = 1 : i64/' %t.constructed | not weft-opt --weft-materialize-emitc-lowerable-routes 2>&1 | FileCheck %s --check-prefix=CONFLICT
 
 module {
   weft.exec.kernel @ime_q4_0_matmul_kernel {
@@ -38,8 +41,11 @@ module {
 // REGION-SAME: ime.weight_format = "q4_0"
 // REGION: weft_ime.q4_0_matmul_tile
 // REGION-SAME: ime_op = "vmadot"
+// REGION-SAME: mac_batched = 1
 // REGION-SAME: mat_k = 256
 // REGION-SAME: weight_format = "q4_0"
+// REGION-SAME: wide_njw = 2
+// REGION-SAME: wide_vlen_bits = 256
 // The typed region is the three DECOMPOSED bricks (block_index + int8 activation
 // fragment + int32 accumulator entry args), NOT an opaque helper.
 // REGION: ^bb0(%{{.*}}: index, %{{.*}}: vector<32xi8>, %{{.*}}: vector<16xi32>):
@@ -49,6 +55,9 @@ module {
 // REGION-SAME: ime_op = "vmadot"
 // REGION-SAME: -> vector<16xi32>
 // REGION: weft_ime.q4_0_matmul_tile_yield %{{.*}} : vector<16xi32>
+
+// PARTIAL: typed IME quant schedule must be absent before construction or carry all schedule fields atomically
+// CONFLICT: IME typed schedule field 'wide_njw' conflicts with family construction
 
 // G8 applied=>deployed: the emitted kernel is the register-resident BATCHED vmadot
 // MAC leaf (single vsetvli, store once) + the capability-keyed DEPLOYED WIDE leaf
@@ -63,11 +72,9 @@ module {
 // EMITC-SAME: register_resident_accumulate=1
 // EMITC-SAME: static inline void weft_ime_vmadot_mac_kloop
 // EMITC-SAME: vmadot    v2, v0, v1
-// The [PAT-1] registry provenance: VLEN-parametric predicate deploys W2 (deployed=1)
-// with the capability-fact reason (vlen_bits=256 rpfIn=1 rpfAcc=2 floor 7<=32).
+// The exact typed body's constructed schedule is projected directly.
 // EMITC: emitc.verbatim
-// EMITC-SAME: weft_ime.pat1_tiling=IME-VMADOT-TILE-W2-Areuse status=mechanized njw=2
-// EMITC-SAME: discriminant=vreg_budget deployed=1
+// EMITC-SAME: weft_ime.constructed_wide_schedule njw=2 deployed=1
 // EMITC-SAME: rpfIn=1 rpfAcc=2
 // The DEPLOYED wide leaf: ONE `vle8` of A (v0) across TWO independent `vmadot`s (v2
 // and v4) into two 4x4 int32 accumulator pairs.

@@ -39,7 +39,14 @@ constexpr llvm::StringLiteral kMatKAttrName("mat_k");
 constexpr llvm::StringLiteral kSlideAttrName("slide");
 constexpr llvm::StringLiteral kAvailableHartsAttrName("available_harts");
 constexpr llvm::StringLiteral kIMEReasonAttrName("ime_reason");
-constexpr llvm::StringLiteral kIMEFinalPlanAttrName("weft.ime.final_plan");
+constexpr llvm::StringLiteral kMacBatchedAttrName("mac_batched");
+constexpr llvm::StringLiteral kWideNJWAttrName("wide_njw");
+constexpr llvm::StringLiteral kWideVlenBitsAttrName("wide_vlen_bits");
+constexpr llvm::StringLiteral kWideInputFragmentVRegsAttrName(
+    "wide_input_fragment_vregs");
+constexpr llvm::StringLiteral kWideAccumulatorVRegsAttrName(
+    "wide_accumulator_vregs");
+constexpr llvm::StringLiteral kWideVRegFloorAttrName("wide_vreg_floor");
 
 constexpr llvm::StringLiteral kIMEPluginName("ime-plugin");
 constexpr llvm::StringLiteral kRoleOpBoundaryStatusValue("role-op-boundary");
@@ -143,8 +150,7 @@ bool isAllowedMMAAttr(llvm::StringRef attrName) {
          attrName == kIMEOpAttrName || attrName == kElemInBitsAttrName ||
          attrName == kAccumBitsAttrName || attrName == kMacMAttrName ||
          attrName == kMacNAttrName || attrName == kMacKAttrName ||
-         attrName == kAvailableHartsAttrName || attrName == kIMEReasonAttrName ||
-         attrName == kIMEFinalPlanAttrName;
+         attrName == kAvailableHartsAttrName || attrName == kIMEReasonAttrName;
 }
 
 // The tiled whole-matrix op admits the same envelope PLUS the problem dims.
@@ -165,7 +171,12 @@ bool isAllowedQ4_0TileAttr(llvm::StringRef attrName) {
          attrName == kMatNAttrName || attrName == kMatKAttrName ||
          attrName == kWeightFormatAttrName || attrName == kQkAttrName ||
          attrName == kWeightBlockStrideAttrName ||
-         attrName == kWeightQuantByteOffsetAttrName;
+         attrName == kWeightQuantByteOffsetAttrName ||
+         attrName == kMacBatchedAttrName || attrName == kWideNJWAttrName ||
+         attrName == kWideVlenBitsAttrName ||
+         attrName == kWideInputFragmentVRegsAttrName ||
+         attrName == kWideAccumulatorVRegsAttrName ||
+         attrName == kWideVRegFloorAttrName;
 }
 
 // G4 M2: the q8_0 tile op admits the SAME attribute set as the q4_0 tile (the
@@ -192,6 +203,49 @@ bool containsExecutableClaimWording(llvm::StringRef text) {
   return lower.contains("benchmark") || lower.contains("performance evidence") ||
          lower.contains("correctness evidence") ||
          lower.contains("faster than") || lower.contains("speedup");
+}
+
+mlir::LogicalResult verifyIMEQuantTypedSchedule(mlir::Operation *op,
+                                                bool supportsWideAReuse) {
+  constexpr llvm::StringLiteral fields[] = {
+      kMacBatchedAttrName, kWideNJWAttrName, kWideVlenBitsAttrName,
+      kWideInputFragmentVRegsAttrName, kWideAccumulatorVRegsAttrName,
+      kWideVRegFloorAttrName};
+  unsigned present = 0;
+  for (llvm::StringRef field : fields)
+    present += op->hasAttr(field);
+  if (present == 0)
+    return mlir::success();
+  if (present != std::size(fields))
+    return op->emitOpError(
+        "typed IME quant schedule must be absent before construction or carry "
+        "all schedule fields atomically");
+
+  auto read = [&](llvm::StringRef name) -> mlir::FailureOr<int64_t> {
+    auto attr = op->getAttrOfType<mlir::IntegerAttr>(name);
+    if (!attr)
+      return op->emitOpError() << "typed schedule field '" << name
+                               << "' must be an integer";
+    return attr.getInt();
+  };
+  auto batched = read(kMacBatchedAttrName);
+  auto njw = read(kWideNJWAttrName);
+  auto vlen = read(kWideVlenBitsAttrName);
+  auto inputVRegs = read(kWideInputFragmentVRegsAttrName);
+  auto accumulatorVRegs = read(kWideAccumulatorVRegsAttrName);
+  auto vregFloor = read(kWideVRegFloorAttrName);
+  if (mlir::failed(batched) || mlir::failed(njw) || mlir::failed(vlen) ||
+      mlir::failed(inputVRegs) || mlir::failed(accumulatorVRegs) ||
+      mlir::failed(vregFloor))
+    return mlir::failure();
+  if ((*batched != 0 && *batched != 1) || (*njw != 1 && *njw != 2) ||
+      *vlen <= 0 || *inputVRegs <= 0 || *accumulatorVRegs <= 0 ||
+      *vregFloor <= 0)
+    return op->emitOpError("typed IME quant schedule has invalid bounds");
+  if (!supportsWideAReuse && *njw != 1)
+    return op->emitOpError(
+        "this typed IME topology exposes only the narrow NJW=1 schedule");
+  return mlir::success();
 }
 
 mlir::LogicalResult verifySelectedPathBinding(mlir::Operation *op,
@@ -652,7 +706,8 @@ mlir::LogicalResult Q40MatMulTileOp::verify() {
                               "dequant / vmadot-leaf / yield bricks; found '"
                            << nested.getName().getStringRef() << "'";
   }
-  return mlir::success();
+  return verifyIMEQuantTypedSchedule(getOperation(),
+                                     /*supportsWideAReuse=*/true);
 }
 
 //===----------------------------------------------------------------------===//
@@ -767,7 +822,8 @@ mlir::LogicalResult Q80MatMulTileOp::verify() {
                               "dequant / vmadot-leaf / yield bricks; found '"
                            << nested.getName().getStringRef() << "'";
   }
-  return mlir::success();
+  return verifyIMEQuantTypedSchedule(getOperation(),
+                                     /*supportsWideAReuse=*/true);
 }
 
 //===----------------------------------------------------------------------===//
@@ -965,7 +1021,8 @@ mlir::LogicalResult Q4KMatMulTileOp::verify() {
                               "bricks; found '"
                            << nested.getName().getStringRef() << "'";
   }
-  return mlir::success();
+  return verifyIMEQuantTypedSchedule(getOperation(),
+                                     /*supportsWideAReuse=*/false);
 }
 
 void WEFTIMEDialect::initialize() {

@@ -5,7 +5,6 @@
 #include "Weft/Support/CapabilityModel.h"
 
 #include "mlir/IR/BuiltinAttributes.h"
-#include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/Error.h"
 
 #include <algorithm>
@@ -25,16 +24,24 @@ struct IMEWideComputationDecision {
 
 struct IMEWideCandidate {
   int64_t njw;
-  bool selectable;
 };
 
-/// W4 is retained as a known measured-negative computation candidate.  It is
-/// deliberately unavailable to construction; an emitter never sees or
-/// reinterprets this candidate set.
-static constexpr IMEWideCandidate kIMEWideCandidates[] = {
-    {1, true}, {2, true}, {4, false}};
+/// The current constructed A-reuse mechanism has two typed schedules: the
+/// narrow leaf and a two-column reuse leaf.  A four-column helper is not an
+/// analytic candidate until its epilogue/register topology is represented by
+/// the typed body; historical measurements are not a legality input.
+static constexpr IMEWideCandidate kIMEWideCandidates[] = {{1}, {2}};
 
-constexpr int64_t kRVVVectorRegisterFileSize = 32;
+constexpr int64_t kIMEVectorRegisterFileSize = 32;
+
+constexpr llvm::StringLiteral kMacBatchedAttrName("mac_batched");
+constexpr llvm::StringLiteral kWideNJWAttrName("wide_njw");
+constexpr llvm::StringLiteral kWideVlenBitsAttrName("wide_vlen_bits");
+constexpr llvm::StringLiteral kWideInputFragmentVRegsAttrName(
+    "wide_input_fragment_vregs");
+constexpr llvm::StringLiteral kWideAccumulatorVRegsAttrName(
+    "wide_accumulator_vregs");
+constexpr llvm::StringLiteral kWideVRegFloorAttrName("wide_vreg_floor");
 
 bool isIMEFinalBody(mlir::Operation *op) {
   return llvm::isa<weft::ime::MMAOp, weft::ime::MMAUOp,
@@ -44,52 +51,26 @@ bool isIMEFinalBody(mlir::Operation *op) {
                    weft::ime::Q4KMatMulTileOp>(op);
 }
 
-mlir::DictionaryAttr makeIMEFinalPlan(
-    mlir::MLIRContext *context,
-    llvm::ArrayRef<std::pair<llvm::StringRef, int64_t>> integerFields) {
-  llvm::SmallVector<mlir::NamedAttribute, 12> attrs;
-  attrs.push_back(mlir::NamedAttribute(
-      mlir::StringAttr::get(context, "formula_id"),
-      mlir::StringAttr::get(context, kIMEConstructionFormulaID)));
-  for (auto [name, value] : integerFields)
-    attrs.push_back(mlir::NamedAttribute(
-        mlir::StringAttr::get(context, name),
-        mlir::IntegerAttr::get(mlir::IntegerType::get(context, 64), value)));
-  return mlir::DictionaryAttr::get(context, attrs);
-}
-
-mlir::LogicalResult attachIMEFinalPlan(mlir::Operation *op,
-                                       mlir::DictionaryAttr expected) {
-  auto existing =
-      op->getAttrOfType<mlir::DictionaryAttr>(kIMEFinalPlanAttrName);
-  if (op->hasAttr(kIMEFinalPlanAttrName) && !existing)
-    return op->emitError("IME final computation plan must be a dictionary");
-  if (existing && existing != expected)
-    return op->emitError(
-        "IME final computation plan is partial, stale, or conflicts with the "
-        "typed body");
-  op->setAttr(kIMEFinalPlanAttrName, expected);
+mlir::LogicalResult setTypedScheduleInteger(mlir::Operation *op,
+                                            llvm::StringRef name,
+                                            int64_t expected) {
+  auto value = op->getAttrOfType<mlir::IntegerAttr>(name);
+  if (op->hasAttr(name) && !value)
+    return op->emitError() << "IME typed schedule field '" << name
+                           << "' must be an integer";
+  if (value && value.getInt() != expected)
+    return op->emitError() << "IME typed schedule field '" << name
+                           << "' conflicts with family construction";
+  op->setAttr(name, mlir::IntegerAttr::get(
+                        mlir::IntegerType::get(op->getContext(), 64), expected));
   return mlir::success();
 }
 
-mlir::FailureOr<mlir::DictionaryAttr>
-requireIMEFinalPlan(mlir::Operation *op) {
-  auto plan = op->getAttrOfType<mlir::DictionaryAttr>(kIMEFinalPlanAttrName);
-  if (!plan)
-    return op->emitError(
-        "IME artifact projection requires a family-constructed final plan");
-  auto formula = plan.getAs<mlir::StringAttr>("formula_id");
-  if (!formula || formula.getValue() != kIMEConstructionFormulaID)
-    return op->emitError("IME final plan has the wrong formula owner");
-  return plan;
-}
-
-mlir::FailureOr<int64_t> readPlanInteger(mlir::DictionaryAttr plan,
-                                         llvm::StringRef name,
-                                         mlir::Operation *op) {
-  auto value = plan.getAs<mlir::IntegerAttr>(name);
+mlir::FailureOr<int64_t> readTypedScheduleInteger(mlir::Operation *op,
+                                                  llvm::StringRef name) {
+  auto value = op->getAttrOfType<mlir::IntegerAttr>(name);
   if (!value)
-    return op->emitError() << "IME final plan is missing integer field '"
+    return op->emitError() << "IME exact typed body is missing schedule field '"
                            << name << "'";
   return value.getInt();
 }
@@ -120,7 +101,7 @@ mlir::FailureOr<int64_t> readIMEConstructionVlenBits(
 
 IMEWideComputationDecision constructWideVmadotPlan(
     int64_t vlenBits, int64_t macM, int64_t macN, int64_t macK,
-    int64_t elemInBits, int64_t accumBits, llvm::StringRef weightFormat) {
+    int64_t elemInBits, int64_t accumBits, bool supportsWideAReuse) {
   IMEWideComputationDecision decision;
   decision.vlenBits = vlenBits;
 
@@ -140,10 +121,10 @@ IMEWideComputationDecision constructWideVmadotPlan(
   };
   decision.vregFloor = floorFor(1);
 
-  // q4_K's two-level scale/min fold is a measured-negative wide-MAC shape.
-  // This is a construction policy input; the artifact layer receives only the
-  // resulting NJW=1 computation plan and cannot overturn it.
-  if (weightFormat == "q4_K")
+  // The q4_K typed body currently owns a distinct two-accumulator scale/min
+  // topology and therefore exposes only the narrow schedule.  This is an
+  // honest-null mechanism axis, not a benchmark-derived exclusion.
+  if (!supportsWideAReuse)
     return decision;
 
   // The current typed wide leaf uses one e8,m1 load per input fragment.
@@ -152,8 +133,7 @@ IMEWideComputationDecision constructWideVmadotPlan(
 
   for (const IMEWideCandidate &candidate : kIMEWideCandidates) {
     const int64_t floor = floorFor(candidate.njw);
-    if (candidate.selectable && floor <= kRVVVectorRegisterFileSize &&
-        candidate.njw > decision.njw) {
+    if (floor <= kIMEVectorRegisterFileSize && candidate.njw > decision.njw) {
       decision.njw = candidate.njw;
       decision.vregFloor = floor;
     }
@@ -161,14 +141,10 @@ IMEWideComputationDecision constructWideVmadotPlan(
   return decision;
 }
 
-mlir::LogicalResult constructIMESimplePlan(mlir::Operation *op) {
-  return attachIMEFinalPlan(op,
-                            makeIMEFinalPlan(op->getContext(), /*fields=*/{}));
-}
-
 template <typename TileOp>
 mlir::LogicalResult constructIMEQuantTilePlan(
-    TileOp tile, const support::TargetCapabilitySet &capabilities) {
+    TileOp tile, const support::TargetCapabilitySet &capabilities,
+    bool supportsWideAReuse) {
   mlir::Block &body = tile.getBody().front();
   auto macLeaves = body.template getOps<weft::ime::VmadotMacLeafOp>();
   if (macLeaves.empty())
@@ -186,21 +162,20 @@ mlir::LogicalResult constructIMEQuantTilePlan(
     return mlir::failure();
   IMEWideComputationDecision wide = constructWideVmadotPlan(
       *vlenBits, tile.getMacM(), tile.getMacN(), tile.getMacK(),
-      tile.getElemInBits(), tile.getAccumBits(), tile.getWeightFormat());
+      tile.getElemInBits(), tile.getAccumBits(), supportsWideAReuse);
 
-  llvm::SmallVector<std::pair<llvm::StringRef, int64_t>, 10> fields = {
-      {"mat_m", tile.getMatM()},
-      {"mat_n", tile.getMatN()},
-      {"mat_k", tile.getMatK()},
-      {"mac_batched", macBatched ? 1 : 0},
-      {"wide_njw", wide.njw},
-      {"wide_vlen_bits", wide.vlenBits},
-      {"wide_input_fragment_vregs", wide.inputFragmentVRegs},
-      {"wide_accumulator_vregs", wide.accumulatorVRegs},
-      {"wide_vreg_floor", wide.vregFloor},
-  };
-  return attachIMEFinalPlan(tile.getOperation(),
-                            makeIMEFinalPlan(tile.getContext(), fields));
+  for (auto [name, value] : {
+           std::pair<llvm::StringRef, int64_t>(kMacBatchedAttrName,
+                                               macBatched ? 1 : 0),
+           {kWideNJWAttrName, wide.njw},
+           {kWideVlenBitsAttrName, wide.vlenBits},
+           {kWideInputFragmentVRegsAttrName, wide.inputFragmentVRegs},
+           {kWideAccumulatorVRegsAttrName, wide.accumulatorVRegs},
+           {kWideVRegFloorAttrName, wide.vregFloor},
+       })
+    if (mlir::failed(setTypedScheduleInteger(tile.getOperation(), name, value)))
+      return mlir::failure();
+  return mlir::success();
 }
 
 mlir::LogicalResult validateIMEConstructionContext(
@@ -244,43 +219,52 @@ mlir::LogicalResult constructIMEFormulaPlan(
   if (llvm::isa<weft::ime::MMAOp, weft::ime::MMAUOp,
                 weft::ime::MMASUOp, weft::ime::MMAUSOp,
                 weft::ime::MMASlideOp>(op))
-    return constructIMESimplePlan(op);
-  if (auto matmul = llvm::dyn_cast<weft::ime::MatMulOp>(op)) {
-    llvm::SmallVector<std::pair<llvm::StringRef, int64_t>, 3> fields = {
-        {"mat_m", matmul.getMatM()},
-        {"mat_n", matmul.getMatN()},
-        {"mat_k", matmul.getMatK()},
-    };
-    return attachIMEFinalPlan(
-        op, makeIMEFinalPlan(matmul.getContext(), fields));
-  }
+    return mlir::success();
+  if (llvm::isa<weft::ime::MatMulOp>(op))
+    return mlir::success();
   if (auto tile = llvm::dyn_cast<weft::ime::Q40MatMulTileOp>(op))
-    return constructIMEQuantTilePlan(tile, capabilities);
+    return constructIMEQuantTilePlan(tile, capabilities,
+                                     /*supportsWideAReuse=*/true);
   if (auto tile = llvm::dyn_cast<weft::ime::Q80MatMulTileOp>(op))
-    return constructIMEQuantTilePlan(tile, capabilities);
+    return constructIMEQuantTilePlan(tile, capabilities,
+                                     /*supportsWideAReuse=*/true);
   if (auto tile = llvm::dyn_cast<weft::ime::Q4KMatMulTileOp>(op))
-    return constructIMEQuantTilePlan(tile, capabilities);
+    return constructIMEQuantTilePlan(tile, capabilities,
+                                     /*supportsWideAReuse=*/false);
   return mlir::failure();
 }
 
 mlir::LogicalResult requireIMESimpleComputationPlan(mlir::Operation *op) {
-  return mlir::failed(requireIMEFinalPlan(op)) ? mlir::failure()
-                                               : mlir::success();
+  if (!isIMEFinalBody(op))
+    return op->emitError("IME artifact projection requires an exact typed body");
+  return mlir::success();
 }
 
 mlir::FailureOr<IMEMatMulComputationPlan>
 readIMEMatMulComputationPlan(mlir::Operation *op) {
-  auto plan = requireIMEFinalPlan(op);
-  if (mlir::failed(plan))
-    return mlir::failure();
-  auto matM = readPlanInteger(*plan, "mat_m", op);
-  auto matN = readPlanInteger(*plan, "mat_n", op);
-  auto matK = readPlanInteger(*plan, "mat_k", op);
-  if (mlir::failed(matM) || mlir::failed(matN) || mlir::failed(matK))
-    return mlir::failure();
-  if (*matM <= 0 || *matN <= 0 || *matK <= 0)
+  IMEMatMulComputationPlan result;
+  if (auto body = llvm::dyn_cast<weft::ime::MatMulOp>(op))
+    result = {static_cast<int64_t>(body.getMatM()),
+              static_cast<int64_t>(body.getMatN()),
+              static_cast<int64_t>(body.getMatK())};
+  else if (auto body = llvm::dyn_cast<weft::ime::Q40MatMulTileOp>(op))
+    result = {static_cast<int64_t>(body.getMatM()),
+              static_cast<int64_t>(body.getMatN()),
+              static_cast<int64_t>(body.getMatK())};
+  else if (auto body = llvm::dyn_cast<weft::ime::Q80MatMulTileOp>(op))
+    result = {static_cast<int64_t>(body.getMatM()),
+              static_cast<int64_t>(body.getMatN()),
+              static_cast<int64_t>(body.getMatK())};
+  else if (auto body = llvm::dyn_cast<weft::ime::Q4KMatMulTileOp>(op))
+    result = {static_cast<int64_t>(body.getMatM()),
+              static_cast<int64_t>(body.getMatN()),
+              static_cast<int64_t>(body.getMatK())};
+  else
+    return op->emitError(
+        "IME matrix artifact projection requires an exact matrix typed body");
+  if (result.matM <= 0 || result.matN <= 0 || result.matK <= 0)
     return op->emitError("IME final computation dimensions must be positive");
-  return IMEMatMulComputationPlan{*matM, *matN, *matK};
+  return result;
 }
 
 mlir::FailureOr<IMEQuantComputationPlan>
@@ -288,24 +272,21 @@ readIMEQuantComputationPlan(mlir::Operation *op) {
   auto matmul = readIMEMatMulComputationPlan(op);
   if (mlir::failed(matmul))
     return mlir::failure();
-  auto plan = requireIMEFinalPlan(op);
-  if (mlir::failed(plan))
-    return mlir::failure();
 
-  auto batched = readPlanInteger(*plan, "mac_batched", op);
-  auto njw = readPlanInteger(*plan, "wide_njw", op);
-  auto vlen = readPlanInteger(*plan, "wide_vlen_bits", op);
-  auto inputVRegs =
-      readPlanInteger(*plan, "wide_input_fragment_vregs", op);
-  auto accumulatorVRegs =
-      readPlanInteger(*plan, "wide_accumulator_vregs", op);
-  auto vregFloor = readPlanInteger(*plan, "wide_vreg_floor", op);
+  auto batched = readTypedScheduleInteger(op, kMacBatchedAttrName);
+  auto njw = readTypedScheduleInteger(op, kWideNJWAttrName);
+  auto vlen = readTypedScheduleInteger(op, kWideVlenBitsAttrName);
+  auto inputVRegs = readTypedScheduleInteger(
+      op, kWideInputFragmentVRegsAttrName);
+  auto accumulatorVRegs = readTypedScheduleInteger(
+      op, kWideAccumulatorVRegsAttrName);
+  auto vregFloor = readTypedScheduleInteger(op, kWideVRegFloorAttrName);
   if (mlir::failed(batched) || mlir::failed(njw) || mlir::failed(vlen) ||
       mlir::failed(inputVRegs) || mlir::failed(accumulatorVRegs) ||
       mlir::failed(vregFloor))
     return mlir::failure();
   if ((*batched != 0 && *batched != 1) ||
-      (*njw != 1 && *njw != 2 && *njw != 4) || *vlen <= 0 ||
+      (*njw != 1 && *njw != 2) || *vlen <= 0 ||
       *inputVRegs <= 0 || *accumulatorVRegs <= 0 || *vregFloor <= 0)
     return op->emitError("IME quantized final computation plan is malformed");
 

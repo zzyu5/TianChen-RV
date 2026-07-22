@@ -23,8 +23,6 @@ namespace weft::plugin::ime {
 /// never become a dynamic dispatcher or a way to recover a body.
 inline constexpr llvm::StringLiteral kIMEConstructionFormulaID(
     "weft.ime.matmul.construct");
-inline constexpr llvm::StringLiteral kIMEFinalPlanAttrName(
-    "weft.ime.final_plan");
 
 /// Artifact-neutral result of the whole-matrix IME construction formula.
 /// The target instruction identity remains carried by the typed IME op; this
@@ -56,9 +54,9 @@ mlir::LogicalResult constructIMEFormulaPlan(
     weft::exec::KernelOp kernel,
     const weft::support::TargetCapabilitySet &capabilities);
 
-/// Typed consumers for the family-owned final-plan schema.  They reject a
-/// missing/wrong-owner/partial plan without exposing its DictionaryAttr layout
-/// to the artifact backend.
+/// Typed consumers for family-owned exact bodies. Quantized bodies reject
+/// missing or partial typed schedule fields; there is no parallel plan
+/// dictionary for the artifact backend to replay.
 mlir::LogicalResult requireIMESimpleComputationPlan(mlir::Operation *op);
 mlir::FailureOr<IMEMatMulComputationPlan>
 readIMEMatMulComputationPlan(mlir::Operation *op);
