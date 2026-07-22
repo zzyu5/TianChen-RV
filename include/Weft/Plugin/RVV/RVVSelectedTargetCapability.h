@@ -39,6 +39,7 @@ struct RVVSelectedTargetCapabilityFacts {
   std::string supportedLMUL;
   std::string rvvVersion;
   std::optional<std::int64_t> minimumVLEN;
+  std::optional<std::int64_t> vectorRegisterCount;
   std::string requiredTailPolicy;
   std::string requiredMaskPolicy;
   std::string providerMirror;
@@ -382,6 +383,30 @@ collectRVVSelectedTargetCapabilityFacts(
         llvm::Twine(context) + " selected RVV capability provider @" +
         capability.getSymbolName() +
         " minimum_vlen has no typed source attribute");
+  }
+
+  mlir::Attribute rawVectorRegisterCount =
+      capability.getPropertyAttribute("vreg_count");
+  if (rawVectorRegisterCount) {
+    auto vectorRegisterCount =
+        llvm::dyn_cast<mlir::IntegerAttr>(rawVectorRegisterCount);
+    if (!vectorRegisterCount ||
+        !vectorRegisterCount.getType().isSignlessInteger(64))
+      return makeRVVSelectedTargetCapabilityError(
+          llvm::Twine(context) + " selected RVV capability provider @" +
+          capability.getSymbolName() +
+          " vreg_count must be a typed signless i64 attribute");
+    if (vectorRegisterCount.getInt() <= 0)
+      return makeRVVSelectedTargetCapabilityError(
+          llvm::Twine(context) + " selected RVV capability provider @" +
+          capability.getSymbolName() + " has non-positive vreg_count " +
+          llvm::Twine(vectorRegisterCount.getInt()));
+    facts.vectorRegisterCount = vectorRegisterCount.getInt();
+  } else if (capability.getProperties().count("vreg_count") != 0) {
+    return makeRVVSelectedTargetCapabilityError(
+        llvm::Twine(context) + " selected RVV capability provider @" +
+        capability.getSymbolName() +
+        " vreg_count has no typed source attribute");
   }
   facts.providerMirror =
       selected_target_capability_detail::formatProviderMirror(capability);

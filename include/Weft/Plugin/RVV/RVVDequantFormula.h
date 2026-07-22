@@ -256,6 +256,24 @@ projectCodebookGatherCapability(
 /// honest-null optional without reading target state.
 inline llvm::Expected<std::optional<CodebookGatherCapabilityFacts>>
 projectDequantizeRowCapability(
+    const ::weft::rvv::DequantizeRowStreamFacts &facts,
+    const RVVSelectedTargetCapabilityFacts &selected) {
+  if (facts.mechanism !=
+      ::weft::rvv::DequantizeRowMechanismKind::CodebookGather)
+    return std::optional<CodebookGatherCapabilityFacts>();
+
+  llvm::Expected<CodebookGatherCapabilityFacts> projected =
+      projectCodebookGatherCapability(selected);
+  if (!projected)
+    return projected.takeError();
+  return std::optional<CodebookGatherCapabilityFacts>(*projected);
+}
+
+/// Explicit inspection/front-door overload.  Production family construction
+/// uses the bound-facts overload above and therefore never rebuilds c_f from an
+/// enclosing module.
+inline llvm::Expected<std::optional<CodebookGatherCapabilityFacts>>
+projectDequantizeRowCapability(
     mlir::Operation *anchor,
     const ::weft::rvv::DequantizeRowStreamFacts &facts,
     llvm::StringRef context) {
@@ -278,11 +296,7 @@ projectDequantizeRowCapability(
       collectRVVSelectedTargetCapabilityFacts(variant, *capabilities, context);
   if (!selected)
     return selected.takeError();
-  llvm::Expected<CodebookGatherCapabilityFacts> projected =
-      projectCodebookGatherCapability(*selected);
-  if (!projected)
-    return projected.takeError();
-  return std::optional<CodebookGatherCapabilityFacts>(*projected);
+  return projectDequantizeRowCapability(facts, *selected);
 }
 
 /// Construct one complete dequant mechanism plan from typed g and the real c

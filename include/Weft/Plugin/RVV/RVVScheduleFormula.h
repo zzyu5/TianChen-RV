@@ -3,6 +3,7 @@
 
 #include "Weft/Plugin/RVV/RVVCapabilityProfile.h"
 #include "Weft/Plugin/RVV/RVVGearboxSchedule.h"
+#include "Weft/Plugin/RVV/RVVSelectedTargetCapability.h"
 
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/Support/LogicalResult.h"
@@ -123,6 +124,13 @@ mlir::LogicalResult constructRVVSchedulesViaInterface(
     mlir::ModuleOp module, llvm::StringRef march, llvm::StringRef isaVectorHints,
     llvm::StringRef tuneRecord, bool dumpCandidates,
     std::optional<mlir::TypeID> onlyOpType = std::nullopt);
+
+/// Bound production entry.  It visits only the selected variant and consumes
+/// the already projected RVV capability facts; it neither rescans the module
+/// for a provider nor loads an artifact-side tuning decision.
+mlir::LogicalResult constructRVVSchedulesForVariant(
+    weft::exec::VariantOp variant,
+    const RVVSelectedTargetCapabilityFacts &capabilities);
 
 } // namespace weft::plugin::rvv
 

@@ -5,7 +5,6 @@
 #include "Weft/Conversion/EmitC/TypedBackendEmissionDriver.h"
 #include "Weft/Conversion/EmitC/WEFTEmitCLowerableOpInterface.h"
 #include "Weft/Conversion/RVV/RVVBackendEmissionDriver.h"
-#include "Weft/Plugin/RVV/RVVFormulaConstruction.h"
 #include "RVVToEmitCInternal.h"
 #include "Weft/Conversion/RVV/RVVToEmitCSupport.h"
 #include "Weft/Dialect/Exec/IR/ExecOps.h"
@@ -5882,18 +5881,14 @@ bool convertRVVModuleToEmitC(mlir::ModuleOp module) {
   // any sibling family.
   if (moduleHasForeignEmitCLowerableBody(module)) {
     module.emitError()
-        << "RVV construction-before-emission refuses a module carrying a "
+        << "RVV artifact lowering refuses a module carrying a "
            "different family's final EmitC-lowerable body";
     return false;
   }
 
-  // This family-specific convenience entry owns the explicit construction
-  // call.  The shared artifact harness below remains construction-blind, and
-  // registry/export paths arrive here only after the planning lifecycle has
-  // already produced the same typed final body.
-  if (mlir::failed(::weft::plugin::rvv::constructRVVFormulaBodies(module)))
-    return false;
-
+  // Artifact projection is construction-blind.  The bound RVV family owner
+  // must already have produced the typed body and complete final schedules;
+  // this direct API never scans the module to invent or repair them.
   bool missingSchedule = false;
   module.walk([&](mlir::Operation *op) {
     auto schedule = llvm::dyn_cast<
@@ -5940,14 +5935,14 @@ public:
       return;
 
     // Run the single shared conversion driver (the same one the live
-    // artifact-export materialization seam calls). Family construction has
-    // already atomically completed schedules and recursive typed-body
-    // qualification before the construction-blind artifact harness runs.
+    // artifact-export materialization seam calls). This pass is an artifact
+    // projection surface: callers that start from an abstract source must run
+    // the corresponding family/source construction before this pass.
     if (conversion::rvv::convertRVVModuleToEmitC(module))
       return;
 
     module.emitError()
-        << "RVV construction-before-emission did not fully legalize every "
+        << "RVV artifact lowering did not fully legalize every "
            "RVV op/type; no unchanged or compatibility lowering path is "
            "permitted";
     signalPassFailure();

@@ -353,23 +353,18 @@ static std::optional<std::int64_t> resolveScheduleMinimumVLEN(
   return bodyMinimumVLEN;
 }
 
-mlir::LogicalResult constructRVVSchedulesViaInterface(
-    mlir::ModuleOp module, llvm::StringRef march, llvm::StringRef isaVectorHints,
-    llvm::StringRef tuneRecord, bool dumpCandidates,
+static mlir::LogicalResult constructRVVSchedulesInScope(
+    mlir::Operation *scope, mlir::MLIRContext *context,
+    std::int64_t minimumVLEN, std::int64_t vectorRegisterBudget,
+    llvm::StringRef selectionTarget,
+    const std::optional<std::string> &recordText, bool dumpCandidates,
     std::optional<mlir::TypeID> onlyOpType) {
-  // Resolve the capability input once.  Candidate generators consume the actual
-  // minimum VLEN; the command-line strings are only the existing unprobed
-  // fallback used by resolveRVVMinimumVLEN.
-  std::int64_t minimumVLEN = resolveRVVMinimumVLEN(module, march, isaVectorHints);
-  std::int64_t vectorRegisterBudget =
-      resolveRVVVectorRegisterBudget(module);
-  std::optional<std::string> recordText =
-      loadRVVBlockDotTuningRecord(tuneRecord);
-
+  if (!scope || !context)
+    return mlir::failure();
   // Auto-discovery is structural: adding a tunable op does not require another
   // family-name branch in this runner.
   llvm::SmallVector<conversion::emitc::TunableScheduleOpInterface, 4> targets;
-  module.walk([&](mlir::Operation *op) {
+  scope->walk([&](mlir::Operation *op) {
     if (onlyOpType && op->getName().getTypeID() != *onlyOpType)
       return;
     if (auto iface = llvm::dyn_cast<conversion::emitc::TunableScheduleOpInterface>(op))
@@ -404,8 +399,8 @@ mlir::LogicalResult constructRVVSchedulesViaInterface(
       if (mlir::failed(
               validateFormulaSchema(iface.getOperation(), formula.candidates)))
         return mlir::failure();
-      dumpGenericLegalCandidates(llvm::outs(), descriptor->kernelKey, march,
-                                 formula.candidates);
+      dumpGenericLegalCandidates(llvm::outs(), descriptor->kernelKey,
+                                 selectionTarget, formula.candidates);
     }
     return mlir::success();
   }
@@ -469,7 +464,7 @@ mlir::LogicalResult constructRVVSchedulesViaInterface(
       if (!descriptor->minimumVLENAttrName.empty()) {
         mlir::Attribute attr = iface->getAttr(descriptor->minimumVLENAttrName);
         if (!attr) {
-          mlir::Builder builder(module.getContext());
+          mlir::Builder builder(context);
           iface->setAttr(descriptor->minimumVLENAttrName,
                          builder.getI64IntegerAttr(*scheduleMinimumVLEN));
         }
@@ -481,7 +476,8 @@ mlir::LogicalResult constructRVVSchedulesViaInterface(
     // candidate.  Otherwise the analytic/static prior selects within that same
     // set.  Neither path can create a body or bypass legality.
     std::optional<GenericScheduleCandidate> selected = selectRVVSchedule(
-        *descriptor, formula, RVVScheduleSelectionInput{march, recordText});
+        *descriptor, formula,
+        RVVScheduleSelectionInput{selectionTarget, recordText});
     if (!selected) {
       iface->emitError() << "schedule formula produced no legal candidate";
       return mlir::failure();
@@ -491,6 +487,39 @@ mlir::LogicalResult constructRVVSchedulesViaInterface(
   }
 
   return mlir::success();
+}
+
+mlir::LogicalResult constructRVVSchedulesViaInterface(
+    mlir::ModuleOp module, llvm::StringRef march, llvm::StringRef isaVectorHints,
+    llvm::StringRef tuneRecord, bool dumpCandidates,
+    std::optional<mlir::TypeID> onlyOpType) {
+  // Explicit inspection/tuning entry: resolve its module-scoped inputs once.
+  // Production construction uses constructRVVSchedulesForVariant below.
+  const std::int64_t minimumVLEN =
+      resolveRVVMinimumVLEN(module, march, isaVectorHints);
+  const std::int64_t vectorRegisterBudget =
+      resolveRVVVectorRegisterBudget(module);
+  const std::optional<std::string> recordText =
+      loadRVVBlockDotTuningRecord(tuneRecord);
+  return constructRVVSchedulesInScope(
+      module.getOperation(), module.getContext(), minimumVLEN,
+      vectorRegisterBudget, march, recordText, dumpCandidates, onlyOpType);
+}
+
+mlir::LogicalResult constructRVVSchedulesForVariant(
+    weft::exec::VariantOp variant,
+    const RVVSelectedTargetCapabilityFacts &capabilities) {
+  if (!variant)
+    return mlir::failure();
+  const std::int64_t minimumVLEN = capabilities.minimumVLEN.value_or(0);
+  const std::int64_t vectorRegisterBudget =
+      capabilities.vectorRegisterCount.value_or(
+          getRVVArchitecturalVectorRegisterCount());
+  return constructRVVSchedulesInScope(
+      variant.getOperation(), variant.getContext(), minimumVLEN,
+      vectorRegisterBudget, /*selectionTarget=*/{},
+      /*recordText=*/std::nullopt, /*dumpCandidates=*/false,
+      /*onlyOpType=*/std::nullopt);
 }
 
 } // namespace weft::plugin::rvv

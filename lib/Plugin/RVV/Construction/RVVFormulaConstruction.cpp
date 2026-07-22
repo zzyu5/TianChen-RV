@@ -8,6 +8,7 @@
 #include "Weft/Plugin/RVV/RVVLowPrecisionResourceFormula.h"
 #include "Weft/Plugin/RVV/RVVQuantizeFormula.h"
 #include "Weft/Plugin/RVV/RVVScheduleFormula.h"
+#include "Weft/Plugin/RVV/RVVSelectedTargetCapability.h"
 
 #include "mlir/IR/PatternMatch.h"
 #include "llvm/ADT/SmallVector.h"
@@ -22,9 +23,9 @@ namespace weft::plugin::rvv {
 namespace pluginrvv = ::weft::plugin::rvv;
 namespace weftrvv = ::weft::rvv;
 
-mlir::LogicalResult
-constructRVVQuantizeRowFormulaBodies(mlir::ModuleOp module) {
-  mlir::IRRewriter rewriter(module.getContext());
+static mlir::LogicalResult
+constructRVVQuantizeRowFormulaBodiesInScope(mlir::Operation *scope) {
+  mlir::IRRewriter rewriter(scope->getContext());
 
   struct PendingQuantize {
     mlir::Operation *op;
@@ -34,17 +35,17 @@ constructRVVQuantizeRowFormulaBodies(mlir::ModuleOp module) {
     weftrvv::QuantizeRowLeaf leaf;
   };
   llvm::SmallVector<PendingQuantize, 4> quantizeRows;
-  module.walk([&](weftrvv::GgmlQuantizeRowQ80Op op) {
+  scope->walk([&](weftrvv::GgmlQuantizeRowQ80Op op) {
     quantizeRows.push_back({op, op.getInput(), op.getOutput(),
                             op.getElementCount(),
                             weftrvv::QuantizeRowLeaf::Q8_0});
   });
-  module.walk([&](weftrvv::GgmlQuantizeRowQ81Op op) {
+  scope->walk([&](weftrvv::GgmlQuantizeRowQ81Op op) {
     quantizeRows.push_back({op, op.getInput(), op.getOutput(),
                             op.getElementCount(),
                             weftrvv::QuantizeRowLeaf::Q8_1});
   });
-  module.walk([&](weftrvv::GgmlQuantizeRowQ8KOp op) {
+  scope->walk([&](weftrvv::GgmlQuantizeRowQ8KOp op) {
     quantizeRows.push_back({op, op.getInput(), op.getOutput(),
                             op.getElementCount(),
                             weftrvv::QuantizeRowLeaf::Q8_K});
@@ -68,10 +69,16 @@ constructRVVQuantizeRowFormulaBodies(mlir::ModuleOp module) {
 }
 
 mlir::LogicalResult
-constructRVVDequantizeRowFormulaBodies(mlir::ModuleOp module) {
-  mlir::IRRewriter rewriter(module.getContext());
+constructRVVQuantizeRowFormulaBodies(mlir::ModuleOp module) {
+  return constructRVVQuantizeRowFormulaBodiesInScope(module.getOperation());
+}
+
+static mlir::LogicalResult constructRVVDequantizeRowFormulaBodiesInScope(
+    mlir::Operation *scope,
+    const RVVSelectedTargetCapabilityFacts *selectedCapabilities) {
+  mlir::IRRewriter rewriter(scope->getContext());
   llvm::SmallVector<weftrvv::GgmlDequantizeRowOp, 16> dequantizeRows;
-  module.walk([&](weftrvv::GgmlDequantizeRowOp op) {
+  scope->walk([&](weftrvv::GgmlDequantizeRowOp op) {
     dequantizeRows.push_back(op);
   });
   for (weftrvv::GgmlDequantizeRowOp row : dequantizeRows) {
@@ -82,11 +89,13 @@ constructRVVDequantizeRowFormulaBodies(mlir::ModuleOp module) {
                       << row.getFormat() << "'";
       return mlir::failure();
     }
-    llvm::Expected<
-        std::optional<pluginrvv::CodebookGatherCapabilityFacts>> capability =
-        pluginrvv::projectDequantizeRowCapability(
-            row.getOperation(), *facts,
-            "RVV pre-emission dequantize-row formula construction");
+    llvm::Expected<std::optional<pluginrvv::CodebookGatherCapabilityFacts>>
+        capability = selectedCapabilities
+                         ? pluginrvv::projectDequantizeRowCapability(
+                               *facts, *selectedCapabilities)
+                         : pluginrvv::projectDequantizeRowCapability(
+                               row.getOperation(), *facts,
+                               "RVV explicit dequantize-row formula front door");
     if (!capability) {
       row.emitError() << llvm::toString(capability.takeError());
       return mlir::failure();
@@ -105,22 +114,28 @@ constructRVVDequantizeRowFormulaBodies(mlir::ModuleOp module) {
   return mlir::success();
 }
 
+mlir::LogicalResult
+constructRVVDequantizeRowFormulaBodies(mlir::ModuleOp module) {
+  return constructRVVDequantizeRowFormulaBodiesInScope(
+      module.getOperation(), /*selectedCapabilities=*/nullptr);
+}
+
 static mlir::LogicalResult
-constructRVVStandaloneDequantSchedules(mlir::ModuleOp module) {
-  mlir::IRRewriter rewriter(module.getContext());
+constructRVVStandaloneDequantSchedules(mlir::Operation *scope) {
+  mlir::IRRewriter rewriter(scope->getContext());
   // Standalone load -> dequantize -> store bodies are already typed compute,
   // but their unroll schedule is still a construction result.  Construct it
   // here before backend conversion; product/reduction dequant bodies have a
   // different formula and are excluded by the exact three-op graph check.
   llvm::SmallVector<weftrvv::WithVLOp, 8> standaloneDequantScopes;
-  module.walk([&](weftrvv::WithVLOp scope) {
-    if (scope.getBody().empty())
+  scope->walk([&](weftrvv::WithVLOp withVL) {
+    if (withVL.getBody().empty())
       return;
     weftrvv::LoadOp load;
     weftrvv::DequantizeOp dequantize;
     weftrvv::StoreOp store;
     bool hasOtherOperation = false;
-    for (mlir::Operation &operation : scope.getBody().front()) {
+    for (mlir::Operation &operation : withVL.getBody().front()) {
       if (auto candidate = llvm::dyn_cast<weftrvv::LoadOp>(operation)) {
         if (load)
           hasOtherOperation = true;
@@ -141,7 +156,7 @@ constructRVVStandaloneDequantSchedules(mlir::ModuleOp module) {
     if (!hasOtherOperation && load && dequantize && store &&
         dequantize.getSource() == load.getLoaded() &&
         store.getValue() == dequantize.getResult())
-      standaloneDequantScopes.push_back(scope);
+      standaloneDequantScopes.push_back(withVL);
   });
 
   for (weftrvv::WithVLOp scope : standaloneDequantScopes) {
@@ -188,8 +203,8 @@ constructRVVStandaloneDequantSchedules(mlir::ModuleOp module) {
 }
 
 static mlir::LogicalResult
-constructRVVFlatBlockDotPlans(mlir::ModuleOp module) {
-  mlir::Builder builder(module.getContext());
+constructRVVFlatBlockDotPlans(mlir::Operation *scope) {
+  mlir::Builder builder(scope->getContext());
   mlir::LogicalResult status = mlir::success();
   auto materialize = [&](mlir::Operation *op, RVVFlatBlockDotLeaf leaf,
                          std::int64_t qk, std::int64_t subBlockLength,
@@ -251,7 +266,7 @@ constructRVVFlatBlockDotPlans(mlir::ModuleOp module) {
     }
   };
 
-  module.walk([&](weftrvv::TypedFlatBlockDotLoopBodyOp op) {
+  scope->walk([&](weftrvv::TypedFlatBlockDotLoopBodyOp op) {
     if (mlir::failed(status))
       return;
 
@@ -436,12 +451,12 @@ constructRVVFlatBlockDotPlans(mlir::ModuleOp module) {
                 weightQuantOffset, activationQuantOffset);
   });
 
-  module.walk([&](weftrvv::GgmlBlockDotQ40Q80Op op) {
+  scope->walk([&](weftrvv::GgmlBlockDotQ40Q80Op op) {
     materialize(op.getOperation(), RVVFlatBlockDotLeaf::Q40Q80, op.getQk(),
                 /*subBlockLength=*/0, op.getQuantByteOffset(),
                 op.getQuantByteOffset());
   });
-  module.walk([&](weftrvv::GgmlBlockDotMXFP4Q80Op op) {
+  scope->walk([&](weftrvv::GgmlBlockDotMXFP4Q80Op op) {
     materialize(op.getOperation(), RVVFlatBlockDotLeaf::MXFP4Q80, op.getQk(),
                 /*subBlockLength=*/0, op.getWeightQuantByteOffset(),
                 op.getActivationQuantByteOffset());
@@ -449,11 +464,25 @@ constructRVVFlatBlockDotPlans(mlir::ModuleOp module) {
   return status;
 }
 
-mlir::LogicalResult constructRVVFormulaBodies(mlir::ModuleOp module) {
-  if (mlir::failed(constructRVVQuantizeRowFormulaBodies(module)) ||
-      mlir::failed(constructRVVDequantizeRowFormulaBodies(module)) ||
-      mlir::failed(constructRVVStandaloneDequantSchedules(module)) ||
-      mlir::failed(constructRVVFlatBlockDotPlans(module)))
+mlir::LogicalResult constructRVVFormulaPlansForVariant(
+    weft::exec::VariantOp variant,
+    const support::TargetCapabilitySet &capabilities) {
+  if (!variant)
+    return mlir::failure();
+  llvm::Expected<RVVSelectedTargetCapabilityFacts> selectedCapabilities =
+      collectRVVSelectedTargetCapabilityFacts(
+          variant, capabilities, "bound RVV formula construction");
+  if (!selectedCapabilities) {
+    variant.emitError() << llvm::toString(selectedCapabilities.takeError());
+    return mlir::failure();
+  }
+
+  mlir::Operation *scope = variant.getOperation();
+  if (mlir::failed(constructRVVQuantizeRowFormulaBodiesInScope(scope)) ||
+      mlir::failed(constructRVVDequantizeRowFormulaBodiesInScope(
+          scope, &*selectedCapabilities)) ||
+      mlir::failed(constructRVVStandaloneDequantSchedules(scope)) ||
+      mlir::failed(constructRVVFlatBlockDotPlans(scope)))
     return mlir::failure();
 
   // Schedule construction is part of the same pre-emission lifecycle.  The
@@ -462,12 +491,7 @@ mlir::LogicalResult constructRVVFormulaBodies(mlir::ModuleOp module) {
   // incomplete typed op.  The schedule owner discovers all interface-bearing
   // operations structurally and either constructs a complete final tuple or
   // validates an existing one; it never leaves a partial intermediate state.
-  if (mlir::failed(constructRVVSchedulesViaInterface(
-          module, /*march=*/{}, /*isaVectorHints=*/{}, /*tuneRecord=*/{},
-          /*dumpCandidates=*/false, /*onlyOpType=*/std::nullopt)))
-    return mlir::failure();
-
-  return validateRVVConstructedTypedBodies(module);
+  return constructRVVSchedulesForVariant(variant, *selectedCapabilities);
 }
 
 } // namespace weft::plugin::rvv

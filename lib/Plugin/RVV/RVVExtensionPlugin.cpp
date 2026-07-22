@@ -463,10 +463,11 @@ void RVVExtensionPlugin::registerDialects(
 llvm::Error RVVExtensionPlugin::constructFormulaPlans(
     const FamilyConstructionRequest &request,
     FamilyConstructionResult &out) const {
-  if (mlir::failed(constructRVVFormulaBodies(request.getModule())))
+  if (mlir::failed(constructRVVFormulaPlansForVariant(
+          request.getVariant(), request.getCapabilities())))
     return llvm::createStringError(
         llvm::inconvertibleErrorCode(),
-        "RVV formula-construction cut rejected the module");
+        "bound RVV formula construction rejected the selected variant");
 
   llvm::Expected<weft::rvv::WithVLOp> boundary =
       findSelectedRVVSelectedBodyBoundary(request.getVariant());
@@ -476,6 +477,10 @@ llvm::Error RVVExtensionPlugin::constructFormulaPlans(
     if (hasPreRealizedBody)
       return makeRVVPluginError(
           "family construction found both pre-realized and final RVV bodies");
+    if (mlir::failed(
+            validateRVVConstructedTypedBody(boundary->getOperation())))
+      return makeRVVPluginError(
+          "bound RVV construction rejected its exact typed body");
     out = FamilyConstructionResult::getFinalBody(boundary->getOperation());
     return llvm::Error::success();
   }
@@ -494,6 +499,9 @@ llvm::Error RVVExtensionPlugin::constructFormulaPlans(
       realizePreRealizedRVVSelectedBody(bodyRequest);
   if (!realized)
     return realized.takeError();
+  if (mlir::failed(validateRVVConstructedTypedBody(realized->getOperation())))
+    return makeRVVPluginError(
+        "bound RVV construction rejected its exact realized typed body");
   out = FamilyConstructionResult::getFinalBody(realized->getOperation());
   return llvm::Error::success();
 }

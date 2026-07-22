@@ -21,6 +21,7 @@
 # RUN: sed -n '/^materializeSelectedEmitCArtifactModule(/,/^}/p' %S/../../lib/Target/TargetArtifactExport.cpp | FileCheck %s --check-prefix=TARGET-ORDER
 # RUN: sed -n '/exportScalarEmitCToCpp/,/^}/p' %S/../../lib/Target/Scalar/ScalarTargetSupportBundle.cpp | FileCheck %s --check-prefix=SCALAR-TRANSLATE-ORDER
 # RUN: sed -n '/bool convertRVVModuleToEmitC/,/^}/p' %S/../../lib/Conversion/RVV/RVVToEmitC.cpp | FileCheck %s --check-prefix=RVV-DIRECT-ORDER
+# RUN: sed -n '/bool convertRVVModuleToEmitC/,/^}/p' %S/../../lib/Conversion/RVV/RVVToEmitC.cpp | not rg 'constructRVV|constructFormula'
 
 # Construction, formula and artifact inventories are separate.  Formula
 # descriptors name construction entries; artifact drivers name only backends.
@@ -42,7 +43,7 @@
 # RUN: rg -n 'projectIME(SimpleMAC|MatMul|Quant)Artifact' %S/../../lib/Plugin/IME/IMEBackendEmissionDriver.cpp | FileCheck %s --check-prefix=IME-PROJECTION
 
 # RVV formula direction and flat_* final-plan authority remain unchanged.
-# RUN: sed -n '/constructRVVFormulaBodies(mlir::ModuleOp module)/,/^}/p' %S/../../lib/Plugin/RVV/Construction/RVVFormulaConstruction.cpp | FileCheck %s --check-prefix=RVV-DIRECTION-SYMMETRY
+# RUN: sed -n '/constructRVVFormulaPlansForVariant(/,/^}/p' %S/../../lib/Plugin/RVV/Construction/RVVFormulaConstruction.cpp | FileCheck %s --check-prefix=RVV-DIRECTION-SYMMETRY
 # RUN: not rg -n 'Ggml(QuantizeRowQ80|QuantizeRowQ81|QuantizeRowQ8K|DequantizeRow)Op' %S/../../lib/Conversion/RVV
 # RUN: sed -n '/VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(/,/^}/p' %S/../../lib/Conversion/RVV/RVVToEmitCBlockQuantLinear.cpp | rg 'readFinalFlatBlockDotComputePlan' | FileCheck %s --check-prefix=FLAT
 # RUN: sed -n '/VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(/,/^}/p' %S/../../lib/Conversion/RVV/RVVToEmitCBlockQuantLinear.cpp | not rg 'getFoldModel\(|getAttr(OfType)?<[^>]+>\("(kind|format|fold_model)"\)|getAttr\("(kind|format|fold_model)"\)'
@@ -58,7 +59,6 @@
 # TARGET-ORDER: tryConvertConstructedModuleWithRegisteredBackend
 # SCALAR-TRANSLATE-ORDER: constructFormulaPlansForVariant
 # SCALAR-TRANSLATE-ORDER: tryConvertConstructedModuleWithRegisteredBackend
-# RVV-DIRECT-ORDER: constructRVVFormulaBodies
 # RVV-DIRECT-ORDER: convertConstructedModuleWithBackendEmitter
 # CONSTRUCTION-INVENTORY: addProductionEntry("construction:
 # TABLE: rvv::registerRVVBackendEmitter
@@ -78,6 +78,7 @@
 # IME-PROJECTION: projectIMESimpleMACArtifact
 # IME-PROJECTION: projectIMEMatMulArtifact
 # IME-PROJECTION: projectIMEQuantArtifact
-# RVV-DIRECTION-SYMMETRY: constructRVVQuantizeRowFormulaBodies(module)
-# RVV-DIRECTION-SYMMETRY-NEXT: mlir::failed(constructRVVDequantizeRowFormulaBodies(module))
+# RVV-DIRECTION-SYMMETRY: constructRVVQuantizeRowFormulaBodiesInScope(scope)
+# RVV-DIRECTION-SYMMETRY-NEXT: mlir::failed(constructRVVDequantizeRowFormulaBodiesInScope(
+# RVV-DIRECTION-SYMMETRY: constructRVVSchedulesForVariant(variant, *selectedCapabilities)
 # FLAT: readFinalFlatBlockDotComputePlan

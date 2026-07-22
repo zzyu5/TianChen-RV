@@ -334,19 +334,20 @@ llvm::LogicalResult validateTypedElementwiseLoopBodyAllowlist(
 
 } // namespace
 
-mlir::LogicalResult
-validateRVVConstructedTypedBodies(mlir::ModuleOp module) {
+mlir::LogicalResult validateRVVConstructedTypedBody(mlir::Operation *body) {
+  if (!body)
+    return mlir::failure();
   bool rejected = false;
-  module.walk([&](weft::rvv::TypedFlatBlockDotLoopBodyOp loopBody) {
+  body->walk([&](weft::rvv::TypedFlatBlockDotLoopBodyOp loopBody) {
     if (mlir::failed(validateTypedFlatBlockDotLoopBodyAllowlist(loopBody)))
       rejected = true;
   });
-  module.walk([&](weft::rvv::TypedSuperBlockBlockDotLoopBodyOp loopBody) {
+  body->walk([&](weft::rvv::TypedSuperBlockBlockDotLoopBodyOp loopBody) {
     if (mlir::failed(
             validateTypedSuperBlockBlockDotLoopBodyAllowlist(loopBody)))
       rejected = true;
   });
-  module.walk([&](weft::rvv::TypedElementwiseLoopBodyOp loopBody) {
+  body->walk([&](weft::rvv::TypedElementwiseLoopBodyOp loopBody) {
     if (mlir::failed(validateTypedElementwiseLoopBodyAllowlist(loopBody)))
       rejected = true;
   });
