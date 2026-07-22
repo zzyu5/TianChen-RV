@@ -377,9 +377,10 @@ VariantCostRequest::VariantCostRequest(
 
 VariantEmissionRequest::VariantEmissionRequest(
     weft::exec::VariantOp variant, weft::exec::KernelOp kernel,
-    const support::TargetCapabilitySet &capabilities, VariantEmissionRole role)
+    const support::TargetCapabilitySet &capabilities, VariantEmissionRole role,
+    mlir::Operation *constructedOperation)
     : variant(variant), kernel(kernel), capabilities(capabilities),
-      role(role) {}
+      role(role), constructedOperation(constructedOperation) {}
 
 VariantLoweringBoundaryRequest::VariantLoweringBoundaryRequest(
     weft::exec::VariantOp variant, weft::exec::KernelOp kernel,
@@ -446,6 +447,8 @@ bool isOperationSelectedForVariant(mlir::Operation *operation,
       operation->getParentOfType<weft::exec::KernelOp>();
   if (!variantKernel || operationKernel != variantKernel)
     return false;
+  if (operation == variant.getOperation())
+    return true;
   // A body physically nested in the variant is already structurally bound and
   // need not duplicate selected_variant metadata.  Kernel-level sibling
   // boundaries require the explicit symbol join below.
@@ -1280,6 +1283,13 @@ llvm::Error ExtensionPluginRegistry::checkVariantEmissionReadiness(
         variant, kernel, role,
         "variant is not directly enclosed by the request weft.exec.kernel");
 
+  if (request.getConstructedOperation() &&
+      !isOperationSelectedForVariant(request.getConstructedOperation(),
+                                     variant))
+    return makeVariantEmissionError(
+        variant, kernel, role,
+        "constructed operation does not belong to the request variant");
+
   auto originAttr =
       variant->getAttrOfType<mlir::StringAttr>(kOriginAttrName);
   if (!originAttr || originAttr.getValue().trim().empty())
@@ -1419,6 +1429,13 @@ llvm::Error ExtensionPluginRegistry::buildVariantEmissionPlan(
     return makeVariantEmissionPlanError(
         variant, kernel, role,
         "variant is not directly enclosed by the request weft.exec.kernel");
+
+  if (request.getConstructedOperation() &&
+      !isOperationSelectedForVariant(request.getConstructedOperation(),
+                                     variant))
+    return makeVariantEmissionPlanError(
+        variant, kernel, role,
+        "constructed operation does not belong to the request variant");
 
   auto originAttr =
       variant->getAttrOfType<mlir::StringAttr>(kOriginAttrName);

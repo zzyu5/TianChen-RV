@@ -66,7 +66,6 @@ using weft::plugin::VariantEmissionPlan;
 using weft::plugin::VariantEmissionRequest;
 using weft::plugin::VariantEmissionRole;
 using weft::plugin::VariantEmissionStatus;
-using weft::plugin::VariantLoweringBoundaryValidationRequest;
 using weft::support::TargetCapabilitySet;
 using weft::exec::DiagnosticOp;
 using weft::exec::DispatchCaseOp;
@@ -160,9 +159,11 @@ VariantOp findNestedVariantBySymbol(KernelOp kernel,
 
 llvm::Error routeVariantEmissionReadiness(
     KernelOp kernel, VariantOp variant, const TargetCapabilitySet &capabilities,
-    const ExtensionPluginRegistry &registry, VariantEmissionRole role) {
+    const ExtensionPluginRegistry &registry, VariantEmissionRole role,
+    mlir::Operation *constructedOperation) {
   VariantEmissionStatus status;
-  VariantEmissionRequest request(variant, kernel, capabilities, role);
+  VariantEmissionRequest request(variant, kernel, capabilities, role,
+                                 constructedOperation);
   return registry.checkVariantEmissionReadiness(request, status);
 }
 
@@ -172,7 +173,8 @@ llvm::Error routeVariantEmissionPlan(
     mlir::Operation *loweringBoundary,
     llvm::SmallVectorImpl<VariantEmissionPlan> &out) {
   VariantEmissionPlan plan;
-  VariantEmissionRequest request(variant, kernel, capabilities, role);
+  VariantEmissionRequest request(variant, kernel, capabilities, role,
+                                 loweringBoundary);
   if (llvm::Error error = registry.buildVariantEmissionPlan(request, plan))
     return error;
 
@@ -495,26 +497,6 @@ bool arrayContainsSymbol(mlir::ArrayAttr array, llvm::StringRef symbol) {
       return true;
   }
   return false;
-}
-
-llvm::Error validateConstructedFamilyOperations(
-    KernelOp kernel, llvm::SmallVectorImpl<EmissionReference> &references,
-    const TargetCapabilitySet &capabilities,
-    const ExtensionPluginRegistry &registry) {
-  for (const EmissionReference &reference : references) {
-    mlir::Operation *constructedOperation =
-        reference.construction.getOperation();
-    if (!constructedOperation)
-      continue;
-    VariantLoweringBoundaryValidationRequest request(
-        reference.variant, kernel, capabilities, reference.role,
-        constructedOperation);
-    if (llvm::Error error =
-            registry.validateSelectedLoweringBoundary(request))
-      return error;
-  }
-
-  return llvm::Error::success();
 }
 
 bool isEmissionPlanDiagnostic(DiagnosticOp diagnostic) {
@@ -992,14 +974,10 @@ llvm::Error checkKernelEmissionPaths(
           constructEmissionReferences(kernel, references, registry,
                                       "variant emission readiness check"))
     return error;
-  if (llvm::Error error =
-          validateConstructedFamilyOperations(kernel, references, capabilities,
-                                              registry))
-    return error;
-
   for (const EmissionReference &reference : references) {
     if (llvm::Error error = routeVariantEmissionReadiness(
-            kernel, reference.variant, capabilities, registry, reference.role))
+            kernel, reference.variant, capabilities, registry, reference.role,
+            reference.construction.getOperation()))
       return error;
   }
 
@@ -1030,11 +1008,6 @@ llvm::Error collectKernelEmissionPlans(
           constructEmissionReferences(kernel, references, registry,
                                       "variant emission plan collection"))
     return error;
-  if (llvm::Error error =
-          validateConstructedFamilyOperations(kernel, references, capabilities,
-                                              registry))
-    return error;
-
   for (const EmissionReference &reference : references) {
     if (llvm::Error error = routeVariantEmissionPlan(
             kernel, reference.variant, capabilities, registry, reference.role,

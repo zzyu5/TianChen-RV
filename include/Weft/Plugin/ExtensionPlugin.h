@@ -257,7 +257,8 @@ public:
   VariantEmissionRequest(weft::exec::VariantOp variant,
                          weft::exec::KernelOp kernel,
                          const support::TargetCapabilitySet &capabilities,
-                         VariantEmissionRole role);
+                         VariantEmissionRole role,
+                         mlir::Operation *constructedOperation = nullptr);
 
   weft::exec::VariantOp getVariant() const { return variant; }
   weft::exec::KernelOp getKernel() const { return kernel; }
@@ -265,12 +266,19 @@ public:
     return capabilities;
   }
   VariantEmissionRole getRole() const { return role; }
+  /// Exact family-local result from the construction invocation that precedes
+  /// this artifact query.  Artifact planning may inspect its typed interface,
+  /// but must not rediscover a replacement by scanning metadata.
+  mlir::Operation *getConstructedOperation() const {
+    return constructedOperation;
+  }
 
 private:
   weft::exec::VariantOp variant;
   weft::exec::KernelOp kernel;
   const support::TargetCapabilitySet &capabilities;
   VariantEmissionRole role = VariantEmissionRole::DirectVariant;
+  mlir::Operation *constructedOperation = nullptr;
 };
 
 class VariantLoweringBoundaryRequest {

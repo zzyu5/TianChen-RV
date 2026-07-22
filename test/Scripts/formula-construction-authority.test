@@ -34,7 +34,7 @@
 # FLAT-PLAN-PROJECTION-NEXT: {{.*}}descriptor.foldModel = plan.foldModel
 # FLAT-PLAN-PROJECTION: descriptor.applyOffsetBias = plan.applyOffsetBias
 # CONSTRUCTION-ORDER: constructEmissionReferences(kernel, references, registry,
-# CONSTRUCTION-ORDER: validateConstructedFamilyOperations
+# CONSTRUCTION-ORDER: reference.construction.getOperation()
 
 # RUN: echo 'formula construction authority denylist clean' | FileCheck %s
 # CHECK: formula construction authority denylist clean
