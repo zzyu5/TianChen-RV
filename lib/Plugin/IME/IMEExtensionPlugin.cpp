@@ -13,12 +13,17 @@
 #include "llvm/Support/Errc.h"
 
 #include <string>
+#include <utility>
 
 namespace weft::plugin {
 namespace {
 
 constexpr llvm::StringLiteral kIMEPluginName("ime-plugin");
 constexpr llvm::StringLiteral kIMEPluginVersion("0.1.0");
+constexpr llvm::StringLiteral kIMEConstructionFormulaID(
+    "weft.ime.matmul.construct");
+constexpr llvm::StringLiteral kIMECostFormulaID(
+    "weft.ime.matmul.analytic-prior");
 // The first-class derived capability id. NOT a family-name string match: the
 // plugin gates on the PRESENCE of this capability FACT in the target set; a
 // target without it (RVV-only) does not satisfy lookupProviderByID and IME
@@ -600,6 +605,7 @@ buildIMEProposal(const VariantProposalRequest &request) {
     variantName =
         isUnsigned ? kIMEUnsignedVariantName : kIMEFirstSliceVariantName;
   VariantProposal proposal(variantName, kIMEPluginName);
+  proposal.setFormulaID(kIMEConstructionFormulaID);
   proposal.addRequiredCapabilityID(kIMECapabilityID);
   proposal.setCondition(kIMECondition);
   proposal.setGuard(kIMEGuard);
@@ -691,6 +697,51 @@ llvm::ArrayRef<PluginCapability> IMEExtensionPlugin::getCapabilities() const {
 void IMEExtensionPlugin::registerDialects(
     mlir::DialectRegistry &registry) const {
   registry.insert<weft::ime::WEFTIMEDialect>();
+}
+
+void IMEExtensionPlugin::collectFormulaDescriptors(
+    llvm::SmallVectorImpl<FormulaDescriptor> &out) const {
+  FormulaDescriptor construction(
+      kIMEConstructionFormulaID, kIMEPluginName,
+      "contraction/integer-matrix-extension", FormulaResultKind::CandidateSet,
+      FormulaConstructionStrength::ConstructedWeak);
+  construction.getGeometryAxis().set(FormulaAxisUse::Decisive,
+                                     "IMEContractionGeometryFacts");
+  for (llvm::StringRef field : {"signedness", "matmul-shape", "weight-format",
+                                "slide-window"})
+    construction.getGeometryAxis().addConsumedField(field);
+  construction.getCapabilityAxis().set(FormulaAxisUse::Decisive,
+                                       "IMEMatmulCapability");
+  for (llvm::StringRef field : {"march", "vlen-bits", "available-harts"})
+    construction.getCapabilityAxis().addConsumedField(field);
+  construction.getStaticContextAxis().set(FormulaAxisUse::HonestNull,
+                                          "IMENoStaticContext");
+  for (llvm::StringRef semanticCase :
+       {"signed-mma", "unsigned-mma", "mixed-sign-su", "mixed-sign-us",
+        "sliding-window", "whole-matrix", "q4-0-matrix-tile",
+        "unsupported-capability"})
+    construction.addSemanticCase(semanticCase);
+  construction.addProductionEntry("plugin:variant-proposal");
+  out.push_back(std::move(construction));
+
+  FormulaDescriptor cost(
+      kIMECostFormulaID, kIMEPluginName,
+      "contraction/integer-matrix-extension", FormulaResultKind::AnalyticPrior,
+      FormulaConstructionStrength::ConstructedWeak);
+  cost.getGeometryAxis().set(FormulaAxisUse::Decisive,
+                            "IMESelectedVariantFacts");
+  cost.getGeometryAxis().addConsumedField("variant-kind");
+  cost.getCapabilityAxis().set(FormulaAxisUse::Decisive,
+                              "IMEMatmulCapability");
+  for (llvm::StringRef field : {"mac-m", "mat-m", "matmul-shape"})
+    cost.getCapabilityAxis().addConsumedField(field);
+  cost.getStaticContextAxis().set(FormulaAxisUse::HonestNull,
+                                 "IMECostNoStaticContext");
+  cost.addSemanticCase("gemm-above-derived-crossover");
+  cost.addSemanticCase("gemv-below-derived-crossover");
+  cost.addSemanticCase("fragment-mma-prior");
+  cost.addProductionEntry("plugin:analytic-cost");
+  out.push_back(std::move(cost));
 }
 
 bool IMEExtensionPlugin::supportsOperation(
@@ -806,6 +857,7 @@ llvm::Error IMEExtensionPlugin::estimateVariantCost(
   out = VariantCostEstimate();
   out.setExplicitPreference(true);
   out.setOriginPlugin(kIMEPluginName);
+  out.setFormulaID(kIMECostFormulaID);
   out.setVariantSymbol(request.getVariant().getSymName());
   if (derived->isMatmul) {
     // M-AWARE capability prior (T5c: writeback of the T5b K1-silicon paradigm-

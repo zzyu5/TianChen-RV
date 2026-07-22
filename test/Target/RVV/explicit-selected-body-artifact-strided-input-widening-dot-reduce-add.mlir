@@ -1,6 +1,5 @@
 // RUN: weft-opt %s --weft-materialize-emission-plans | FileCheck %s --check-prefix=PLAN
 // RUN: weft-opt %s --weft-materialize-emission-plans | weft-translate --weft-export-target-header-artifact | FileCheck %s --check-prefix=HEADER
-// RUN: weft-opt %s --weft-materialize-emission-plans | sed 's/{key = "weft_rvv.low_precision_resource.selected_candidate", value = "[^"]*"}/{key = "weft_rvv.low_precision_resource.selected_candidate", value = "artifact-name-derived-resource-candidate"}/' | not weft-translate --weft-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-RESOURCE
 
 // Explicit selected-body input for one bounded Stage 2 signed widening
 // dot-product reduction slice with runtime element strides on both i16mf2
@@ -47,12 +46,6 @@ module {
 // PLAN-SAME: {key = "weft_rvv.route_operand_binding_plan", value = "rvv-route-operand-binding:strided_widening_dot_reduce.v1"}
 // PLAN-SAME: {key = "weft_rvv.route_operand_binding_operands", value = "rvv-route-operand-binding:strided_widening_dot_reduce.v1;lhs=lhs-input-buffer:lhs:abi|sld|dot-lhs|i16|hdr;rhs=rhs-input-buffer:rhs:abi|sld|dot-rhs|i16|hdr;acc=accumulator-input-buffer:acc:abi|seed|red|i32|hdr;out=output-buffer:out:abi|store|i32|hdr;n=runtime-element-count:n:abi|setvl-avl|loop|hdr;lhs_stride=lhs-input-stride:lhs_stride:abi|str|addr|hdr;rhs_stride=rhs-input-stride:rhs_stride:abi|str|addr|hdr"}
 // PLAN-SAME: {key = "weft_rvv.contraction_route_family_plan", value = "rvv-contraction-route-family-plan.v1"}
-// PLAN-SAME: {key = "weft_rvv.low_precision_resource.selected_candidate", value = "rvv-low-precision-direct-contraction-resource-candidate.v1[strided-input-widening-dot-reduce-add,i16mf2-i32m1,u1]"}
-// PLAN-SAME: {key = "weft_rvv.low_precision_resource.product_emul", value = "m1"}
-// PLAN-SAME: {key = "weft_rvv.low_precision_resource.accumulator_emul", value = "m1"}
-// PLAN-SAME: {key = "weft_rvv.low_precision_resource.memory_form", value = "strided-input-widening-dot-reduce"}
-// PLAN-SAME: {key = "weft_rvv.low_precision_resource.vector_register_budget", value = "32"}
-// PLAN-SAME: {key = "weft_rvv.low_precision_resource.runtime_abi_order", value = "lhs,rhs,acc,out,n,lhs_stride,rhs_stride"}
 // PLAN-SAME: {key = "weft_rvv.strided_memory_layout", value = "element-strided-lhs-rhs-dot-source-unit-stride-output-runtime-abi"}
 // PLAN-SAME: {key = "weft_rvv.lhs_stride_source", value = "runtime_abi:lhs_stride"}
 // PLAN-SAME: {key = "weft_rvv.rhs_stride_source", value = "runtime_abi:rhs_stride"}
@@ -74,17 +67,9 @@ module {
 // HEADER: weft.rvv.rhs_stride_source: runtime_abi:rhs_stride
 // HEADER: weft.rvv.source_memory_form: strided-load
 // HEADER: weft.rvv.destination_memory_form: unit-stride-store
-// HEADER: weft.rvv.low_precision_resource.selected_candidate: rvv-low-precision-direct-contraction-resource-candidate.v1[strided-input-widening-dot-reduce-add,i16mf2-i32m1,u1]
-// HEADER: weft.rvv.low_precision_resource.product_emul: m1
-// HEADER: weft.rvv.low_precision_resource.accumulator_emul: m1
-// HEADER: weft.rvv.low_precision_resource.memory_form: strided-input-widening-dot-reduce
-// HEADER: weft.rvv.low_precision_resource.vector_register_budget: 32
-// HEADER: weft.rvv.low_precision_resource.runtime_abi_order: lhs,rhs,acc,out,n,lhs_stride,rhs_stride
 // HEADER: weft.rvv.widening_dot_relation: signed-i16mf2xi16mf2-reduce-plus-i32-scalar-to-i32
 // HEADER: weft.rvv.runtime_control_plan: rvv-runtime-avl-vl-control-plan.v1
 // HEADER: weft.rvv.route_operand_binding_plan: rvv-route-operand-binding:strided_widening_dot_reduce.v1
 // HEADER: weft.rvv.route_operand_binding_operands: rvv-route-operand-binding:strided_widening_dot_reduce.v1;lhs=lhs-input-buffer:lhs:abi|sld|dot-lhs|i16|hdr;rhs=rhs-input-buffer:rhs:abi|sld|dot-rhs|i16|hdr;acc=accumulator-input-buffer:acc:abi|seed|red|i32|hdr;out=output-buffer:out:abi|store|i32|hdr;n=runtime-element-count:n:abi|setvl-avl|loop|hdr;lhs_stride=lhs-input-stride:lhs_stride:abi|str|addr|hdr;rhs_stride=rhs-input-stride:rhs_stride:abi|str|addr|hdr
 // HEADER: weft.rvv.contraction_route_family_plan: rvv-contraction-route-family-plan.v1
 // HEADER: void weft_emitc_explicit_strided_dot_kernel_rvv_explicit_strided_input_dot(const int16_t *lhs, const int16_t *rhs, const int32_t *acc, int32_t *out, size_t n, size_t lhs_stride, size_t rhs_stride);
-
-// STALE-RESOURCE: metadata key '{{.*}}low_precision_resource.selected_candidate'{{.*}}'rvv-low-precision-direct-contraction-resource-candidate.v1[strided-input-widening-dot-reduce-add,i16mf2-i32m1,u1]' but was 'artifact-name-derived-resource-candidate'

@@ -2,6 +2,7 @@
 #define WEFT_PLUGIN_EXTENSIONPLUGIN_H
 
 #include "Weft/Dialect/Exec/IR/ExecOps.h"
+#include "Weft/Plugin/FormulaCatalog.h"
 #include "Weft/Support/ArtifactMetadata.h"
 #include "Weft/Support/CapabilityModel.h"
 #include "Weft/Support/RuntimeABI.h"
@@ -20,6 +21,7 @@
 
 namespace mlir {
 class DialectRegistry;
+class ModuleOp;
 class Operation;
 class OpBuilder;
 class Pass;
@@ -64,6 +66,7 @@ public:
   SourceFrontDoorPassRegistration(llvm::StringRef ownerPlugin,
                                   llvm::StringRef argument,
                                   llvm::StringRef description,
+                                  llvm::StringRef formulaID,
                                   Factory factory,
                                   DefaultArtifactFrontDoorPolicy policy =
                                       DefaultArtifactFrontDoorPolicy::
@@ -72,6 +75,7 @@ public:
   llvm::StringRef getOwnerPlugin() const { return ownerPlugin; }
   llvm::StringRef getArgument() const { return argument; }
   llvm::StringRef getDescription() const { return description; }
+  llvm::StringRef getFormulaID() const { return formulaID; }
   const Factory &getFactory() const { return factory; }
   DefaultArtifactFrontDoorPolicy getDefaultArtifactFrontDoorPolicy() const {
     return defaultArtifactFrontDoorPolicy;
@@ -85,6 +89,7 @@ private:
   std::string ownerPlugin;
   std::string argument;
   std::string description;
+  std::string formulaID;
   Factory factory;
   DefaultArtifactFrontDoorPolicy defaultArtifactFrontDoorPolicy =
       DefaultArtifactFrontDoorPolicy::ExplicitOnly;
@@ -263,6 +268,7 @@ public:
   llvm::StringRef getCondition() const { return condition; }
   llvm::StringRef getGuard() const { return guard; }
   llvm::StringRef getPolicy() const { return policy; }
+  llvm::StringRef getFormulaID() const { return formulaID; }
   VariantFallbackRole getFallbackRole() const { return fallbackRole; }
   bool hasFallbackRole() const {
     return fallbackRole != VariantFallbackRole::None;
@@ -282,6 +288,7 @@ public:
   void setCondition(llvm::StringRef value) { condition = value.str(); }
   void setGuard(llvm::StringRef value) { guard = value.str(); }
   void setPolicy(llvm::StringRef value) { policy = value.str(); }
+  void setFormulaID(llvm::StringRef value) { formulaID = value.str(); }
   void setFallbackRole(VariantFallbackRole role) { fallbackRole = role; }
   void addPluginAttribute(mlir::NamedAttribute attribute) {
     pluginAttributes.push_back(attribute);
@@ -298,6 +305,7 @@ private:
   std::string condition;
   std::string guard;
   std::string policy;
+  std::string formulaID;
   VariantFallbackRole fallbackRole = VariantFallbackRole::None;
   llvm::SmallVector<mlir::NamedAttribute, 4> pluginAttributes;
 };
@@ -350,6 +358,7 @@ public:
   llvm::StringRef getExplanation() const { return explanation; }
   bool hasPolicy() const { return policySet; }
   llvm::StringRef getPolicy() const { return policy; }
+  llvm::StringRef getFormulaID() const { return formulaID; }
   VariantFallbackRole getFallbackRole() const { return fallbackRole; }
   bool hasFallbackRole() const {
     return fallbackRole != VariantFallbackRole::None;
@@ -374,6 +383,7 @@ public:
     policy = value.str();
     policySet = true;
   }
+  void setFormulaID(llvm::StringRef value) { formulaID = value.str(); }
   void setFallbackRole(VariantFallbackRole role) { fallbackRole = role; }
 
 private:
@@ -386,6 +396,7 @@ private:
   std::string explanation;
   bool policySet = false;
   std::string policy;
+  std::string formulaID;
   VariantFallbackRole fallbackRole = VariantFallbackRole::None;
 };
 
@@ -660,6 +671,11 @@ public:
   virtual void registerDialects(mlir::DialectRegistry &registry) const = 0;
   virtual bool isEnabled() const { return true; }
   virtual llvm::Error verifyExecutableConstructionConformance() const;
+  virtual void collectFormulaDescriptors(
+      llvm::SmallVectorImpl<FormulaDescriptor> &out) const;
+  /// Construct or validate every family-owned formula plan before downstream
+  /// legality, route planning, or emission consumes the typed body.
+  virtual llvm::Error constructFormulaPlans(mlir::ModuleOp module) const;
   virtual llvm::Error registerSourceFrontDoorPasses(
       const ExtensionPluginRegistry &registry,
       llvm::SmallVectorImpl<SourceFrontDoorPassRegistration> &out) const;
@@ -719,6 +735,9 @@ public:
   void collectCapabilitiesByKind(llvm::StringRef kind,
                                  llvm::SmallVectorImpl<PluginCapability> &out,
                                  bool enabledOnly = true) const;
+  llvm::Error collectFormulaCatalog(
+      llvm::SmallVectorImpl<FormulaDescriptor> &out,
+      bool enabledOnly = true) const;
   llvm::Error collectSourceFrontDoorPasses(
       llvm::SmallVectorImpl<SourceFrontDoorPassRegistration> &out) const;
   llvm::Error
@@ -742,6 +761,7 @@ public:
                                 VariantEmissionStatus &out) const;
   llvm::Error buildVariantEmissionPlan(const VariantEmissionRequest &request,
                                        VariantEmissionPlan &out) const;
+  llvm::Error constructFormulaPlans(mlir::ModuleOp module) const;
   llvm::Error materializeSelectedLoweringBoundary(
       const VariantLoweringBoundaryRequest &request,
       VariantLoweringBoundaryResult &out) const;
@@ -768,6 +788,13 @@ public:
       llvm::SmallVectorImpl<VariantCostRankingEntry> &out) const;
 
 private:
+  llvm::Error validateFormulaDescriptor(
+      const ExtensionPlugin &plugin,
+      const FormulaDescriptor &descriptor) const;
+  llvm::Error validateFormulaReference(const ExtensionPlugin &plugin,
+                                       llvm::StringRef formulaID,
+                                       llvm::StringRef productionEntry,
+                                       llvm::StringRef context) const;
   llvm::Error validateVariantProposal(const VariantProposalRequest &request,
                                       const ExtensionPlugin &plugin,
                                       const VariantProposal &proposal) const;

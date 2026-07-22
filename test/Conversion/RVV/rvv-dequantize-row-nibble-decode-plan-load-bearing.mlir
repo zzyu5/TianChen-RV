@@ -1,26 +1,19 @@
 // RUN: weft-opt %s --weft-rvv-lower-to-emitc | FileCheck %s
 // RUN: sed 's/nibble_bias = 8 : i64/nibble_bias = 5 : i64/' %s | weft-opt --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=MUTBIAS
-// RUN: sed 's/qk = 32 : i64/qk = 44 : i64/g' %s | weft-opt --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=MUTSTRIP
+// RUN: sed -e 's/qk = 32 : i64/qk = 44 : i64/g' -e 's/dequant_strip_lanes = 16 : i64/dequant_strip_lanes = 22 : i64/' %s | weft-opt --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=MUTSTRIP
 
 // JUDGMENT experiment for the typed NibbleDecode decision: the MechanismPlan is
 // LOAD-BEARING (the
 // nibble emitter READS plan.*, it is not dead data the emitter scatter-reads around).
 //
-// Phase-2 introduced weft::NibbleDecodePlan (Support) + the FormulaProvider
-// decideNibbleDecode (RVVFormulaDecision.h) and wired the flat-nibble emit so
-// the ONLY path from the decode_core descriptor to the emitted C is
-//   decode_core typed g -> decideNibbleDecode -> NibbleDecodePlan -> emit.
-// The per-attr scatter reads (getNibbleBiasAttr / getMinByteOffsetAttr / ... straight
-// into the shared body) are RETIRED. This test proves the plan is really consumed by
-// mutating two DIFFERENT kinds of plan field and observing the emit change:
+// The family-local formula constructs the final typed body before emission. This
+// test starts at that final-body boundary and proves two code-affecting fields are
+// mechanically consumed; formula derivation itself is covered by the C++ formula
+// behavior test.
 //
 //   (1 bias)   a RE-PACKAGED 8-tuple field: nibble_bias 8 -> 5. The pre-scale bias the
 //              vsub_vx_i32m4 subtracts becomes "5" -- so plan.nibbleBias reaches emit.
-//   (2 strip)  a DERIVED geometry field the FormulaProvider COMPUTES (plan.stripLanes =
-//              qk/2), which a raw descriptor read does NOT carry: qk 32 -> 44 makes the
-//              per-strip vl the vle8 nibble load uses become "22" (== 44/2). Only the
-//              provider's qk/2 derivation can produce "22", so this is the definitive
-//              witness that the emit consumes the PLAN, not a scattered descriptor read.
+//   (2 strip)  changing the final strip from 16 to 22 changes the load VL.
 //
 // Byte-exact reproduce-current is proved SEPARATELY (the 5 golden dequant lits are
 // unchanged, md5-identical to the post-phase-1 emit); this file is the load-bearing half.
@@ -36,7 +29,7 @@ module {
       weft_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @dequant_q4_0, sew = 32 : i64, source_kernel = "dequant_q4_0_kernel", status = "selected-lowering-boundary"} {
         weft_rvv.typed_dequantize_row_loop_body %x, %y, %k attributes {decode_model = "q4_0", kind = "typed_dequantize_row_loop_body", qk = 32 : i64, weight_block_stride = 18 : i64} {
         ^bb0(%block_index: index):
-          weft_rvv.dequantize_row_decode_core %x, %y, %block_index {carrier_kind = "nibble4", decode_model = "q4_0", nibble_bias = 8 : i64, qk = 32 : i64, quant_byte_offset = 2 : i64, scale_byte_offset = 0 : i64, weight_block_stride = 18 : i64} : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index
+          weft_rvv.dequantize_row_decode_core %x, %y, %block_index {carrier_kind = "nibble4", decode_model = "q4_0", dequant_load_lmul = "m1", dequant_mechanism = "nibble-decode", dequant_strip_lanes = 16 : i64, nibble_bias = 8 : i64, qk = 32 : i64, quant_byte_offset = 2 : i64, scale_byte_offset = 0 : i64, weight_block_stride = 18 : i64} : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index
           weft_rvv.typed_dequantize_row_loop_yield
         } : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index
       } : !weft_rvv.vl
@@ -61,8 +54,6 @@ module {
 // MUTBIAS-NEXT: verbatim{{.*}}callee=__riscv_vsub_vx_i32m4
 // MUTBIAS-NEXT: call_opaque "__riscv_vsub_vx_i32m4"(%{{.*}}, %[[BIAS2]], %[[VL2]])
 
-// MUTSTRIP (qk 32 -> 44): the DERIVED plan.stripLanes = qk/2 = 22 reaches the u8 nibble
-// load's vl. A raw descriptor read has no qk/2 field, so "22" can ONLY come through the
-// FormulaProvider -- the definitive witness that the emit consumes the PLAN.
+// In the MUTSTRIP case, the final plan's stripLanes 16 -> 22 reaches the u8 nibble load VL.
 // MUTSTRIP: %[[VL3:.*]] = literal "22" : !emitc.opaque<"size_t">
 // MUTSTRIP: call_opaque "__riscv_vle8_v_u8m1"(%{{.*}}, %[[VL3]])

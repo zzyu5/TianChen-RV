@@ -17,7 +17,6 @@
 #include "Weft/Conversion/EmitC/TunableScheduleOpInterface.h"
 #include "Weft/Dialect/Exec/IR/ExecOps.h"
 #include "Weft/Dialect/RVV/IR/RVVConfigContract.h"
-#include "Weft/Dialect/RVV/IR/RVVDequantizeRowConstruction.h"
 #include "Weft/Dialect/RVV/IR/RVVDialect.h"
 #include "Weft/Plugin/RVV/RVVGearboxSchedule.h"
 #include "Weft/Support/CapabilityModel.h"
@@ -35,6 +34,7 @@
 
 #include <cstdint>
 #include <functional>
+#include <initializer_list>
 #include <optional>
 #include <string>
 
@@ -1518,17 +1518,16 @@ mlir::LogicalResult CodebookGatherXI8ProductOp::verify() {
 // TunableScheduleOpInterface implementations.
 //
 // The interface is family-neutral (it returns ONLY primitives); the kernel key
-// is the same string each kernel's materialize provider keys its tuning record
-// on, and isSchedulePinned() is the same no-clobber predicate each provider's
-// `hasShapeKnob` lambda applied (a hand-authored shape knob pins the op). The
-// plugin-local descriptor registry maps the kernel key to its tuning descriptor;
-// the dialect keeps NO tuning logic (no dialect -> plugin cycle).
+// is the same string each formula keys its tuning record on.
+// hasCompleteSchedule() reports structural field completeness only; candidate
+// construction, legality and selection remain plugin-local (no dialect -> plugin
+// cycle).
 //===----------------------------------------------------------------------===//
 
 llvm::StringRef GgmlBlockDotQ40Q80Op::getScheduleKernelKey() { return "q4_0"; }
-bool GgmlBlockDotQ40Q80Op::isSchedulePinned() {
-  return static_cast<bool>(getIntegerCoreLmul()) ||
-         static_cast<bool>(getMultiBlockFactor()) ||
+bool GgmlBlockDotQ40Q80Op::hasCompleteSchedule() {
+  return static_cast<bool>(getIntegerCoreLmul()) &&
+         static_cast<bool>(getMultiBlockFactor()) &&
          static_cast<bool>(getStripElision());
 }
 
@@ -1544,8 +1543,9 @@ bool GgmlBlockDotQ40Q80Op::isSchedulePinned() {
 llvm::StringRef GgmlBlockDotTQ20Q8KTernaryCoreOp::getScheduleKernelKey() {
   return "tq2_0";
 }
-bool GgmlBlockDotTQ20Q8KTernaryCoreOp::isSchedulePinned() {
-  return static_cast<bool>(getIntegerCoreLmul());
+bool GgmlBlockDotTQ20Q8KTernaryCoreOp::hasCompleteSchedule() {
+  return static_cast<bool>(getIntegerCoreLmul()) &&
+         static_cast<bool>(getMinimumVlen());
 }
 
 // tq1_0 (the BASE-3 TERNARY class) carries ONLY the integer_core_lmul knob; here
@@ -1558,13 +1558,6 @@ bool GgmlBlockDotTQ20Q8KTernaryCoreOp::isSchedulePinned() {
 // "tq1_0", so the unified autotuner -- which dyn_casts TunableScheduleOpInterface,
 // not op-type -- stamps the SAME m2->m1 selection onto the brick without any
 // registry change).
-llvm::StringRef GgmlBlockDotTQ10Q8KTernaryCoreOp::getScheduleKernelKey() {
-  return "tq1_0";
-}
-bool GgmlBlockDotTQ10Q8KTernaryCoreOp::isSchedulePinned() {
-  return static_cast<bool>(getIntegerCoreLmul());
-}
-
 // q1_0 (the BINARY {-1,+1}-sign class) carries ONLY the integer_core_lmul knob;
 // here it tunes the 32-lane binary sign-decode -> vwredsum dot over each of the
 // four q8_0 sub-blocks. The 32-element sub-block straddles m1's i8 VLMAX boundary
@@ -1575,8 +1568,9 @@ bool GgmlBlockDotTQ10Q8KTernaryCoreOp::isSchedulePinned() {
 llvm::StringRef GgmlBlockDotQ10Q80BinarySignCoreOp::getScheduleKernelKey() {
   return "q1_0";
 }
-bool GgmlBlockDotQ10Q80BinarySignCoreOp::isSchedulePinned() {
-  return static_cast<bool>(getIntegerCoreLmul());
+bool GgmlBlockDotQ10Q80BinarySignCoreOp::hasCompleteSchedule() {
+  return static_cast<bool>(getIntegerCoreLmul()) &&
+         static_cast<bool>(getMinimumVlen());
 }
 
 // The CODEBOOK-class block-dots (FP4 family). They carry the SAME bounded shape
@@ -1586,16 +1580,17 @@ bool GgmlBlockDotQ10Q80BinarySignCoreOp::isSchedulePinned() {
 llvm::StringRef GgmlBlockDotMXFP4Q80Op::getScheduleKernelKey() {
   return "mxfp4";
 }
-bool GgmlBlockDotMXFP4Q80Op::isSchedulePinned() {
-  return static_cast<bool>(getIntegerCoreLmul()) ||
-         static_cast<bool>(getMultiBlockFactor()) ||
-         static_cast<bool>(getStripElision());
+bool GgmlBlockDotMXFP4Q80Op::hasCompleteSchedule() {
+  return static_cast<bool>(getIntegerCoreLmul()) &&
+         static_cast<bool>(getMultiBlockFactor()) &&
+         static_cast<bool>(getStripElision()) &&
+         static_cast<bool>(getMinimumVlen());
 }
 
 llvm::StringRef GgmlGemmQ40Q80Op::getScheduleKernelKey() {
   return "q4_0_q8_0_gemm";
 }
-bool GgmlGemmQ40Q80Op::isSchedulePinned() {
+bool GgmlGemmQ40Q80Op::hasCompleteSchedule() {
   return getActivationCols().has_value();
 }
 
@@ -1613,8 +1608,9 @@ bool GgmlGemmQ40Q80Op::isSchedulePinned() {
 llvm::StringRef GgmlBlockDotIQ2XXSQ8KGridCoreOp::getScheduleKernelKey() {
   return "iq2_xxs";
 }
-bool GgmlBlockDotIQ2XXSQ8KGridCoreOp::isSchedulePinned() {
-  return static_cast<bool>(getIntegerCoreLmul());
+bool GgmlBlockDotIQ2XXSQ8KGridCoreOp::hasCompleteSchedule() {
+  return static_cast<bool>(getIntegerCoreLmul()) &&
+         static_cast<bool>(getMinimumVlen());
 }
 
 mlir::LogicalResult GgmlBlockDotQ40Q80Op::verify() {
@@ -1625,21 +1621,15 @@ mlir::LogicalResult GgmlBlockDotQ40Q80Op::verify() {
   // -- a forbidden local element_count/SEW/LMUL/policy attr, or an unexpected
   // name -- is rejected fail-closed (I7).
   auto isAllowedBlockDotAttr = [](llvm::StringRef name) {
-    // The bounded block-format / shape-knob attributes, plus the N3
-    // autotuner's resource-provenance audit trail. The schedule producer pass
-    // (MaterializeRVVQ40Schedule) stamps the chosen shape knobs alongside a
-    // "weft_rvv.q4_0_schedule.*" provenance namespace (the candidate count, the
-    // selected cost, the Zvl128b capability fact, the vreg budget) so the choice
-    // is a PROVABLE resource-aware selection, not a manual constant. The
-    // provenance is mirror metadata (I4): it records the derivation, it does not
-    // carry executable config. Accept any attr in that bounded namespace.
+    // The bounded block-format facts and final schedule fields are the complete
+    // executable surface. Formula provenance is transient and is not accepted as
+    // an IR-side authority.
     return name == "kind" || name == "scale_model" || name == "qk" ||
            name == "weight_block_stride" ||
            name == "activation_block_stride" || name == "quant_byte_offset" ||
            name == "activation_high_byte_offset" ||
            name == "integer_core_lmul" || name == "multi_block_factor" ||
            name == "strip_elision" ||
-           name.starts_with("weft_rvv.q4_0_schedule.") ||
            // The option-2 stage-B IN-COMPILER contraction-path SELECTION audit
            // trail. The RVVLowerQuantContraction pass stamps which contraction
            // ALGORITHM it selected from capability facts (repack vs block-dot),
@@ -1647,7 +1637,6 @@ mlir::LogicalResult GgmlBlockDotQ40Q80Op::verify() {
            // its weight materialization is deferred to stage C. Pure provenance
            // mirror metadata (I4): it records the in-compiler decision, it does
            // not carry executable config -- emitter-inert, exactly like the
-           // weft_rvv.q4_0_schedule.* resource-provenance trail above.
            name == "weft_rvv.contraction_algorithm" ||
            name == "weft_rvv.path_selection_reason" ||
            name == "weft_rvv.path_materialization";
@@ -1715,18 +1704,27 @@ mlir::LogicalResult GgmlBlockDotQ40Q80Op::verify() {
              << *coreLmul << "\"";
   }
 
+  unsigned scheduleFields = static_cast<bool>(getIntegerCoreLmul()) +
+                            static_cast<bool>(getMultiBlockFactor()) +
+                            static_cast<bool>(getStripElision());
+  if (scheduleFields != 0 && scheduleFields != 3)
+    return emitOpError()
+           << "requires integer_core_lmul, multi_block_factor, and "
+              "strip_elision to be all absent or all present";
+
   // The optional multi_block_factor is a bounded resource/scheduling shape knob:
   // the outer block loop processes 1 (default), 2, or 4 blocks per iteration. It
   // is byte-exact (the per-block fp32 folds stay in strict ascending order; only
   // the independent integer cores overlap). Any other count is rejected
   // fail-closed (I7).
-  int64_t multiBlockFactor = getMultiBlockFactor().value_or(1);
-  if (multiBlockFactor != 1 && multiBlockFactor != 2 && multiBlockFactor != 4)
-    return emitOpError()
-           << "only accepts multi_block_factor 1, 2, or 4 (the bounded "
-              "byte-exact block-unroll factors for the ggml Q4_0 x Q8_0 block "
-              "dot-product outer loop); got "
-           << multiBlockFactor;
+  if (std::optional<std::int64_t> multiBlockFactor = getMultiBlockFactor())
+    if (*multiBlockFactor != 1 && *multiBlockFactor != 2 &&
+        *multiBlockFactor != 4)
+      return emitOpError()
+             << "only accepts multi_block_factor 1, 2, or 4 (the bounded "
+                "byte-exact block-unroll factors for the ggml Q4_0 x Q8_0 block "
+                "dot-product outer loop); got "
+             << *multiBlockFactor;
 
   // The optional strip_elision is a bounded resource/scheduling shape knob: the
   // inner half-block strip loop is kept ("robust", default -- correct at any
@@ -1745,8 +1743,7 @@ mlir::LogicalResult GgmlBlockDotQ40Q80Op::verify() {
     // anchors at m1 (mf4's vsetvl_e32m1 VLMAX is 4 at VLEN=128, which would
     // silently drop 12 of the 16 nibble bytes). Reject the silently-wrong
     // combination fail-closed (I7) so the autotuner cannot request it.
-    if (*stripElision == "elided" &&
-        getIntegerCoreLmul().value_or("mf4") != "m1")
+    if (*stripElision == "elided" && *getIntegerCoreLmul() != "m1")
       return emitOpError()
              << "strip_elision \"elided\" requires integer_core_lmul \"m1\" "
                 "(the single-vsetvl_e8m1(16) half-block cover is correct only at "
@@ -3068,14 +3065,8 @@ mlir::LogicalResult GgmlGemmQ40Q80Op::verify() {
 
   // The op carries ONLY its bounded mirror attrs (I4): the operation kind, the
   // dual-fp16 scale model, the block-format structural facts, the bounded inner
-  // activation-column block count M, plus the GEMM M-block measurement-tuner's
-  // resource-provenance audit trail. The schedule producer pass
-  // (MaterializeRVVGemmSchedule) stamps the measured/static M alongside a
-  // "weft_rvv.q4_0_gemm_schedule.*" provenance namespace (the candidate count,
-  // the selected cost, the measurement ns, the vreg ceiling) so the choice is a
-  // PROVABLE measurement-backed selection, not a manual constant. The provenance
-  // is mirror metadata (I4): it records the derivation, it does not carry
-  // executable config. Accept any attr in that bounded namespace. Anything else
+  // activation-column block count M. Formula candidates, costs and selection
+  // provenance remain transient and are not accepted as IR attributes. Anything else
   // -- a forbidden local element_count/SEW/LMUL/policy attr, or an unexpected
   // name -- is rejected fail-closed (I7). The runtime row/column counts and the
   // row strides are RUNTIME ABI value operands (the full ggml-gemm-like ABI).
@@ -3083,8 +3074,7 @@ mlir::LogicalResult GgmlGemmQ40Q80Op::verify() {
     return name == "kind" || name == "scale_model" || name == "qk" ||
            name == "weight_block_stride" ||
            name == "activation_block_stride" || name == "quant_byte_offset" ||
-           name == "activation_high_byte_offset" || name == "activation_cols" ||
-           name.starts_with("weft_rvv.q4_0_gemm_schedule.");
+           name == "activation_high_byte_offset" || name == "activation_cols";
   };
   for (mlir::NamedAttribute attr : op->getAttrs()) {
     llvm::StringRef attrName = attr.getName().getValue();
@@ -4905,8 +4895,7 @@ mlir::LogicalResult GgmlBlockDotMXFP4Q80Op::verify() {
            name == "activation_quant_byte_offset" ||
            name == "activation_high_byte_offset" || name == "codebook" ||
            name == "integer_core_lmul" || name == "multi_block_factor" ||
-           name == "strip_elision" || name == "minimum_vlen" ||
-           name.starts_with("weft_rvv.mxfp4_schedule.");
+           name == "strip_elision" || name == "minimum_vlen";
   };
   for (mlir::NamedAttribute attr : op->getAttrs()) {
     llvm::StringRef attrName = attr.getName().getValue();
@@ -4985,61 +4974,34 @@ mlir::LogicalResult GgmlBlockDotMXFP4Q80Op::verify() {
               "e2m1 nibble->int8 lookup table kvalues_mxfp4[16]); got "
            << getCodebook().size();
 
-  // The codebook gather's legal integer-core anchor is a VLEN-CAPABILITY fact, not a
-  // fixed "m1" (the SAME rule as the iq4_nl sibling): to index ALL 16 table entries the
-  // broadcast `values` register's VLMAX must be >= 16, and WHICH anchor reaches that
-  // MOVES with VLEN. At VLEN=128 only m1 -> VLMAX=16; at VLEN>=256 mf2 also reaches
-  // VLMAX 16 (the ggml `_vl256` mf2 + 2-block-unroll shape). Recomputed from the SAME
-  // VLMAX formula the gearbox selects with against `minimum_vlen` (default 128: only m1
-  // legal, every existing schedule byte-identical). Reject VLMAX<16 fail-closed (I7).
-  // The vwredsum destination + seed stay m1 regardless of the i8 anchor.
-  if (std::optional<llvm::StringRef> coreLmul = getIntegerCoreLmul()) {
-    std::int64_t minimumVLEN = getMinimumVlen().value_or(128);
-    constexpr std::int64_t kCodebookTableEntries = 16; // index range [0,15].
-    std::int64_t gatherVLMAX = ::weft::plugin::rvv::getRVVStripVLMAXElements(
-        ::weft::plugin::rvv::getRVVBlockDotStripLMUL(*coreLmul),
-        ::weft::plugin::rvv::getRVVBlockDotStripSEW(*coreLmul), minimumVLEN);
-    if (gatherVLMAX < kCodebookTableEntries)
-      return emitOpError()
-             << "integer_core_lmul \"" << *coreLmul
-             << "\" cannot host the 16-entry codebook gather at minimum_vlen "
-             << minimumVLEN << ": the broadcast table register's VLMAX is "
-             << gatherVLMAX
-             << " (< 16, so a nibble index >= VLMAX silently reads 0). At "
-                "minimum_vlen 128 the gather requires m1; at 256 mf2 also reaches "
-                "VLMAX 16 (the ggml _vl256 shape)";
-    // The VLMAX>=16 fact admits m1/mf2 but ALSO any wider anchor (m2 -> VLMAX 32 at
-    // VLEN128). The emitter handles ONLY m1 (i16 product m2) and mf2 (i16 product m1):
-    // its wideLmul ternary would widen a wider anchor to m2 (one step too narrow for
-    // an m2 source) and emit broken C. Restrict to the emitter-supported set fail-
-    // closed (I7) -- the same guard the old m1-pin carried.
+  // The source form may be wholly unscheduled before formula construction. Once
+  // any final schedule field is present, the plan must be structurally atomic.
+  unsigned scheduleFields = static_cast<bool>(getIntegerCoreLmul()) +
+                            static_cast<bool>(getMultiBlockFactor()) +
+                            static_cast<bool>(getStripElision()) +
+                            static_cast<bool>(getMinimumVlen());
+  if (scheduleFields != 0 && scheduleFields != 4)
+    return emitOpError()
+           << "requires integer_core_lmul, multi_block_factor, strip_elision, "
+              "and minimum_vlen to be all absent or all present";
+  if (std::optional<llvm::StringRef> coreLmul = getIntegerCoreLmul())
     if (*coreLmul != "m1" && *coreLmul != "mf2")
       return emitOpError()
-             << "integer_core_lmul \"" << *coreLmul
-             << "\" is not an emitter-supported codebook anchor: the ggml MXFP4 x "
-                "Q8_0 block dot-product emits only m1 (the VLEN128 form, i16 product "
-                "m2) or mf2 (the VLEN256 _vl256 form, i16 product m1); a wider anchor "
-                "would be mis-widened";
-  }
-  // NOTE (SAME as the iq4_nl sibling): the I7 fail-closed guard for the UN-scheduled
-  // (attr-less) codebook op at a sub-128 target is NOT here. An attr-less op with no
-  // minimum_vlen is the LEGAL pre-schedule input the materialize-schedule pass must
-  // verify, and the sub-128 pass run leaves it attr-less with NO minimum_vlen -- so
-  // the verifier cannot distinguish the legal input from the unsafe leftover. The
-  // guard lives at the LOWERING boundary (the emitter refuses an attr-less codebook
-  // op fail-closed), where the unscheduled op can only be the unsafe one.
+             << "only accepts integer_core_lmul \"m1\" or \"mf2\"; got \""
+             << *coreLmul << "\"";
 
   // The optional multi_block_factor is a bounded resource/scheduling shape knob:
   // 1 (default), 2, or 4 blocks per outer iteration (byte-exact: the per-block
   // fp32 folds stay in strict ascending order). Any other count is rejected
   // fail-closed (I7).
-  int64_t multiBlockFactor = getMultiBlockFactor().value_or(1);
-  if (multiBlockFactor != 1 && multiBlockFactor != 2 && multiBlockFactor != 4)
-    return emitOpError()
-           << "only accepts multi_block_factor 1, 2, or 4 (the bounded "
-              "byte-exact block-unroll factors for the ggml MXFP4 x Q8_0 block "
-              "dot-product outer loop); got "
-           << multiBlockFactor;
+  if (std::optional<std::int64_t> multiBlockFactor = getMultiBlockFactor())
+    if (*multiBlockFactor != 1 && *multiBlockFactor != 2 &&
+        *multiBlockFactor != 4)
+      return emitOpError()
+             << "only accepts multi_block_factor 1, 2, or 4 (the bounded "
+                "byte-exact block-unroll factors for the ggml MXFP4 x Q8_0 block "
+                "dot-product outer loop); got "
+             << *multiBlockFactor;
 
   // The optional strip_elision is a bounded resource/scheduling shape knob: the
   // inner half-block strip loop is kept ("robust", default) or elided ("elided").
@@ -5120,9 +5082,8 @@ mlir::LogicalResult GgmlBlockDotQ10Q80BinarySignCoreOp::verify() {
   // The op carries ONLY its bounded mirror attrs (I4): the operation kind, the
   // binary-sign scale model, and the super-block-format structural facts (the
   // q1_0 stride, the q8_0 stride, the per-super-block q8-block span, and the two
-  // quant byte offsets), plus the Win-A resource shape knob integer_core_lmul +
-  // minimum_vlen and the "weft_rvv.q1_0_schedule.*" autotuner provenance
-  // namespace. Anything else -- a forbidden local element_count/SEW/LMUL/policy
+  // quant byte offsets), plus the final resource shape knob integer_core_lmul +
+  // semantic minimum_vlen. Anything else -- a forbidden local element_count/SEW/LMUL/policy
   // attr, or an unexpected name -- is rejected fail-closed (I7).
   auto isAllowedBlockDotAttr = [](llvm::StringRef name) {
     return name == "kind" || name == "scale_model" || name == "qk" ||
@@ -5131,8 +5092,7 @@ mlir::LogicalResult GgmlBlockDotQ10Q80BinarySignCoreOp::verify() {
            name == "activation_blocks_per_weight" ||
            name == "weight_quant_byte_offset" ||
            name == "activation_quant_byte_offset" ||
-           name == "integer_core_lmul" || name == "minimum_vlen" ||
-           name.starts_with("weft_rvv.q1_0_schedule.");
+           name == "integer_core_lmul" || name == "minimum_vlen";
   };
   for (mlir::NamedAttribute attr : op->getAttrs()) {
     llvm::StringRef attrName = attr.getName().getValue();
@@ -5199,38 +5159,16 @@ mlir::LogicalResult GgmlBlockDotQ10Q80BinarySignCoreOp::verify() {
               "the inline fp16 scale) for the ggml Q1_0 x Q8_0 binary-sign "
               "integer-core route";
 
-  // The binary sign decode runs ONE 32-lane sub-block body per q8_0 sub-block;
-  // the single vsetvl_e8<anchor>(32) cover is correct ONLY when the anchor's i8
-  // strip VLMAX at the guaranteed minimum VLEN spans the whole 32-element
-  // sub-block. WHICH anchor holds MOVES with VLEN like the q8_0 sibling: m2 at
-  // VLEN128 (e8m1 VLMAX 16 < 32), m1 at VLEN256. Recomputed here from the SAME
-  // getRVVStripVLMAXElements formula the gearbox selects with (single source of
-  // truth); the anchor defaults to "m2" (attr-less = the VLEN-universal floor).
-  {
-    llvm::StringRef anchor = getIntegerCoreLmul().value_or("m2");
-    if (anchor != "m1" && anchor != "m2")
+  if (static_cast<bool>(getIntegerCoreLmul()) !=
+      static_cast<bool>(getMinimumVlen()))
+    return emitOpError()
+           << "requires integer_core_lmul and minimum_vlen to be both absent "
+              "or both present";
+  if (std::optional<llvm::StringRef> anchor = getIntegerCoreLmul())
+    if (*anchor != "m1" && *anchor != "m2")
       return emitOpError()
-             << "only accepts integer_core_lmul \"m1\" or \"m2\" for the ggml "
-                "Q1_0 x Q8_0 binary-sign integer core (the binary sign decode "
-                "runs ONE 32-lane sub-block body at the whole-LMUL anchor whose "
-                "i8 strip VLMAX spans the 32-element sub-block: m2 at VLEN128, "
-                "m1 at VLEN256); got \""
-             << anchor << "\"";
-    std::int64_t minimumVLEN = getMinimumVlen().value_or(128);
-    constexpr std::int64_t kQ10SubBlockLen = 32; // the 32-element q8 sub-block.
-    std::int64_t stripVLMAX = ::weft::plugin::rvv::getRVVStripVLMAXElements(
-        ::weft::plugin::rvv::getRVVBlockDotStripLMUL(anchor),
-        ::weft::plugin::rvv::getRVVBlockDotStripSEW(anchor), minimumVLEN);
-    if (stripVLMAX < kQ10SubBlockLen)
-      return emitOpError()
-             << "requires an integer_core_lmul whose i8 strip VLMAX spans the "
-                "32-element q8 sub-block at the guaranteed minimum_vlen ("
-             << minimumVLEN << "): the \"" << anchor << "\" anchor's VLMAX is "
-             << stripVLMAX
-             << " (the single-vsetvl whole-sub-block cover would drop lanes). At "
-                "minimum_vlen 128 the binary sign decode requires m2; at 256 m1 "
-                "also spans the sub-block";
-  }
+             << "only accepts integer_core_lmul \"m1\" or \"m2\"; got \""
+             << *anchor << "\"";
 
   // The OPTIONAL loop-form `block_index` operand adds a 5th operand (the
   // per-super-block induction variable). Absent = the standalone 4-operand
@@ -7136,8 +7074,8 @@ mlir::LogicalResult GgmlBlockDotTQ20Q8KTernaryCoreOp::verify() {
   // super-block-format structural facts the integer core reads (the 64 packed
   // 2-bit-weight qs @0, the fp16 weight scale d @64 -- d is at the END of
   // block_tq2_0, distinct from every sibling -- the fp32 activation scale d @0,
-  // qs @4), plus the Win-A resource shape knob integer_core_lmul + minimum_vlen
-  // and the "weft_rvv.tq2_0_schedule.*" autotuner provenance namespace. tq2_0 is
+  // qs @4), plus the final resource shape knob integer_core_lmul + semantic
+  // minimum_vlen. tq2_0 is
   // TERNARY with NO scales[16], NO per-sub-block scale, NO min term, NO dmin, NO
   // bsums. Anything else -- a forbidden local element_count/SEW/LMUL/policy attr,
   // or an unexpected name -- is rejected fail-closed (I7).
@@ -7148,8 +7086,7 @@ mlir::LogicalResult GgmlBlockDotTQ20Q8KTernaryCoreOp::verify() {
            name == "weight_qs_byte_offset" || name == "weight_d_byte_offset" ||
            name == "activation_d_byte_offset" ||
            name == "activation_quant_byte_offset" ||
-           name == "integer_core_lmul" || name == "minimum_vlen" ||
-           name.starts_with("weft_rvv.tq2_0_schedule.");
+           name == "integer_core_lmul" || name == "minimum_vlen";
   };
   for (mlir::NamedAttribute attr : op->getAttrs()) {
     llvm::StringRef attrName = attr.getName().getValue();
@@ -7271,41 +7208,16 @@ mlir::LogicalResult GgmlBlockDotTQ20Q8KTernaryCoreOp::verify() {
               "metadata for the ggml TQ2_0 x Q8_K super-block FUSED 2-bit "
               "ternary scalar integer core";
 
-  // The Win-A resource shape knob (preserved across the flip): the fused ternary
-  // dot runs ONE FUSED 32-lane plane body per 2-bit shift (load the 32-byte qs
-  // chunk once, 4 planes each vwmacc 32 ternary*q8 lanes into a wide i16
-  // accumulator, ONE vwredsum per chunk). The single vsetvl_e8<anchor>(32) cover
-  // is correct ONLY when the anchor's i8 strip VLMAX at the GUARANTEED minimum
-  // VLEN spans the whole 32-element plane. WHICH anchor that is MOVES with VLEN
-  // exactly like the q1_0 / q8_0 siblings: at VLEN=128 only m2 spans it (e8m1
-  // VLMAX 16 < 32), at VLEN=256 m1's VLMAX also reaches 32. The anchor defaults
-  // to "m2" (the VLEN-universal-safe floor); the gearbox REFINES m2->m1 at
-  // VLEN>=256. The VLMAX legality is recomputed here from the SAME
-  // getRVVStripVLMAXElements truth source the autotuner selects with; any other
-  // anchor is fail-closed (I7).
-  {
-    llvm::StringRef anchor = getIntegerCoreLmul().value_or("m2");
-    if (anchor != "m1" && anchor != "m2")
+  if (static_cast<bool>(getIntegerCoreLmul()) !=
+      static_cast<bool>(getMinimumVlen()))
+    return emitOpError()
+           << "requires integer_core_lmul and minimum_vlen to be both absent "
+              "or both present";
+  if (std::optional<llvm::StringRef> anchor = getIntegerCoreLmul())
+    if (*anchor != "m1" && *anchor != "m2")
       return emitOpError()
-             << "only accepts integer_core_lmul \"m1\" or \"m2\" for the ggml "
-                "TQ2_0 x Q8_K super-block FUSED 2-bit ternary integer core (the "
-                "fused ternary dot runs ONE 32-lane plane body at the whole-LMUL "
-                "anchor whose i8 strip VLMAX spans the 32-element plane: m2 at "
-                "VLEN128, m1 at VLEN256); got \""
-             << anchor << "\"";
-    std::int64_t minimumVLEN = getMinimumVlen().value_or(128);
-    constexpr std::int64_t kTQ20PlaneLen = 32; // the 32-element 2-bit plane.
-    std::int64_t stripVLMAX = ::weft::plugin::rvv::getRVVStripVLMAXElements(
-        ::weft::plugin::rvv::getRVVBlockDotStripLMUL(anchor),
-        ::weft::plugin::rvv::getRVVBlockDotStripSEW(anchor), minimumVLEN);
-    if (stripVLMAX < kTQ20PlaneLen)
-      return emitOpError()
-             << "requires an integer_core_lmul whose i8 strip VLMAX spans the "
-                "32-element 2-bit plane at the guaranteed minimum_vlen ("
-             << minimumVLEN << "): the \"" << anchor << "\" anchor's VLMAX is "
-             << stripVLMAX << " < 32 -- a single vsetvl_e8<anchor>(32) would not "
-                "cover the plane (silent-wrong I7 guard)";
-  }
+             << "only accepts integer_core_lmul \"m1\" or \"m2\"; got \""
+             << *anchor << "\"";
 
   return mlir::success();
 }
@@ -7318,9 +7230,8 @@ mlir::LogicalResult GgmlBlockDotTQ10Q8KTernaryCoreOp::verify() {
   // super-block-format structural facts the integer core reads (the 48 packed
   // base-3 qs bytes @0, the 4 base-3 qh bytes @48, the fp16 weight scale d @52 --
   // d is at the END of block_tq1_0, the qh array is the new structural fact vs
-  // tq2_0 -- the fp32 activation scale d @0, qs @4), plus the Win-A resource shape
-  // knob integer_core_lmul + minimum_vlen and the "weft_rvv.tq1_0_schedule.*"
-  // autotuner provenance namespace. tq1_0 is BASE-3 TERNARY with NO scales[16], NO
+  // tq2_0 -- the fp32 activation scale d @0, qs @4). tq1_0 is BASE-3
+  // TERNARY with one fixed realized body and NO scales[16], NO
   // per-sub-block scale, NO min term, NO dmin, NO bsums. Anything else -- a
   // forbidden local element_count/SEW/LMUL/policy attr, or an unexpected name --
   // is rejected fail-closed (I7).
@@ -7331,9 +7242,7 @@ mlir::LogicalResult GgmlBlockDotTQ10Q8KTernaryCoreOp::verify() {
            name == "weight_qs_byte_offset" ||
            name == "weight_qh_byte_offset" || name == "weight_d_byte_offset" ||
            name == "activation_d_byte_offset" ||
-           name == "activation_quant_byte_offset" ||
-           name == "integer_core_lmul" || name == "minimum_vlen" ||
-           name.starts_with("weft_rvv.tq1_0_schedule.");
+           name == "activation_quant_byte_offset";
   };
   for (mlir::NamedAttribute attr : op->getAttrs()) {
     llvm::StringRef attrName = attr.getName().getValue();
@@ -7350,9 +7259,8 @@ mlir::LogicalResult GgmlBlockDotTQ10Q8KTernaryCoreOp::verify() {
                 "integer-core attributes 'kind', 'scale_model', 'qk', "
                 "'weight_block_stride', 'activation_block_stride', "
                 "'weight_qs_byte_offset', 'weight_qh_byte_offset', "
-                "'weight_d_byte_offset', 'activation_d_byte_offset', "
-                "'activation_quant_byte_offset', 'integer_core_lmul', and "
-                "'minimum_vlen'; unexpected attribute '"
+                "'weight_d_byte_offset', 'activation_d_byte_offset', and "
+                "'activation_quant_byte_offset'; unexpected attribute '"
              << attr.getName() << "'";
   }
 
@@ -7459,41 +7367,6 @@ mlir::LogicalResult GgmlBlockDotTQ10Q8KTernaryCoreOp::verify() {
            << "requires enclosing weft_rvv.with_vl to carry explicit policy "
               "metadata for the ggml TQ1_0 x Q8_K super-block BASE-3 ternary "
               "scalar integer core";
-
-  // The integer DOT (section B; the base-3 unpack section A is UNCHANGED) widens
-  // to 32-lane strips over the flat element-ordered aux8[256] x q8[256]. The single
-  // vsetvl_e8<anchor>(32) cover is correct ONLY when the anchor's i8 strip VLMAX at
-  // the GUARANTEED minimum VLEN spans the 32-lane strip. WHICH anchor that is MOVES
-  // with VLEN exactly like the q1_0 / tq2_0 siblings: m2 at VLEN128 (e8m1 VLMAX 16
-  // < 32), the lighter m1 at VLEN256. Any other spelling is rejected fail-closed
-  // (I7); the VLMAX legality is recomputed from the SAME getRVVStripVLMAXElements
-  // formula the gearbox selects with. The anchor defaults to "m2" (the emitter's
-  // VLEN-universal-safe default), so an attr-less op verifies + lowers correctly
-  // and the gearbox refines m2->m1 at VLEN>=256. The dot is byte-exact for any
-  // legal anchor (integer addition is order-independent).
-  {
-    llvm::StringRef anchor = getIntegerCoreLmul().value_or("m2");
-    if (anchor != "m1" && anchor != "m2")
-      return emitOpError()
-             << "only accepts integer_core_lmul \"m1\" or \"m2\" for the ggml "
-                "TQ1_0 x Q8_K super-block BASE-3 ternary integer core (the "
-                "widened integer dot runs 32-lane strips at the whole-LMUL anchor "
-                "whose i8 strip VLMAX spans 32: m2 at VLEN128, m1 at VLEN256); "
-                "got \""
-             << anchor << "\"";
-    std::int64_t minimumVLEN = getMinimumVlen().value_or(128);
-    constexpr std::int64_t kTQ10StripLen = 32; // the 32-lane dot strip.
-    std::int64_t stripVLMAX = ::weft::plugin::rvv::getRVVStripVLMAXElements(
-        ::weft::plugin::rvv::getRVVBlockDotStripLMUL(anchor),
-        ::weft::plugin::rvv::getRVVBlockDotStripSEW(anchor), minimumVLEN);
-    if (stripVLMAX < kTQ10StripLen)
-      return emitOpError()
-             << "requires an integer_core_lmul whose i8 strip VLMAX spans the "
-                "32-lane dot strip at the guaranteed minimum_vlen ("
-             << minimumVLEN << "): the \"" << anchor << "\" anchor's VLMAX is "
-             << stripVLMAX << " < 32 -- a single vsetvl_e8<anchor>(32) would not "
-                "cover the strip (silent-wrong I7 guard)";
-  }
 
   return mlir::success();
 }
@@ -7892,8 +7765,8 @@ mlir::LogicalResult GgmlBlockDotIQ2XXSQ8KGridCoreOp::verify() {
   // aux1-scale grid-of-8-codebook signs64-sign-plane integer-core scale model, the
   // iq2_xxs super-block-format structural facts the integer core reads (the fp16 d @0,
   // the 64 uint8 INTERLEAVED index+aux bytes qs @2, the q8_K fp32 d @0, the q8_K qs @4),
-  // plus the Win-A resource shape knob integer_core_lmul + minimum_vlen and the
-  // "weft_rvv.iq2_xxs_schedule.*" autotuner provenance namespace. The FIXED 256-entry
+  // plus the final resource shape knob integer_core_lmul + semantic minimum_vlen.
+  // The FIXED 256-entry
   // iq2xxs_grid GRID-of-8 codebook and the DERIVED keven_signs_q2xs signs64 sign plane
   // are byte-exact constants of the FORMAT (keyed off the brick op identity at emit),
   // NOT carried in the IR (the signs64 sign-plane is DERIVED from the fixed ksigns
@@ -7909,8 +7782,7 @@ mlir::LogicalResult GgmlBlockDotIQ2XXSQ8KGridCoreOp::verify() {
            name == "activation_quant_byte_offset" ||
            name == "integer_core_lmul" || name == "minimum_vlen" ||
            // A-line g-axis debake (路 B): the iq2_xxs grid sign-group count.
-           name == "num_groups" ||
-           name.starts_with("weft_rvv.iq2_xxs_schedule.");
+           name == "num_groups";
   };
   for (mlir::NamedAttribute attr : op->getAttrs()) {
     llvm::StringRef attrName = attr.getName().getValue();
@@ -8036,38 +7908,16 @@ mlir::LogicalResult GgmlBlockDotIQ2XXSQ8KGridCoreOp::verify() {
               "metadata for the ggml IQ2_XXS x Q8_K super-block GRID-of-8 "
               "scalar integer core";
 
-  // The Win-A resource shape knob (preserved across the flip): the grid+sign vluxei16
-  // gather + dot runs ONE 32-lane sub-block body whose i8 strip VLMAX must span the 32
-  // elements at the guaranteed minimum VLEN. A single i64 is 8 bytes, so the 4-entry
-  // gather needs the i64 anchor whose VLMAX reaches 4 (i8 view reaches 32): m2 at
-  // VLEN128 (e8m1 VLMAX 16 < 32), m1 at VLEN256. The anchor defaults to "m2" (the
-  // VLEN-universal-safe floor); the gearbox REFINES m2->m1 at VLEN>=256. The VLMAX
-  // legality is recomputed here from the SAME getRVVStripVLMAXElements truth source the
-  // autotuner selects with; any other anchor is fail-closed (I7).
-  {
-    llvm::StringRef anchor = getIntegerCoreLmul().value_or("m2");
-    if (anchor != "m1" && anchor != "m2")
+  if (static_cast<bool>(getIntegerCoreLmul()) !=
+      static_cast<bool>(getMinimumVlen()))
+    return emitOpError()
+           << "requires integer_core_lmul and minimum_vlen to be both absent "
+              "or both present";
+  if (std::optional<llvm::StringRef> anchor = getIntegerCoreLmul())
+    if (*anchor != "m1" && *anchor != "m2")
       return emitOpError()
-             << "only accepts integer_core_lmul \"m1\" or \"m2\" for the ggml "
-                "IQ2_XXS x Q8_K super-block GRID-of-8 scalar integer core (the "
-                "grid+sign gather + dot runs ONE 32-lane sub-block body at the "
-                "whole-LMUL anchor whose i8 strip VLMAX spans the 32-element "
-                "sub-block: m2 at VLEN128, m1 at VLEN256); got \""
-             << anchor << "\"";
-    std::int64_t minimumVLEN = getMinimumVlen().value_or(128);
-    constexpr std::int64_t kIQ2XXSSubBlockLen = 32; // the 32-element sub-block.
-    std::int64_t stripVLMAX = ::weft::plugin::rvv::getRVVStripVLMAXElements(
-        ::weft::plugin::rvv::getRVVBlockDotStripLMUL(anchor),
-        ::weft::plugin::rvv::getRVVBlockDotStripSEW(anchor), minimumVLEN);
-    if (stripVLMAX < kIQ2XXSSubBlockLen)
-      return emitOpError()
-             << "requires an integer_core_lmul whose i8 strip VLMAX spans the "
-                "32-element grid-codebook sub-block at the guaranteed minimum_vlen ("
-             << minimumVLEN << "): the \"" << anchor << "\" anchor's VLMAX is "
-             << stripVLMAX << " < 32 -- a single vsetvl_e8<anchor>(32) / "
-                "vluxei16_v_i64<anchor> would not cover the sub-block (silent-wrong "
-                "I7 guard)";
-  }
+             << "only accepts integer_core_lmul \"m1\" or \"m2\"; got \""
+             << *anchor << "\"";
 
   return mlir::success();
 }
@@ -9765,25 +9615,13 @@ mlir::LogicalResult GgmlForwardElementwiseOp::verify() {
 // elementwise_binary_map / elementwise_copy_map / elementwise_gelu_map core brick, whose
 // own verifiers (above) are the live bounded-surface gates.
 
-// The wired dequantize_row format allowlist. ONE parameterized op stands in for
-// the family; only formats whose per-format decode is actually emitted (a real
-// hand-written monolith body + a conversion lit) are accepted, so no six-state
-// row can claim dispatch-wired without a real decode behind it (fail-closed, I7).
-static bool isWiredDequantizeRowFormat(llvm::StringRef format) {
-  // Phase-1: the wired-format allowlist is DERIVED from the single construction facts
-  // table (lookupDequantizeRowStreamFacts) -- the ONE source of the constructed
-  // dequantize_row family. Adding a format (its descriptor row) auto-extends this gate;
-  // no per-format verifier arm. Fail-closed: an unrecognized format has no facts.
-  return lookupDequantizeRowStreamFacts(format).has_value();
-}
-
 mlir::LogicalResult GgmlDequantizeRowOp::verify() {
   mlir::Operation *op = getOperation();
 
   // The op carries ONLY its bounded `format` mirror attr (I4): no forbidden
   // dataflow SEW/LMUL/policy/element_count knob, and no unexpected name. The
-  // per-format AoS block facts (qk / stride / offsets) are ggml ABI constants the
-  // emitter hard-codes off `format`, NOT tunable op attrs.
+  // per-format AoS block facts are constructed later by the family-local formula;
+  // this source verifier does not replay its format table.
   for (mlir::NamedAttribute attr : op->getAttrs()) {
     llvm::StringRef attrName = attr.getName().getValue();
     if (isForbiddenDataflowParameterAttr(attrName))
@@ -9799,17 +9637,10 @@ mlir::LogicalResult GgmlDequantizeRowOp::verify() {
              << attr.getName() << "'";
   }
 
-  if (!isWiredDequantizeRowFormat(getFormat()))
+  if (getFormat().empty())
     return emitOpError()
-           << "format '" << getFormat()
-           << "' is not a wired dequantize_row decode; the dispatch-wired "
-              "allowlist is q4_0/q4_1/q5_0/q5_1/q8_0 (legacy) + q1_0 (binary "
-              "sign) + "
-              "q2_K/q3_K/q4_K/q5_K/q6_K (K-quant) + mxfp4/nvfp4 (FP4) + "
-              "tq1_0/tq2_0 (ternary) + iq4_nl (codebook) + "
-              "iq2_xxs/iq2_xs/iq2_s/iq3_xxs/iq3_s/iq1_s/iq1_m/iq4_xs (IQ "
-              "grid-table). An unwired format has no hand-written decode body and "
-              "must stay absent in the six-state ledger";
+           << "requires a non-empty source format; the pre-emission formula "
+              "construction cut decides support and rejects unknown formats";
 
   if (op->getNumOperands() != 4 || op->getNumResults() != 1)
     return emitOpError()
@@ -9854,21 +9685,6 @@ mlir::LogicalResult GgmlDequantizeRowOp::verify() {
   return mlir::success();
 }
 
-// The FRONT-DOOR CONSTRUCTED dequantize_row family allowlist: for the bounded
-// surface the flat streaming decodes are constructed -- the family-head block_q8_0
-// (bare signed-int8 scale, no nibble unpack) plus the flat 4-bit nibble leaves
-// block_q4_0/q4_1/q5_0/q5_1 (nibble unpack + the optional 5th-bit qh merge / min
-// fold). The other (K-quant / FP4 / ternary / codebook / IQ grid) dequantize_row
-// formats stay dispatch-wired (the abstract weft_rvv.dequantize_row monolith).
-// Shared by the typed loop body op and its per-block decode brick so both fail
-// closed on an unconstructed decode_model (I7).
-static bool isConstructedDequantizeRowDecodeModel(llvm::StringRef decodeModel) {
-  // Phase-1: DERIVED from the single construction facts table (the ONE source of the
-  // constructed dequantize_row family); adding a format's descriptor row auto-extends
-  // this gate. Fail-closed: an unconstructed decode_model has no facts.
-  return lookupDequantizeRowStreamFacts(decodeModel).has_value();
-}
-
 mlir::LogicalResult TypedDequantizeRowLoopBodyOp::verify() {
   mlir::Operation *op = getOperation();
 
@@ -9900,19 +9716,10 @@ mlir::LogicalResult TypedDequantizeRowLoopBodyOp::verify() {
            << "currently supports only kind "
               "\"typed_dequantize_row_loop_body\" for the bounded streaming "
               "dequantize_row nb loop surface";
-  if (!isConstructedDequantizeRowDecodeModel(getDecodeModel()))
+  if (getDecodeModel().empty())
     return emitOpError()
-           << "decode_model '" << getDecodeModel()
-           << "' is not a CONSTRUCTED dequantize_row decode; the constructed "
-              "front-door allowlist is q8_0/q4_0/q4_1/q5_0/q5_1 (the flat streaming "
-              "family: the block_q8_0 bare-int8 scale family-head + the 4-bit nibble "
-              "leaves) + q1_0 (the flat 1-bit binary-sign leaf) + "
-              "q2_K/q3_K/q4_K/q5_K/q6_K (the QK_K=256 K-quant super-block "
-              "leaves) + iq2_xxs/iq2_xs/iq2_s/iq3_xxs/iq3_s (the QK_K=256 IQ grid-table "
-              "super-block leaves) + iq1_s/iq1_m/iq4_nl/iq4_xs/mxfp4/nvfp4 (the codebook "
-              "/ ternary-grid extended leaves) + tq1_0/tq2_0 (the base-3 / 2-bit ternary "
-              "super-block leaves). An unconstructed format stays "
-              "dispatch-wired via the abstract weft_rvv.dequantize_row monolith";
+           << "requires non-empty source provenance in decode_model; execution "
+              "is selected by the typed mechanism/plan on the decode core";
 
   // qk / weight_block_stride are positive ggml ABI byte counts the per-block
   // address arithmetic depends on. Read the SIGNED attr view so a NEGATIVE spelling
@@ -10001,13 +9808,17 @@ mlir::LogicalResult DequantizeRowDecodeCoreOp::verify() {
            name == "weight_block_stride" || name == "scale_byte_offset" ||
            name == "quant_byte_offset" || name == "dequant_mechanism" ||
            name == "codebook_scale_model" ||
+           name == "kquant_scale_model" || name == "grid_decode_leaf" ||
+           name == "ternary_decode_leaf" ||
+           name == "dequant_load_lmul" ||
+           name == "dequant_strip_lanes" ||
+           name == "kquant_has_min" ||
+           name == "kquant_min_byte_offset" ||
+           name == "kquant_sub_scale_byte_offset" ||
+           name == "kquant_has_high_bit_plane" ||
+           name == "kquant_high_bit_byte_offset" ||
            name == "codebook_gather_table" ||
            name == "codebook_gather_entries" ||
-           name == "codebook_gather_strip_lanes" ||
-           name == "codebook_gather_load_lmul" ||
-           name == "codebook_gather_minimum_vlen" ||
-           name == "codebook_gather_provider" ||
-           name == "codebook_gather_selection_reason" ||
            name == "codebook_entry_lanes" ||
            name == "carrier_kind" || name == "nibble_bias" ||
            name == "min_byte_offset" || name == "qh_byte_offset";
@@ -10023,24 +9834,21 @@ mlir::LogicalResult DequantizeRowDecodeCoreOp::verify() {
       return emitOpError()
              << "only accepts the bounded {decode_model, qk, weight_block_stride, "
                 "scale_byte_offset, quant_byte_offset, dequant_mechanism, "
-                "codebook_scale_model, codebook_gather_{table,entries,strip_lanes,"
-                "load_lmul,minimum_vlen,provider,selection_reason}, "
+                "codebook_scale_model, kquant_scale_model, grid_decode_leaf, "
+                "ternary_decode_leaf, dequant_{load_lmul,strip_lanes}, "
+                "kquant_{has_min,min_byte_offset,sub_scale_byte_offset,"
+                "has_high_bit_plane,high_bit_byte_offset}, "
+                "codebook_gather_{table,entries}, "
                 "codebook_entry_lanes, "
                 "carrier_kind, nibble_bias, min_byte_offset, qh_byte_offset} "
                 "attributes; unexpected attribute '"
              << attr.getName() << "'";
   }
 
-  if (!isConstructedDequantizeRowDecodeModel(getDecodeModel()))
+  if (getDecodeModel().empty())
     return emitOpError()
-           << "decode_model '" << getDecodeModel()
-           << "' is not a CONSTRUCTED dequantize_row decode; the constructed "
-              "front-door allowlist is q8_0/q4_0/q4_1/q5_0/q5_1 + the binary-sign "
-              "leaf q1_0 + the K-quant "
-              "super-blocks q2_K/q3_K/q4_K/q5_K/q6_K + the IQ grid-table super-blocks "
-              "iq2_xxs/iq2_xs/iq2_s/iq3_xxs/iq3_s + the codebook / ternary-grid leaves "
-              "iq1_s/iq1_m/iq4_nl/iq4_xs/mxfp4/nvfp4 + the ternary super-blocks "
-              "tq1_0/tq2_0";
+           << "requires non-empty decode_model provenance; typed mechanism and "
+              "selected plan fields, not provenance, drive emission";
   if (getQkAttr().getInt() <= 0)
     return emitOpError() << "requires qk > 0; got " << getQkAttr().getInt();
   if (getWeightBlockStrideAttr().getInt() <= 0)
@@ -10074,127 +9882,224 @@ mlir::LogicalResult DequantizeRowDecodeCoreOp::verify() {
     if (bias.getInt() < 0)
       return emitOpError() << "requires nibble_bias >= 0 when present; got "
                            << bias.getInt();
-  // The OWNED grid-codebook decode leaves (iq3_s grid-of-4 uint32; iq2_xxs / iq2_xs /
-  // iq2_s / iq1_s / iq1_m grid-of-8 uint64) reconstruct a codebook grid ENTRY whose
-  // byte-width IS the g-axis geometry: they MUST carry the codebook_entry_lanes
-  // descriptor so the mechanism body READS it instead of baking the format constant
-  // (律2). Fail closed here at verify time (never value_or self-supplied) if a consuming
-  // leaf is missing it; every other decode leaf leaves the OptionalAttr absent.
-  llvm::StringRef dm = getDecodeModel();
-  std::optional<DequantizeRowStreamFacts> tableFacts =
-      lookupDequantizeRowStreamFacts(dm);
-  bool consumesEntryLanes = dm == "iq3_s" || dm == "iq2_xs" || dm == "iq1_m" ||
-                            dm == "iq2_xxs" || dm == "iq2_s" || dm == "iq1_s";
-  if (consumesEntryLanes && !getCodebookEntryLanesAttr())
+  // The verifier checks only the typed construction's bounded shape. It never
+  // classifies from decode_model and never replays a formula: source provenance
+  // cannot regain compute authority after construction.
+  mlir::StringAttr mechanismAttr =
+      op->getAttrOfType<mlir::StringAttr>("dequant_mechanism");
+  if (!mechanismAttr)
     return emitOpError()
-           << "decode_model '" << dm
-           << "' is an owned grid-codebook dequant leaf and requires the "
-              "codebook_entry_lanes descriptor (the grid ENTRY byte-width g-axis "
-              "geometry); it must be stamped by the dequant-stream front door, never "
-              "baked into the mechanism body or value_or self-supplied";
+           << "requires construction-owned dequant_mechanism; decode_model is "
+              "provenance only";
+  llvm::StringRef mechanism = mechanismAttr.getValue();
+  bool isInt8 = mechanism == "int8-scale";
+  bool isNibble = mechanism == "nibble-decode";
+  bool isBinary = mechanism == "binary-sign";
+  bool isKQuant = mechanism == "kquant-scale-min";
+  bool isCodebook = mechanism == "codebook-gather";
+  bool isGrid = mechanism == "grid-lookup";
+  bool isTernary = mechanism == "ternary-decode";
+  if (!isInt8 && !isNibble && !isBinary && !isKQuant && !isCodebook &&
+      !isGrid && !isTernary)
+    return emitOpError() << "requires dequant_mechanism in {int8-scale, "
+                            "nibble-decode, binary-sign, kquant-scale-min, "
+                            "codebook-gather, grid-lookup, ternary-decode}; got '"
+                         << mechanism << "'";
 
-  // A3 codebook selected-plan stamp. Construction owns the canonical mechanism
-  // + scale-model g; the pre-emission materializer owns the complete selected
-  // plan stamp. The verifier enforces all-or-none and its bounded internal/core-g
-  // consistency. Capability recomputation remains in the materializer, not here.
-  auto mechanism = getDequantMechanismAttr();
-  auto scaleModel = getCodebookScaleModelAttr();
-  bool codebookFamily =
-      mechanism && mechanism.getValue() == "codebook-gather";
-  bool provenanceNamesCodebook =
-      tableFacts && tableFacts->codebookScaleModel.has_value();
-  auto table = getCodebookGatherTableAttr();
-  auto entries = getCodebookGatherEntriesAttr();
-  auto stripLanes = getCodebookGatherStripLanesAttr();
-  auto loadLMUL = getCodebookGatherLoadLmulAttr();
-  auto minimumVLEN = getCodebookGatherMinimumVlenAttr();
-  auto provider = getCodebookGatherProviderAttr();
-  auto selectionReason = getCodebookGatherSelectionReasonAttr();
-  bool carriesAnySelectedCodebookStamp =
-      table || entries || stripLanes || loadLMUL || minimumVLEN || provider ||
-      selectionReason;
-  bool carriesAllSelectedCodebookStamp =
-      table && entries && stripLanes && loadLMUL && minimumVLEN && provider &&
-      selectionReason;
-  bool carriesAnyCodebookStamp =
-      mechanism || scaleModel || carriesAnySelectedCodebookStamp;
-  if (provenanceNamesCodebook != codebookFamily)
-    return emitOpError()
-           << "codebook construction coherence requires decode_model provenance "
-              "and typed dequant_mechanism=\"codebook-gather\" to agree";
-  if (codebookFamily) {
-    llvm::StringRef expectedScale = ::weft::stringifyCodebookScaleModel(
-        *tableFacts->codebookScaleModel);
-    if (!scaleModel || scaleModel.getValue() != expectedScale)
-      return emitOpError()
-             << "codebook dequant requires construction-owned typed g "
-                "dequant_mechanism=\"codebook-gather\" and "
-                "codebook_scale_model=\""
-             << expectedScale
-             << "\" coherent with construction provenance; post-construction "
-                "selection uses the typed fields, not decode_model";
-    if (carriesAnySelectedCodebookStamp && !carriesAllSelectedCodebookStamp)
-      return emitOpError()
-             << "codebook pre-emission selection must carry either none or all "
-                "of {table, entries, strip_lanes, load_lmul, minimum_vlen, "
-                "provider, selection_reason}; partial stamps are invalid";
+  mlir::StringAttr carrier =
+      op->getAttrOfType<mlir::StringAttr>("carrier_kind");
+  mlir::IntegerAttr nibbleBias =
+      op->getAttrOfType<mlir::IntegerAttr>("nibble_bias");
+  mlir::IntegerAttr minByteOffset =
+      op->getAttrOfType<mlir::IntegerAttr>("min_byte_offset");
+  mlir::IntegerAttr qhByteOffset =
+      op->getAttrOfType<mlir::IntegerAttr>("qh_byte_offset");
+  mlir::StringAttr codebookScale =
+      op->getAttrOfType<mlir::StringAttr>("codebook_scale_model");
+  mlir::StringAttr kquantScale =
+      op->getAttrOfType<mlir::StringAttr>("kquant_scale_model");
+  mlir::StringAttr gridLeafAttr =
+      op->getAttrOfType<mlir::StringAttr>("grid_decode_leaf");
+  mlir::StringAttr ternaryLeafAttr =
+      op->getAttrOfType<mlir::StringAttr>("ternary_decode_leaf");
+  mlir::IntegerAttr entryLanes =
+      op->getAttrOfType<mlir::IntegerAttr>("codebook_entry_lanes");
 
-    // The dialect owns only the bounded shape of a complete selected stamp.
-    // Exact formula/capability consistency (including stale or forged values) is
-    // recomputed by the unique backend preparation materializer before emission.
-    if (carriesAllSelectedCodebookStamp) {
-      if (!::weft::parseCodebookTable(table.getValue()))
-        return emitOpError()
-               << "codebook_gather_table must name a recognized table; got '"
-               << table.getValue() << "'";
-      if (entries.getInt() <= 0 || stripLanes.getInt() <= 0)
-        return emitOpError()
-               << "codebook selected-plan entries and strip_lanes must be positive";
-      if (loadLMUL.getValue() != "mf2" && loadLMUL.getValue() != "m1" &&
-          loadLMUL.getValue() != "m2")
-        return emitOpError()
-               << "codebook_gather_load_lmul must be one of {mf2,m1,m2}; got '"
-               << loadLMUL.getValue() << "'";
-      if (minimumVLEN.getInt() <= 0 || provider.getValue().empty() ||
-          selectionReason.getValue().empty())
-        return emitOpError()
-               << "codebook selected-plan stamp requires positive minimum_vlen "
-                  "and non-empty provider/selection_reason mirrors";
-    }
-  } else if (carriesAnyCodebookStamp) {
-    return emitOpError()
-           << "non-codebook dequant mechanism must not carry any A3 codebook "
-              "mechanism/selected-plan stamp";
-  }
-  // Phase-1 nibble-family descriptor legality (fail-closed, I7; the SAME consuming-leaf
-  // pattern as codebook_entry_lanes above). The flat nibble family MUST carry the
-  // carrier_kind leaf selector so the carrier-keyed emit dispatch never silently falls
-  // through; carrier_kind is limited to the two ALREADY-SEPARATE leaves; and the
-  // bare_int8 carrier (q8_0, a bare signed-int8 scale) MUST NOT carry any 4-bit nibble
-  // decode fact. nibbleFamily is DERIVED from the same facts table (not a re-baked name
-  // list) so it tracks the descriptor family membership.
-  bool nibbleFamily =
-      tableFacts && tableFacts->carrier != NibbleCarrierKind::NotNibbleFamily;
-  mlir::StringAttr carrier = getCarrierKindAttr();
-  if (nibbleFamily && !carrier)
-    return emitOpError()
-           << "decode_model '" << dm
-           << "' is a flat nibble-family dequant leaf and requires the carrier_kind "
-              "descriptor (\"bare_int8\" for q8_0, \"nibble4\" for the 4-bit nibble "
-              "leaves); it must be stamped by the dequant-stream front door, never "
-              "omitted or value_or self-supplied";
+  std::optional<::weft::CodebookScaleModel> parsedCodebook =
+      codebookScale ? ::weft::parseCodebookScaleModel(codebookScale.getValue())
+                    : std::nullopt;
+  std::optional<::weft::KQuantScaleModel> parsedKQuant =
+      kquantScale ? ::weft::parseKQuantScaleModel(kquantScale.getValue())
+                  : std::nullopt;
+  std::optional<::weft::GridDecodeLeaf> parsedGrid =
+      gridLeafAttr ? ::weft::parseGridDecodeLeaf(gridLeafAttr.getValue())
+                   : std::nullopt;
+  std::optional<::weft::TernaryDecodeLeaf> parsedTernary =
+      ternaryLeafAttr
+          ? ::weft::parseTernaryDecodeLeaf(ternaryLeafAttr.getValue())
+          : std::nullopt;
+  if (codebookScale && !parsedCodebook)
+    return emitOpError() << "unknown codebook_scale_model '"
+                         << codebookScale.getValue() << "'";
+  if (kquantScale && !parsedKQuant)
+    return emitOpError() << "unknown kquant_scale_model '"
+                         << kquantScale.getValue() << "'";
+  if (gridLeafAttr && !parsedGrid)
+    return emitOpError() << "unknown grid_decode_leaf '"
+                         << gridLeafAttr.getValue() << "'";
+  if (ternaryLeafAttr && !parsedTernary)
+    return emitOpError() << "unknown ternary_decode_leaf '"
+                         << ternaryLeafAttr.getValue() << "'";
   if (carrier && carrier.getValue() != "bare_int8" &&
       carrier.getValue() != "nibble4")
-    return emitOpError()
-           << "requires carrier_kind in {\"bare_int8\", \"nibble4\"} when present; "
-              "got '"
-           << carrier.getValue() << "'";
-  if (carrier && carrier.getValue() == "bare_int8" &&
-      (getMinByteOffsetAttr() || getQhByteOffsetAttr() || getNibbleBiasAttr()))
-    return emitOpError()
-           << "the bare_int8 carrier (q8_0) is a bare signed-int8 scale leaf and must "
-              "NOT carry a 4-bit nibble decode fact (min_byte_offset / qh_byte_offset / "
-              "nibble_bias); those belong only to the nibble4 carrier";
+    return emitOpError() << "requires carrier_kind in {bare_int8,nibble4}; got '"
+                         << carrier.getValue() << "'";
+
+  auto rejectForeignGeometry = [&](bool allowCarrier, bool allowCodebook,
+                                   bool allowKQuant, bool allowGrid,
+                                   bool allowTernary, bool allowEntry)
+      -> mlir::LogicalResult {
+    if (!allowCarrier &&
+        (carrier || nibbleBias || minByteOffset || qhByteOffset))
+      return emitOpError()
+             << "mechanism '" << mechanism
+             << "' must not carry nibble/int8 carrier geometry";
+    if (!allowCodebook && codebookScale)
+      return emitOpError() << "mechanism '" << mechanism
+                           << "' must not carry codebook_scale_model";
+    if (!allowKQuant && kquantScale)
+      return emitOpError() << "mechanism '" << mechanism
+                           << "' must not carry kquant_scale_model";
+    if (!allowGrid && gridLeafAttr)
+      return emitOpError() << "mechanism '" << mechanism
+                           << "' must not carry grid_decode_leaf";
+    if (!allowTernary && ternaryLeafAttr)
+      return emitOpError() << "mechanism '" << mechanism
+                           << "' must not carry ternary_decode_leaf";
+    if (!allowEntry && entryLanes)
+      return emitOpError() << "mechanism '" << mechanism
+                           << "' must not carry codebook_entry_lanes";
+    return mlir::success();
+  };
+
+  if (isInt8) {
+    if (!carrier || carrier.getValue() != "bare_int8" || nibbleBias ||
+        minByteOffset || qhByteOffset)
+      return emitOpError()
+             << "int8-scale requires carrier_kind=\"bare_int8\" and no "
+                "nibble-only geometry";
+    if (mlir::failed(rejectForeignGeometry(true, false, false, false,
+                                           false, false)))
+      return mlir::failure();
+  } else if (isNibble) {
+    if (!carrier || carrier.getValue() != "nibble4" || !nibbleBias)
+      return emitOpError()
+             << "nibble-decode requires carrier_kind=\"nibble4\" and an "
+                "explicit nibble_bias";
+    if (mlir::failed(rejectForeignGeometry(true, false, false, false,
+                                           false, false)))
+      return mlir::failure();
+  } else if (isCodebook) {
+    if (!parsedCodebook)
+      return emitOpError()
+             << "codebook-gather requires a recognized codebook_scale_model";
+    if (mlir::failed(rejectForeignGeometry(false, true, false, false,
+                                           false, false)))
+      return mlir::failure();
+  } else if (isKQuant) {
+    if (!parsedKQuant)
+      return emitOpError()
+             << "kquant-scale-min requires a recognized kquant_scale_model";
+    if (mlir::failed(rejectForeignGeometry(false, false, true, false,
+                                           false, false)))
+      return mlir::failure();
+  } else if (isGrid) {
+    if (!parsedGrid)
+      return emitOpError()
+             << "grid-lookup requires a recognized grid_decode_leaf";
+    bool requiresEntry = *parsedGrid != ::weft::GridDecodeLeaf::Iq3Xxs;
+    if (requiresEntry && !entryLanes)
+      return emitOpError()
+             << "selected grid leaf requires construction-owned "
+                "codebook_entry_lanes geometry";
+    if (mlir::failed(rejectForeignGeometry(false, false, false, true,
+                                           false, true)))
+      return mlir::failure();
+  } else if (isTernary) {
+    if (!parsedTernary)
+      return emitOpError()
+             << "ternary-decode requires a recognized ternary_decode_leaf";
+    ::weft::TernaryDecodeLeaf ternaryLeaf = parsedTernary.value();
+    bool requiresEntry = ternaryLeaf == ::weft::TernaryDecodeLeaf::Iq1M ||
+                         ternaryLeaf == ::weft::TernaryDecodeLeaf::Iq1S;
+    if (requiresEntry && !entryLanes)
+      return emitOpError()
+             << "selected ternary grid leaf requires construction-owned "
+                "codebook_entry_lanes geometry";
+    if (!requiresEntry && entryLanes)
+      return emitOpError()
+             << "non-grid ternary leaf must not carry codebook_entry_lanes";
+    if (mlir::failed(rejectForeignGeometry(false, false, false, false,
+                                           true, true)))
+      return mlir::failure();
+  } else {
+    if (mlir::failed(rejectForeignGeometry(false, false, false, false,
+                                           false, false)))
+      return mlir::failure();
+  }
+
+  mlir::StringAttr loadLMUL = getDequantLoadLmulAttr();
+  mlir::IntegerAttr stripLanes = getDequantStripLanesAttr();
+  mlir::StringAttr table = getCodebookGatherTableAttr();
+  mlir::IntegerAttr entries = getCodebookGatherEntriesAttr();
+  bool anyKQuantFields = getKquantHasMinAttr() ||
+                         getKquantMinByteOffsetAttr() ||
+                         getKquantSubScaleByteOffsetAttr() ||
+                         getKquantHasHighBitPlaneAttr() ||
+                         getKquantHighBitByteOffsetAttr();
+  bool hasKQuantFields = getKquantHasMinAttr() &&
+                         getKquantMinByteOffsetAttr() &&
+                         getKquantSubScaleByteOffsetAttr() &&
+                         getKquantHasHighBitPlaneAttr() &&
+                         getKquantHighBitByteOffsetAttr();
+
+  if (!isCodebook && (table || entries))
+    return emitOpError() << "mechanism '" << mechanism
+                         << "' carries codebook final-plan fields";
+  if (!isKQuant && anyKQuantFields)
+    return emitOpError() << "mechanism '" << mechanism
+                         << "' carries K-quant final-plan fields";
+
+  if (isNibble) {
+    if (!loadLMUL || !stripLanes || loadLMUL.getValue() != "m1" ||
+        stripLanes.getInt() <= 0)
+      return emitOpError()
+             << "nibble final plan requires positive strips at load LMUL m1";
+  } else if (isCodebook) {
+    if (!loadLMUL || !stripLanes || !table || !entries ||
+        !::weft::parseCodebookTable(table.getValue()) ||
+        entries.getInt() <= 0 || stripLanes.getInt() <= 0 ||
+        (loadLMUL.getValue() != "mf2" && loadLMUL.getValue() != "m1" &&
+         loadLMUL.getValue() != "m2"))
+      return emitOpError()
+             << "codebook final plan requires a valid table, entry count, "
+                "positive strip and load LMUL in {mf2,m1,m2}";
+  } else if (isKQuant) {
+    if (!loadLMUL || !stripLanes || !hasKQuantFields ||
+        stripLanes.getInt() <= 0 ||
+        (loadLMUL.getValue() != "m1" && loadLMUL.getValue() != "m2"))
+      return emitOpError()
+             << "K-quant final plan requires load/strip and all scale/min/high-bit fields";
+    for (llvm::StringRef name : {"kquant_min_byte_offset",
+                                 "kquant_sub_scale_byte_offset",
+                                 "kquant_high_bit_byte_offset"})
+      if (op->getAttrOfType<mlir::IntegerAttr>(name).getInt() < 0)
+        return emitOpError() << "K-quant offset '" << name
+                             << "' must be non-negative";
+  } else if (loadLMUL || stripLanes) {
+    return emitOpError() << "mechanism '" << mechanism
+                         << "' carries fields owned by another final plan";
+  }
 
   RuntimeABIValueOp weightBinding =
       getWeightBase().getDefiningOp<RuntimeABIValueOp>();
@@ -10216,27 +10121,16 @@ mlir::LogicalResult DequantizeRowDecodeCoreOp::verify() {
   return mlir::success();
 }
 
-// The FRONT-DOOR CONSTRUCTED quantize_row family allowlist: for the bounded surface
-// the activation quantizers are constructed -- the family-head block_q8_0 (bare
-// fp16-scale int8 narrow) plus its q8_1 SIBLING (+ the extra integer block sum) plus
-// the q8_K K-quant activation quantizer (QK_K=256 min/max-symmetric, float d, per-16
-// bsums). Shared by the typed loop body op and its per-block encode brick so both
-// fail closed on an unconstructed encode_model (I7).
-static bool isConstructedQuantizeRowEncodeModel(llvm::StringRef encodeModel) {
-  return encodeModel == "q8_0" || encodeModel == "q8_1" ||
-         encodeModel == "q8_K";
-}
-
 mlir::LogicalResult TypedQuantizeRowLoopBodyOp::verify() {
   mlir::Operation *op = getOperation();
 
   // The op carries ONLY its bounded mirror attrs (I4): kind, the ggml ABI block
-  // facts (qk / block_stride), and the encode_model leaf key. A forbidden local
+  // facts (qk / block_stride), the typed formula leaf, and provenance. A forbidden local
   // element_count/SEW/LMUL/policy attr or an unexpected name is rejected fail-closed
   // (I7); SEW/LMUL/policy live on setvl/with_vl, runtime k on the ABI.
   auto isAllowedAttr = [](llvm::StringRef name) {
     return name == "kind" || name == "qk" || name == "block_stride" ||
-           name == "encode_model";
+           name == "quantize_leaf" || name == "encode_model";
   };
   for (mlir::NamedAttribute attr : op->getAttrs()) {
     llvm::StringRef attrName = attr.getName().getValue();
@@ -10248,7 +10142,8 @@ mlir::LogicalResult TypedQuantizeRowLoopBodyOp::verify() {
                 "control-plane IR";
     if (!isAllowedAttr(attrName))
       return emitOpError()
-             << "only accepts the bounded {kind, qk, block_stride, encode_model} "
+             << "only accepts the bounded {kind, qk, block_stride, "
+                "quantize_leaf, encode_model} "
                 "attributes; unexpected attribute '"
              << attr.getName() << "'";
   }
@@ -10257,15 +10152,10 @@ mlir::LogicalResult TypedQuantizeRowLoopBodyOp::verify() {
     return emitOpError()
            << "currently supports only kind \"typed_quantize_row_loop_body\" for "
               "the bounded streaming quantize_row nb loop surface";
-  if (!isConstructedQuantizeRowEncodeModel(getEncodeModel()))
+  if (getEncodeModel().empty())
     return emitOpError()
-           << "encode_model '" << getEncodeModel()
-           << "' is not a CONSTRUCTED quantize_row encode; the constructed "
-              "front-door allowlist is the activation quantizers q8_0 (the "
-              "block_q8_0 bare fp16-scale int8-narrow family-head) + q8_1 (the "
-              "SIBLING + the integer block sum) + q8_K (the QK_K=256 min/max-"
-              "symmetric K-quant activation quantizer). An unconstructed format "
-              "stays dispatch-wired via the abstract per-format quantize op";
+           << "requires non-empty encode_model construction provenance; compute "
+              "is selected only by the required typed quantize_leaf";
 
   // qk / block_stride are positive ggml ABI byte counts the per-block address
   // arithmetic depends on. Read the SIGNED attr view so a NEGATIVE spelling
@@ -10328,17 +10218,46 @@ mlir::LogicalResult TypedQuantizeRowLoopBodyOp::verify() {
               "weft_rvv.typed_quantize_row_loop_yield (the VOID streaming-store "
               "sink)";
 
+  QuantizeRowEncodeCoreOp core;
+  for (mlir::Operation &nested : block) {
+    if (auto candidate = llvm::dyn_cast<QuantizeRowEncodeCoreOp>(nested)) {
+      if (core)
+        return emitOpError()
+               << "requires exactly one quantize_row_encode_core brick";
+      core = candidate;
+      continue;
+    }
+    if (!llvm::isa<TypedQuantizeRowLoopYieldOp>(nested))
+      return emitOpError()
+             << "only carries one quantize_row_encode_core brick followed by "
+                "typed_quantize_row_loop_yield";
+  }
+  if (!core)
+    return emitOpError()
+           << "requires exactly one quantize_row_encode_core brick";
+  if (core.getInput() != getInput() || core.getOutput() != getOutput())
+    return emitOpError()
+           << "requires the encode core to consume the parent input/output ABI "
+              "operands";
+  if (core.getQuantizeLeaf() != getQuantizeLeaf() ||
+      core.getEncodeModel() != getEncodeModel() || core.getQk() != getQk() ||
+      core.getBlockStride() != getBlockStride())
+    return emitOpError()
+           << "requires parent/core typed leaf, provenance and shared layout "
+              "facts to agree; the verifier does not recompute the formula";
+
   return mlir::success();
 }
 
 mlir::LogicalResult QuantizeRowEncodeCoreOp::verify() {
   mlir::Operation *op = getOperation();
 
-  // Bounded mirror attrs (I4): the encode_model leaf key + the ggml ABI block
-  // layout facts. A forbidden dataflow attr or an unexpected name fails closed (I7).
+  // Bounded attrs: formula-produced typed leaf, provenance, and the ggml ABI block
+  // layout facts. A forbidden dataflow attr or an unexpected name fails closed.
   auto isAllowedAttr = [](llvm::StringRef name) {
-    return name == "encode_model" || name == "qk" || name == "block_stride" ||
-           name == "scale_byte_offset" || name == "quant_byte_offset";
+    return name == "quantize_leaf" || name == "encode_model" || name == "qk" ||
+           name == "block_stride" || name == "scale_byte_offset" ||
+           name == "quant_byte_offset";
   };
   for (mlir::NamedAttribute attr : op->getAttrs()) {
     llvm::StringRef attrName = attr.getName().getValue();
@@ -10349,17 +10268,16 @@ mlir::LogicalResult QuantizeRowEncodeCoreOp::verify() {
                 "setvl/with_vl";
     if (!isAllowedAttr(attrName))
       return emitOpError()
-             << "only accepts the bounded {encode_model, qk, block_stride, "
-                "scale_byte_offset, quant_byte_offset} attributes; unexpected "
+             << "only accepts the bounded {quantize_leaf, encode_model, qk, "
+                "block_stride, scale_byte_offset, quant_byte_offset} attributes; unexpected "
                 "attribute '"
              << attr.getName() << "'";
   }
 
-  if (!isConstructedQuantizeRowEncodeModel(getEncodeModel()))
+  if (getEncodeModel().empty())
     return emitOpError()
-           << "encode_model '" << getEncodeModel()
-           << "' is not a CONSTRUCTED quantize_row encode; the constructed "
-              "front-door allowlist is the activation quantizers q8_0/q8_1/q8_K";
+           << "requires non-empty encode_model construction provenance; compute "
+              "is selected only by the required typed quantize_leaf";
   if (getQkAttr().getInt() <= 0)
     return emitOpError() << "requires qk > 0; got " << getQkAttr().getInt();
   if (getBlockStrideAttr().getInt() <= 0)
@@ -11106,14 +11024,12 @@ mlir::LogicalResult DequantizeOp::verify() {
 
   auto sourceLoad = getSource().getDefiningOp<LoadOp>();
   auto sourceReduction = getSource().getDefiningOp<StandaloneReduceOp>();
-  auto sourceHandoff = getSource().getDefiningOp<GearboxCrossRegionHandoffOp>();
-  if (!sourceLoad && !sourceReduction && !sourceHandoff)
+  if (!sourceLoad && !sourceReduction)
     return emitOpError()
            << "requires source vector to be produced by weft_rvv.load or by "
               "a bounded weft_rvv.widening_product -> "
-              "weft_rvv.standalone_reduce chain, optionally through "
-              "weft_rvv.gearbox_cross_region_handoff, inside the selected "
-              "RVV typed body";
+              "weft_rvv.standalone_reduce chain inside the selected RVV "
+              "typed body";
   if (sourceLoad) {
     if (sourceLoad.getVl() != getVl())
       return emitOpError()
@@ -11159,45 +11075,6 @@ mlir::LogicalResult DequantizeOp::verify() {
       return emitOpError()
              << "requires source-producing product-reduction chain to be in "
                 "the same weft_rvv.with_vl body as weft_rvv.dequantize";
-  }
-  if (sourceHandoff) {
-    auto reduction = sourceHandoff.getInput().getDefiningOp<StandaloneReduceOp>();
-    if (!reduction)
-      return emitOpError()
-             << "requires source-producing Gearbox handoff to consume a "
-                "weft_rvv.standalone_reduce result";
-    // The reduce input is either a plain widening product or the signed
-    // packed-i4 nibble-unpack widening product (the Stage-3 typed packed-i4
-    // surface); both feed the i32 reduce -> handoff -> dequant chain.
-    mlir::Operation *productOp = reduction.getInput().getDefiningOp();
-    if (!llvm::isa_and_nonnull<WideningProductOp,
-                               PackedI4NibbleUnpackProductOp>(productOp))
-      return emitOpError()
-             << "requires source-producing Gearbox handoff reduction to "
-                "consume a bounded weft_rvv.widening_product or "
-                "weft_rvv.packed_i4_nibble_unpack_product result";
-    mlir::Value productVL =
-        llvm::isa<WideningProductOp>(productOp)
-            ? llvm::cast<WideningProductOp>(productOp).getVl()
-            : llvm::cast<PackedI4NibbleUnpackProductOp>(productOp).getVl();
-    if (sourceHandoff.getVl() != getVl() || reduction.getVl() != getVl() ||
-        productVL != getVl())
-      return emitOpError()
-             << "requires source-producing Gearbox handoff, product, and "
-                "standalone reduction to consume the same !weft_rvv.vl token "
-                "as weft_rvv.dequantize";
-    WithVLOp producerWithVL =
-        llvm::dyn_cast_or_null<WithVLOp>(sourceHandoff->getParentOp());
-    if (!producerWithVL ||
-        reduction->getParentOp() != producerWithVL.getOperation() ||
-        productOp->getParentOp() != producerWithVL.getOperation() ||
-        (!isAncestorWithVL(producerWithVL, op) &&
-         producerWithVL.getOperation() != op->getParentOp()))
-      return emitOpError()
-             << "requires source-producing Gearbox handoff chain to be in "
-                "the same producer weft_rvv.with_vl body as the handoff, and "
-                "that producer scope must enclose or match the dequantize "
-                "consumer scope";
   }
 
   if (mlir::failed(verifyGenericVectorTypeForWithVL(op, getSource(),
@@ -12400,21 +12277,22 @@ mlir::LogicalResult TypedRepackGemvLoopBodyOp::verify() {
              << qhAttr.getInt();
   }
 
-  // Bounded emission-SCHEDULE knob (the *how*, never the *what*): the K-quant
-  // super-block main-term GEVM decode-nest emission shape. "unrolled" = the
-  // register-resident full static unroll (the default shipped form); "rolled" = the
-  // compact runtime-loop form (the [GAP-EMIT-KQUANT-GEVM-TILE-ROUNDTRIP] whole-K-nest
-  // maturity lever, ONLY the q5_K decode leaf carries it). Byte-exact across both by
-  // construction (identical integer accumulation order). ABSENT => the emitter's
-  // capability-derived default. Any other spelling is rejected fail-closed (I7).
-  if (getEmitLoopSchedule().has_value()) {
-    llvm::StringRef sched = *getEmitLoopSchedule();
-    if (sched != "unrolled" && sched != "rolled")
+  // Main-term form is a final construction field, not an emitter option.  Its
+  // applicability follows the typed fold vocabulary; the verifier checks only
+  // presence and the closed value set and does not replay the schedule formula.
+  if (isKQuantFold) {
+    if (!getMainTermForm())
       return emitOpError()
-             << "only accepts emit_loop_schedule \"unrolled\" (the register-resident "
-                "full static unroll) or \"rolled\" (the compact runtime-loop whole-"
-                "K-nest main term); got \""
-             << sched << "\"";
+             << "requires main_term_form for a K-quant fold; the construction "
+                "stage must choose \"unrolled\" or \"rolled\"";
+    llvm::StringRef form = *getMainTermForm();
+    if (form != "unrolled" && form != "rolled")
+      return emitOpError()
+             << "only accepts main_term_form \"unrolled\" or \"rolled\"; got \""
+             << form << "\"";
+  } else if (getMainTermForm()) {
+    return emitOpError()
+           << "does not accept main_term_form outside the K-quant fold models";
   }
 
   // The OPTIONAL K-quant super-block decode facts (I7). The 6-bit/signed scales
@@ -13056,20 +12934,26 @@ mlir::LogicalResult TypedRepackGemmLoopBodyOp::verify() {
               "\"dual-fp16-per-block-d_x.d_y-plus-min\" / "
               "\"dual-fp16-per-block-d_x.d_y-plus-min-4col\" min scale models";
 
-  // Bounded emission-SCHEDULE knob (the *how*, never the *what*): the inner
-  // contraction-block main-term emission shape. "unrolled" = the register-resident
-  // full static unroll (the default S6-tiled shipped form); "rolled" = the compact
-  // runtime-loop form ([GAP-EMIT-UNROLL] maturity lever). Byte-exact across both by
-  // construction (identical integer accumulation order). ABSENT => the emitter's
-  // capability-derived default. Any other spelling is rejected fail-closed (I7).
-  if (getEmitLoopSchedule().has_value()) {
-    llvm::StringRef sched = *getEmitLoopSchedule();
-    if (sched != "unrolled" && sched != "rolled")
+  if (getLoopOrder() != "row_outer" && getLoopOrder() != "col_outer")
+    return emitOpError()
+           << "only accepts loop_order \"row_outer\" or \"col_outer\"; got \""
+           << getLoopOrder() << "\"";
+
+  // As in the GEVM sibling, this is only a structural check over final fields;
+  // stride priors and winner lookup are owned by construction and are not replayed.
+  if (isKQuantFold) {
+    if (!getMainTermForm())
       return emitOpError()
-             << "only accepts emit_loop_schedule \"unrolled\" (the register-resident "
-                "full static unroll) or \"rolled\" (the compact runtime-loop main "
-                "term); got \""
-             << sched << "\"";
+             << "requires main_term_form for a K-quant fold; the construction "
+                "stage must choose \"unrolled\" or \"rolled\"";
+    llvm::StringRef form = *getMainTermForm();
+    if (form != "unrolled" && form != "rolled")
+      return emitOpError()
+             << "only accepts main_term_form \"unrolled\" or \"rolled\"; got \""
+             << form << "\"";
+  } else if (getMainTermForm()) {
+    return emitOpError()
+           << "does not accept main_term_form outside the K-quant fold models";
   }
 
   // The OPTIONAL SECOND weight-plane (qh) byte offset (I7): the ternary tq1_0 base-3

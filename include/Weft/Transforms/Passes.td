@@ -349,69 +349,6 @@ def MaterializeRVVProbedCapabilityAxes
   ];
 }
 
-def MaterializeRVVRepackStripWidth
-    : Pass<"weft-rvv-materialize-repack-strip-width", "::mlir::ModuleOp"> {
-  let summary = "Materialize the resource-aware repack strip width (half_lanes) onto the in-IR Q4_0 repack GEMM/GEMV from the selected -march";
-  let description = [{
-    Stamps the resource-aware e16m1 strip width (half_lanes) onto the in-kernel
-    ggml Q4_0 x Q8_0 16x1-repacked GEMM/GEMV ops from the selected RVV -march.
-    This is the N3-reframed PRIZE seam: a compiler-automatic SELECTION enters
-    llama's q4_0 hot path. Given a selected -march (a profile selection), the
-    pass calls the SAME plugin-local capability authority the probe->capability
-    conversion uses (deriveMinimumVLEN) and sets half_lanes = min(vlen/16,
-    weight_interleave): VLEN >= 256 derives 16 (one 16-lane strip per
-    16-block-as-lane group), VLEN == 128 derives 8 (two disjoint 8-lane halves).
-    The repack lowering then emits weight_interleave/half_lanes strips, so the
-    SAME typed kernel diverges by capability with no hand-authored half_lanes
-    fixture (e.g. --march=rv64gcv => VLEN 128 => half_lanes 8 => two 8-lane
-    halves; --march=rv64gcv_zvl256b => VLEN 256 => half_lanes 16 => one 16-lane
-    strip).
-
-    The strip width is a TARGET-CAPABILITY-derived realization choice (the e16m1
-    lane count the configured target's guaranteed VLEN affords), not a
-    plugin-selected dtype/route (I5): the typed body still owns its single chosen
-    config, and the emitter reads the half_lanes the pass writes (I1/I4), never
-    inferring from ABI strings or family names. The divergence rests on the
-    16-way-interleaved repack (block_q4_0x16: byte i = block(i%16) offset(i/16)),
-    so a 16-lane strip at VLEN=256 reads byte-identical repacked data to two
-    8-lane halves at VLEN=128; the dialect verifier pins half_lanes in {8, 16}
-    fail-closed (I7). A march that guarantees no >= 128 minimum (empty march, or a
-    constrained tier) derives no width and leaves any authored half_lanes intact.
-    The pass derives nothing from clang/cmake/compile-run toolchain facts and
-    probes no hardware; it does not lower, emit code, claim runtime or performance
-    evidence, or fabricate selected config.
-
-    SECOND axis (ISA generation): when the selected -march names the
-    pre-ratification RVV0.7.1 generation (deriveRVVVersion == RVV0p7, e.g.
-    rv64gc_xtheadvector on the C920), the pass ALSO stamps integer_core_lmul =
-    "m1" and overrides half_lanes to 16. RVV0.7.1 has NO fractional LMUL, so the
-    repack's default fractional core (i8mf2) is not emittable there; the
-    whole-LMUL core (i8m1 -> i16m2 -> i32m4 -> f32m4) is ONE 16-lane strip per
-    16-block group. This is numerically identical (the 16-way-interleaved repack
-    reads the same bytes; the i8m1 strip is 16 i8 lanes at VLEN=128) -- the win is
-    using the whole LMUL the ISA supports. The RVV-generation fact is derived
-    through the SAME plugin-local authority (deriveRVVVersion), not a march-string
-    branch in a core pass (I3); RVV1.0 leaves integer_core_lmul unset so the
-    emitter keeps the fractional chain, byte-identical to its prior emission.
-  }];
-  let options = [
-    Option<"march", "march", "std::string", /*default=*/"\"\"",
-           "Selected RISC-V -march whose RVV ISA tier the guaranteed minimum "
-           "VLEN (and thus the repack strip width) is derived from (e.g. "
-           "rv64gcv => VLEN 128 => half_lanes 8; rv64gcv_zvl256b => VLEN 256 "
-           "=> half_lanes 16).">,
-    Option<"isaVectorHints", "isa-vector-hints", "std::string",
-           /*default=*/"\"\"",
-           "Optional probed isa/vector-hint string augmenting the -march "
-           "evidence for the minimum-VLEN derivation.">
-  ];
-  let constructor =
-      "::weft::transforms::createMaterializeRVVRepackStripWidthPass()";
-  let dependentDialects = [
-    "::weft::rvv::WEFTRVVDialect"
-  ];
-}
-
 // The 4 pass options shared by ALL FIVE block-dot schedule autotuners
 // (q4_0/q8_0/q4_1/q5_0/q5_1): march -> Zvl128b derivation, the optional probed
 // isa/vector hints, the optional measurement tuning-record path, and the
@@ -429,14 +366,13 @@ defvar kRVVBlockDotScheduleOptions = [
   Option<"tuneRecord", "tune-record", "std::string", /*default=*/"\"\"",
          "Optional path to a MEASUREMENT tuning record. When set and it "
          "carries a still-legal entry for (kernel, capability-march) the pass "
-         "stamps the MEASURED-fastest shape (the genuine N3 '实测胜出') instead "
-         "of the static cost-model argmin. Absent / stale / unreadable => the "
-         "pass falls back to the static cost model (the record is an advisory "
-         "cache, never a correctness authority).">,
+         "selects that candidate instead of the analytic/static prior. Absent, "
+         "stale, or unreadable records leave the prior in control; the record "
+         "cannot create candidates or bypass legality.">,
   Option<"dumpCandidates", "dump-candidates", "bool", /*default=*/"false",
          "Dump the LEGAL candidate set (the single source of truth for the "
          "capability+budget prune) for the offline tune driver to consume, "
-         "then exit without stamping. Includes every budget+capability-legal "
+         "then exit without mutating IR. Includes every budget+capability-legal "
          "shape (incl. the mf4 anchors the cost model deems dominated) -- the "
          "driver MEASURES the full legal set; the board ranks, not the cost "
          "model.">
@@ -444,33 +380,19 @@ defvar kRVVBlockDotScheduleOptions = [
 
 def MaterializeRVVSchedule
     : Pass<"weft-rvv-materialize-schedule", "::mlir::ModuleOp"> {
-  let summary = "Unified capability/resource-aware autotuner: select + stamp the schedule of EVERY tunable RVV op in one walk";
+  let summary = "Construct or validate every tunable RVV op's complete final schedule in one walk";
   let description = [{
-    The ONE walk-all RVV schedule-materialization pass. Instead of a per-kernel
-    pass per tunable op, this pass walks the module ONCE and auto-discovers every
-    op that implements the TunableScheduleOpInterface (the family-neutral
-    interface that returns the op's schedule kernel key and its no-clobber pin
-    predicate). For each discovered op it runs the SAME shared skeleton the
-    per-kernel passes run -- derive the Zvl128b capability fact, enumerate + prune
-    the bounded generic candidate space for the op's kernel (looked up in the
-    plugin-local descriptor registry), load the optional measurement record, select
-    the measured-fastest still-legal shape (else the static cost-model argmin), and
-    STAMP the chosen knobs plus the per-kernel resource-provenance audit trail onto
-    each op that does not already carry a hand-authored shape knob (additive /
-    no-clobber). The stamped IR is byte-identical to the corresponding per-kernel
-    pass; this pass is the per-op path, just auto-discovered.
+    Walk every TunableScheduleOpInterface, look up its plugin-local formula,
+    construct the bounded candidate set from capability/resource inputs, apply
+    legality, and select only within that set. A valid tuning-record winner may
+    override the analytic/static prior; it cannot create an implementation.
 
-    A NEW tunable op needs ZERO new pass: it adopts the interface (returning its
-    kernel key + pin predicate) and registers a descriptor; this pass picks it up.
-    The tuning logic stays plugin-local (the dialect depends only on the
-    family-neutral interface, never on the plugin tuning machinery).
-
-    Per core-invariants: the stamped knobs MIRROR the plugin-local C++ schedule
-    authority (I4); the schedule is derived from the validated ISA tier and the
-    structural resource facts, never inferred from ABI strings / family names /
-    route ids, and no hardware is probed (I5); a candidate that fails the prune is
-    dropped fail-closed and if every candidate is pruned the op is left untouched
-    (I7). The pass selects the *how*, never the *what*.
+    An op with no final fields receives all final fields atomically. An op that
+    already carries every field is accepted only when it exactly matches a
+    currently legal candidate. Partial, unknown, or illegal final plans fail the
+    pass. Candidate counts, costs, reasons, producer names and measurement times
+    remain transient; only the final schedule fields and semantic minimum_vlen
+    enter IR. Dump mode exposes legal candidates without mutating IR.
   }];
   let options = kRVVBlockDotScheduleOptions;
   let constructor =
@@ -482,7 +404,7 @@ def MaterializeRVVSchedule
 
 def MaterializeRVVQ40Schedule
     : Pass<"weft-rvv-materialize-q4-0-schedule", "::mlir::ModuleOp"> {
-  let summary = "Capability/resource-aware autotuner: select + stamp the ggml Q4_0 x Q8_0 block-dot shape";
+  let summary = "Construct or validate the ggml Q4_0 x Q8_0 block-dot final schedule";
   let description = [{
     The N3 capability/resource-aware autotuner for the ggml Q4_0 x Q8_0 block
     dot-product. Given a selected RVV -march (a profile selection), it derives
@@ -494,11 +416,9 @@ def MaterializeRVVQ40Schedule
     vector-register-file budget, RANKS the legal candidates by a principled,
     CAPABILITY-BLIND structural cost (per-block reduction count, inner strip-loop
     serialization, outer-loop latency-overlap amortized by the multi-block
-    factor), SELECTS the min-cost legal shape, and STAMPS the chosen shape knobs
-    (integer_core_lmul / multi_block_factor / strip_elision) plus a
-    "weft_rvv.q4_0_schedule.*" resource-provenance audit trail onto each
-    weft_rvv.q4_0_q8_0_block_dot op that does not already carry a hand-authored
-    shape knob (additive / no-clobber).
+    factor), and SELECTS the min-cost legal shape. It writes exactly the final
+    integer_core_lmul / multi_block_factor / strip_elision fields. A complete
+    explicit plan must match a legal candidate; a partial plan fails.
 
     This is the COMPILER SELECTING the kernel shape, DERIVED from capability +
     resource facts -- NOT a lookup table: the only place the capability enters is
@@ -511,12 +431,11 @@ def MaterializeRVVQ40Schedule
     kernel. (No performance claim: any vs-ggml delta is un-sealed until [PERF-1]
     eight-gate passes; see NG-4.)
 
-    Per core-invariants: the stamped knobs MIRROR the plugin-local C++ schedule
-    authority (I4); the schedule is derived from the validated ISA tier and the
+    Per core-invariants, the schedule is derived from the validated ISA tier and the
     structural resource facts, never inferred from ABI strings / family names /
     route ids, and no hardware is probed (I5); a candidate that fails the
     capability/anchor/budget prune is dropped fail-closed and if every candidate
-    is pruned the op is left untouched (I7). The pass does not lower, emit code,
+    is pruned the pass fails (I7). The pass does not lower, emit code,
     benchmark, or claim runtime evidence; it selects the *how*, never the *what*
     (the dot-product is byte-exact for every legal shape).
   }];
@@ -530,7 +449,7 @@ def MaterializeRVVQ40Schedule
 
 def MaterializeRVVGemmSchedule
     : Pass<"weft-rvv-materialize-gemm-schedule", "::mlir::ModuleOp"> {
-  let summary = "Measurement autotuner: select + stamp the ggml Q4_0 x Q8_0 GEMM M-block (activation-column block)";
+  let summary = "Construct or validate the ggml Q4_0 x Q8_0 GEMM activation-column schedule";
   let description = [{
     The N3 MEASUREMENT-backed autotuner for the ggml Q4_0 x Q8_0 FULL GEMM
     (weft_rvv.q4_0_q8_0_gemm) M-block -- the inner activation-column block M, the
@@ -539,12 +458,10 @@ def MaterializeRVVGemmSchedule
     block-dot measurement tuner (--weft-rvv-materialize-q4-0-schedule, INC-10)
     established: it ENUMERATES the bounded M band {1,2,4,6,8}, PRUNES by the
     vreg-ceiling resource bound (M <= 8; never a capability gate -- every M is
-    byte-exact on any RVV target), then either stamps the MEASURED-fastest M read
+    byte-exact on any RVV target), then either selects the MEASURED-fastest M read
     from a cached tuning record (the genuine N3 '实测胜出') or falls back to the
-    static default M (the safe cache-friendly tile M=4). It STAMPS activation_cols
-    plus a "weft_rvv.q4_0_gemm_schedule.*" resource-provenance audit trail onto
-    each weft_rvv.q4_0_q8_0_gemm op that does not already carry a hand-authored
-    activation_cols knob (additive / no-clobber).
+    static prior M (the safe cache-friendly tile M=4). Only the final
+    activation_cols field enters IR; a partial or illegal explicit plan fails.
 
     Unlike the block-dot autotuner, M is NOT capability-gated -- it is a cache/L1
     + vreg/unroll resource knob whose optimum is NOISY and analytically
@@ -556,12 +473,11 @@ def MaterializeRVVGemmSchedule
     over-blocking M6/M8 the static proxy deems suboptimal) so the offline tune
     driver MEASURES the whole band -- the BOARD ranks, not the cost proxy.
 
-    Per core-invariants: the stamped M MIRRORS the plugin-local C++ schedule
-    authority (I4); the M is derived from the validated resource facts + the
+    Per core-invariants, M is derived from the validated resource facts + the
     cached measurement, never inferred from ABI strings / family names / route
     ids, and no hardware is probed at compile time (I5); a stale record naming a
     now-illegal M is fail-closed (revalidated against the current band) and if
-    every candidate is pruned the op is left untouched (I7). The pass selects the
+    every candidate is pruned the pass fails (I7). The pass selects the
     *how* (the column-block), never the *what* (every output is byte-exact for
     every legal M).
   }];
@@ -576,7 +492,7 @@ def MaterializeRVVGemmSchedule
            "block-dot passes; the M-block legality does not consume it).">,
     Option<"tuneRecord", "tune-record", "std::string", /*default=*/"\"\"",
            "Optional path to a MEASUREMENT tuning record. When set and it carries "
-           "a still-legal entry for (kernel, capability-march), the pass stamps the "
+           "a still-legal entry for (kernel, capability-march), the pass selects the "
            "MEASURED-fastest M (the genuine N3 '实测胜出') instead of the static "
            "default. Absent / stale / unreadable => the pass falls back to the "
            "static default M (the record is an advisory cache, never a correctness "
@@ -584,52 +500,13 @@ def MaterializeRVVGemmSchedule
     Option<"dumpCandidates", "dump-candidates", "bool", /*default=*/"false",
            "Dump the LEGAL M band (the single source of truth for the vreg-ceiling "
            "prune) for the offline tune driver to consume, then exit without "
-           "stamping. Includes the over-blocking M6/M8 -- the driver MEASURES the "
+           "mutating IR. Includes the over-blocking M6/M8 -- the driver MEASURES the "
            "full band; the board ranks, not the cost proxy.">
   ];
   let constructor =
       "::weft::transforms::createMaterializeRVVGemmSchedulePass()";
   let dependentDialects = [
     "::weft::rvv::WEFTRVVDialect"
-  ];
-}
-
-def MaterializeRVVGearboxSchedules
-    : Pass<"weft-rvv-materialize-gearbox-schedules", "::mlir::ModuleOp"> {
-  let summary = "Materialize bounded RVV Gearbox schedule facts on selected typed RVV bodies";
-  let description = [{
-    Runs one RVV plugin-local Stage 2 Gearbox MVP over already selected typed
-    weft_rvv bodies. The pass recognizes the existing bounded
-    dequantize_i32_to_f32 body shape and the bounded low-precision
-    widening_product_reduce_dequantize_f32 representative, derives a bounded
-    legal candidate inventory and deterministic selected schedule/resource
-    candidate from typed body/config/runtime facts, and materializes explicit
-    weft_rvv.gearbox.* or weft_rvv.low_precision_resource.* facts on the
-    selected body boundary.
-
-    The pass does not benchmark, profile, query assembly, persist tuning
-    caches, infer from artifact names or route strings, change computation
-    semantics, change dtype semantics, mutate runtime ABI roles, alter dispatch
-    or fallback behavior, or choose target metadata. RVV provider route
-    planning remains responsible for consuming these facts before constructing
-    a lowerable route.
-  }];
-  let constructor =
-      "::weft::transforms::createMaterializeRVVGearboxSchedulesPass()";
-  let dependentDialects = [
-    "::weft::exec::WEFTExecDialect",
-    "::weft::rvv::WEFTRVVDialect"
-  ];
-  let options = [
-    Option<"reductionStructure", "reduction-structure", "std::string",
-           /*default=*/"\"\"",
-           "N3 Win-C: stamp the i16 dot-reduce reduction-STRUCTURE body fact "
-           "(orthogonal to the LMUL/budget axis). 'deferred_accumulate' -> the "
-           "loop-carried wide accumulator + ONE trailing reduce; "
-           "'per_iteration' -> a per-strip vredsum onto the running seed. Empty "
-           "(default) stamps nothing -> the realizer keeps its existing "
-           "budget-driven behavior (I7 fail-closed). Only the mf2/m1 signed "
-           "dot-reduce strip the wide selector serves is stamped.">
   ];
 }
 

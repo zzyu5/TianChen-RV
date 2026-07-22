@@ -2,13 +2,13 @@
 # RUN: rm -rf %t.exp.artifacts
 # RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --artifact-root %t.exp.artifacts --run-id explicit-composite-gms --overwrite --op-kind runtime_scalar_cmp_masked_indexed_gather_macc_scatter --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 17 --runtime-count 257 --rhs-scalar -37 --rhs-scalar 91 --weft-opt weft-opt --weft-translate weft-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
 # RUN: FileCheck %s --check-prefix=EXPLROOT < %t.exp.artifacts/explicit-composite-gms/evidence.json
-# RUN: FileCheck %s --check-prefix=EXPL --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="weft_rvv.i32_" < %t.exp.artifacts/explicit-composite-gms/runtime_scalar_cmp_masked_indexed_gather_macc_scatter/evidence.json
+# RUN: FileCheck %s --check-prefix=EXPL --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="weft_rvv.i32_" --implicit-check-not="weft_rvv.composite_resource" < %t.exp.artifacts/explicit-composite-gms/runtime_scalar_cmp_masked_indexed_gather_macc_scatter/evidence.json
 # RUN: FileCheck %s --check-prefix=EXPLH --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.exp.artifacts/explicit-composite-gms/runtime_scalar_cmp_masked_indexed_gather_macc_scatter/rvv_generated_bundle_abi_runtime_scalar_cmp_masked_indexed_gather_macc_scatter_harness.c
 
 # RUN: rm -rf %t.pre.artifacts
 # RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.pre.artifacts --run-id pre-composite-gms --overwrite --op-kind runtime_scalar_cmp_masked_indexed_gather_macc_scatter --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 17 --runtime-count 257 --rhs-scalar -37 --rhs-scalar 91 --weft-opt weft-opt --weft-translate weft-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
 # RUN: FileCheck %s --check-prefix=PREROOT < %t.pre.artifacts/pre-composite-gms/evidence.json
-# RUN: FileCheck %s --check-prefix=PRE --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="weft_rvv.i32_" < %t.pre.artifacts/pre-composite-gms/runtime_scalar_cmp_masked_indexed_gather_macc_scatter/evidence.json
+# RUN: FileCheck %s --check-prefix=PRE --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="weft_rvv.i32_" --implicit-check-not="weft_rvv.composite_resource" < %t.pre.artifacts/pre-composite-gms/runtime_scalar_cmp_masked_indexed_gather_macc_scatter/evidence.json
 # RUN: FileCheck %s --check-prefix=PREH --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.pre.artifacts/pre-composite-gms/runtime_scalar_cmp_masked_indexed_gather_macc_scatter/rvv_generated_bundle_abi_runtime_scalar_cmp_masked_indexed_gather_macc_scatter_harness.c
 
 # STDOUT: rvv_generated_bundle_abi_e2e: dry_run_success
@@ -47,18 +47,10 @@
 # EXPL-DAG: "value": "rvv-route-operand-binding:rt_scmp_gather_macc_scatter.v1;cmp_lhs=lhs-input-buffer:cmp_lhs:abi|ld|cmp-lhs|hdr;rhs_scalar=rhs-scalar-value:rhs_scalar:abi|splat|cmp-rhs|hdr;gather_src=source-input-buffer:gather_src:abi|gbase|gather|hdr;payload=dot-rhs-input-buffer:payload:abi|ld|macc-rhs|hdr;acc=accumulator-input-buffer:acc:abi|ld|macc-acc|hdr;index=index-input-buffer:index:abi|idxld|idxscale|idxmirror|hdr;dst=output-buffer:dst:abi|olddst|gpass|scatter|hdr;n=runtime-element-count:n:abi|setvl-avl|loop|hdr"
 # EXPL-DAG: "key": "weft_rvv.provider_supported_mirror"
 # EXPL-DAG: "value": "provider_supported_mirror:rvv-runtime-scalar-cmp-masked-indexed-gather-macc-scatter-plan-validated"
-# EXPL-DAG: "composite_resource_selection": {
-# EXPL-DAG: "selected_candidate": "rvv-composite-gather-macc-scatter-resource-candidate.v1[rt-scmp-indexed-gather-macc-scatter,e32m1,u1]"
-# EXPL-DAG: "vl_policy": "runtime-avl-single-setvl"
-# EXPL-DAG: "peak_live_vector_groups": "8"
-# EXPL-DAG: "vector_register_budget": "32"
-# EXPL-DAG: "runtime_abi_order": "cmp_lhs,rhs_scalar,gather_src,payload,acc,index,dst,n"
-# EXPL-DAG: "target_capability_provider_mirror": "selected_capability_provider_mirror:@rvv;id=rvv;kind=isa-vector;rvv=exact"
-# EXPL-DAG: "legality": "legal"
-# EXPL-DAG: "key": "weft_rvv.composite_resource.selected_candidate"
-# EXPL-DAG: "value": "rvv-composite-gather-macc-scatter-resource-candidate.v1[rt-scmp-indexed-gather-macc-scatter,e32m1,u1]"
-# EXPL-DAG: "key": "weft_rvv.composite_resource.vector_register_budget"
-# EXPL-DAG: "value": "32"
+# EXPL-DAG: "key": "weft_rvv.composite_route_family_plan"
+# EXPL-DAG: "value": "rvv-composite-gather-macc-scatter-route-family-plan.v1"
+# EXPL-DAG: "key": "weft_rvv.composite_typed_compute_chain"
+# EXPL-DAG: "value": "weft_rvv.masked_indexed_load+weft_rvv.masked_macc+weft_rvv.masked_indexed_store"
 # EXPL-DAG: "key": "weft_rvv.computed_mask_memory_mask_producer_source"
 # EXPL-DAG: "value": "runtime-scalar-splat-compare-rhs"
 # EXPL-DAG: "key": "weft_rvv.indexed_data_memory_form"
@@ -110,18 +102,10 @@
 # PRE-DAG: "value": "rvv-route-operand-binding:rt_scmp_gather_macc_scatter.v1"
 # PRE-DAG: "key": "weft_rvv.provider_supported_mirror"
 # PRE-DAG: "value": "provider_supported_mirror:rvv-runtime-scalar-cmp-masked-indexed-gather-macc-scatter-plan-validated"
-# PRE-DAG: "composite_resource_selection": {
-# PRE-DAG: "selected_candidate": "rvv-composite-gather-macc-scatter-resource-candidate.v1[rt-scmp-indexed-gather-macc-scatter,e32m1,u1]"
-# PRE-DAG: "vl_policy": "runtime-avl-single-setvl"
-# PRE-DAG: "peak_live_vector_groups": "8"
-# PRE-DAG: "vector_register_budget": "32"
-# PRE-DAG: "runtime_abi_order": "cmp_lhs,rhs_scalar,gather_src,payload,acc,index,dst,n"
-# PRE-DAG: "target_capability_provider_mirror": "selected_capability_provider_mirror:@rvv;id=rvv;kind=isa-vector;rvv=exact"
-# PRE-DAG: "legality": "legal"
-# PRE-DAG: "key": "weft_rvv.composite_resource.selected_candidate"
-# PRE-DAG: "value": "rvv-composite-gather-macc-scatter-resource-candidate.v1[rt-scmp-indexed-gather-macc-scatter,e32m1,u1]"
-# PRE-DAG: "key": "weft_rvv.composite_resource.vector_register_budget"
-# PRE-DAG: "value": "32"
+# PRE-DAG: "key": "weft_rvv.composite_route_family_plan"
+# PRE-DAG: "value": "rvv-composite-gather-macc-scatter-route-family-plan.v1"
+# PRE-DAG: "key": "weft_rvv.composite_typed_compute_chain"
+# PRE-DAG: "value": "weft_rvv.masked_indexed_load+weft_rvv.masked_macc+weft_rvv.masked_indexed_store"
 # PRE-DAG: "key": "weft_rvv.indexed_write_side_contract"
 # PRE-DAG: "value": "gather-payload-acc-before-active-indexed-write;destination-before-inactive-tail-preserve"
 # PRE-DAG: "indexed_gather_scatter_contract": "active lanes gather gather_src[index[i]], compute acc[i] + gathered * payload[i], and scatter to dst[index[i]] with unique noncontiguous permuted indices"

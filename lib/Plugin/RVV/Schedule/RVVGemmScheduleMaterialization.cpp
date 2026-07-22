@@ -1,23 +1,18 @@
 //===- RVVGemmScheduleMaterialization.cpp ---------------------------------===//
 //
-// The N3 MEASUREMENT-backed autotuner for the ggml Q4_0 x Q8_0 FULL GEMM
-// (weft_rvv.q4_0_q8_0_gemm) M-block: the inner activation-column block M, the one
-// knob that sets how many activation columns share each hoisted weight decode. It
-// REUSES the EXACT tune-once -> cache -> read architecture the block-dot
-// measurement tuner established -- the SAME shared 7-step materialize skeleton
-// (RVVScheduleMaterialization.h) -- and supplies ONLY the GEMM DATA via a
-// descriptor: a SINGLE M knob (activation_cols) instead of the LMUL/factor/elision
-// triple, the vreg-ceiling resource bound (M not capability-gated -- every M is
-// byte-exact on any RVV target), and the GEMM-specific audit-attr flavor
-// (vreg_ceiling, no peak-live-vreg stamp).
+// Compatibility entry for the q4_0 x q8_0 GEMM subset of the unified RVV
+// schedule formula. The formula constructs the bounded activation-column
+// candidates and analytic prior; qualified winner memory may only select one of
+// those legal candidates. This wrapper limits discovery to GgmlGemmQ40Q80Op and
+// writes only the complete final activation_cols result.
 //
 // Why MEASUREMENT (not a static cost model) selects M: the M optimum is set by TWO
 // noisy, analytically-unpredictable resources -- an L1 cache-capacity effect AND a
 // vreg/unroll-pressure effect (INC-25 G2: M=4 ~1.04x, M=6 ~0.857x regression). A
-// static cost model cannot reliably predict that M6 cliff, so the pass ENUMERATES
-// the full M band, DUMPS it (the board ranks, not the cost proxy), and STAMPS the
-// MEASURED-fastest M from the cached record; absent a record it falls back to the
-// safe default tile (M=4).
+// static cost model cannot reliably predict that M6 cliff, so the formula
+// enumerates the full M band and exposes a read-only dump. Qualified measurement
+// may correct the prior inside that finite legal set; otherwise the analytic
+// prior supplies the final result.
 //
 //===----------------------------------------------------------------------===//
 
@@ -25,7 +20,7 @@
 
 #include "Weft/Dialect/RVV/IR/RVVDialect.h"
 #include "Weft/Plugin/RVV/RVVGearboxSchedule.h"
-#include "Weft/Plugin/RVV/RVVScheduleMaterialization.h"
+#include "Weft/Plugin/RVV/RVVScheduleFormula.h"
 
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/Pass/Pass.h"
@@ -49,9 +44,10 @@ public:
       MaterializeRVVGemmSchedulePass>::MaterializeRVVGemmScheduleBase;
 
   void runOnOperation() override {
-    plugin::rvv::runRVVScheduleMaterializationViaInterface(
-        getOperation(), march, isaVectorHints, tuneRecord, dumpCandidates,
-        mlir::TypeID::get<weftrvv::GgmlGemmQ40Q80Op>());
+    if (mlir::failed(plugin::rvv::constructRVVSchedulesViaInterface(
+            getOperation(), march, isaVectorHints, tuneRecord, dumpCandidates,
+            mlir::TypeID::get<weftrvv::GgmlGemmQ40Q80Op>())))
+      signalPassFailure();
   }
 };
 

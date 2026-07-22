@@ -1,5 +1,8 @@
-{"file":"test/Plugin/FormulaCatalogTest.cpp","reason":"builtin registry、catalog、entry/caller linkage 与动态覆盖门"}
-{"file":"test/Plugin/RVVFormulaDecisionTest.cpp","reason":"g/c/ω edge、honest-null、formula/selector 分离"}
-{"file":"test/Conversion/RVV/","reason":"全 dequant mechanism plan、missing/illegal stamp 与 emitter consumption"}
-{"file":"test/Scripts/","reason":"旧 authority/caller denylist、core family branch 与 hidden target read"}
-{"file":"build/weft","reason":"focused unit/lit 与完整 check-weft"}
+{"file":"test/Plugin/FormulaCatalogTest.cpp","reason":"builtin registry、catalog、front-door/direct owner linkage、semantic cases 与 construction strength"}
+{"file":"test/Plugin/RVVFormulaDecisionTest.cpp","reason":"typed g/c/ω edge、honest-null、formula/selector 分离与 boundary behavior"}
+{"file":"test/Conversion/RVV/","reason":"final plan/body consumption、complete/absent/partial/illegal schedule behavior 与 emitter fail-closed"}
+{"file":"test/Target/RVV/","reason":"selected-body、route、artifact、ABI、low-precision 与 composite direct-path integration"}
+{"file":"test/Scripts/formula-construction-authority.test","reason":"旧 provider/materializer/replay/public attr/symbol 的零残留 denylist"}
+{"file":"scripts/rvv_generated_bundle_abi_e2e.py","reason":"bundle ABI self-test 与 final route/body evidence"}
+{"file":"scripts/rvv_generated_bundle_same_target_measure.py","reason":"measurement 只消费 formula plan artifact，不成为 route/compute authority"}
+{"file":"build/weft","reason":"clean incremental build 与完整 check-weft"}

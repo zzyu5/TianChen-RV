@@ -17,6 +17,7 @@
 
 #include <initializer_list>
 #include <string>
+#include <utility>
 
 using weft::plugin::ExtensionPlugin;
 using weft::plugin::ExtensionPluginRegistry;
@@ -57,6 +58,28 @@ public:
 
   bool isEnabled() const override { return enabled; }
 
+  void collectFormulaDescriptors(
+      llvm::SmallVectorImpl<weft::plugin::FormulaDescriptor> &out)
+      const override {
+    weft::plugin::FormulaDescriptor descriptor(
+        getFormulaID(), getName(), "test/mock-proposal",
+        weft::plugin::FormulaResultKind::CandidateSet,
+        weft::plugin::FormulaConstructionStrength::ConstructedWeak);
+    descriptor.getGeometryAxis().set(
+        weft::plugin::FormulaAxisUse::Decisive, "MockProposalGeometry");
+    descriptor.getGeometryAxis().addConsumedField("high-level-op");
+    descriptor.getCapabilityAxis().set(
+        weft::plugin::FormulaAxisUse::Decisive, "TargetCapabilitySet");
+    descriptor.getCapabilityAxis().addConsumedField(supportCapabilityID);
+    descriptor.getStaticContextAxis().set(
+        weft::plugin::FormulaAxisUse::HonestNull,
+        "MockProposalNoStaticContext");
+    descriptor.addSemanticCase("supported");
+    descriptor.addSemanticCase("unsupported");
+    descriptor.addProductionEntry("plugin:variant-proposal");
+    out.push_back(std::move(descriptor));
+  }
+
   bool supportsOperation(const VariantProposalRequest &request) const override {
     ++supportCalls;
 
@@ -79,6 +102,7 @@ public:
     ++proposalCalls;
 
     VariantProposal proposal(proposalName, originPlugin);
+    proposal.setFormulaID(getFormulaID());
     proposal.addRequiredCapabilityID(requiredCapabilityID);
     if (includeRequiredCapabilitySymbol)
       proposal.addRequiredCapabilitySymbol(requiredCapabilitySymbol);
@@ -98,6 +122,7 @@ public:
   }
 
 private:
+  std::string getFormulaID() const { return name + ".proposal.construct"; }
   std::string name;
   std::string supportCapabilityID;
   std::string proposalName;

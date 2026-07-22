@@ -32,12 +32,9 @@
 // byte-identical to the CORE == emission-plans emit (asserted below by diff). The
 // exported function symbol is the kernel+variant handoff name. NO board / NO perf
 // claim -- this is coverage/wiring maturity. q1_0's front-door-constructed op is left
-// attr-less (no shape knob); q1_0 IS in the unified schedule autotuner (the anchor
-// MOVES with VLEN: m2@VLEN128 -> m1@VLEN256), but the front door leaves the
-// integer_core_lmul knob unstamped, so the op lowers at its DEFAULT m2 integer-core
-// anchor (the VLEN-universal-safe floor: e8m2 VLMAX 32 spans the 32-element sub-block,
-// byte-exact at VLEN128) -- stamping the m1 VLEN256 anchor is a separate
-// schedule-descriptor concern, not this coverage closure.
+// The front door constructs the typed body; the separate schedule formula then
+// constructs the complete final tuple. For q1_0 the anchor moves with capability
+// (m2@VLEN128 -> m1@VLEN256); emission never interprets an absent tuple as m2.
 //
 // clang for a RISC-V RVV relocatable object is required to package the artifact.
 // REQUIRES: weft-local-rvv-object-clang
@@ -46,20 +43,20 @@
 // weft-source-artifact-front-door-pipeline materializes the emission plan AND passes
 // --weft-check-execution-plan-coherence (the flat monolithic route id is a registered
 // target-artifact export route).
-// RUN: weft-opt %s --weft-rvv-materialize-q1-0-q8-0-block-dot-source-front-door --weft-source-artifact-front-door-pipeline | FileCheck %s --check-prefix=PLAN
+// RUN: weft-opt %s --weft-rvv-materialize-q1-0-q8-0-block-dot-source-front-door --weft-rvv-materialize-schedule=march=rv64gcv --weft-source-artifact-front-door-pipeline | FileCheck %s --check-prefix=PLAN
 
 // BYTE-EXACT: --weft-materialize-emission-plans only APPENDS the emission-plan
 // diagnostic mirror; the block-dot body is untouched, so the production-export EmitC
 // is byte-for-byte the CORE --weft-rvv-lower-to-emitc emit.
-// RUN: weft-opt %s --weft-rvv-materialize-q1-0-q8-0-block-dot-source-front-door --weft-rvv-lower-to-emitc > %t.core.mlir
-// RUN: weft-opt %s --weft-rvv-materialize-q1-0-q8-0-block-dot-source-front-door --weft-materialize-emission-plans --weft-rvv-lower-to-emitc > %t.prod.mlir
+// RUN: weft-opt %s --weft-rvv-materialize-q1-0-q8-0-block-dot-source-front-door --weft-rvv-materialize-schedule=march=rv64gcv --weft-rvv-lower-to-emitc > %t.core.mlir
+// RUN: weft-opt %s --weft-rvv-materialize-q1-0-q8-0-block-dot-source-front-door --weft-rvv-materialize-schedule=march=rv64gcv --weft-materialize-emission-plans --weft-rvv-lower-to-emitc > %t.prod.mlir
 // RUN: diff %t.core.mlir %t.prod.mlir
 // RUN: FileCheck %s --check-prefix=CORE < %t.core.mlir
 
 // Target-artifact OBJECT export: the flat monolithic emission plan exports a real
 // RISC-V RVV relocatable object through the registered peer object exporter.
 // RUN: rm -f %t.o
-// RUN: weft-opt %s --weft-rvv-materialize-q1-0-q8-0-block-dot-source-front-door --weft-materialize-emission-plans | weft-translate --weft-export-target-artifact > %t.o
+// RUN: weft-opt %s --weft-rvv-materialize-q1-0-q8-0-block-dot-source-front-door --weft-rvv-materialize-schedule=march=rv64gcv --weft-materialize-emission-plans | weft-translate --weft-export-target-artifact > %t.o
 // RUN: llvm-readobj -h %t.o | FileCheck %s --check-prefix=OBJECT
 // RUN: llvm-readobj --symbols %t.o | FileCheck %s --check-prefix=SYMBOL
 

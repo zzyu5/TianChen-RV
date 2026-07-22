@@ -1,0 +1,31 @@
+# The horizontal cutover retires the incomplete eight-row matrix and every
+# production dequant compatibility authority. These checks intentionally guard
+# executable source symbols, not historical archive prose.
+
+# RUN: not rg -n 'emitGgmlDequantizeRow|kquantScaleMinPlanFromFacts|gridLookupPlanFromFacts|ternaryDecodePlanFromFacts' %S/../../include %S/../../lib
+# RUN: not rg -n 'codebook_gather_(load_lmul|strip_lanes|selection_reason)' %S/../../include %S/../../lib
+# RUN: not rg -n 'decodeModel[[:space:]]*(==|!=)|StringSwitch<.*Fmt' %S/../../lib/Conversion/RVV/RVVToEmitCForwardElementwise.cpp
+# RUN: not rg -n 'lookupDequantizeRowStreamFacts' %S/../../lib/Dialect/RVV/IR/RVVDialectWideningOps.cpp
+# RUN: not rg -n 'decideRepackAccumulatorLMUL|RepackAccumulatorLMULStaticContext' %S/../../include %S/../../lib
+# RUN: not rg -n '\b(isGgmlQuantizeRowQ8(0|1|K)Body|emitGgmlQuantizeRowQ8(0|1|K)|constructQuantizeRowRegionAndLower)\b' %S/../../include %S/../../lib
+# RUN: not rg -n 'get(Encode|Decode)Model\(' %S/../../lib/Conversion/RVV/RVVToEmitCForwardElementwise.cpp
+# RUN: not rg -n 'verifyOrWrite|requireAtomicStamp|dequant_plan_reason|codebook_gather_(minimum_vlen|provider)|RVVFormulaConstructionMaterialization|materializeRVVFormulaConstructions' %S/../../include %S/../../lib
+# RUN: not rg -n 'RVVRepackTilingSelection|RVVRepackScheduleMaterialization|stampScheduleSelections|verifyRVVRepackSchedulePlans|readAndVerifyRVVRepackSchedulePlan|resolveRepackMainTermRolled|emit_loop_schedule|weft_rvv\.loop_order|weft_rvv\.tiling_|loop_order_selection_(reason|record)|tiling_selection_(reason|record)' %S/../../include %S/../../lib
+# RUN: not rg -n 'RVVScheduleMaterializationDescriptor|stampRVVSchedule|isSchedulePinned|weft_rvv\.(q4_0|q1_0|tq2_0|tq1_0|iq2_xxs|mxfp4|q4_0_gemm)_schedule\.(producer|candidate|legal|cost|budget|selection|measured|has_zvl)' %S/../../include %S/../../lib
+# RUN: not rg -n 'deriveBlockDotFacts|defaultCoreLmul|get(IntegerCoreLmul|MultiBlockFactor|StripElision|StripLmul)[^;]*value_or|value_or\("(mf[248]|m[1248]|robust|elided|strict|relaxed)"\)' %S/../../include/Weft/Conversion/RVV %S/../../lib/Conversion/RVV
+# RUN: not rg -n 'weft-rvv-materialize-gearbox-schedules|MaterializeRVVGearboxSchedules|RVVLowPrecisionPerformancePolicy|RVVLowPrecisionContractionResourceSelection|deriveRVVLowPrecisionContractionResourceSelection|weft_rvv\.(gearbox_cross_region_handoff|vsetvl_region_marker)' %S/../../include %S/../../lib %S/../../tools
+# RUN: not rg -n 'weft_rvv\.(low_precision_resource|gearbox)|gearbox_selected_integer_core_lmul' %S/../../include %S/../../lib %S/../../tools
+# RUN: not rg -n 'weft_rvv\.composite_resource|RVVCompositeGatherMAccScatterResourceSelection|composite_resource_selection' %S/../../include %S/../../lib %S/../../tools
+# RUN: not rg -n 'Weft/Conversion/RVV/RVVFormulaConstruction.h|lib/Conversion/RVV/RVVFormulaConstruction.cpp' %S/../../include %S/../../lib %S/../../tools
+# RUN: not rg -n 'constructRVVStandaloneDequantScheduleFormula\(' %S/../../lib --glob '!**/Plugin/RVV/Construction/RVVFormulaConstruction.cpp'
+# RUN: rg -n 'constructRVVStandaloneDequantScheduleFormula\(' %S/../../lib/Plugin/RVV/Construction/RVVFormulaConstruction.cpp | FileCheck %s --check-prefix=DEQUANT-OWNER
+# RUN: FileCheck %s --check-prefix=CONSTRUCTION-ORDER < %S/../../lib/Transforms/EmissionReadiness.cpp
+
+# DEQUANT-OWNER: constructRVVStandaloneDequantScheduleFormula(
+# CONSTRUCTION-ORDER-LABEL: class MaterializeEmissionPlansPass final
+# CONSTRUCTION-ORDER: void runOnOperation() override {
+# CONSTRUCTION-ORDER-NEXT: if (llvm::Error error = registry->constructFormulaPlans(getOperation())) {
+# CONSTRUCTION-ORDER: getOperation()->walk([&](KernelOp kernel)
+
+# RUN: echo 'formula construction authority denylist clean' | FileCheck %s
+# CHECK: formula construction authority denylist clean

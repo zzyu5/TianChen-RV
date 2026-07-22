@@ -1,8 +1,8 @@
-# cell MANIFEST — formula-layer-migration
+# archived cell MANIFEST — formula-layer-migration
 
 - **campaign**: A-line modular formula consumption and authority convergence
-- **status**: ACTIVE — A1 baseline plus completed A2 typed-decision cutover; A3–A5/A8 update the matrix and ledger atomically
-- **role**: Durable architecture evidence for the real g/c/ω → provider → legality → selection → stamp → consumer chains. It records both working assets and named retirement debt; it is not a performance result cell and does not define winners.
+- **status**: ARCHIVED 2026-07-22 — superseded by the registry-derived formula catalog and horizontal construction rebase
+- **role**: Historical investigation only. The eight-row matrix and ledger are not current architecture, coverage, or migration authority.
 
 ## durable files
 

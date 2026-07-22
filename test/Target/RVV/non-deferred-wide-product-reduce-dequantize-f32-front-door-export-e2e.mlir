@@ -1,21 +1,17 @@
 // END-TO-END production-export CLOSURE for the Track-B dequant front door: the
 // front door's OWN auto-constructed body now flows through the production export
-// pipeline (--weft-materialize-emission-plans), proving the front door stamps the
-// N3 low_precision_resource.* facts the NON-deferred wide product-reduce-dequant
-// op-kind requires for route acceptance.
+// pipeline (--weft-materialize-emission-plans), proving that the formula layer
+// derives the typed low-precision primitive plan required by the non-deferred
+// wide product-reduce-dequant route.
 //
 // WHY this is a distinct, load-bearing test (vs the hand-written fixture
 // non-deferred-wide-product-reduce-dequantize-f32-export.mlir): that fixture is a
-// fair WITNESS of the EXPORT-LAYER fix -- it hand-stamps the resource facts on an
-// already-materialized body. This test starts from the GENERIC vector source and
-// runs the COMPILER's own front door, which must AUTO-construct the wide body AND
-// auto-stamp the resource facts (derived structurally from the realized i8m2/i16m4
-// strip, I5). Before the front-door fact-stamp, this exact chain failed
-// --weft-materialize-emission-plans with "requires ... resource fact
-// 'weft_rvv.low_precision_resource.candidate_set' before route acceptance"; the
-// front door built the right body SHAPE but stamped ZERO resource facts.
+// fair witness of the export-layer path on an already-materialized body. This
+// test starts from the generic vector source and runs the compiler's own front
+// door; the formula construction cut must derive the wide primitive plan from
+// the realized i8m2/i16m4 strip instead of consuming resource-selection mirrors.
 //
-// The CHAIN: generic vector source --auto-construct body + stamp facts-->
+// The chain: generic vector source --construct typed body and formula plan-->
 // --materialize emission plans--> (--lower-to-emitc). At march=rv64gcv (VLEN128)
 // the realized strip is i8m2 -> i16m4 -> i32m1, carrying the SAME wide-primitive /
 // narrow-identity split the fixture pins. At march=rv64gcv_zvl256b (VLEN256) the

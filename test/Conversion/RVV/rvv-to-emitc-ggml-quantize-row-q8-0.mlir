@@ -5,12 +5,12 @@
 // STRUCTURED emitc IR (I5; ZERO raw() strings). This is the CONSTRUCT-FROM-ABSTRACT
 // proof of the quantize FRONT DOOR (G3 line-B, family-head of the f32->QUANT
 // activation-quantizer spectrum, the MIRROR of the dequantize_row front door): the
-// abstract weft_rvv.quantize_row_q8_0 is FRONT-DOOR CONSTRUCTED --
-// constructQuantizeRowRegionAndLower rewrites it into the typed
+// mandatory pre-emission formula cut rewrites abstract weft_rvv.quantize_row_q8_0
+// into the typed
 // weft_rvv.typed_quantize_row_loop_body region { quantize_row_encode_core;
 // typed_quantize_row_loop_yield } and lowers it via emitTypedQuantizeRowLoopBody ->
 // emitQuantizeRowQ80BodyShared (the emission is DRIVEN by the typed region op-identity
-// + encode_model, [L-6]/[L-8] construction). The emitted C is BYTE-IDENTICAL to the
+// + formula-produced quantize_leaf; encode_model is provenance only). The emitted C is BYTE-IDENTICAL to the
 // retired dispatch-wired q8_0 monolith modulo ONLY the source-op provenance token. The
 // single typed op weft_rvv.quantize_row_q8_0 lowers to an AoS block loop (nb = n/32) whose body
 // per block: loads the 32 f32 lanes in ONE e32m8 strip (vl=32), takes amax via

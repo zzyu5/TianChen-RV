@@ -70,8 +70,7 @@ module {
 // STAMP-VLEN128: weft_rvv.iq2_xxs_q8_k_grid_core
 // STAMP-VLEN128-SAME: integer_core_lmul = "m2"
 // STAMP-VLEN128-SAME: minimum_vlen = 128 : i64
-// STAMP-VLEN128-SAME: weft_rvv.iq2_xxs_schedule.has_zvl128b = true
-// STAMP-VLEN128-SAME: weft_rvv.iq2_xxs_schedule.producer = "rvv-iq2-xxs-autotuner"
+// STAMP-VLEN128-NOT: weft_rvv.iq2_xxs_schedule.
 //
 // rv64gcv_zvl256b (VLEN256): the SAME brick FLIPS to m1 -- at VLEN256 m1's e8 VLMAX
 // reaches 32 and i64m1 VLMAX reaches the 4 grid entries, so it spans the sub-block in ONE

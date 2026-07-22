@@ -26,6 +26,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "Weft/Plugin/RVV/RVVMonolithicBlockDotSourceFrontDoor.h"
+#include "Weft/Plugin/RVV/RVVFormulaCatalog.h"
 
 #include "Weft/Dialect/Exec/IR/ExecOps.h"
 #include "Weft/Dialect/RVV/IR/RVVDialect.h"
@@ -704,7 +705,11 @@ void createTypedFlatBlockDotLoopChain(mlir::OpBuilder &builder,
       "strip_elision",
       builder.getStringAttr((!isHalfBlock && !isIq4Nl && lmul == "m1") ? "robust"
                                                                        : "elided"));
-  // mbf==1 pin: do NOT stamp multi_block_factor (absent = factor 1).
+  // Deterministic final schedule fields are constructed explicitly.  The
+  // emitter never interprets absence as a code-shape choice.
+  loopState.addAttribute("multi_block_factor", builder.getI64IntegerAttr(1));
+  loopState.addAttribute("fold_structure", builder.getStringAttr("per-block"));
+  loopState.addAttribute("numerics_tier", builder.getStringAttr("strict"));
   loopState.addRegion();
   auto loop = llvm::cast<weftrvv::TypedFlatBlockDotLoopBodyOp>(
       builder.create(loopState));
@@ -1025,9 +1030,9 @@ void createTypedFlatBlockDotLoopChainNvfp4(
                          builder.getI64IntegerAttr(activationStride));
   // fold_model "flat_nvfp4_codebook" KEYS the emitter dispatch (the nvfp4 branch) +
   // the per-sub-block UE4M3-codebook fold; the emitter disambiguates nvfp4 by the
-  // in-region codebook integer-core brick op TYPE. integer_core_lmul /
-  // multi_block_factor / strip_elision are LEFT OFF (attr-less = the m1 codebook
-  // anchor, byte-exact target).
+  // in-region codebook integer-core brick op TYPE.  The loop-level scheduling
+  // axes are inapplicable to this closed body; the codebook brick still records
+  // its fixed m1 compute anchor explicitly.
   loopState.addAttribute("fold_model",
                          builder.getStringAttr("flat_nvfp4_codebook"));
   loopState.addRegion();
@@ -1072,6 +1077,7 @@ void createTypedFlatBlockDotLoopChainNvfp4(
     s.addAttribute("activation_high_byte_offset",
                    builder.getI64IntegerAttr(activationHighOffset));
     s.addAttribute("codebook", builder.getDenseI8ArrayAttr(entry.codebook));
+    s.addAttribute("integer_core_lmul", builder.getStringAttr("m1"));
     s.addTypes({i32ScalarType});
     (void)builder.create(s);
   }
@@ -1226,7 +1232,10 @@ void createTypedSuperBlockBlockDotLoopChain(
                    builder.getI64IntegerAttr(weightStride));
     s.addAttribute("activation_quant_byte_offset",
                    builder.getI64IntegerAttr(activationQuantOffset));
-    // integer_core_lmul LEFT OFF => emitter default mf2 (untuned monolith parity).
+    // This closed constructor pins the byte-identical deterministic anchor.
+    // A later formula may construct a different legal anchor, but emission never
+    // interprets an absent field as mf2.
+    s.addAttribute("integer_core_lmul", builder.getStringAttr("mf2"));
     s.addTypes(i32VecType);
     (void)builder.create(s);
   }
@@ -2341,9 +2350,8 @@ void createTypedSuperBlockScalarDeltaGridLoopChainTq20(
 // trailing factor, so the whole per-super-block body is emitter-inlined keyed off the
 // ternary-core brick identity. It resolves to its OWN export entry by fold_model +
 // weight_block_stride 54 (UNIQUE among the scalar_delta_grid bricks -- tq2_0/iq2_xxs are 66),
-// so NO stride tie-breaker is needed. Like tq2_0 the brick PRESERVES tq1_0's Win-A
-// integer_core_lmul m2/m1 gearbox (kernel key "tq1_0", left attr-less at construction = the
-// default m2 anchor). The brick's per-super-block addressing keys off the loop induction
+// so NO stride tie-breaker is needed. Unlike tq2_0, the realized tq1_0 brick is
+// VLEN-universal and has no inert LMUL schedule field. The brick's per-super-block addressing keys off the loop induction
 // variable (region arg 0), so the emit is operand-driven (anti-bypass).
 void createTypedSuperBlockScalarDeltaGridLoopChainTq10(
     mlir::OpBuilder &builder, mlir::Location loc,
@@ -2385,9 +2393,7 @@ void createTypedSuperBlockScalarDeltaGridLoopChainTq10(
   // ternary-core brick op TYPE (and tq1_0's stride 54 is UNIQUE among these bricks).
   loopState.addAttribute("fold_model",
                          builder.getStringAttr("scalar_delta_grid"));
-  // integer_core_lmul is LEFT OFF here (attr-less construction = the default m2 anchor, the
-  // byte-exact CORE target); tq1_0's Win-A gearbox lives on the ternary-core brick below and
-  // is refined m2->m1 at VLEN>=256 by the separate schedule pass.
+  // The tq1_0 ternary-core brick below has one fixed realized vector body.
   loopState.addRegion();
   auto loop = llvm::cast<weftrvv::TypedSuperBlockBlockDotLoopBodyOp>(
       builder.create(loopState));
@@ -3319,8 +3325,8 @@ materializeKernel(mlir::OpBuilder &builder, llvm::StringRef kernelName,
   // widened dot producing the ONE scalar state sumi -- NO grid/codebook gather). It flips to
   // the typed super-block SCALAR-accumulator loop chain, resolving to its OWN export entry by
   // the marker pass name (its weight_block_stride 54 is UNIQUE among the scalar_delta_grid
-  // bricks, so no stride tie-breaker is needed). Like tq2_0 the brick PRESERVES tq1_0's Win-A
-  // integer_core_lmul m2/m1 gearbox (kernel key "tq1_0"). The monolith op
+  // bricks, so no stride tie-breaker is needed). Unlike tq2_0, tq1_0 has one
+  // VLEN-universal realized body and no inert LMUL schedule field. The monolith op
   // weft_rvv.tq1_0_q8_k_block_dot is retired, so this gate keys off the entry.opName STRING
   // (no op type reference).
   const bool isTq10TypedSuperBlock =
@@ -3574,7 +3580,7 @@ materializeKernel(mlir::OpBuilder &builder, llvm::StringRef kernelName,
     // producing the ONE scalar state sumi, then the emitter-inlined scalar fold
     // `sumf += (float)sumi * d`, NO trailing factor). C_construct payoff -- REUSES the whole
     // tq2_0 ternary scaffold at C2 marginal cost and only adds a base-3 variant integer-core
-    // brick that PRESERVES tq1_0's Win-A m2/m1 gearbox (kernel key "tq1_0"). Resolves to tq1_0's
+    // brick with one fixed VLEN-universal vector body. Resolves to tq1_0's
     // OWN export entry by the marker pass (stride 54 is UNIQUE, no tie-breaker needed).
     createTypedSuperBlockScalarDeltaGridLoopChainTq10(builder, loc, entry, weight,
                                                       activation, out, n,
@@ -3879,6 +3885,7 @@ llvm::Error registerRVVMonolithicBlockDotSourceFrontDoorPasses(
     const MonolithicBlockDotOpEntry *entryPtr = &entry;
     out.push_back(SourceFrontDoorPassRegistration(
         ownerPlugin, entry.passArgument, kPassDescription,
+        formula_catalog::kMonolithicBlockDotConstruction,
         [entryPtr, registryPtr] {
           return createMaterializeRVVMonolithicBlockDotSourceFrontDoorPass(
               entryPtr, registryPtr);

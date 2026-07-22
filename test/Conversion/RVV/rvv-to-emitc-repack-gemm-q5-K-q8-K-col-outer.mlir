@@ -1,7 +1,7 @@
 // RUN: weft-opt %s --weft-rvv-lower-to-emitc | FileCheck %s
 
 // [loop-order REALIZE 铺面] col_outer byte-exact fixture for the q5-K prefill-GEMM leaf
-// (emitRepackKQuantGemmBodyQ5K). The loop-body op is stamped weft_rvv.loop_order = "col_outer" with
+// (emitRepackKQuantGemmBodyQ5K). The loop-body op is stamped loop_order = "col_outer" with
 // selection_reason "measured"; reason is attribution and does not gate realization
 // (an unmeasured layout-prior stamp keeps the M1-committed row_outer default, which
 // the existing row_outer fixture pins byte-identical). Under the MEASURED col_outer
@@ -25,7 +25,7 @@ module {
       %bs = weft_rvv.runtime_abi_value {c_name = "bs", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "bs", role = "output-stride"} : index
       %vl = weft_rvv.setvl %n {lmul = "m1", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !weft_rvv.vl
       weft_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @ggml_repack_gemm_q5_K_q8_K, sew = 32 : i64, source_kernel = "ggml_repack_gemm_q5_K_q8_K_kernel", status = "selected-lowering-boundary"} {
-        weft_rvv.typed_repack_gemm_loop_body %vx, %vy, %s, %n, %nr, %nc, %bs attributes {kind = "typed_repack_gemm_loop_body", scale_model = "superblock-d.dmin-fp16-plus-bsums-min-8-subblocks-4col-qh5", qk = 256 : i64, weight_block_stride = 2816 : i64, activation_block_stride = 1168 : i64, weight_quant_byte_offset = 768 : i64, activation_quant_byte_offset = 16 : i64, weight_dmin_byte_offset = 32 : i64, weight_scales_byte_offset = 64 : i64, weight_qh_byte_offset = 256 : i64, activation_bsums_byte_offset = 1040 : i64, n_subblocks = 8 : i64, weight_interleave = 16 : i64, activation_interleave = 4 : i64, half_lanes = 8 : i64, integer_core_lmul = "mf2", fold_model = "kquant_dmin_bsums_min", weft_rvv.loop_order = "col_outer", weft_rvv.loop_order_selection_reason = "measured", weft_rvv.tiling_variant = "s6_tiled", weft_rvv.tiling_selection_reason = "only_feasible"} {
+        weft_rvv.typed_repack_gemm_loop_body %vx, %vy, %s, %n, %nr, %nc, %bs attributes {kind = "typed_repack_gemm_loop_body", scale_model = "superblock-d.dmin-fp16-plus-bsums-min-8-subblocks-4col-qh5", qk = 256 : i64, weight_block_stride = 2816 : i64, activation_block_stride = 1168 : i64, weight_quant_byte_offset = 768 : i64, activation_quant_byte_offset = 16 : i64, weight_dmin_byte_offset = 32 : i64, weight_scales_byte_offset = 64 : i64, weight_qh_byte_offset = 256 : i64, activation_bsums_byte_offset = 1040 : i64, n_subblocks = 8 : i64, weight_interleave = 16 : i64, activation_interleave = 4 : i64, half_lanes = 8 : i64, integer_core_lmul = "mf2", fold_model = "kquant_dmin_bsums_min", main_term_form = "unrolled", loop_order = "col_outer"} {
         ^bb0(%block_index: index, %roff: index, %acc0: !weft_rvv.vector<f32, "m2">, %acc1: !weft_rvv.vector<f32, "m2">, %acc2: !weft_rvv.vector<f32, "m2">, %acc3: !weft_rvv.vector<f32, "m2">):
           // The block_index + strip_row_offset tied q5_K GEMM integer-core BRICK:
           // per-block lane-wise q5_K dot across the 4 interleaved columns -> the
@@ -46,7 +46,7 @@ module {
 // row_outer output too. The UNIQUE discriminator is the group-base callee marker
 // pinned by CHECK-NEXT to each group loop header: col_outer => the WEIGHT group base
 // is computed in the OUTER loop, act group base INSIDE. Negative control: flipping
-// weft_rvv.loop_order to "row_outer" swaps the two markers and turns this RED.
+// loop_order to "row_outer" swaps the two markers and turns this RED.
 // CHECK-NOT: weft_rvv.typed_repack_gemm_loop_body
 // CHECK: emitc.func @
 // col_outer: the weight-column-GROUP loop is OUTER; its per-group weight base

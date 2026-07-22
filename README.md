@@ -67,17 +67,18 @@ The repository already contains:
 These assets do not mean the project is finished. The common authority foundation
 now enumerates registered/direct construction entries in one lightweight catalog
 while keeping evaluation in family-local typed formulas. Quantize/dequantize final
-bodies, repack loop-order/main-term schedules and interface-discovered tunable RVV
-schedules are constructed before emission. A complete explicit schedule is validated,
-an absent schedule is constructed, and a partial or illegal tuple is rejected;
-emitters do not fill schedule defaults. The obsolete repack strip-width materializer
-has exited the public pipeline.
+bodies, repack loop-order/main-term schedules, interface-discovered tunable RVV
+schedules and low-precision selected-body resource plans are constructed before
+emission. A complete explicit schedule is validated, an absent schedule is
+constructed, and a partial or illegal tuple is rejected; emitters do not fill
+schedule defaults. The obsolete repack strip-width materializer, Gearbox pass,
+resource-selection mirrors and composite resource replay have exited the public
+pipeline.
 
-One public construction surface is still under the same horizontal audit: the
-low-precision Gearbox/pre-realized-body pass still materializes candidate, selection
-and audit mirrors before selected-body realization. Until that surface is either
-reduced to formula construction plus mechanical realization or retired, the whole
-compiler must not be described as having a single construction authority.
+The current production surface therefore has one construction authority boundary:
+formula construction creates the typed result, route/realization consumes it, and
+emission is mechanical. This is an authority convergence result, not a claim that
+every complete leaf already passes delete-leaf reconstruction.
 
 Even after that authority boundary closes, catalog coverage is not strong
 reconstruction. Entries marked `ConstructedWeak` still depend on complete mechanical

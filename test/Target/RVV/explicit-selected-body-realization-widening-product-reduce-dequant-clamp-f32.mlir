@@ -1,20 +1,20 @@
-// RUN: weft-opt %s --weft-rvv-materialize-gearbox-schedules --weft-materialize-selected-lowering-boundaries | FileCheck %s --check-prefix=REALIZED --implicit-check-not=weft_rvv.gearbox_cross_region_handoff --implicit-check-not=weft_rvv.vsetvl_region_marker
-// RUN: weft-opt %s --weft-rvv-materialize-gearbox-schedules --weft-materialize-selected-lowering-boundaries --weft-materialize-emission-plans | FileCheck %s --check-prefix=PLAN
-// RUN: weft-opt %s --weft-rvv-materialize-gearbox-schedules --weft-materialize-selected-lowering-boundaries --weft-materialize-emission-plans | weft-translate --weft-export-target-header-artifact | FileCheck %s --check-prefix=HEADER
-// RUN: sed '/typed_widening_product_reduce_dequant_clamp_f32_body/s/op_kind = "widening_product_reduce_dequant_clamp_f32"/op_kind = "metadata_route"/' %s | not weft-opt --weft-rvv-materialize-gearbox-schedules --weft-materialize-selected-lowering-boundaries 2>&1 | FileCheck %s --check-prefix=MISSING-OP
-// RUN: sed '/typed_widening_product_reduce_dequant_clamp_f32_body/s/product_reduction_chain_relation = "signed-i8mf4xi8mf4-to-i16mf2-reduce-plus-i32-scalar-to-i32"/product_reduction_chain_relation = "metadata-product-reduction"/' %s | not weft-opt --weft-rvv-materialize-gearbox-schedules --weft-materialize-selected-lowering-boundaries 2>&1 | FileCheck %s --check-prefix=MISSING-REDUCTION
-// RUN: sed '/typed_widening_product_reduce_dequant_clamp_f32_body/s/source_sew = 8 : i64/source_sew = 16 : i64/' %s | not weft-opt --weft-rvv-materialize-gearbox-schedules --weft-materialize-selected-lowering-boundaries 2>&1 | FileCheck %s --check-prefix=DTYPE-CHAIN
-// RUN: sed '/c_name = "scale"/s/c_type = "float"/c_type = "float *"/;/c_name = "scale"/s/role = "dequant-scale-value"/role = "output-buffer"/' %s | not weft-opt --weft-rvv-materialize-gearbox-schedules --weft-materialize-selected-lowering-boundaries 2>&1 | FileCheck %s --check-prefix=MISSING-SCALE
-// RUN: sed '/c_name = "lower_bound"/s/role = "lower-bound-scalar-value"/role = "upper-bound-scalar-value"/' %s | not weft-opt --weft-rvv-materialize-gearbox-schedules --weft-materialize-selected-lowering-boundaries 2>&1 | FileCheck %s --check-prefix=MISSING-LOWER
-// RUN: sed 's/#weft_rvv.policy<tail = agnostic, mask = agnostic>/#weft_rvv.policy<tail = undisturbed, mask = agnostic>/g' %s | not weft-opt --weft-rvv-materialize-gearbox-schedules --weft-materialize-selected-lowering-boundaries 2>&1 | FileCheck %s --check-prefix=UNSUPPORTED-POLICY
-// RUN: sed '/typed_widening_product_reduce_dequant_clamp_f32_body/s/policy = /route_id = "rvv-i32m1", policy = /' %s | not weft-opt --weft-rvv-materialize-gearbox-schedules --weft-materialize-selected-lowering-boundaries 2>&1 | FileCheck %s --check-prefix=STALE-AUTH
-// RUN: weft-opt %s --weft-rvv-materialize-gearbox-schedules --weft-materialize-selected-lowering-boundaries --weft-materialize-emission-plans | sed '0,/provider_supported_mirror:rvv-contraction-family-plan-validated/s//provider_supported_mirror:rvv-artifact-name-authority/' | not weft-translate --weft-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-PROVIDER
-// RUN: weft-opt %s --weft-rvv-materialize-gearbox-schedules --weft-materialize-selected-lowering-boundaries --weft-materialize-emission-plans | sed '0,/weft_rvv.runtime_abi_order", value = "lhs,rhs,acc,scale,lower_bound,upper_bound,out,n/s//weft_rvv.runtime_abi_order", value = "lhs,rhs,acc,lower_bound,scale,upper_bound,out,n/' | not weft-translate --weft-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-ABI
-// RUN: weft-opt %s --weft-rvv-materialize-gearbox-schedules --weft-materialize-selected-lowering-boundaries --weft-materialize-emission-plans | sed '0,/lower_bound=lower-bound-scalar-value:lower_bound:abi|lo|splat|cmp|sel|hdr/s//lower_bound=lower-bound-scalar-value:lower_bound:abi|lo|splat|cmp|sel/' | not weft-translate --weft-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-BINDING
+// RUN: weft-opt %s --weft-materialize-selected-lowering-boundaries | FileCheck %s --check-prefix=REALIZED --implicit-check-not=weft_rvv.gearbox_cross_region_handoff --implicit-check-not=weft_rvv.vsetvl_region_marker
+// RUN: weft-opt %s --weft-materialize-selected-lowering-boundaries --weft-materialize-emission-plans | FileCheck %s --check-prefix=PLAN
+// RUN: weft-opt %s --weft-materialize-selected-lowering-boundaries --weft-materialize-emission-plans | weft-translate --weft-export-target-header-artifact | FileCheck %s --check-prefix=HEADER
+// RUN: sed '/typed_widening_product_reduce_dequant_clamp_f32_body/s/op_kind = "widening_product_reduce_dequant_clamp_f32"/op_kind = "metadata_route"/' %s | not weft-opt --weft-materialize-selected-lowering-boundaries 2>&1 | FileCheck %s --check-prefix=MISSING-OP
+// RUN: sed '/typed_widening_product_reduce_dequant_clamp_f32_body/s/product_reduction_chain_relation = "signed-i8mf4xi8mf4-to-i16mf2-reduce-plus-i32-scalar-to-i32"/product_reduction_chain_relation = "metadata-product-reduction"/' %s | not weft-opt --weft-materialize-selected-lowering-boundaries 2>&1 | FileCheck %s --check-prefix=MISSING-REDUCTION
+// RUN: sed '/typed_widening_product_reduce_dequant_clamp_f32_body/s/source_sew = 8 : i64/source_sew = 16 : i64/' %s | not weft-opt --weft-materialize-selected-lowering-boundaries 2>&1 | FileCheck %s --check-prefix=DTYPE-CHAIN
+// RUN: sed '/c_name = "scale"/s/c_type = "float"/c_type = "float *"/;/c_name = "scale"/s/role = "dequant-scale-value"/role = "output-buffer"/' %s | not weft-opt --weft-materialize-selected-lowering-boundaries 2>&1 | FileCheck %s --check-prefix=MISSING-SCALE
+// RUN: sed '/c_name = "lower_bound"/s/role = "lower-bound-scalar-value"/role = "upper-bound-scalar-value"/' %s | not weft-opt --weft-materialize-selected-lowering-boundaries 2>&1 | FileCheck %s --check-prefix=MISSING-LOWER
+// RUN: sed 's/#weft_rvv.policy<tail = agnostic, mask = agnostic>/#weft_rvv.policy<tail = undisturbed, mask = agnostic>/g' %s | not weft-opt --weft-materialize-selected-lowering-boundaries 2>&1 | FileCheck %s --check-prefix=UNSUPPORTED-POLICY
+// RUN: sed '/typed_widening_product_reduce_dequant_clamp_f32_body/s/operand_encoding = "unpacked_i8", policy = /operand_encoding = "unpacked_i8", route_id = "rvv-i32m1", policy = /' %s | not weft-opt --weft-materialize-selected-lowering-boundaries 2>&1 | FileCheck %s --check-prefix=STALE-AUTH
+// RUN: weft-opt %s --weft-materialize-selected-lowering-boundaries --weft-materialize-emission-plans | sed '0,/provider_supported_mirror:rvv-contraction-family-plan-validated/s//provider_supported_mirror:rvv-artifact-name-authority/' | not weft-translate --weft-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-PROVIDER
+// RUN: weft-opt %s --weft-materialize-selected-lowering-boundaries --weft-materialize-emission-plans | sed '0,/weft_rvv.runtime_abi_order", value = "lhs,rhs,acc,scale,lower_bound,upper_bound,out,n/s//weft_rvv.runtime_abi_order", value = "lhs,rhs,acc,lower_bound,scale,upper_bound,out,n/' | not weft-translate --weft-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-ABI
+// RUN: weft-opt %s --weft-materialize-selected-lowering-boundaries --weft-materialize-emission-plans | sed '0,/lower_bound=lower-bound-scalar-value:lower_bound:abi|lo|splat|cmp|sel|hdr/s//lower_bound=lower-bound-scalar-value:lower_bound:abi|lo|splat|cmp|sel/' | not weft-translate --weft-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-BINDING
 // Stage 3 single-scope grouped flip: the handoff op is retired from the typed
 // compute op list; injecting a stray handoff back into the list must fail-closed
 // at manifest validation (the structural op list is checked).
-// RUN: weft-opt %s --weft-rvv-materialize-gearbox-schedules --weft-materialize-selected-lowering-boundaries --weft-materialize-emission-plans | sed '/rvv_selected_body_typed_compute_op/s/weft_rvv.widening_product+/weft_rvv.widening_product+weft_rvv.gearbox_cross_region_handoff+/' | not weft-translate --weft-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-HANDOFF
+// RUN: weft-opt %s --weft-materialize-selected-lowering-boundaries --weft-materialize-emission-plans | sed '/rvv_selected_body_typed_compute_op/s/weft_rvv.widening_product+/weft_rvv.widening_product+weft_rvv.gearbox_cross_region_handoff+/' | not weft-translate --weft-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-HANDOFF
 
 // Explicit selected-body input for the bounded Stage 2 signed i8 product ->
 // i16 product -> i32 reduction -> runtime-scale f32 dequantization -> runtime
@@ -35,7 +35,7 @@ module {
       %upper = weft_rvv.runtime_abi_value {c_name = "upper_bound", c_type = "float", ownership = "target-export-abi-owned", purpose = "explicit-selected-body-widening-product-reduce-dequant-clamp-f32:upper", role = "upper-bound-scalar-value"} : f32
       %out = weft_rvv.runtime_abi_value {c_name = "out", c_type = "float *", ownership = "target-export-abi-owned", purpose = "explicit-selected-body-widening-product-reduce-dequant-clamp-f32:out", role = "output-buffer"} : !weft_rvv.runtime_abi_value
       %n = weft_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "explicit-selected-body-widening-product-reduce-dequant-clamp-f32:n", role = "runtime-element-count"} : index
-      weft_rvv.typed_widening_product_reduce_dequant_clamp_f32_body %lhs, %rhs, %acc, %scale, %lower, %upper, %out, %n {accumulator_carry_boundary = "vector-i32m1-carry-dot_acc_vec-across-runtime-vl-chunks-final-scalar-extract-f32-store.v1", accumulator_layout = "scalar-i32-seed-lane0-from-accumulator-input", accumulator_lmul = "m1", accumulator_role = "accumulator-input-buffer", accumulator_sew = 32 : i64, bound_order = "lower-bound-before-upper-bound", dequant_relation = "signed-i32m1-to-f32m1-scale-f32", dequant_store_boundary = "store-clamped-dequantized-f32-vector-to-output-buffer", lower_predicate_kind = "slt", memory_form = "unit-stride-widening-product-reduce-dequant-clamp-f32", op_kind = "widening_product_reduce_dequant_clamp_f32", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, product_lmul = "mf2", product_reduction_chain_relation = "signed-i8mf4xi8mf4-to-i16mf2-reduce-plus-i32-scalar-to-i32", product_relation = "signed-i8mf4xi8mf4-to-i16mf2", product_sew = 16 : i64, result_layout = "store-standalone-reduction-lane0-to-output-scalar", result_lmul = "m1", result_sew = 32 : i64, scale_role = "dequant-scale-value", select_layout = "clamp-lower-then-upper", source_lmul = "mf4", source_sew = 8 : i64, upper_predicate_kind = "slt"} : (!weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, f32, f32, !weft_rvv.runtime_abi_value, index) -> ()
+      weft_rvv.typed_widening_product_reduce_dequant_clamp_f32_body %lhs, %rhs, %acc, %scale, %lower, %upper, %out, %n {accumulator_carry_boundary = "vector-i32m1-carry-dot_acc_vec-across-runtime-vl-chunks-final-scalar-extract-f32-store.v1", accumulator_layout = "scalar-i32-seed-lane0-from-accumulator-input", accumulator_lmul = "m1", accumulator_role = "accumulator-input-buffer", accumulator_sew = 32 : i64, bound_order = "lower-bound-before-upper-bound", dequant_relation = "signed-i32m1-to-f32m1-scale-f32", dequant_store_boundary = "store-clamped-dequantized-f32-vector-to-output-buffer", lower_predicate_kind = "slt", memory_form = "unit-stride-widening-product-reduce-dequant-clamp-f32", op_kind = "widening_product_reduce_dequant_clamp_f32", operand_encoding = "unpacked_i8", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, product_lmul = "mf2", product_reduction_chain_relation = "signed-i8mf4xi8mf4-to-i16mf2-reduce-plus-i32-scalar-to-i32", product_relation = "signed-i8mf4xi8mf4-to-i16mf2", product_sew = 16 : i64, result_layout = "store-standalone-reduction-lane0-to-output-scalar", result_lmul = "m1", result_sew = 32 : i64, scale_role = "dequant-scale-value", select_layout = "clamp-lower-then-upper", source_lmul = "mf4", source_sew = 8 : i64, upper_predicate_kind = "slt"} : (!weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, f32, f32, !weft_rvv.runtime_abi_value, index) -> ()
     }
     weft.exec.variant @explicit_scalar_fallback attributes {fallback_role = "conservative", origin = "scalar-plugin", policy = "portable_scalar_fallback_first_slice", requires = [@scalar_fallback]} {
     }
@@ -54,12 +54,6 @@ module {
 // placeholders. The structural unroll_factor (=2) the conversion reads is stamped on
 // with_vl; the resource facts survive on the single scope.
 // REALIZED-DAG: selected_variant = @explicit_rvv_wprdc
-// REALIZED-DAG: weft_rvv.gearbox.producer_scope = "gearbox-scope:product-reduction"
-// REALIZED-DAG: weft_rvv.gearbox.consumer_scope = "gearbox-scope:dequant-store"
-// REALIZED-DAG: weft_rvv.low_precision_resource.selected_candidate = "rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequant-clamp-f32,i8mf4-i16mf2-i32m1-f32m1,u2-grouped]"
-// REALIZED-DAG: weft_rvv.low_precision_resource.primitive_reduction_intrinsic = "__riscv_vwredsum_vs_i16mf2_i32m1"
-// REALIZED-DAG: weft_rvv.low_precision_resource.realized_unroll_factor = 2 : i64
-// REALIZED-DAG: weft_rvv.low_precision_resource.realized_vsetvl_region_count = 3 : i64
 // REALIZED-DAG: unroll_factor = 2 : i64
 // REALIZED-DAG: %[[PRODUCT:.*]] = weft_rvv.widening_product %{{[^,]+}}, %{{[^,]+}}, %{{[^ ]+}}
 // REALIZED-DAG: product_relation = "signed-i8mf4xi8mf4-to-i16mf2"
@@ -88,11 +82,6 @@ module {
 // PLAN-SAME: {key = "weft_rvv.dequantization_relation", value = "signed-i32m1-to-f32m1-scale-f32"}
 // PLAN-SAME: {key = "weft_rvv.lower_bound_role", value = "lower-bound-scalar-value"}
 // PLAN-SAME: {key = "weft_rvv.upper_bound_role", value = "upper-bound-scalar-value"}
-// PLAN-SAME: {key = "weft_rvv.low_precision_resource.selected_candidate", value = "rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequant-clamp-f32,i8mf4-i16mf2-i32m1-f32m1,u2-grouped]"}
-// PLAN-SAME: {key = "weft_rvv.low_precision_resource.memory_form", value = "unit-stride-widening-product-reduce-dequant-clamp-f32"}
-// PLAN-SAME: {key = "weft_rvv.gearbox.producer_scope", value = "gearbox-scope:product-reduction"}
-// PLAN-SAME: {key = "weft_rvv.gearbox.consumer_scope", value = "gearbox-scope:dequant-store"}
-// PLAN-SAME: {key = "weft_rvv.low_precision_resource.runtime_abi_order", value = "lhs,rhs,acc,scale,lower_bound,upper_bound,out,n"}
 // PLAN-SAME: target = @explicit_rvv_wprdc
 
 // HEADER: weft.rvv.selected_variant: @explicit_rvv_wprdc
@@ -104,10 +93,6 @@ module {
 // HEADER-DAG: weft.rvv.provider_supported_mirror: provider_supported_mirror:rvv-contraction-family-plan-validated
 // HEADER-DAG: weft.rvv.product_vector_c_type: vint16mf2_t
 // HEADER-DAG: weft.rvv.dequant_scale_role: dequant-scale-value
-// HEADER-DAG: weft.rvv.low_precision_resource.selected_candidate: rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequant-clamp-f32,i8mf4-i16mf2-i32m1-f32m1,u2-grouped]
-// HEADER-DAG: weft.rvv.low_precision_resource.memory_form: unit-stride-widening-product-reduce-dequant-clamp-f32
-// HEADER-DAG: weft.rvv.gearbox_producer_scope: gearbox-scope:product-reduction
-// HEADER-DAG: weft.rvv.gearbox_consumer_scope: gearbox-scope:dequant-store
 // HEADER-DAG: weft.rvv.lower_bound_role: lower-bound-scalar-value
 // HEADER-DAG: weft.rvv.upper_bound_role: upper-bound-scalar-value
 // HEADER-DAG: weft.rvv.clamp_relation: signed-i8mf4xi8mf4-i32-reduction-scale-f32-clamp-lower-upper-to-f32m1

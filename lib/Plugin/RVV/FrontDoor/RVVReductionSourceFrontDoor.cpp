@@ -32,6 +32,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "Weft/Plugin/RVV/RVVReductionSourceFrontDoor.h"
+#include "Weft/Plugin/RVV/RVVFormulaCatalog.h"
 
 #include "Weft/Dialect/Exec/IR/ExecOps.h"
 #include "Weft/Dialect/RVV/IR/RVVDialect.h"
@@ -673,14 +674,6 @@ mlir::LogicalResult materializeKernel(
 
   weftexec::VariantOp rvvVariant = createVariant(
       builder, loc, selectedVariantSymbol, rvvRequires, policy);
-  // AUDIT-ONLY provenance (NOT the authority): the gearbox-selected byte anchor
-  // is CONSUMED structurally by the body below (the i8 load / i16 product / strip
-  // SEW+LMUL are built from `selectedIntegerCoreLMUL`), so the emitted intrinsics
-  // are what flip e8m2<->e8m1. This attribute only records the same value for the
-  // audit trail; it is a mirror, never the route/dtype authority.
-  rvvVariant->setAttr(
-      "weft_rvv.gearbox_selected_integer_core_lmul",
-      builder.getStringAttr(selectedIntegerCoreLMUL));
   mlir::OpBuilder::InsertionGuard variantGuard(builder);
   builder.setInsertionPointToStart(&rvvVariant.getBody().front());
 
@@ -920,10 +913,10 @@ llvm::Error registerRVVReductionSourceFrontDoorPasses(
     llvm::SmallVectorImpl<SourceFrontDoorPassRegistration> &out) {
   const ExtensionPluginRegistry *registryPtr = &registry;
   out.push_back(SourceFrontDoorPassRegistration(
-      ownerPlugin,
-      "weft-rvv-materialize-widening-dot-reduce-source-front-door",
+      ownerPlugin, formula_catalog::kReductionSourceEntry,
       "Auto-construct the weft_rvv widening int8 dot-reduce body from a generic "
       "vector.multi_reduction source (capability-selected integer-core LMUL)",
+      formula_catalog::kReductionSourceConstruction,
       [registryPtr] {
         return createMaterializeRVVReductionSourceFrontDoorPass(*registryPtr);
       },

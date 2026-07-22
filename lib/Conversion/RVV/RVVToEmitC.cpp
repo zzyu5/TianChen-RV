@@ -1,10 +1,10 @@
 #include "Weft/Conversion/RVV/RVVToEmitC.h"
 
 #include "Weft/Conversion/EmitC/BackendEmissionRegistry.h"
+#include "Weft/Conversion/EmitC/TunableScheduleOpInterface.h"
 #include "Weft/Conversion/EmitC/TypedBackendEmissionDriver.h"
 #include "Weft/Conversion/RVV/RVVBackendEmissionDriver.h"
-#include "Weft/Conversion/RVV/RVVCodebookGatherPlanMaterialization.h"
-#include "Weft/Conversion/RVV/RVVRepackScheduleMaterialization.h"
+#include "Weft/Plugin/RVV/RVVFormulaConstruction.h"
 #include "RVVToEmitCInternal.h"
 #include "Weft/Conversion/RVV/RVVToEmitCSupport.h"
 #include "Weft/Dialect/Exec/IR/ExecOps.h"
@@ -672,13 +672,11 @@ VariantToEmitCFunc::matchAndRewrite(weft::exec::VariantOp variant, OpAdaptor /*a
         // the shared q8_0 body -- byte-exact to the retired dispatch-wired monolith.
         {&isTypedDequantizeRowLoopBody,
          &VariantToEmitCFunc::emitTypedDequantizeRowLoopBody},
-        // The PRE-EMITC FRONT-DOOR CONSTRUCTED streaming quantize_row family
-        // {q8_0/q8_1/q8_K}: a pre-constructed weft_rvv.typed_quantize_row_loop_body
-        // region (from the RVVQuantizeRowStreamFrontDoor pass -- the abstract
-        // quantize_row_q8_{0,1,K} is already rewritten away) lowers here via the
-        // shared per-format body -- byte-exact to the in-emitc construct+emit path
-        // (constructQuantizeRowRegionAndLower). The f32->QUANT mirror of the dequant
-        // stream entry above.
+        // The pre-emission formula-constructed streaming quantize_row family
+        // {q8_0/q8_1/q8_K}: the mandatory formula cut rewrites every abstract
+        // quantize op to this typed body before conversion.  The closed typed leaf
+        // and its layout facts are the only compute inputs consumed here; there is
+        // no abstract-op or emitter-side construction fallback.
         {&isTypedQuantizeRowLoopBody,
          &VariantToEmitCFunc::emitTypedQuantizeRowLoopBody},
         // M-FLAT forward-elementwise scaffold (line C, ① 之后): the typed
@@ -846,52 +844,6 @@ VariantToEmitCFunc::matchAndRewrite(weft::exec::VariantOp variant, OpAdaptor /*a
       return mlir::success();
     }
 
-    // The forward-pass F4 op (weft_rvv.quantize_row_q8_0) is the f32 -> QUANT
-    // BRIDGE: the per-32-block max-abs REDUCTION (vfredmax of vfabs) + the scalar
-    // scale (d = amax/127, id = d ? 1/d : 0) + the f32->i16->i8 NARROWING CONVERT
-    // (vfncvt round-to-nearest-even + vncvt truncate), written into the AoS
-    // block_q8_0 buffer (the fp16 d at byte 0, the 32 int8 qs at byte 2). It owns
-    // a dedicated routine -- an outer block loop, a single e32m8 strip per block
-    // (vl=32, relying on Zvl128b => VLEN>=128), the structured d?1/d:0
-    // emitc.cmp/emitc.if conditional, the native (_Float16)d AoS store -- a NEW
-    // shape vs F1/F3/F5/F5b (a reduction + a narrowing convert + a structured
-    // scalar branch) and vs the integer block-dot ops. Marker: the op identity.
-    if (isGgmlQuantizeRowQ80Body(scope)) {
-      if (mlir::failed(emitGgmlQuantizeRowQ80(rewriter, loc, scope, avlArg,
-                                              sizeType, valueMap)))
-        return mlir::failure();
-      rewriter.create<emitc::ReturnOp>(loc, mlir::Value());
-      rewriter.eraseOp(variant);
-      return mlir::success();
-    }
-
-    // The q8_1 SIBLING quantizer (weft_rvv.quantize_row_q8_1): the SAME amax/
-    // scale/narrow shape as q8_0 PLUS the extra vwredsum integer block sum stored
-    // as the fp16 block_q8_1.s. DISPATCH-WIRED, void-return like q8_0. Marker: the
-    // op identity ([L-6] wiring != construction).
-    if (isGgmlQuantizeRowQ81Body(scope)) {
-      if (mlir::failed(emitGgmlQuantizeRowQ81(rewriter, loc, scope, avlArg,
-                                              sizeType, valueMap)))
-        return mlir::failure();
-      rewriter.create<emitc::ReturnOp>(loc, mlir::Value());
-      rewriter.eraseOp(variant);
-      return mlir::success();
-    }
-
-    // The q8_K K-quant activation quantizer (weft_rvv.quantize_row_q8_K): the
-    // heaviest quantizer -- a QK_K=256 super-block min/max symmetric scale, the
-    // vfcvt/vnclip RNE narrowing, the float d store, the per-16 vwredsum bsums,
-    // and the zero-block memset special case. DISPATCH-WIRED, void-return. Marker:
-    // the op identity ([L-6] wiring != construction).
-    if (isGgmlQuantizeRowQ8KBody(scope)) {
-      if (mlir::failed(emitGgmlQuantizeRowQ8K(rewriter, loc, scope, avlArg,
-                                              sizeType, valueMap)))
-        return mlir::failure();
-      rewriter.create<emitc::ReturnOp>(loc, mlir::Value());
-      rewriter.eraseOp(variant);
-      return mlir::success();
-    }
-
     // NOTE: the four forward-elementwise f32 SUPPORT ops (add/mul/cpy/gelu) were
     // RETIRED at the support flip (dispatch-wired -> constructed, C_construct 73->77):
     // the retired monolith recognizer {isGgmlForwardElementwiseF32Body,
@@ -907,26 +859,6 @@ VariantToEmitCFunc::matchAndRewrite(weft::exec::VariantOp variant, OpAdaptor /*a
     // helpers (emitForwardVecMapStrip / emitForwardGeluScalarLoop), so the emitted C
     // is byte-identical to the retired monolith modulo ONLY the source-op provenance
     // token.
-
-    // The dequantize_row family (block_qX -> f32 row): the FAMILY-HEAD q8_0 is
-    // FRONT-DOOR CONSTRUCTED -- constructOrEmitGgmlDequantizeRow rewrites the
-    // abstract weft_rvv.dequantize_row into the typed
-    // weft_rvv.typed_dequantize_row_loop_body region { dequantize_row_decode_core;
-    // typed_dequantize_row_loop_yield } and lowers it (emission DRIVEN by the typed
-    // region op-identity + decode_model, [L-6]/[L-8] construction, byte-exact to the
-    // retired q8_0 monolith). The other 22 formats stay DISPATCH-WIRED (the op
-    // identity + bounded `format` route to a hand-written per-format monolith decode
-    // reproducing ggml's reference dequantize_row_<format>). Void-return, like the
-    // forward/quantize bridges above.
-    if (isGgmlDequantizeRowBody(scope)) {
-      if (mlir::failed(constructOrEmitGgmlDequantizeRow(rewriter, loc, scope,
-                                                        avlArg, sizeType,
-                                                        valueMap)))
-        return mlir::failure();
-      rewriter.create<emitc::ReturnOp>(loc, mlir::Value());
-      rewriter.eraseOp(variant);
-      return mlir::success();
-    }
 
     // NOTE: the monolith forward-pass F6 kernel {isGgmlRopeNormF32Body,
     // emitGgmlRopeNormF32} was RETIRED at the rope flip (C_construct 32->33, the
@@ -982,7 +914,7 @@ VariantToEmitCFunc::matchAndRewrite(weft::exec::VariantOp variant, OpAdaptor /*a
     // The STANDALONE i32->f32 runtime-scale dequant body (load -> dequantize ->
     // store, no product/reduce/accumulator) owns a dedicated Gearbox-unrolled
     // two-slice setvl loop emitter -- the same VL-loop machinery, expanded
-    // `weft_rvv.gearbox.unroll` times. It is NOT the product-reduce dequant
+    // the formula-owned `unroll_factor` times. It is NOT the product-reduce dequant
     // path (no accumulator) nor the single-slice emitScopeForLoop (which the
     // emitDequantize guard would refuse). Detect and emit it here.
     if (isStandaloneDequantBody(scope)) {
@@ -2046,71 +1978,12 @@ bool VariantToEmitCFunc::isTypedElementwiseSoftMaxReduceLoopBody(
     return sawSoftMaxCore;
   }
 
-bool VariantToEmitCFunc::isGgmlQuantizeRowQ80Body(weftrvv::WithVLOp scope) {
-    bool sawQuantize = false;
-    for (mlir::Operation &op : scope.getBody().front()) {
-      if (llvm::isa<weftrvv::GgmlQuantizeRowQ80Op>(op)) {
-        if (sawQuantize)
-          return false;
-        sawQuantize = true;
-      } else {
-        return false;
-      }
-    }
-    return sawQuantize;
-  }
-
-bool VariantToEmitCFunc::isGgmlQuantizeRowQ81Body(weftrvv::WithVLOp scope) {
-    bool sawQuantize = false;
-    for (mlir::Operation &op : scope.getBody().front()) {
-      if (llvm::isa<weftrvv::GgmlQuantizeRowQ81Op>(op)) {
-        if (sawQuantize)
-          return false;
-        sawQuantize = true;
-      } else {
-        return false;
-      }
-    }
-    return sawQuantize;
-  }
-
-bool VariantToEmitCFunc::isGgmlQuantizeRowQ8KBody(weftrvv::WithVLOp scope) {
-    bool sawQuantize = false;
-    for (mlir::Operation &op : scope.getBody().front()) {
-      if (llvm::isa<weftrvv::GgmlQuantizeRowQ8KOp>(op)) {
-        if (sawQuantize)
-          return false;
-        sawQuantize = true;
-      } else {
-        return false;
-      }
-    }
-    return sawQuantize;
-  }
-
 // NOTE: isGgmlForwardElementwiseF32Body was RETIRED at the support flip
 // (dispatch-wired -> constructed, C_construct 73->77): add/mul/cpy/gelu are now
 // CONSTRUCTED through the abstract weft_rvv.ggml_forward_elementwise source op +
 // the pre-emitc front door (the SAME path as scale/silu/rms_norm/soft_max/rope),
 // recognized by isTypedElementwiseLoopBody, so no dedicated support recognizer
 // remains.
-
-bool VariantToEmitCFunc::isGgmlDequantizeRowBody(weftrvv::WithVLOp scope) {
-    // DISPATCH-WIRED marker: the body is EXACTLY one weft_rvv.dequantize_row op.
-    // The op identity (+ its bounded `format`) is the dispatch key; the emitter
-    // owns the hand-written per-format decode body (NOT a typed loop brick).
-    bool sawDequant = false;
-    for (mlir::Operation &op : scope.getBody().front()) {
-      if (llvm::isa<weftrvv::GgmlDequantizeRowOp>(op)) {
-        if (sawDequant)
-          return false;
-        sawDequant = true;
-      } else {
-        return false;
-      }
-    }
-    return sawDequant;
-  }
 
 bool VariantToEmitCFunc::isDeferredWideDotReduceBody(weftrvv::WithVLOp scope) {
     bool sawDeferredChain = false;
@@ -5822,9 +5695,25 @@ public:
 
   llvm::LogicalResult
   prepareForConversion(mlir::ModuleOp module) const override {
-    if (mlir::failed(materializeRVVCodebookGatherPlans(module)))
+    if (mlir::failed(::weft::plugin::rvv::constructRVVFormulaBodies(module)))
       return mlir::failure();
-    return verifyRVVRepackSchedulePlans(module);
+
+    // Emitters consume final schedule fields mechanically.  The schedule
+    // formula pass must have constructed (or validated) every tunable source op
+    // before this boundary; emission is not a fallback selector.
+    bool missingSchedule = false;
+    module.walk([&](mlir::Operation *op) {
+      auto schedule = llvm::dyn_cast<
+          ::weft::conversion::emitc::TunableScheduleOpInterface>(op);
+      if (!schedule || schedule.hasCompleteSchedule())
+        return;
+      op->emitError("reached RVV emission without a complete final schedule; "
+                    "run the RVV schedule formula construction first");
+      missingSchedule = true;
+    });
+    if (missingSchedule)
+      return mlir::failure();
+    return mlir::success();
   }
 
   void
@@ -6159,7 +6048,7 @@ bool isTypedBlockDotLoopBodyAllowlistOp(mlir::Operation *op) {
       // gather); it is the scalar-accumulator body's ternary brick under fold_model
       // "scalar_delta_grid" (its weight_block_stride 54 is UNIQUE, so it dispatches by stride;
       // the DISTINCT base-3 brick op type also disambiguates; carries the Win-A
-      // integer_core_lmul m2/m1 gearbox, kernel key "tq1_0"). REUSES the tq2_0 ternary
+      // fixed VLEN-universal body with no fake LMUL schedule axis). REUSES the tq2_0 ternary
       // scaffold at C2 marginal cost.
       weft::rvv::GgmlBlockDotTQ10Q8KTernaryCoreOp,
       // q1_0 (the BINARY {-1,+1}-sign class, the LAST flat block-dot family

@@ -22,12 +22,10 @@ add_mlir_library(WeftRVVPlugin
 
   Selection/RVVContractionPathSelection.cpp
 
-  Schedule/RVVGearboxSchedules.cpp
   Schedule/RVVScheduleDescriptorRegistry.cpp
   Schedule/RVVQ40ScheduleMaterialization.cpp
   Schedule/RVVGemmScheduleMaterialization.cpp
   Schedule/RVVUnifiedScheduleMaterialization.cpp
-  Schedule/RVVRepackStripWidthMaterialization.cpp
   Schedule/RVVProbedCapabilityAxesMaterialization.cpp
 
   BodyRealization/RVVSelectedBodyRealization.cpp

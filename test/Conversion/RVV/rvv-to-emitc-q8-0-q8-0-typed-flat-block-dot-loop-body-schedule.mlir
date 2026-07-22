@@ -1,6 +1,6 @@
 // RUN: weft-opt %s --weft-rvv-lower-to-emitc | FileCheck %s
 // The mbf==1 default combo of the SAME typed body still lowers (strip robust, no unroll).
-// RUN: sed 's/, multi_block_factor = 2 : i64//' %s | weft-opt --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=MBF1
+// RUN: sed 's/multi_block_factor = 2 : i64/multi_block_factor = 1 : i64/' %s | weft-opt --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=MBF1
 // The multi_block_factor==4 + elided combo of the SAME typed body lowers to the
 // 4-way unroll with the elided single-cover cores + robust tail.
 // RUN: sed 's/multi_block_factor = 2 : i64/multi_block_factor = 4 : i64/; s/strip_elision = "robust"/strip_elision = "elided"/' %s | weft-opt --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=MBF4
@@ -33,7 +33,7 @@ module {
       %zero_seed = weft_rvv.runtime_abi_value {c_name = "zero_seed", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "loop-body:reduce-seed", role = "accumulator-input-buffer"} : !weft_rvv.runtime_abi_value
       %vl = weft_rvv.setvl %n {lmul = "m2", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, sew = 8 : i64} : index -> !weft_rvv.vl
       weft_rvv.with_vl %vl attributes {lmul = "m2", origin = "rvv-plugin", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @rvv_q8_0_q8_0_block_dot, sew = 8 : i64, source_kernel = "ggml_vec_dot_q8_0_q8_0_kernel", status = "selected-lowering-boundary"} {
-        weft_rvv.typed_flat_block_dot_loop_body %vx, %vy, %s, %n attributes {kind = "typed_flat_block_dot_loop_body", qk = 32 : i64, weight_block_stride = 34 : i64, activation_block_stride = 34 : i64, fold_model = "sumi_times_scales", integer_core_lmul = "m2", strip_elision = "robust", multi_block_factor = 2 : i64} {
+        weft_rvv.typed_flat_block_dot_loop_body %vx, %vy, %s, %n attributes {kind = "typed_flat_block_dot_loop_body", qk = 32 : i64, weight_block_stride = 34 : i64, activation_block_stride = 34 : i64, fold_model = "sumi_times_scales", integer_core_lmul = "m2", strip_elision = "robust", multi_block_factor = 2 : i64, fold_structure = "per-block", numerics_tier = "strict"} {
         ^bb0(%block_index: index, %acc: f32):
           %dd = weft_rvv.block_fp16_scale_product %vx, %vy block %block_index : index {kind = "dual_fp16_per_block_scale_product", scale_model = "dual-fp16-per-block-d_x.d_y", lhs_block_stride = 34 : i64, rhs_block_stride = 34 : i64} : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value -> f32
           %wv = weft_rvv.load %vx, %vl block %block_index : index {block_stride = 34 : i64, quant_byte_offset = 2 : i64} : !weft_rvv.runtime_abi_value, !weft_rvv.vl -> !weft_rvv.vector<i8, "m2">

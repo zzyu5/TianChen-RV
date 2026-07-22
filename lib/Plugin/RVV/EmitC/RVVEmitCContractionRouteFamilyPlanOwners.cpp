@@ -4,7 +4,6 @@
 
 #include "Weft/Plugin/RVV/RVVContractionRouteIdentity.h"
 #include "Weft/Plugin/RVV/RVVGearboxSchedule.h"
-#include "Weft/Plugin/RVV/RVVLowPrecisionPerformancePolicy.h"
 
 #include "mlir/IR/Attributes.h"
 #include "llvm/ADT/SmallVector.h"
@@ -90,8 +89,8 @@ buildRVVWideningProductRouteFacts(RVVSelectedBodyOperationKind operation,
   facts.lowPrecisionPrimitiveSourceElementTypeName =
       facts.sourceElementTypeName;
   facts.lowPrecisionPrimitiveSourceSignedness =
-      isUnsigned ? llvm::StringRef(kRVVLowPrecisionResourceSourceSignednessUnsigned)
-                 : llvm::StringRef(kRVVLowPrecisionResourceSourceSignednessSigned);
+      isUnsigned ? llvm::StringRef(kRVVLowPrecisionSourceSignednessUnsigned)
+                 : llvm::StringRef(kRVVLowPrecisionSourceSignednessSigned);
   facts.lowPrecisionPrimitiveSourceLoadKind =
       kRVVLowPrecisionPrimitiveSourceLoadKind;
   facts.lowPrecisionPrimitiveSourceExtensionKind =
@@ -383,8 +382,8 @@ getRVVLowPrecisionWideningReductionPrimitiveFacts(
           .str();
   facts.sourceSignedness =
       (sourceIsUnsigned
-           ? llvm::StringRef(kRVVLowPrecisionResourceSourceSignednessUnsigned)
-           : llvm::StringRef(kRVVLowPrecisionResourceSourceSignednessSigned))
+           ? llvm::StringRef(kRVVLowPrecisionSourceSignednessUnsigned)
+           : llvm::StringRef(kRVVLowPrecisionSourceSignednessSigned))
           .str();
   facts.sourceLoadKind = kRVVLowPrecisionPrimitiveSourceLoadKind.str();
   facts.sourceExtensionKind =
@@ -713,9 +712,9 @@ buildRVVWideningDotReduceRouteFacts(RVVSelectedBodyOperationKind operation,
       : isDeferredWideDotReduction
           ? "weft_rvv.widening_product+weft_rvv.deferred_accumulate+weft_rvv.standalone_reduce"
       : isProductReductionDequantClamp
-          ? "weft_rvv.widening_product+weft_rvv.standalone_reduce+weft_rvv.gearbox_cross_region_handoff+weft_rvv.dequantize+weft_rvv.compare+weft_rvv.select"
+          ? "weft_rvv.widening_product+weft_rvv.standalone_reduce+weft_rvv.dequantize+weft_rvv.compare+weft_rvv.select"
       : isProductReductionDequantization
-          ? "weft_rvv.widening_product+weft_rvv.standalone_reduce+weft_rvv.gearbox_cross_region_handoff+weft_rvv.dequantize"
+          ? "weft_rvv.widening_product+weft_rvv.standalone_reduce+weft_rvv.dequantize"
       : isProductReductionChain
           ? "weft_rvv.widening_product+weft_rvv.standalone_reduce"
       : isComputedMask ? "weft_rvv.masked_widening_dot_reduce"
@@ -1092,7 +1091,7 @@ static bool isUnsignedProductReductionRouteDescription(
          description.productReductionChainRelation ==
              "unsigned-u8mf4xu8mf4-to-u16mf2-reduce-plus-u32-scalar-to-u32" ||
          description.lowPrecisionPrimitiveSourceSignedness ==
-             kRVVLowPrecisionResourceSourceSignednessUnsigned ||
+             kRVVLowPrecisionSourceSignednessUnsigned ||
          description.sourceVectorCType == "vuint8mf4_t" ||
          description.productVectorCType == "vuint16mf2_t" ||
          description.vectorCType == "vuint32m1_t";

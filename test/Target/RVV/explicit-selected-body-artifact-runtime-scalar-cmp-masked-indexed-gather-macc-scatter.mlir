@@ -13,10 +13,8 @@
 // RUN: weft-opt %s --weft-materialize-emission-plans | sed '0,/selected_dispatch_fallback_mirror:@explicit_composite_scalar_fallback/s//selected_dispatch_fallback_mirror:@stale_scalar_fallback/' | not weft-translate --weft-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-DISPATCH-FALLBACK
 // RUN: weft-opt %s --weft-materialize-emission-plans | sed '0,/weft_rvv.selected_dispatch_case_mirror/s//weft_rvv.selected_dispatch_case_mirror_removed/' | not weft-translate --weft-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=MISSING-DISPATCH-CASE-MIRROR
 // RUN: weft-opt %s --weft-materialize-emission-plans | sed '0,/weft_rvv.selected_dispatch_fallback_mirror/s//weft_rvv.selected_dispatch_fallback_mirror_removed/' | not weft-translate --weft-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=MISSING-DISPATCH-FALLBACK-MIRROR
-// RUN: weft-opt %s --weft-materialize-emission-plans | sed '0,/weft_rvv.composite_resource.selected_candidate\", value = \"rvv-composite-gather-macc-scatter-resource-candidate.v1\[rt-scmp-indexed-gather-macc-scatter,e32m1,u1\]\"/s//weft_rvv.composite_resource.selected_candidate\", value = \"artifact-name-derived-composite-resource\"/' | not weft-translate --weft-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-COMPOSITE-RESOURCE
 // RUN: weft-opt %s --weft-materialize-emission-plans | sed '0,/weft_rvv.composite_route_family_plan\", value = \"rvv-composite-gather-macc-scatter-route-family-plan.v1\"/s//weft_rvv.composite_route_family_plan\", value = \"artifact-name-derived-composite-plan\"/' | not weft-translate --weft-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-COMPOSITE-PLAN
 // RUN: weft-opt %s --weft-materialize-emission-plans | sed '0,/gather-payload-acc-before-active-indexed-write;destination-before-inactive-tail-preserve/s//post-call-composite-indexed-write/' | not weft-translate --weft-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-WRITE-SIDE
-// RUN: sed '/^      weft_rvv.with_vl/s/weft_rvv.composite_resource.vl_policy = "runtime-avl-single-setvl", //' %s | not weft-opt --weft-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=MISSING-COMPOSITE-RESOURCE
 // RUN: weft-opt %s --weft-materialize-emission-plans | sed '0,/status = "supported"/s//status = "unsupported"/' | not weft-translate --weft-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=UNSUPPORTED-FALLBACK-EXPORT
 
 // Hand-authored explicit selected-body input for the Stage2 runtime scalar
@@ -46,7 +44,7 @@ module {
       %dst = weft_rvv.runtime_abi_value {c_name = "dst", c_type = "int32_t *", exec_binding = @abi_output_buffer, ownership = "target-export-abi-owned", purpose = "explicit-composite-gather-macc-scatter:dst", role = "output-buffer"} : !weft_rvv.runtime_abi_value
       %n = weft_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", exec_binding = @abi_runtime_element_count, ownership = "target-export-abi-owned", purpose = "explicit-composite-gather-macc-scatter:n", role = "runtime-element-count"} : index
       %vl = weft_rvv.setvl %n {lmul = "m1", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !weft_rvv.vl
-      weft_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @rvv_explicit_composite, sew = 32 : i64, source_kernel = "explicit_composite_masked_indexed_gather_macc_scatter_kernel", status = "selected-lowering-boundary", weft_rvv.composite_resource.accumulator_layout = "separate-i32-vector-accumulator-input", weft_rvv.composite_resource.candidate_set = "rvv-composite-gather-macc-scatter-resource-candidate-set.v1[rt-scmp-indexed-gather-macc-scatter-e32m1-u1]", weft_rvv.composite_resource.legality = "legal", weft_rvv.composite_resource.legality_scope = "typed-composite-gather-macc-scatter-resource-legality.v1", weft_rvv.composite_resource.lmul = "m1", weft_rvv.composite_resource.mask_policy = "agnostic", weft_rvv.composite_resource.memory_form = "runtime-scalar-computed-mask-indexed-gather-macc-scatter", weft_rvv.composite_resource.operation = "runtime_scalar_cmp_masked_indexed_gather_macc_scatter", weft_rvv.composite_resource.peak_live_vector_groups = 8 : i64, weft_rvv.composite_resource.pipeline_intent = "single-vl-linear-gather-macc-scatter.v1", weft_rvv.composite_resource.prefetch_intent = "none", weft_rvv.composite_resource.rejection_reason = "none", weft_rvv.composite_resource.runtime_abi_order = "cmp_lhs,rhs_scalar,gather_src,payload,acc,index,dst,n", weft_rvv.composite_resource.runtime_avl_source = "runtime_abi:n", weft_rvv.composite_resource.selected_candidate = "rvv-composite-gather-macc-scatter-resource-candidate.v1[rt-scmp-indexed-gather-macc-scatter,e32m1,u1]", weft_rvv.composite_resource.selection_reason = "static-bounded-runtime-scalar-computed-mask-indexed-gather-macc-scatter-e32m1-runtime-avl", weft_rvv.composite_resource.sew = 32 : i64, weft_rvv.composite_resource.tail_policy = "agnostic", weft_rvv.composite_resource.target_capability_legality_mirror = "selected_target_capability_legality_mirror:@rvv;id=rvv;kind=isa-vector;rvv=exact;sew=32;lmul=m1;tail=agnostic;mask=agnostic", weft_rvv.composite_resource.target_capability_provider_mirror = "selected_capability_provider_mirror:@rvv;id=rvv;kind=isa-vector;rvv=exact", weft_rvv.composite_resource.unroll_factor = 1 : i64, weft_rvv.composite_resource.vector_register_budget = 32 : i64, weft_rvv.composite_resource.vl_policy = "runtime-avl-single-setvl", weft_rvv.composite_resource.vsetvl_region_count = 1 : i64} {
+      weft_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @rvv_explicit_composite, sew = 32 : i64, source_kernel = "explicit_composite_masked_indexed_gather_macc_scatter_kernel", status = "selected-lowering-boundary"} {
         %cmp_lhs_vec = weft_rvv.load %cmp_lhs, %vl : !weft_rvv.runtime_abi_value, !weft_rvv.vl -> !weft_rvv.vector<i32, "m1">
         %threshold_vec = weft_rvv.splat %rhs_scalar, %vl : i32, !weft_rvv.vl -> !weft_rvv.vector<i32, "m1">
         %payload_vec = weft_rvv.load %payload, %vl : !weft_rvv.runtime_abi_value, !weft_rvv.vl -> !weft_rvv.vector<i32, "m1">
@@ -101,13 +99,6 @@ module {
 // PLAN-SAME: {key = "weft_rvv.destination_memory_form", value = "masked-indexed-store"}
 // PLAN-SAME: {key = "weft_rvv.composite_route_family_plan", value = "rvv-composite-gather-macc-scatter-route-family-plan.v1"}
 // PLAN-SAME: {key = "weft_rvv.composite_typed_compute_chain", value = "weft_rvv.masked_indexed_load+weft_rvv.masked_macc+weft_rvv.masked_indexed_store"}
-// PLAN-SAME: {key = "weft_rvv.composite_resource.selected_candidate", value = "rvv-composite-gather-macc-scatter-resource-candidate.v1[rt-scmp-indexed-gather-macc-scatter,e32m1,u1]"}
-// PLAN-SAME: {key = "weft_rvv.composite_resource.vl_policy", value = "runtime-avl-single-setvl"}
-// PLAN-SAME: {key = "weft_rvv.composite_resource.peak_live_vector_groups", value = "8"}
-// PLAN-SAME: {key = "weft_rvv.composite_resource.vector_register_budget", value = "32"}
-// PLAN-SAME: {key = "weft_rvv.composite_resource.runtime_abi_order", value = "cmp_lhs,rhs_scalar,gather_src,payload,acc,index,dst,n"}
-// PLAN-SAME: {key = "weft_rvv.composite_resource.target_capability_provider_mirror", value = "selected_capability_provider_mirror:@rvv;id=rvv;kind=isa-vector;rvv=exact"}
-// PLAN-SAME: {key = "weft_rvv.composite_resource.target_capability_legality_mirror", value = "selected_target_capability_legality_mirror:@rvv;id=rvv;kind=isa-vector;rvv=exact;sew=32;lmul=m1;tail=agnostic;mask=agnostic"}
 // PLAN-SAME: {key = "weft_rvv.indexed_memory_layout", value = "unit-stride-lhs-runtime-scalar-threshold-indexed-masked-gather-payload-accumulator-macc-indexed-masked-scatter-runtime-abi"}
 // PLAN-SAME: {key = "weft_rvv.indexed_write_side_contract", value = "gather-payload-acc-before-active-indexed-write;destination-before-inactive-tail-preserve"}
 // PLAN-SAME: {key = "weft_rvv.index_source", value = "runtime_abi:index"}
@@ -126,10 +117,6 @@ module {
 // HEADER-DAG: weft.rvv.provider_supported_mirror: provider_supported_mirror:rvv-runtime-scalar-cmp-masked-indexed-gather-macc-scatter-plan-validated
 // HEADER-DAG: weft.rvv.composite_route_family_plan: rvv-composite-gather-macc-scatter-route-family-plan.v1
 // HEADER-DAG: weft.rvv.composite_typed_compute_chain: weft_rvv.masked_indexed_load+weft_rvv.masked_macc+weft_rvv.masked_indexed_store
-// HEADER-DAG: weft.rvv.composite_resource.selected_candidate: rvv-composite-gather-macc-scatter-resource-candidate.v1[rt-scmp-indexed-gather-macc-scatter,e32m1,u1]
-// HEADER-DAG: weft.rvv.composite_resource.vector_register_budget: 32
-// HEADER-DAG: weft.rvv.composite_resource.runtime_abi_order: cmp_lhs,rhs_scalar,gather_src,payload,acc,index,dst,n
-// HEADER-DAG: weft.rvv.composite_resource.target_capability_provider_mirror: selected_capability_provider_mirror:@rvv;id=rvv;kind=isa-vector;rvv=exact
 // HEADER-DAG: weft.rvv.route_operand_binding_plan: rvv-route-operand-binding:rt_scmp_gather_macc_scatter.v1
 // HEADER-DAG: weft.rvv.exec_abi_bindings: cmp_lhs=lhs-input-buffer->@abi_cmp_lhs_input_buffer;rhs_scalar=rhs-scalar-value->@abi_rhs_scalar_value;gather_src=source-input-buffer->@abi_source_input_buffer;payload=dot-rhs-input-buffer->@abi_dot_rhs_input_buffer;acc=accumulator-input-buffer->@abi_accumulator_input_buffer;index=index-input-buffer->@abi_index_input_buffer;dst=output-buffer->@abi_output_buffer;n=runtime-element-count->@abi_runtime_element_count
 // HEADER-DAG: weft.rvv.computed_mask_memory_mask_producer_source: runtime-scalar-splat-compare-rhs
@@ -141,7 +128,7 @@ module {
 // STALE-PROVIDER: candidate weft_rvv.provider_supported_mirror provenance must mirror selected typed RVV body provider support
 // STALE-PROVIDER-SAME: provider_supported_mirror:rvv-script-derived-composite-gather-macc-scatter
 
-// STALE-ABI: composite resource runtime ABI order must mirror realized/provider-derived fact
+// STALE-ABI: candidate weft_rvv selected-body metadata key 'weft_rvv.runtime_abi_order' must mirror provider route description value
 // STALE-ABI-SAME: cmp_lhs,gather_src,rhs_scalar,payload,acc,index,dst,n
 
 // STALE-EXEC-BINDING: candidate weft_rvv.exec_abi_bindings provenance must mirror selected weft.exec ABI binding summary
@@ -171,13 +158,11 @@ module {
 
 // MISSING-DISPATCH-FALLBACK-MIRROR: candidate metadata must carry weft_rvv.selected_dispatch_fallback_mirror provenance
 
-// STALE-COMPOSITE-RESOURCE: metadata key '{{.*}}composite_resource.selected_candidate'{{.*}}'rvv-composite-gather-macc-scatter-resource-candidate.v1[rt-scmp-indexed-gather-macc-scatter,e32m1,u1]' but was 'artifact-name-derived-composite-resource'
 
 // STALE-COMPOSITE-PLAN: metadata key '{{.*}}composite_route_family_plan'{{.*}}'rvv-composite-gather-macc-scatter-route-family-plan.v1' but was 'artifact-name-derived-composite-plan'
 
 // STALE-WRITE-SIDE: metadata key '{{.*}}indexed_write_side_contract'{{.*}}'gather-payload-acc-before-active-indexed-write;destination-before-inactive-tail-preserve' but was 'post-call-composite-indexed-write'
 
-// MISSING-COMPOSITE-RESOURCE: requires realized composite resource string fact 'weft_rvv.composite_resource.vl_policy' before provider route construction
 
 // UNSUPPORTED-FALLBACK-EXPORT: selected target artifact export requires at least one supported executable artifact candidate
 // UNSUPPORTED-FALLBACK-EXPORT-SAME: @rvv_explicit_composite as dispatch case status 'unsupported'

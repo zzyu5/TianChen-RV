@@ -1,11 +1,7 @@
-// RUN: weft-opt %s --weft-rvv-materialize-gearbox-schedules --weft-materialize-selected-lowering-boundaries | FileCheck %s --check-prefix=REALIZED --implicit-check-not=weft_rvv.gearbox_cross_region_handoff --implicit-check-not=weft_rvv.vsetvl_region_marker
-// RUN: weft-opt %s --weft-rvv-materialize-gearbox-schedules --weft-materialize-selected-lowering-boundaries --weft-materialize-emission-plans | FileCheck %s --check-prefix=PLAN
-// RUN: weft-opt %s --weft-rvv-materialize-gearbox-schedules --weft-materialize-selected-lowering-boundaries --weft-materialize-emission-plans | sed '0,/weft_rvv.low_precision_resource.performance_baseline", value = "scalar-c-reference\/product-reduction-dequant-clamp-packed-i4-v1"/s//weft_rvv.low_precision_resource.performance_baseline", value = "scalar-c-reference\/product-reduction-dequant-packed-i4-v1"/' | not weft-translate --weft-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-ARTIFACT-BASELINE
-// RUN: weft-opt %s --weft-rvv-materialize-gearbox-schedules --weft-materialize-selected-lowering-boundaries --weft-materialize-emission-plans | sed '0,/weft_rvv.low_precision_resource.remediation_measurement_evidence", value = "gate4-packed-i4-scalar-epilogue-dequant-clamp-ssh\/widening_product_reduce_dequant_clamp_f32\/same_target_measurement_evidence.json"/s//weft_rvv.low_precision_resource.remediation_measurement_evidence", value = "gate4-packed-i4-scalar-epilogue-dequant-ssh\/widening_product_reduce_dequantize_f32\/same_target_measurement_evidence.json"/' | not weft-translate --weft-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-ARTIFACT-MEASUREMENT
-// RUN: weft-opt %s --weft-rvv-materialize-gearbox-schedules --weft-materialize-selected-lowering-boundaries --weft-materialize-emission-plans | sed '0,/weft_rvv.low_precision_resource.selected_dispatch_preference", value = "not-performance-preferred"/s//weft_rvv.low_precision_resource.selected_dispatch_preference", value = "performance-preferred"/' | not weft-translate --weft-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-POLICY-DISPATCH-PREFERENCE
-// RUN: weft-opt %s --weft-rvv-materialize-gearbox-schedules --weft-materialize-selected-lowering-boundaries --weft-materialize-emission-plans | sed '0,/weft_rvv.low_precision_resource.correctness_fallback_path_selected", value = "true"/s//weft_rvv.low_precision_resource.correctness_fallback_path_selected", value = "false"/' | not weft-translate --weft-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-POLICY-CORRECTNESS-FALLBACK
-// RUN: weft-opt %s --weft-rvv-materialize-gearbox-schedules --weft-materialize-selected-lowering-boundaries --weft-materialize-emission-plans | weft-translate --weft-export-target-header-artifact | FileCheck %s --check-prefix=HEADER
-// RUN: weft-opt %s --weft-rvv-materialize-gearbox-schedules --weft-materialize-selected-lowering-boundaries --weft-materialize-emission-plans | weft-translate --weft-rvv-emitc-to-cpp | FileCheck %s --check-prefix=CPP
+// RUN: weft-opt %s --weft-materialize-selected-lowering-boundaries | FileCheck %s --check-prefix=REALIZED --implicit-check-not=weft_rvv.gearbox_cross_region_handoff --implicit-check-not=weft_rvv.vsetvl_region_marker
+// RUN: weft-opt %s --weft-materialize-selected-lowering-boundaries --weft-materialize-emission-plans | FileCheck %s --check-prefix=PLAN
+// RUN: weft-opt %s --weft-materialize-selected-lowering-boundaries --weft-materialize-emission-plans | weft-translate --weft-export-target-header-artifact | FileCheck %s --check-prefix=HEADER
+// RUN: weft-opt %s --weft-materialize-selected-lowering-boundaries --weft-materialize-emission-plans | weft-translate --weft-rvv-emitc-to-cpp | FileCheck %s --check-prefix=CPP
 
 // Focused dequant-clamp realized-body consumption representative. The selected candidate is
 // authority only because it is present on the typed RVV body and consumed by
@@ -25,7 +21,7 @@ module {
       %upper = weft_rvv.runtime_abi_value {c_name = "upper_bound", c_type = "float", ownership = "target-export-abi-owned", purpose = "pre-realized-selected-body-widening-product-reduce-dequant-clamp-f32-packed-i4:upper", role = "upper-bound-scalar-value"} : f32
       %out = weft_rvv.runtime_abi_value {c_name = "out", c_type = "float *", ownership = "target-export-abi-owned", purpose = "pre-realized-selected-body-widening-product-reduce-dequant-clamp-f32-packed-i4:out", role = "output-buffer"} : !weft_rvv.runtime_abi_value
       %n = weft_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "pre-realized-selected-body-widening-product-reduce-dequant-clamp-f32-packed-i4:n", role = "runtime-element-count"} : index
-      weft_rvv.typed_widening_product_reduce_dequant_clamp_f32_pre_realized_body %lhs, %rhs, %acc, %scale, %lower, %upper, %out, %n {accumulator_carry_boundary = "vector-i32m1-carry-dot_acc_vec-across-runtime-vl-chunks-final-scalar-extract-f32-store.v1", accumulator_layout = "scalar-i32-seed-lane0-from-accumulator-input", accumulator_lmul = "m1", accumulator_role = "accumulator-input-buffer", accumulator_sew = 32 : i64, bound_order = "lower-bound-before-upper-bound", dequant_relation = "signed-i32m1-to-f32m1-scale-f32", dequant_store_boundary = "store-clamped-dequantized-f32-vector-to-output-buffer", lower_predicate_kind = "slt", memory_form = "unit-stride-widening-product-reduce-dequant-clamp-f32", op_kind = "widening_product_reduce_dequant_clamp_f32", weft_rvv.low_precision_resource.selected_candidate = "rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequant-clamp-f32,signed-i4n2-in-i8mf4-i16mf2-i32m1-f32m1,u1-unpack-required]", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, product_lmul = "mf2", product_reduction_chain_relation = "signed-i8mf4xi8mf4-to-i16mf2-reduce-plus-i32-scalar-to-i32", product_relation = "signed-i8mf4xi8mf4-to-i16mf2", product_sew = 16 : i64, result_layout = "store-standalone-reduction-lane0-to-output-scalar", result_lmul = "m1", result_sew = 32 : i64, scale_role = "dequant-scale-value", select_layout = "clamp-lower-then-upper", source_lmul = "mf4", source_sew = 8 : i64, upper_predicate_kind = "slt"} : (!weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, f32, f32, !weft_rvv.runtime_abi_value, index) -> ()
+      weft_rvv.typed_widening_product_reduce_dequant_clamp_f32_pre_realized_body %lhs, %rhs, %acc, %scale, %lower, %upper, %out, %n {accumulator_carry_boundary = "vector-i32m1-carry-dot_acc_vec-across-runtime-vl-chunks-final-scalar-extract-f32-store.v1", accumulator_layout = "scalar-i32-seed-lane0-from-accumulator-input", accumulator_lmul = "m1", accumulator_role = "accumulator-input-buffer", accumulator_sew = 32 : i64, bound_order = "lower-bound-before-upper-bound", dequant_relation = "signed-i32m1-to-f32m1-scale-f32", dequant_store_boundary = "store-clamped-dequantized-f32-vector-to-output-buffer", lower_predicate_kind = "slt", memory_form = "unit-stride-widening-product-reduce-dequant-clamp-f32", op_kind = "widening_product_reduce_dequant_clamp_f32", operand_encoding = "packed_i4", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, product_lmul = "mf2", product_reduction_chain_relation = "signed-i8mf4xi8mf4-to-i16mf2-reduce-plus-i32-scalar-to-i32", product_relation = "signed-i8mf4xi8mf4-to-i16mf2", product_sew = 16 : i64, result_layout = "store-standalone-reduction-lane0-to-output-scalar", result_lmul = "m1", result_sew = 32 : i64, scale_role = "dequant-scale-value", select_layout = "clamp-lower-then-upper", source_lmul = "mf4", source_sew = 8 : i64, upper_predicate_kind = "slt"} : (!weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, f32, f32, !weft_rvv.runtime_abi_value, index) -> ()
     }
     weft.exec.variant @pre_realized_body_scalar_fallback attributes {fallback_role = "conservative", origin = "scalar-plugin", policy = "portable_scalar_fallback_first_slice", requires = [@scalar_fallback]} {
     }
@@ -36,28 +32,6 @@ module {
   }
 }
 
-// REALIZED-DAG: weft_rvv.low_precision_resource.selected_candidate = "rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequant-clamp-f32,signed-i4n2-in-i8mf4-i16mf2-i32m1-f32m1,u1-unpack-required]"
-// REALIZED-DAG: weft_rvv.low_precision_resource.candidate_count = 3 : i64
-// REALIZED-DAG: weft_rvv.low_precision_resource.legal_candidate_count = 3 : i64
-// REALIZED-DAG: weft_rvv.low_precision_resource.selected_candidate_index = 3 : i64
-// REALIZED-DAG: weft_rvv.low_precision_resource.clamp_compare_select_phase = "lower-then-upper-compare-select"
-// REALIZED-DAG: weft_rvv.low_precision_resource.clamp_phase = "dequant-clamp-store"
-// REALIZED-DAG: weft_rvv.low_precision_resource.clamp_region_index = 2 : i64
-// REALIZED-DAG: weft_rvv.low_precision_resource.clamp_select_layout = "clamp-lower-then-upper"
-// REALIZED-DAG: weft_rvv.low_precision_resource.operand_form = "packed-i4-nibbles"
-// REALIZED-DAG: weft_rvv.low_precision_resource.packed_load_unpack_contract = "rvv-packed-i4-load-unpack-resource-facts.v1"
-// REALIZED-DAG: weft_rvv.low_precision_resource.packed_storage_load = "unit-stride-vle8-i8mf4-packed-i4x2"
-// REALIZED-DAG: weft_rvv.low_precision_resource.packed_unpack_plan = "low-high-i4-sign-extend-to-i8mf4"
-// REALIZED-DAG: weft_rvv.low_precision_resource.packed_unpacked_source = "signed-i8mf4-logical-lanes-from-packed-i4x2"
-// REALIZED-DAG: weft_rvv.low_precision_resource.performance_baseline = "scalar-c-reference/product-reduction-dequant-clamp-packed-i4-v1"
-// REALIZED-DAG: weft_rvv.low_precision_resource.performance_admission_decision = "deny-performance-preferred-with-campaign-no-further-repair-no-win-blocker"
-// REALIZED-DAG: weft_rvv.low_precision_resource.performance_admission_closure = "no-further-repair-packed-i4-campaign-loop-11-budget-5of32.v1"
-// REALIZED-DAG: weft_rvv.low_precision_resource.performance_admission_reopen_requirement = "new-typed-provider-campaign-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1"
-// REALIZED-DAG: weft_rvv.low_precision_resource.beyond_local_repair_admission_contract = "rvv-low-precision-packed-i4-campaign-no-further-repair-admission.v1"
-// REALIZED-DAG: weft_rvv.low_precision_resource.beyond_local_repair_admission_decision = "deny-performance-preferred-campaign-no-further-provider-repair"
-// REALIZED-DAG: weft_rvv.low_precision_resource.beyond_local_repair_admission_blocker = "packed-i4-campaign-no-further-provider-repair-after-scalar-epilogue-no-win"
-// REALIZED-DAG: weft_rvv.low_precision_resource.beyond_local_repair_admission_reopen_requirement = "new-typed-provider-campaign-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1"
-// REALIZED-DAG: weft_rvv.low_precision_resource.remediation_measurement_evidence = "gate4-packed-i4-scalar-epilogue-dequant-clamp-ssh/widening_product_reduce_dequant_clamp_f32/same_target_measurement_evidence.json"
 // Stage 3 single-scope packed-i4 flip: one with_vl scope with a typed
 // weft_rvv.packed_i4_nibble_unpack_product head + the inline dequant/clamp chain;
 // NO weft_rvv.gearbox_cross_region_handoff carrier, NO weft_rvv.vsetvl_region_marker
@@ -74,86 +48,9 @@ module {
 // PLAN: {key = "weft_rvv.runtime_abi_order", value = "lhs,rhs,acc,scale,lower_bound,upper_bound,out,n"}
 // PLAN-DAG: {key = "weft_rvv.selected_dispatch_case_mirror", value = "selected_dispatch_case_mirror:@pre_realized_body_rvv_product_reduce_dequant_clamp;role=dispatch case;runtime_guard_required=false;runtime_guard=none;origin=rvv-plugin;policy=pre-realized-selected-body-widening-product-reduce-dequant-clamp-f32-packed-i4-case"}
 // PLAN-DAG: {key = "weft_rvv.selected_dispatch_fallback_mirror", value = "selected_dispatch_fallback_mirror:@pre_realized_body_scalar_fallback;role=dispatch fallback;fallback_role=conservative;origin=scalar-plugin;policy=pre-realized-selected-body-widening-product-reduce-dequant-clamp-f32-packed-i4-fallback-envelope"}
-// PLAN-DAG: {key = "weft_rvv.low_precision_resource.selected_dispatch_policy_contract", value = "rvv-low-precision-packed-i4-dispatch-performance-policy.v1"}
-// PLAN-DAG: {key = "weft_rvv.low_precision_resource.dispatch_policy_path", value = "correctness-fallback"}
-// PLAN-DAG: {key = "weft_rvv.low_precision_resource.selected_dispatch_preference", value = "not-performance-preferred"}
-// PLAN-DAG: {key = "weft_rvv.low_precision_resource.performance_preference_denial_reason", value = "same-target-measurement-no-win-or-regression"}
-// PLAN-DAG: {key = "weft_rvv.low_precision_resource.fallback_reason", value = "same-target-measurement-no-win-or-regression"}
-// PLAN-DAG: {key = "weft_rvv.low_precision_resource.route_support_allowed", value = "true"}
-// PLAN-DAG: {key = "weft_rvv.low_precision_resource.correctness_execution_allowed", value = "true"}
-// PLAN-DAG: {key = "weft_rvv.low_precision_resource.performance_selection_allowed", value = "false"}
-// PLAN-DAG: {key = "weft_rvv.low_precision_resource.performance_win_claim_allowed", value = "false"}
-// PLAN-DAG: {key = "weft_rvv.low_precision_resource.correctness_fallback_path_selected", value = "true"}
-// PLAN-DAG: {key = "weft_rvv.low_precision_resource.performance_preferred_path_selected", value = "false"}
-// PLAN-DAG: {key = "weft_rvv.low_precision_resource.resource_owner_mirror_source", value = "provider-owned-low-precision-contraction-resource-selection.v1"}
-// PLAN: {key = "weft_rvv.low_precision_resource.selected_candidate", value = "rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequant-clamp-f32,signed-i4n2-in-i8mf4-i16mf2-i32m1-f32m1,u1-unpack-required]"}
-// PLAN: {key = "weft_rvv.low_precision_resource.candidate_count", value = "3"}
-// PLAN: {key = "weft_rvv.low_precision_resource.legal_candidate_count", value = "3"}
-// PLAN: {key = "weft_rvv.low_precision_resource.selected_candidate_index", value = "3"}
-// PLAN: {key = "weft_rvv.low_precision_resource.operand_form", value = "packed-i4-nibbles"}
-// PLAN: {key = "weft_rvv.low_precision_resource.packed_load_unpack_contract", value = "rvv-packed-i4-load-unpack-resource-facts.v1"}
-// PLAN: {key = "weft_rvv.low_precision_resource.packed_storage_load", value = "unit-stride-vle8-i8mf4-packed-i4x2"}
-// PLAN: {key = "weft_rvv.low_precision_resource.packed_unpack_plan", value = "low-high-i4-sign-extend-to-i8mf4"}
-// PLAN: {key = "weft_rvv.low_precision_resource.packed_unpacked_source", value = "signed-i8mf4-logical-lanes-from-packed-i4x2"}
-// PLAN: {key = "weft_rvv.low_precision_resource.product_region_index", value = "1"}
-// PLAN: {key = "weft_rvv.low_precision_resource.dequant_region_index", value = "2"}
-// PLAN: {key = "weft_rvv.low_precision_resource.product_phase", value = "load-product-reduce"}
-// PLAN: {key = "weft_rvv.low_precision_resource.dequant_phase", value = "dequant-store"}
-// PLAN: {key = "weft_rvv.low_precision_resource.clamp_region_index", value = "2"}
-// PLAN: {key = "weft_rvv.low_precision_resource.clamp_phase", value = "dequant-clamp-store"}
-// PLAN: {key = "weft_rvv.low_precision_resource.clamp_compare_select_phase", value = "lower-then-upper-compare-select"}
-// PLAN: {key = "weft_rvv.low_precision_resource.clamp_select_layout", value = "clamp-lower-then-upper"}
-// PLAN: {key = "weft_rvv.low_precision_resource.performance_baseline", value = "scalar-c-reference/product-reduction-dequant-clamp-packed-i4-v1"}
-// PLAN: {key = "weft_rvv.low_precision_resource.remediation_measurement_evidence", value = "gate4-packed-i4-scalar-epilogue-dequant-clamp-ssh/widening_product_reduce_dequant_clamp_f32/same_target_measurement_evidence.json"}
-// PLAN: {key = "weft_rvv.low_precision_resource.performance_admission_decision", value = "deny-performance-preferred-with-campaign-no-further-repair-no-win-blocker"}
-// PLAN: {key = "weft_rvv.low_precision_resource.performance_admission_closure", value = "no-further-repair-packed-i4-campaign-loop-11-budget-5of32.v1"}
-// PLAN: {key = "weft_rvv.low_precision_resource.performance_admission_reopen_requirement", value = "new-typed-provider-campaign-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1"}
-// PLAN: {key = "weft_rvv.low_precision_resource.beyond_local_repair_admission_contract", value = "rvv-low-precision-packed-i4-campaign-no-further-repair-admission.v1"}
-// PLAN: {key = "weft_rvv.low_precision_resource.beyond_local_repair_admission_decision", value = "deny-performance-preferred-campaign-no-further-provider-repair"}
-// PLAN: {key = "weft_rvv.low_precision_resource.beyond_local_repair_admission_blocker", value = "packed-i4-campaign-no-further-provider-repair-after-scalar-epilogue-no-win"}
-// PLAN: {key = "weft_rvv.low_precision_resource.beyond_local_repair_admission_reopen_requirement", value = "new-typed-provider-campaign-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1"}
 // PLAN-SAME: status = "supported"
 
 // HEADER: weft.rvv.runtime_abi_order: lhs,rhs,acc,scale,lower_bound,upper_bound,out,n
-// HEADER: weft.rvv.low_precision_resource.resource_owner_mirror.source: provider-owned-low-precision-contraction-resource-selection.v1
-// HEADER: weft.rvv.low_precision_resource.selected_candidate: rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequant-clamp-f32,signed-i4n2-in-i8mf4-i16mf2-i32m1-f32m1,u1-unpack-required]
-// HEADER: weft.rvv.low_precision_resource.candidate_count: 3
-// HEADER: weft.rvv.low_precision_resource.legal_candidate_count: 3
-// HEADER: weft.rvv.low_precision_resource.selected_candidate_index: 3
-// HEADER: weft.rvv.low_precision_resource.operand_form: packed-i4-nibbles
-// HEADER: weft.rvv.low_precision_resource.packed_load_unpack_contract: rvv-packed-i4-load-unpack-resource-facts.v1
-// HEADER: weft.rvv.low_precision_resource.packed_storage_load: unit-stride-vle8-i8mf4-packed-i4x2
-// HEADER: weft.rvv.low_precision_resource.packed_unpack_plan: low-high-i4-sign-extend-to-i8mf4
-// HEADER: weft.rvv.low_precision_resource.packed_unpacked_source: signed-i8mf4-logical-lanes-from-packed-i4x2
-// HEADER: weft.rvv.low_precision_resource.product_region_index: 1
-// HEADER: weft.rvv.low_precision_resource.dequant_region_index: 2
-// HEADER: weft.rvv.low_precision_resource.product_phase: load-product-reduce
-// HEADER: weft.rvv.low_precision_resource.dequant_phase: dequant-store
-// HEADER: weft.rvv.low_precision_resource.clamp_region_index: 2
-// HEADER: weft.rvv.low_precision_resource.clamp_phase: dequant-clamp-store
-// HEADER: weft.rvv.low_precision_resource.clamp_compare_select_phase: lower-then-upper-compare-select
-// HEADER: weft.rvv.low_precision_resource.clamp_select_layout: clamp-lower-then-upper
-// HEADER: weft.rvv.low_precision_resource.measurement_disposition_evidence_mirror.performance_baseline: scalar-c-reference/product-reduction-dequant-clamp-packed-i4-v1
-// HEADER: weft.rvv.low_precision_resource.measurement_disposition_evidence_mirror.remediation_measurement_evidence: gate4-packed-i4-scalar-epilogue-dequant-clamp-ssh/widening_product_reduce_dequant_clamp_f32/same_target_measurement_evidence.json
-// HEADER: weft.rvv.low_precision_resource.measurement_disposition_evidence_mirror.performance_admission_decision: deny-performance-preferred-with-campaign-no-further-repair-no-win-blocker
-// HEADER: weft.rvv.low_precision_resource.measurement_disposition_evidence_mirror.performance_admission_closure: no-further-repair-packed-i4-campaign-loop-11-budget-5of32.v1
-// HEADER: weft.rvv.low_precision_resource.measurement_disposition_evidence_mirror.performance_admission_reopen_requirement: new-typed-provider-campaign-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1
-// HEADER: weft.rvv.low_precision_resource.measurement_disposition_evidence_mirror.beyond_local_repair_admission_contract: rvv-low-precision-packed-i4-campaign-no-further-repair-admission.v1
-// HEADER: weft.rvv.low_precision_resource.measurement_disposition_evidence_mirror.beyond_local_repair_admission_decision: deny-performance-preferred-campaign-no-further-provider-repair
-// HEADER: weft.rvv.low_precision_resource.measurement_disposition_evidence_mirror.beyond_local_repair_admission_blocker: packed-i4-campaign-no-further-provider-repair-after-scalar-epilogue-no-win
-// HEADER: weft.rvv.low_precision_resource.measurement_disposition_evidence_mirror.beyond_local_repair_admission_reopen_requirement: new-typed-provider-campaign-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1
-// HEADER-DAG: weft.rvv.low_precision_resource.selected_dispatch_policy_output_mirror.selected_dispatch_policy_contract: rvv-low-precision-packed-i4-dispatch-performance-policy.v1
-// HEADER-DAG: weft.rvv.low_precision_resource.selected_dispatch_policy_output_mirror.dispatch_policy_path: correctness-fallback
-// HEADER-DAG: weft.rvv.low_precision_resource.selected_dispatch_policy_output_mirror.selected_dispatch_preference: not-performance-preferred
-// HEADER-DAG: weft.rvv.low_precision_resource.selected_dispatch_policy_output_mirror.performance_preference_denial_reason: same-target-measurement-no-win-or-regression
-// HEADER-DAG: weft.rvv.low_precision_resource.selected_dispatch_policy_output_mirror.fallback_reason: same-target-measurement-no-win-or-regression
-// HEADER-DAG: weft.rvv.low_precision_resource.selected_dispatch_policy_output_mirror.route_support_allowed: true
-// HEADER-DAG: weft.rvv.low_precision_resource.selected_dispatch_policy_output_mirror.correctness_execution_allowed: true
-// HEADER-DAG: weft.rvv.low_precision_resource.selected_dispatch_policy_output_mirror.performance_selection_allowed: false
-// HEADER-DAG: weft.rvv.low_precision_resource.selected_dispatch_policy_output_mirror.performance_win_claim_allowed: false
-// HEADER-DAG: weft.rvv.low_precision_resource.selected_dispatch_policy_output_mirror.correctness_fallback_path_selected: true
-// HEADER-DAG: weft.rvv.low_precision_resource.selected_dispatch_policy_output_mirror.performance_preferred_path_selected: false
-// HEADER-DAG: weft.rvv.low_precision_resource.measurement_disposition_evidence_mirror.dispatch_preference: not-performance-preferred
 // HEADER-DAG: weft.rvv.selected_dispatch_case_mirror: selected_dispatch_case_mirror:@pre_realized_body_rvv_product_reduce_dequant_clamp;role=dispatch case;runtime_guard_required=false;runtime_guard=none;origin=rvv-plugin;policy=pre-realized-selected-body-widening-product-reduce-dequant-clamp-f32-packed-i4-case
 // HEADER-DAG: weft.rvv.selected_dispatch_fallback_mirror: selected_dispatch_fallback_mirror:@pre_realized_body_scalar_fallback;role=dispatch fallback;fallback_role=conservative;origin=scalar-plugin;policy=pre-realized-selected-body-widening-product-reduce-dequant-clamp-f32-packed-i4-fallback-envelope
 // HEADER: void weft_emitc_pre_realized_body_product_reduce_dequant_clamp_kernel_pre_realized_body_rvv_product_reduce_dequant_clamp(const int8_t *lhs, const int8_t *rhs, const int32_t *acc, float scale, float lower_bound, float upper_bound, float *out, size_t n);
@@ -183,11 +80,3 @@ module {
 // CPP: __riscv_vse32_v_f32m1
 // CPP-NOT: __builtin_fmaxf
 // CPP-NOT: __builtin_fminf
-
-// STALE-ARTIFACT-BASELINE: metadata key '{{.*}}low_precision_resource.performance_baseline'{{.*}}'scalar-c-reference/product-reduction-dequant-clamp-packed-i4-v1' but was 'scalar-c-reference/product-reduction-dequant-packed-i4-v1'
-
-// STALE-ARTIFACT-MEASUREMENT: metadata key '{{.*}}low_precision_resource.remediation_measurement_evidence'{{.*}}'gate4-packed-i4-scalar-epilogue-dequant-clamp-ssh/widening_product_reduce_dequant_clamp_f32/same_target_measurement_evidence.json' but was 'gate4-packed-i4-scalar-epilogue-dequant-ssh/widening_product_reduce_dequantize_f32/same_target_measurement_evidence.json'
-
-// STALE-POLICY-DISPATCH-PREFERENCE: metadata key '{{.*}}low_precision_resource.selected_dispatch_preference'{{.*}}'not-performance-preferred' but was 'performance-preferred'
-
-// STALE-POLICY-CORRECTNESS-FALLBACK: metadata key '{{.*}}low_precision_resource.correctness_fallback_path_selected'{{.*}}'true' but was 'false'

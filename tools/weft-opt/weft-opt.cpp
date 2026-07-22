@@ -77,10 +77,6 @@ llvm::Error registerWeftOptPasses(
         createMaterializeRVVProbedCapabilityAxesPass();
   });
   mlir::registerPass([] {
-    return weft::transforms::
-        createMaterializeRVVRepackStripWidthPass();
-  });
-  mlir::registerPass([] {
     return weft::transforms::createMaterializeRVVSchedulePass();
   });
   mlir::registerPass([] {
@@ -88,9 +84,6 @@ llvm::Error registerWeftOptPasses(
   });
   mlir::registerPass([] {
     return weft::transforms::createMaterializeRVVGemmSchedulePass();
-  });
-  mlir::registerPass([] {
-    return weft::transforms::createMaterializeRVVGearboxSchedulesPass();
   });
   mlir::registerPass([&plugins] {
     return weft::transforms::createMaterializeEmitCLowerableRoutesPass(

@@ -20,7 +20,7 @@ module {
       weft_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @dequant_bad, sew = 32 : i64, source_kernel = "dequant_bad_kernel", status = "selected-lowering-boundary"} {
         weft_rvv.typed_dequantize_row_loop_body %x, %y, %k attributes {decode_model = "q8_0", kind = "typed_dequantize_row_loop_body", qk = 32 : i64, weight_block_stride = 34 : i64} {
         ^bb0(%block_index: index):
-          weft_rvv.dequantize_row_decode_core %x, %y, %block_index {carrier_kind = "bare_int8", decode_model = "q8_0", min_byte_offset = 2 : i64, qk = 32 : i64, quant_byte_offset = 2 : i64, scale_byte_offset = 0 : i64, weight_block_stride = 34 : i64} : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index
+          weft_rvv.dequantize_row_decode_core %x, %y, %block_index {carrier_kind = "bare_int8", decode_model = "q8_0", dequant_mechanism = "int8-scale", min_byte_offset = 2 : i64, qk = 32 : i64, quant_byte_offset = 2 : i64, scale_byte_offset = 0 : i64, weight_block_stride = 34 : i64} : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index
           weft_rvv.typed_dequantize_row_loop_yield
         } : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index
       } : !weft_rvv.vl
@@ -28,5 +28,5 @@ module {
   }
 }
 
-// BADCOMBO: must NOT carry a 4-bit nibble decode fact
-// NOCARRIER: flat nibble-family dequant leaf and requires the carrier_kind
+// BADCOMBO: int8-scale requires carrier_kind="bare_int8" and no nibble-only geometry
+// NOCARRIER: int8-scale requires carrier_kind="bare_int8"

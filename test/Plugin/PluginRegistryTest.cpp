@@ -11,6 +11,7 @@
 
 #include <initializer_list>
 #include <string>
+#include <utility>
 
 using weft::plugin::ExtensionPlugin;
 using weft::plugin::ExtensionPluginRegistry;
@@ -47,6 +48,30 @@ public:
 
   bool isEnabled() const override { return enabled; }
 
+  void collectFormulaDescriptors(
+      llvm::SmallVectorImpl<weft::plugin::FormulaDescriptor> &out)
+      const override {
+    if (sourceFrontDoorPassArguments.empty())
+      return;
+    weft::plugin::FormulaDescriptor descriptor(
+        getFormulaID(), getName(), "test/mock-source",
+        weft::plugin::FormulaResultKind::DeterministicConstruction,
+        weft::plugin::FormulaConstructionStrength::ConstructedWeak);
+    descriptor.getGeometryAxis().set(
+        weft::plugin::FormulaAxisUse::Decisive, "MockSourceFacts");
+    descriptor.getGeometryAxis().addConsumedField("pass-argument");
+    descriptor.getCapabilityAxis().set(
+        weft::plugin::FormulaAxisUse::HonestNull,
+        "MockSourceNoCapabilityInput");
+    descriptor.getStaticContextAxis().set(
+        weft::plugin::FormulaAxisUse::HonestNull,
+        "MockSourceNoStaticContext");
+    descriptor.addSemanticCase("registered-mock-source");
+    for (const std::string &argument : sourceFrontDoorPassArguments)
+      descriptor.addProductionEntry(argument);
+    out.push_back(std::move(descriptor));
+  }
+
   llvm::Error registerSourceFrontDoorPasses(
       const ExtensionPluginRegistry &registry,
       llvm::SmallVectorImpl<SourceFrontDoorPassRegistration> &out)
@@ -55,6 +80,7 @@ public:
     for (const std::string &argument : sourceFrontDoorPassArguments) {
       out.push_back(SourceFrontDoorPassRegistration(
           getName(), argument, "mock source front-door pass",
+          getFormulaID(),
           [] { return std::unique_ptr<mlir::Pass>(); }));
     }
     return llvm::Error::success();
@@ -65,6 +91,7 @@ public:
   }
 
 private:
+  std::string getFormulaID() const { return name + ".source.construct"; }
   std::string name;
   std::string version;
   llvm::SmallVector<PluginCapability, 4> capabilities;

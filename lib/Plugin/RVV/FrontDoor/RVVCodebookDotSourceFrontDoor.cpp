@@ -44,6 +44,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "Weft/Plugin/RVV/RVVCodebookDotSourceFrontDoor.h"
+#include "Weft/Plugin/RVV/RVVFormulaCatalog.h"
 
 #include "Weft/Dialect/Exec/IR/ExecOps.h"
 #include "Weft/Dialect/RVV/IR/RVVDialect.h"
@@ -826,13 +827,13 @@ llvm::Error registerRVVCodebookDotSourceFrontDoorPasses(
     llvm::SmallVectorImpl<SourceFrontDoorPassRegistration> &out) {
   const ExtensionPluginRegistry *registryPtr = &registry;
   out.push_back(SourceFrontDoorPassRegistration(
-      ownerPlugin,
-      "weft-rvv-materialize-codebook-gather-dot-source-front-door",
+      ownerPlugin, formula_catalog::kCodebookDotSourceEntry,
       "Auto-construct the weft_rvv codebook (vrgather) integer-CORE body "
       "(codebook_table_broadcast + load x3 + codebook_gather_x_i8_product + "
       "standalone_reduce + store) from a marked generic codebook-core source "
       "(BOUNDED Track B G2: the codebook integer core only, the i8 gather anchor "
       "SELECTED with the m1/mf2 VLEN flip)",
+      formula_catalog::kCodebookDotConstruction,
       [registryPtr] {
         return createMaterializeRVVCodebookDotSourceFrontDoorPass(*registryPtr);
       },

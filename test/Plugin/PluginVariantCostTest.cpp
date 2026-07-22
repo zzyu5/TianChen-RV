@@ -19,6 +19,7 @@
 #include <initializer_list>
 #include <limits>
 #include <string>
+#include <utility>
 
 using weft::plugin::ExtensionPlugin;
 using weft::plugin::ExtensionPluginRegistry;
@@ -87,6 +88,28 @@ public:
 
   bool isEnabled() const override { return enabled; }
 
+  void collectFormulaDescriptors(
+      llvm::SmallVectorImpl<weft::plugin::FormulaDescriptor> &out)
+      const override {
+    weft::plugin::FormulaDescriptor descriptor(
+        getFormulaID(), getName(), "test/mock-cost",
+        weft::plugin::FormulaResultKind::AnalyticPrior,
+        weft::plugin::FormulaConstructionStrength::ConstructedWeak);
+    descriptor.getGeometryAxis().set(
+        weft::plugin::FormulaAxisUse::Decisive, "MockCostVariantFacts");
+    descriptor.getGeometryAxis().addConsumedField("variant-symbol");
+    descriptor.getCapabilityAxis().set(
+        weft::plugin::FormulaAxisUse::Decisive, "TargetCapabilitySet");
+    descriptor.getCapabilityAxis().addConsumedField("capability-availability");
+    descriptor.getStaticContextAxis().set(
+        weft::plugin::FormulaAxisUse::HonestNull,
+        "MockCostNoStaticContext");
+    descriptor.addSemanticCase("valid");
+    descriptor.addSemanticCase("invalid-test-fixture");
+    descriptor.addProductionEntry("plugin:analytic-cost");
+    out.push_back(std::move(descriptor));
+  }
+
   llvm::Error estimateVariantCost(const VariantCostRequest &request,
                                   VariantCostEstimate &out) const override {
     ++costCalls;
@@ -110,6 +133,7 @@ public:
 
     out = VariantCostEstimate();
     out.setOriginPlugin(name);
+    out.setFormulaID(getFormulaID());
     out.setVariantSymbol(request.getVariant().getSymName());
     out.setExplicitPreference(true);
 
@@ -167,6 +191,7 @@ public:
   }
 
 private:
+  std::string getFormulaID() const { return name + ".cost.analytic-prior"; }
   std::string name;
   std::string capabilityID;
   double availableScore;

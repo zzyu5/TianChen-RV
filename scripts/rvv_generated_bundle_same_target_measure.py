@@ -58,14 +58,6 @@ RESULT_CLASSIFICATION_NOT_MEASURED = "not-measured"
 RESULT_CLASSIFICATION_WIN = "win"
 RESULT_CLASSIFICATION_NO_WIN = "no-win"
 RESULT_CLASSIFICATION_REGRESSION = "regression"
-PACKED_I4_MATURITY_CONTRACT_EVIDENCE_INPUT = (
-    "packed-i4-same-target-performance-maturity-evidence-input.v1"
-)
-PACKED_I4_MATURITY_CONTRACT_AUTHORITY = (
-    "measurement-evidence-input-only; provider-owned "
-    "low-precision resource facts and target artifact mirrors remain "
-    "the maturity contract"
-)
 SOURCE_BACKED_MEASUREMENT_RECORD_CONTRACT = (
     "rvv-low-precision-source-backed-artifact-measurement-record.v1"
 )
@@ -76,128 +68,7 @@ MEASUREMENT_TARGET_PROVENANCE = "same-target-measurement-workflow-ssh-target.v1"
 MEASUREMENT_RUNTIME_COUNT_PROVENANCE = (
     "same-target-measurement-config-input-sizes.v1"
 )
-PRODUCTION_PRESSURE_PROFILE_LABEL = (
-    "low-precision-quantized-contraction-production-pressure"
-)
-PRODUCTION_PRESSURE_PROFILE_LABEL_PROVENANCE = (
-    "non-authoritative-pressure-label-derived-from-selected-typed-rvv-"
-    "provider-facts-and-source-backed-measurement-record"
-)
-PACKED_I4_SAME_TARGET_MEASUREMENT_RECORD_FIELDS = (
-    "contract",
-    "authority",
-    "measurement_evidence_id",
-    "measurement_classification",
-    "measurement_outcome_family",
-    "measurement_best_speedup_range",
-    "measurement_summary_record_count",
-    "measurement_record_count",
-    "correctness_record_count",
-    "same_target_measurement",
-    "ssh_evidence",
-    "target_profile",
-    "source_record_contract",
-    "source_selected_variant",
-    "source_selected_input",
-    "source_generated_function",
-    "generated_artifact_identity_contract",
-    "generated_artifact_object_path",
-    "generated_artifact_object_sha256",
-    "generated_artifact_header_path",
-    "generated_artifact_header_sha256",
-    "measurement_target",
-    "measurement_target_provenance",
-    "measurement_runtime_count_set",
-    "measurement_runtime_count_provenance",
-    "pressure_profile_label",
-    "pressure_profile_label_provenance",
-    "provider_resource_selected_candidate",
-    "provider_resource_planning_contract",
-    "provider_resource_operand_form",
-    "provider_resource_source_signedness",
-    "provider_resource_storage_element_width",
-    "provider_resource_effective_element_width",
-    "provider_resource_packing_layout",
-    "provider_resource_unpack_intent",
-    "provider_resource_vsetvl_region_count",
-    "provider_runtime_avl_source",
-    "provider_resource_route_family_plan",
-    "provider_supported_mirror",
-    "provider_runtime_abi_order",
-    "provider_schedule_decision_contract",
-    "provider_schedule_decision",
-    "provider_schedule_decision_reason",
-    "provider_resource_cost_contract",
-    "provider_resource_cost_model",
-    "provider_resource_cost_loop_body_steps",
-    "provider_resource_cost_blocker",
-    "provider_performance_admission_decision",
-    "provider_performance_admission_closure",
-    "provider_performance_admission_reopen_requirement",
-    "provider_beyond_local_repair_admission_contract",
-    "provider_beyond_local_repair_admission_decision",
-    "provider_beyond_local_repair_admission_blocker",
-    "provider_beyond_local_repair_admission_reopen_requirement",
-    "provider_realization_admission_contract",
-    "provider_realization_admission_decision",
-    "provider_realization_admission_evidence",
-    "provider_realization_admission_dispatch_policy",
-    "provider_realization_admission_schedule_decision_contract",
-    "provider_realization_admission_schedule_decision",
-    "provider_realization_admission_schedule_decision_reason",
-    "provider_primitive_chain_contract",
-    "provider_primitive_chain_kind",
-    "provider_primitive_contract",
-    "provider_primitive_kind",
-    "provider_widening_product_multiplicand_roles",
-    "provider_widening_product_extension_policy",
-    "provider_primitive_source_load",
-    "provider_primitive_source_extension",
-    "provider_primitive_source_dtype",
-    "provider_primitive_source_signedness",
-    "provider_primitive_source_sew",
-    "provider_primitive_source_lmul",
-    "provider_primitive_product_dtype",
-    "provider_primitive_product_sew",
-    "provider_primitive_product_lmul",
-    "provider_primitive_accumulator_dtype",
-    "provider_primitive_accumulator_sew",
-    "provider_primitive_accumulator_lmul",
-    "provider_primitive_result_dtype",
-    "provider_primitive_result_sew",
-    "provider_primitive_result_lmul",
-    "provider_primitive_widening_product_relation",
-    "provider_primitive_product_reduction_chain_relation",
-    "provider_primitive_widening_product_intrinsic",
-    "provider_primitive_reduction_intrinsic",
-    "provider_primitive_scalar_seed_splat_intrinsic",
-    "provider_primitive_accumulator_layout",
-    "provider_primitive_result_layout",
-    "provider_primitive_reduction_store_vl",
-    "provider_remediation_handoff_contract",
-    "provider_remediation_diagnosis",
-    "provider_remediation_measurement_evidence",
-    "provider_remediation_decision",
-    "provider_remediation_action",
-    "provider_remediation_dispatch_preference",
-    "provider_remediation_blocker",
-    "target_capability_provider_mirror",
-    "target_capability_legality_mirror",
-    "provider_maturity",
-    "provider_maturity_evidence",
-    "provider_maturity_outcome",
-    "provider_performance_selection_eligible",
-    "provider_dispatch_preference",
-    "provider_performance_action",
-    "performance_preference_denied",
-    "performance_preference_denial_reason",
-    "performance_win_claim_allowed",
-    "correctness_execution_allowed",
-    "provider_contract_update_required",
-    "route_support_effect",
-)
-PACKED_I4_SSH_TARGET_PROFILE = "ssh rvv"
-PACKED_I4_PERFORMANCE_PREFERRED_DISPATCH = "performance-preferred"
+SAME_TARGET_PROFILE = "ssh rvv"
 
 
 @dataclass(frozen=True)
@@ -1930,73 +1801,11 @@ def classify_parsed_timing(parsed_timing: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def provider_contract_allows_performance_claim(
-    fields: dict[str, str], classification: str
-) -> bool:
-    return (
-        classification == RESULT_CLASSIFICATION_WIN
-        and fields["performance_action"]
-        != abi.WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_ACTION
-        and fields["performance_selection_eligible"] == "true"
-        and fields["dispatch_preference"] == PACKED_I4_PERFORMANCE_PREFERRED_DISPATCH
-    )
-
-
-def performance_preference_denial_reason(
-    fields: dict[str, str], classification: str
-) -> str:
-    if classification == RESULT_CLASSIFICATION_NOT_MEASURED:
-        return "same-target-measurement-not-run"
-    if classification in (
-        RESULT_CLASSIFICATION_NO_WIN,
-        RESULT_CLASSIFICATION_REGRESSION,
-    ):
-        return "same-target-measurement-no-win-or-regression"
-    if fields["performance_selection_eligible"] != "true":
-        return "provider-contract-performance-selection-ineligible"
-    if fields["dispatch_preference"] != PACKED_I4_PERFORMANCE_PREFERRED_DISPATCH:
-        return "provider-contract-not-performance-preferred"
-    if (
-        fields["performance_action"]
-        == abi.WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_ACTION
-    ):
-        return "provider-contract-requires-no-win-repair"
-    return ""
-
-
-def maturity_contract_alignment(
-    *,
-    fields: dict[str, str],
-    classification: str,
-    outcome_family: str,
-    performance_win_claim_allowed: bool,
-) -> str:
-    provider_outcome = fields["performance_maturity_outcome"]
-    if classification == RESULT_CLASSIFICATION_NOT_MEASURED:
-        return "not-measured"
-    if classification == provider_outcome:
-        return "matches-provider-maturity-outcome"
-    if (
-        outcome_family == RESULT_CLASSIFICATION_NO_WIN
-        and provider_outcome
-        in (RESULT_CLASSIFICATION_NO_WIN, RESULT_CLASSIFICATION_REGRESSION)
-    ):
-        return "same-no-win-family-denies-performance-preference"
-    if classification == RESULT_CLASSIFICATION_WIN:
-        if performance_win_claim_allowed:
-            return "win-claim-allowed-by-provider-maturity-contract"
-        return (
-            "measurement-win-conflicts-with-provider-maturity-contract-requires-"
-            "provider-update"
-        )
-    return "measurement-outcome-requires-provider-maturity-review"
-
-
 def runtime_count_set(counts: list[int]) -> str:
     return ",".join(str(count) for count in counts)
 
 
-def source_backed_pressure_profile_record_context(
+def source_artifact_record_context(
     *,
     generation_result: dict[str, Any],
     expectation: abi.OpExpectation,
@@ -2019,324 +1828,38 @@ def source_backed_pressure_profile_record_context(
         "generated_artifact_object_sha256": abi.sha256_file(object_path),
         "generated_artifact_header_path": str(header_path),
         "generated_artifact_header_sha256": abi.sha256_file(header_path),
-        "measurement_target": PACKED_I4_SSH_TARGET_PROFILE if measured else "",
+        "measurement_target": SAME_TARGET_PROFILE if measured else "",
         "measurement_target_provenance": MEASUREMENT_TARGET_PROVENANCE,
         "measurement_runtime_count_set": runtime_count_set(config.counts),
         "measurement_runtime_count_provenance": (
             MEASUREMENT_RUNTIME_COUNT_PROVENANCE
         ),
-        "pressure_profile_label": PRODUCTION_PRESSURE_PROFILE_LABEL,
-        "pressure_profile_label_provenance": (
-            PRODUCTION_PRESSURE_PROFILE_LABEL_PROVENANCE
-        ),
     }
 
 
-def packed_i4_resource_int(fields: dict[str, str], name: str) -> int:
-    try:
-        return int(fields[name])
-    except KeyError as exc:
-        raise abi.EvidenceError(
-            f"packed-i4 provider feedback tie-back missing {name}"
-        ) from exc
-    except ValueError as exc:
-        raise abi.EvidenceError(
-            f"packed-i4 provider feedback tie-back requires integer {name}: "
-            f"{fields.get(name)!r}"
-        ) from exc
-
-
-def packed_i4_maturity_contract_evidence_input(
-    *,
-    fields: dict[str, str],
-    result_classification: dict[str, Any],
-    measurement_evidence_id: str,
-    source_record_context: dict[str, Any],
-) -> dict[str, Any]:
-    classification = str(result_classification.get("classification", ""))
-    outcome_family = str(result_classification.get("outcome_family", ""))
-    performance_win_claim_allowed = provider_contract_allows_performance_claim(
-        fields, classification
-    )
-    alignment = maturity_contract_alignment(
-        fields=fields,
-        classification=classification,
-        outcome_family=outcome_family,
-        performance_win_claim_allowed=performance_win_claim_allowed,
-    )
-    denial_reason = performance_preference_denial_reason(fields, classification)
-    return {
-        "contract": PACKED_I4_MATURITY_CONTRACT_EVIDENCE_INPUT,
-        "authority": PACKED_I4_MATURITY_CONTRACT_AUTHORITY,
-        "measurement_evidence_id": measurement_evidence_id,
-        "measurement_classification": classification,
-        "measurement_outcome_family": outcome_family,
-        "measurement_best_speedup_range": result_classification.get(
-            "best_speedup_range", ""
-        ),
-        "measurement_summary_record_count": result_classification.get(
-            "summary_record_count", 0
-        ),
-        "measurement_record_count": result_classification.get(
-            "measurement_record_count", 0
-        ),
-        "correctness_record_count": result_classification.get(
-            "correctness_record_count", 0
-        ),
-        "same_target_measurement": classification
-        != RESULT_CLASSIFICATION_NOT_MEASURED,
-        "ssh_evidence": classification != RESULT_CLASSIFICATION_NOT_MEASURED,
-        "target_profile": (
-            PACKED_I4_SSH_TARGET_PROFILE
-            if classification != RESULT_CLASSIFICATION_NOT_MEASURED
-            else ""
-        ),
-        "source_record_contract": source_record_context["source_record_contract"],
-        "source_selected_variant": source_record_context[
-            "source_selected_variant"
-        ],
-        "source_selected_input": source_record_context["source_selected_input"],
-        "source_generated_function": source_record_context[
-            "source_generated_function"
-        ],
-        "generated_artifact_identity_contract": source_record_context[
-            "generated_artifact_identity_contract"
-        ],
-        "generated_artifact_object_path": source_record_context[
-            "generated_artifact_object_path"
-        ],
-        "generated_artifact_object_sha256": source_record_context[
-            "generated_artifact_object_sha256"
-        ],
-        "generated_artifact_header_path": source_record_context[
-            "generated_artifact_header_path"
-        ],
-        "generated_artifact_header_sha256": source_record_context[
-            "generated_artifact_header_sha256"
-        ],
-        "measurement_target": source_record_context["measurement_target"],
-        "measurement_target_provenance": source_record_context[
-            "measurement_target_provenance"
-        ],
-        "measurement_runtime_count_set": source_record_context[
-            "measurement_runtime_count_set"
-        ],
-        "measurement_runtime_count_provenance": source_record_context[
-            "measurement_runtime_count_provenance"
-        ],
-        "pressure_profile_label": source_record_context[
-            "pressure_profile_label"
-        ],
-        "pressure_profile_label_provenance": source_record_context[
-            "pressure_profile_label_provenance"
-        ],
-        "provider_maturity": fields["performance_maturity"],
-        "provider_maturity_evidence": fields["performance_maturity_evidence"],
-        "provider_maturity_outcome": fields["performance_maturity_outcome"],
-        "provider_resource_selected_candidate": fields["selected_candidate"],
-        "provider_resource_planning_contract": fields["planning_contract"],
-        "provider_resource_operand_form": fields["operand_form"],
-        "provider_resource_source_signedness": fields["source_signedness"],
-        "provider_resource_storage_element_width": packed_i4_resource_int(
-            fields, "storage_element_width"
-        ),
-        "provider_resource_effective_element_width": packed_i4_resource_int(
-            fields, "effective_element_width"
-        ),
-        "provider_resource_packing_layout": fields["packing_layout"],
-        "provider_resource_unpack_intent": fields["unpack_intent"],
-        "provider_resource_vsetvl_region_count": packed_i4_resource_int(
-            fields, "vsetvl_region_count"
-        ),
-        "provider_runtime_avl_source": fields["runtime_avl_source"],
-        "provider_resource_route_family_plan": fields["route_family_plan"],
-        "provider_supported_mirror": fields["provider_supported_mirror"],
-        "provider_runtime_abi_order": fields["runtime_abi_order"],
-        "provider_primitive_chain_contract": fields["primitive_chain_contract"],
-        "provider_primitive_chain_kind": fields["primitive_chain_kind"],
-        "provider_primitive_contract": fields["primitive_contract"],
-        "provider_primitive_kind": fields["primitive_kind"],
-        "provider_widening_product_multiplicand_roles": fields[
-            "widening_product_multiplicand_roles"
-        ],
-        "provider_widening_product_extension_policy": fields[
-            "widening_product_extension_policy"
-        ],
-        "provider_primitive_source_load": fields["primitive_source_load"],
-        "provider_primitive_source_extension": fields[
-            "primitive_source_extension"
-        ],
-        "provider_primitive_source_dtype": fields["source_dtype"],
-        "provider_primitive_source_signedness": fields["source_signedness"],
-        "provider_primitive_source_sew": packed_i4_resource_int(
-            fields, "source_sew"
-        ),
-        "provider_primitive_source_lmul": fields["source_lmul"],
-        "provider_primitive_product_dtype": fields["product_dtype"],
-        "provider_primitive_product_sew": packed_i4_resource_int(
-            fields, "product_sew"
-        ),
-        "provider_primitive_product_lmul": fields["product_lmul"],
-        "provider_primitive_accumulator_dtype": fields["accumulator_dtype"],
-        "provider_primitive_accumulator_sew": packed_i4_resource_int(
-            fields, "accumulator_sew"
-        ),
-        "provider_primitive_accumulator_lmul": fields["accumulator_lmul"],
-        "provider_primitive_result_dtype": fields["result_dtype"],
-        "provider_primitive_result_sew": packed_i4_resource_int(
-            fields, "result_sew"
-        ),
-        "provider_primitive_result_lmul": fields["result_lmul"],
-        "provider_primitive_widening_product_relation": fields[
-            "primitive_widening_product_relation"
-        ],
-        "provider_primitive_product_reduction_chain_relation": fields[
-            "primitive_product_reduction_chain_relation"
-        ],
-        "provider_primitive_widening_product_intrinsic": fields[
-            "primitive_widening_product_intrinsic"
-        ],
-        "provider_primitive_reduction_intrinsic": fields[
-            "primitive_reduction_intrinsic"
-        ],
-        "provider_primitive_scalar_seed_splat_intrinsic": fields[
-            "primitive_scalar_seed_splat_intrinsic"
-        ],
-        "provider_primitive_accumulator_layout": fields[
-            "primitive_accumulator_layout"
-        ],
-        "provider_primitive_result_layout": fields["primitive_result_layout"],
-        "provider_primitive_reduction_store_vl": fields[
-            "primitive_reduction_store_vl"
-        ],
-        "provider_remediation_handoff_contract": fields[
-            "remediation_handoff_contract"
-        ],
-        "provider_remediation_diagnosis": fields["remediation_diagnosis"],
-        "provider_remediation_measurement_evidence": fields[
-            "remediation_measurement_evidence"
-        ],
-        "provider_remediation_decision": fields["remediation_decision"],
-        "provider_remediation_action": fields["remediation_action"],
-        "provider_remediation_dispatch_preference": fields[
-            "remediation_dispatch_preference"
-        ],
-        "provider_remediation_blocker": fields["remediation_blocker"],
-        "provider_remediation_plan_contract": fields[
-            "remediation_plan_contract"
-        ],
-        "provider_remediation_plan": fields["remediation_plan"],
-        "provider_remediation_statement_strategy": fields[
-            "remediation_statement_strategy"
-        ],
-        "provider_remediation_vector_budget": fields[
-            "remediation_vector_budget"
-        ],
-        "provider_remediation_schedule_contract": fields[
-            "remediation_schedule_contract"
-        ],
-        "provider_remediation_unpack_plan": fields["remediation_unpack_plan"],
-        "provider_remediation_product_plan": fields["remediation_product_plan"],
-        "provider_remediation_reduction_plan": fields[
-            "remediation_reduction_plan"
-        ],
-        "provider_remediation_vl_plan": fields["remediation_vl_plan"],
-        "provider_schedule_decision_contract": fields[
-            "schedule_decision_contract"
-        ],
-        "provider_schedule_decision": fields["schedule_decision"],
-        "provider_schedule_decision_reason": fields["schedule_decision_reason"],
-        "provider_resource_cost_contract": fields["resource_cost_contract"],
-        "provider_resource_cost_model": fields["resource_cost_model"],
-        "provider_resource_cost_loop_body_steps": packed_i4_resource_int(
-            fields, "resource_cost_loop_body_steps"
-        ),
-        "provider_resource_cost_blocker": fields["resource_cost_blocker"],
-        "provider_performance_admission_decision": fields[
-            "performance_admission_decision"
-        ],
-        "provider_performance_admission_closure": fields[
-            "performance_admission_closure"
-        ],
-        "provider_performance_admission_reopen_requirement": fields[
-            "performance_admission_reopen_requirement"
-        ],
-        "provider_beyond_local_repair_admission_contract": fields[
-            "beyond_local_repair_admission_contract"
-        ],
-        "provider_beyond_local_repair_admission_decision": fields[
-            "beyond_local_repair_admission_decision"
-        ],
-        "provider_beyond_local_repair_admission_blocker": fields[
-            "beyond_local_repair_admission_blocker"
-        ],
-        "provider_beyond_local_repair_admission_reopen_requirement": fields[
-            "beyond_local_repair_admission_reopen_requirement"
-        ],
-        "provider_realization_admission_contract": fields[
-            "realization_admission_contract"
-        ],
-        "provider_realization_admission_decision": fields[
-            "realization_admission_decision"
-        ],
-        "provider_realization_admission_evidence": fields[
-            "realization_admission_evidence"
-        ],
-        "provider_realization_admission_dispatch_policy": fields[
-            "realization_admission_dispatch_policy"
-        ],
-        "provider_realization_admission_schedule_decision_contract": fields[
-            "realization_admission_schedule_decision_contract"
-        ],
-        "provider_realization_admission_schedule_decision": fields[
-            "realization_admission_schedule_decision"
-        ],
-        "provider_realization_admission_schedule_decision_reason": fields[
-            "realization_admission_schedule_decision_reason"
-        ],
-        "target_capability_provider_mirror": fields[
-            "target_capability_provider_mirror"
-        ],
-        "target_capability_legality_mirror": fields[
-            "target_capability_legality_mirror"
-        ],
-        "provider_performance_selection_eligible": fields[
-            "performance_selection_eligible"
-        ],
-        "provider_dispatch_preference": fields["dispatch_preference"],
-        "provider_performance_action": fields["performance_action"],
-        "contract_alignment": alignment,
-        "performance_win_claim_allowed": performance_win_claim_allowed,
-        "performance_preference_denied": not performance_win_claim_allowed,
-        "performance_preference_denial_reason": denial_reason,
-        "correctness_execution_allowed": True,
-        "route_support_effect": (
-            "preserve-executable-route-support; measurement evidence only "
-            "gates performance preference and claims"
-        ),
-        "provider_contract_update_required": alignment
-        not in ("not-measured", "matches-provider-maturity-outcome"),
-    }
-
-
-def packed_i4_same_target_measurement_record(
-    maturity_input: dict[str, Any],
-) -> dict[str, Any]:
-    return {
-        field: maturity_input[field]
-        for field in PACKED_I4_SAME_TARGET_MEASUREMENT_RECORD_FIELDS
-    }
-
-
-def low_precision_resource_metadata_sources(
+def low_precision_formula_plan_metadata(
     generation_result: dict[str, Any],
-) -> tuple[dict[str, str], dict[str, str], dict[str, Any]]:
+) -> dict[str, str]:
+    """Collect the final typed primitive plan without treating evidence as compute."""
+    prefix = "weft_rvv.low_precision_primitive."
     boundary = generation_result.get("widening_product_reduction_boundary", {})
-    route_metadata = boundary.get("route_metadata", {})
-    provider_low_precision = (
-        boundary.get("provider_route_facts", {}).get("low_precision_resource", {})
-    )
-    target_artifact_metadata: dict[str, str] = {}
+    merged: dict[str, str] = {}
+
+    def merge(key: str, value: Any) -> None:
+        if not key.startswith(prefix):
+            return
+        field = key[len(prefix) :]
+        text = str(value)
+        previous = merged.get(field)
+        if previous is not None and previous != text:
+            raise abi.EvidenceError(
+                "formula-plan evidence disagrees for "
+                f"{key}: {previous!r} vs {text!r}"
+            )
+        merged[field] = text
+
+    for key, value in boundary.get("route_metadata", {}).items():
+        merge(str(key), value)
     for record in (
         generation_result.get("bundle_checks", {})
         .get("index", {})
@@ -2344,19 +1867,16 @@ def low_precision_resource_metadata_sources(
         .get("records", [])
     ):
         for entry in record.get("artifact_metadata", []):
-            key = str(entry.get("key", ""))
-            if not key.startswith("weft_rvv.low_precision_resource."):
-                continue
-            value = str(entry.get("value", ""))
-            previous = target_artifact_metadata.get(key)
-            if previous is not None and previous != value:
-                raise abi.EvidenceError(
-                    "low-precision candidate feedback rejects target artifact "
-                    f"metadata disagreement for {key}: {previous!r} vs "
-                    f"{value!r}"
-                )
-            target_artifact_metadata[key] = value
-    return target_artifact_metadata, route_metadata, provider_low_precision
+            merge(str(entry.get("key", "")), entry.get("value", ""))
+
+    required = ("source_lmul", "product_lmul", "accumulator_lmul")
+    missing = [field for field in required if not merged.get(field)]
+    if missing:
+        raise abi.EvidenceError(
+            "formula-plan evidence missing typed primitive fields: "
+            + ", ".join(missing)
+        )
+    return merged
 
 
 def low_precision_candidate_feedback_record(
@@ -2375,133 +1895,18 @@ def low_precision_candidate_feedback_record(
     ):
         return {"status": "not-applicable"}
 
-    # The deferred-wide (N3) byte realization carries NO low_precision_resource.*
-    # gearbox tuning-decision block (it is a non-grouped single-scope deferred
-    # body); its candidate feedback is the primitive-facts-based honest record, not
-    # the narrow grouped/packed-i4 resource-selection block. Detected from the
-    # recorded primitive source_lmul on the bundle metadata (= m2 for the wide
-    # strip) or the boundary's deferred_wide_accumulate flag.
-    boundary_for_wide = generation_result.get(
-        "widening_product_reduction_boundary", {}
-    )
-    bundle_primitive_source_lmul = None
-    for _record in (
-        generation_result.get("bundle_checks", {})
-        .get("index", {})
-        .get("parsed", {})
-        .get("records", [])
-    ):
-        for _entry in _record.get("artifact_metadata", []):
-            if (
-                str(_entry.get("key", ""))
-                == "weft_rvv.low_precision_primitive.source_lmul"
-            ):
-                bundle_primitive_source_lmul = str(_entry.get("value", ""))
-    is_deferred_wide_candidate = (
-        bool(boundary_for_wide.get("deferred_wide_accumulate"))
-        or bundle_primitive_source_lmul == "m2"
-    )
-    if is_deferred_wide_candidate:
-        return {
-            "status": "deferred-wide-no-resource-selection-block",
-            "candidate_label": candidate_label,
-            "deferred_wide_accumulate": True,
-            "measurement_evidence_id": measurement_evidence_id,
-            "measurement_result_is_route_authority": False,
-            "route_support_effect": (
-                "preserve-executable-route-support; measurement evidence only "
-                "feeds policy/admission review"
-            ),
-            "note": (
-                "the deferred-wide single-scope realization emits no "
-                "low_precision_resource.* selection block; its primitive-facts "
-                "are mirrored on the route/header metadata"
-            ),
-        }
-
-    target_metadata, route_metadata, provider_low_precision = (
-        low_precision_resource_metadata_sources(generation_result)
-    )
-
-    def resource_field(name: str) -> str:
-        route_key = f"weft_rvv.low_precision_resource.{name}"
-        value = target_metadata.get(route_key)
-        if value is None:
-            value = route_metadata.get(route_key)
-        if value is None:
-            value = provider_low_precision.get(name)
-        if value is None:
-            raise abi.EvidenceError(
-                f"low-precision candidate feedback missing {route_key}"
-            )
-        return str(value)
-
-    expected_resource_metadata = abi.expected_low_precision_resource_metadata(
-        expectation, packed_i4=uses_packed_i4_resource
-    )
-    stable_field_names = (
-        "candidate_set",
-        "selected_candidate",
-        "candidate_count",
-        "legal_candidate_count",
-        "selected_candidate_index",
-        "selection_reason",
-        "planning_contract",
-        "route_family_plan",
-        "provider_supported_mirror",
-        "operand_form",
-        "source_signedness",
-        "storage_element_width",
-        "effective_element_width",
-        "packing_layout",
-        "unpack_intent",
-        "vsetvl_region_count",
-        "runtime_avl_source",
-        "runtime_abi_order",
-        "primitive_chain_contract",
-        "primitive_chain_kind",
-        "primitive_widening_product_intrinsic",
-        "primitive_reduction_intrinsic",
-        "realization_decision",
-        "realized_vsetvl_region_count",
-        "realized_peak_live_vector_groups",
-        "target_capability_provider_mirror",
-        "target_capability_legality_mirror",
-    )
-    expected_fields = {
-        name: expected_resource_metadata[
-            f"weft_rvv.low_precision_resource.{name}"
-        ]
-        for name in stable_field_names
-    }
-    fields = {name: resource_field(name) for name in expected_fields}
-    for name, expected in expected_fields.items():
-        abi.require_equal(
-            fields[name],
-            expected,
-            f"low-precision candidate feedback {name}",
-        )
-
     measured = (
         result_classification.get("classification")
         != RESULT_CLASSIFICATION_NOT_MEASURED
     )
+    boundary = generation_result.get("widening_product_reduction_boundary", {})
     return {
-        "status": (
-            "same-target-measured"
-            if measured
-            else "ready-for-same-target-measurement"
-        ),
+        "status": "formula-plan-measured" if measured else "formula-plan-artifact-ready",
         "candidate_label": candidate_label or expectation.kind,
         "op_kind": expectation.kind,
-        "authority": (
-            "policy/evidence feedback record only; route, schedule, type, "
-            "artifact, and dispatch authority remain provider-owned"
-        ),
-        "feedback_boundary": (
-            "validated generated object/header candidate artifact plus "
-            "provider-owned low-precision resource mirrors"
-        ),
+        "formula_plan": low_precision_formula_plan_metadata(generation_result),
+        "deferred_wide_accumulate": bool(boundary.get("deferred_wide_accumulate")),
+        "packed_i4_typed_body": uses_packed_i4_resource,
         "measurement_evidence_id": measurement_evidence_id,
         "same_target_measurement": measured,
         "ssh_evidence": measured,
@@ -2509,550 +1914,11 @@ def low_precision_candidate_feedback_record(
         "baseline_identity": baseline_identity_for(
             expectation, uses_packed_i4_resource=uses_packed_i4_resource
         ),
-        "packed_i4_resource_metadata_selected": uses_packed_i4_resource,
         "source_record": dict(source_record_context),
-        "fields": fields,
-        "expected_fields": expected_fields,
-        "route_support_effect": (
-            "preserve-executable-route-support; measurement evidence only "
-            "feeds policy/admission review"
-        ),
         "measurement_result_is_route_authority": False,
-    }
-
-
-def require_maturity_input_value(
-    maturity_input: dict[str, Any],
-    field: str,
-    expected: Any,
-    context: str,
-) -> None:
-    actual = maturity_input.get(field)
-    if actual != expected:
-        raise abi.EvidenceError(
-            f"{context} stale maturity-contract evidence field {field}: "
-            f"expected {expected!r}, got {actual!r}"
-        )
-
-
-def validate_packed_i4_maturity_contract_evidence_input(
-    *,
-    fields: dict[str, str],
-    result_classification: dict[str, Any],
-    measurement_evidence_id: str,
-    source_record_context: dict[str, Any],
-    maturity_input: dict[str, Any],
-    context: str,
-) -> None:
-    classification = str(result_classification.get("classification", ""))
-    outcome_family = str(result_classification.get("outcome_family", ""))
-    performance_win_claim_allowed = provider_contract_allows_performance_claim(
-        fields, classification
-    )
-    expected_alignment = maturity_contract_alignment(
-        fields=fields,
-        classification=classification,
-        outcome_family=outcome_family,
-        performance_win_claim_allowed=performance_win_claim_allowed,
-    )
-    expected_denial_reason = performance_preference_denial_reason(
-        fields, classification
-    )
-
-    expected_values: dict[str, Any] = {
-        "contract": PACKED_I4_MATURITY_CONTRACT_EVIDENCE_INPUT,
-        "authority": PACKED_I4_MATURITY_CONTRACT_AUTHORITY,
-        "measurement_evidence_id": measurement_evidence_id,
-        "measurement_classification": classification,
-        "measurement_outcome_family": outcome_family,
-        "measurement_best_speedup_range": result_classification.get(
-            "best_speedup_range", ""
-        ),
-        "measurement_summary_record_count": result_classification.get(
-            "summary_record_count", 0
-        ),
-        "measurement_record_count": result_classification.get(
-            "measurement_record_count", 0
-        ),
-        "correctness_record_count": result_classification.get(
-            "correctness_record_count", 0
-        ),
-        "same_target_measurement": classification
-        != RESULT_CLASSIFICATION_NOT_MEASURED,
-        "ssh_evidence": classification != RESULT_CLASSIFICATION_NOT_MEASURED,
-        "target_profile": (
-            PACKED_I4_SSH_TARGET_PROFILE
-            if classification != RESULT_CLASSIFICATION_NOT_MEASURED
-            else ""
-        ),
-        "source_record_contract": source_record_context["source_record_contract"],
-        "source_selected_variant": source_record_context[
-            "source_selected_variant"
-        ],
-        "source_selected_input": source_record_context["source_selected_input"],
-        "source_generated_function": source_record_context[
-            "source_generated_function"
-        ],
-        "generated_artifact_identity_contract": source_record_context[
-            "generated_artifact_identity_contract"
-        ],
-        "generated_artifact_object_path": source_record_context[
-            "generated_artifact_object_path"
-        ],
-        "generated_artifact_object_sha256": source_record_context[
-            "generated_artifact_object_sha256"
-        ],
-        "generated_artifact_header_path": source_record_context[
-            "generated_artifact_header_path"
-        ],
-        "generated_artifact_header_sha256": source_record_context[
-            "generated_artifact_header_sha256"
-        ],
-        "measurement_target": source_record_context["measurement_target"],
-        "measurement_target_provenance": source_record_context[
-            "measurement_target_provenance"
-        ],
-        "measurement_runtime_count_set": source_record_context[
-            "measurement_runtime_count_set"
-        ],
-        "measurement_runtime_count_provenance": source_record_context[
-            "measurement_runtime_count_provenance"
-        ],
-        "pressure_profile_label": source_record_context[
-            "pressure_profile_label"
-        ],
-        "pressure_profile_label_provenance": source_record_context[
-            "pressure_profile_label_provenance"
-        ],
-        "provider_maturity": fields["performance_maturity"],
-        "provider_maturity_evidence": fields["performance_maturity_evidence"],
-        "provider_maturity_outcome": fields["performance_maturity_outcome"],
-        "provider_resource_selected_candidate": fields["selected_candidate"],
-        "provider_resource_planning_contract": fields["planning_contract"],
-        "provider_resource_operand_form": fields["operand_form"],
-        "provider_resource_source_signedness": fields["source_signedness"],
-        "provider_resource_storage_element_width": packed_i4_resource_int(
-            fields, "storage_element_width"
-        ),
-        "provider_resource_effective_element_width": packed_i4_resource_int(
-            fields, "effective_element_width"
-        ),
-        "provider_resource_packing_layout": fields["packing_layout"],
-        "provider_resource_unpack_intent": fields["unpack_intent"],
-        "provider_resource_vsetvl_region_count": packed_i4_resource_int(
-            fields, "vsetvl_region_count"
-        ),
-        "provider_runtime_avl_source": fields["runtime_avl_source"],
-        "provider_resource_route_family_plan": fields["route_family_plan"],
-        "provider_supported_mirror": fields["provider_supported_mirror"],
-        "provider_runtime_abi_order": fields["runtime_abi_order"],
-        "provider_primitive_chain_contract": fields["primitive_chain_contract"],
-        "provider_primitive_chain_kind": fields["primitive_chain_kind"],
-        "provider_primitive_contract": fields["primitive_contract"],
-        "provider_primitive_kind": fields["primitive_kind"],
-        "provider_widening_product_multiplicand_roles": fields[
-            "widening_product_multiplicand_roles"
-        ],
-        "provider_widening_product_extension_policy": fields[
-            "widening_product_extension_policy"
-        ],
-        "provider_primitive_source_load": fields["primitive_source_load"],
-        "provider_primitive_source_extension": fields[
-            "primitive_source_extension"
-        ],
-        "provider_primitive_source_dtype": fields["source_dtype"],
-        "provider_primitive_source_signedness": fields["source_signedness"],
-        "provider_primitive_source_sew": packed_i4_resource_int(
-            fields, "source_sew"
-        ),
-        "provider_primitive_source_lmul": fields["source_lmul"],
-        "provider_primitive_product_dtype": fields["product_dtype"],
-        "provider_primitive_product_sew": packed_i4_resource_int(
-            fields, "product_sew"
-        ),
-        "provider_primitive_product_lmul": fields["product_lmul"],
-        "provider_primitive_accumulator_dtype": fields["accumulator_dtype"],
-        "provider_primitive_accumulator_sew": packed_i4_resource_int(
-            fields, "accumulator_sew"
-        ),
-        "provider_primitive_accumulator_lmul": fields["accumulator_lmul"],
-        "provider_primitive_result_dtype": fields["result_dtype"],
-        "provider_primitive_result_sew": packed_i4_resource_int(
-            fields, "result_sew"
-        ),
-        "provider_primitive_result_lmul": fields["result_lmul"],
-        "provider_primitive_widening_product_relation": fields[
-            "primitive_widening_product_relation"
-        ],
-        "provider_primitive_product_reduction_chain_relation": fields[
-            "primitive_product_reduction_chain_relation"
-        ],
-        "provider_primitive_widening_product_intrinsic": fields[
-            "primitive_widening_product_intrinsic"
-        ],
-        "provider_primitive_reduction_intrinsic": fields[
-            "primitive_reduction_intrinsic"
-        ],
-        "provider_primitive_scalar_seed_splat_intrinsic": fields[
-            "primitive_scalar_seed_splat_intrinsic"
-        ],
-        "provider_primitive_accumulator_layout": fields[
-            "primitive_accumulator_layout"
-        ],
-        "provider_primitive_result_layout": fields["primitive_result_layout"],
-        "provider_primitive_reduction_store_vl": fields[
-            "primitive_reduction_store_vl"
-        ],
-        "provider_remediation_handoff_contract": fields[
-            "remediation_handoff_contract"
-        ],
-        "provider_remediation_diagnosis": fields["remediation_diagnosis"],
-        "provider_remediation_measurement_evidence": fields[
-            "remediation_measurement_evidence"
-        ],
-        "provider_remediation_decision": fields["remediation_decision"],
-        "provider_remediation_action": fields["remediation_action"],
-        "provider_remediation_dispatch_preference": fields[
-            "remediation_dispatch_preference"
-        ],
-        "provider_remediation_blocker": fields["remediation_blocker"],
-        "provider_remediation_plan_contract": fields[
-            "remediation_plan_contract"
-        ],
-        "provider_remediation_plan": fields["remediation_plan"],
-        "provider_remediation_statement_strategy": fields[
-            "remediation_statement_strategy"
-        ],
-        "provider_remediation_vector_budget": fields[
-            "remediation_vector_budget"
-        ],
-        "provider_remediation_schedule_contract": fields[
-            "remediation_schedule_contract"
-        ],
-        "provider_remediation_unpack_plan": fields["remediation_unpack_plan"],
-        "provider_remediation_product_plan": fields["remediation_product_plan"],
-        "provider_remediation_reduction_plan": fields[
-            "remediation_reduction_plan"
-        ],
-        "provider_remediation_vl_plan": fields["remediation_vl_plan"],
-        "provider_schedule_decision_contract": fields[
-            "schedule_decision_contract"
-        ],
-        "provider_schedule_decision": fields["schedule_decision"],
-        "provider_schedule_decision_reason": fields["schedule_decision_reason"],
-        "provider_resource_cost_contract": fields["resource_cost_contract"],
-        "provider_resource_cost_model": fields["resource_cost_model"],
-        "provider_resource_cost_loop_body_steps": packed_i4_resource_int(
-            fields, "resource_cost_loop_body_steps"
-        ),
-        "provider_resource_cost_blocker": fields["resource_cost_blocker"],
-        "provider_performance_admission_decision": fields[
-            "performance_admission_decision"
-        ],
-        "provider_performance_admission_closure": fields[
-            "performance_admission_closure"
-        ],
-        "provider_performance_admission_reopen_requirement": fields[
-            "performance_admission_reopen_requirement"
-        ],
-        "provider_beyond_local_repair_admission_contract": fields[
-            "beyond_local_repair_admission_contract"
-        ],
-        "provider_beyond_local_repair_admission_decision": fields[
-            "beyond_local_repair_admission_decision"
-        ],
-        "provider_beyond_local_repair_admission_blocker": fields[
-            "beyond_local_repair_admission_blocker"
-        ],
-        "provider_beyond_local_repair_admission_reopen_requirement": fields[
-            "beyond_local_repair_admission_reopen_requirement"
-        ],
-        "provider_realization_admission_contract": fields[
-            "realization_admission_contract"
-        ],
-        "provider_realization_admission_decision": fields[
-            "realization_admission_decision"
-        ],
-        "provider_realization_admission_evidence": fields[
-            "realization_admission_evidence"
-        ],
-        "provider_realization_admission_dispatch_policy": fields[
-            "realization_admission_dispatch_policy"
-        ],
-        "provider_realization_admission_schedule_decision_contract": fields[
-            "realization_admission_schedule_decision_contract"
-        ],
-        "provider_realization_admission_schedule_decision": fields[
-            "realization_admission_schedule_decision"
-        ],
-        "provider_realization_admission_schedule_decision_reason": fields[
-            "realization_admission_schedule_decision_reason"
-        ],
-        "target_capability_provider_mirror": fields[
-            "target_capability_provider_mirror"
-        ],
-        "target_capability_legality_mirror": fields[
-            "target_capability_legality_mirror"
-        ],
-        "provider_performance_selection_eligible": fields[
-            "performance_selection_eligible"
-        ],
-        "provider_dispatch_preference": fields["dispatch_preference"],
-        "provider_performance_action": fields["performance_action"],
-        "contract_alignment": expected_alignment,
-        "performance_win_claim_allowed": performance_win_claim_allowed,
-        "performance_preference_denied": not performance_win_claim_allowed,
-        "performance_preference_denial_reason": expected_denial_reason,
-        "correctness_execution_allowed": True,
-        "provider_contract_update_required": expected_alignment
-        not in ("not-measured", "matches-provider-maturity-outcome"),
-    }
-    for field, expected in expected_values.items():
-        require_maturity_input_value(maturity_input, field, expected, context)
-
-    if classification in (
-        RESULT_CLASSIFICATION_NOT_MEASURED,
-        RESULT_CLASSIFICATION_NO_WIN,
-        RESULT_CLASSIFICATION_REGRESSION,
-    ):
-        if maturity_input.get("performance_win_claim_allowed") is not False:
-            raise abi.EvidenceError(
-                f"{context} must fail closed: {classification} evidence "
-                "cannot allow a performance-win claim"
-            )
-        if maturity_input.get("performance_preference_denied") is not True:
-            raise abi.EvidenceError(
-                f"{context} must deny performance preference for "
-                f"{classification} evidence"
-            )
-        if fields["performance_selection_eligible"] == "true":
-            raise abi.EvidenceError(
-                f"{context} must fail closed: {classification} evidence "
-                "cannot be paired with provider performance selection "
-                "eligibility"
-            )
-        if (
-            fields["dispatch_preference"]
-            == PACKED_I4_PERFORMANCE_PREFERRED_DISPATCH
-        ):
-            raise abi.EvidenceError(
-                f"{context} must fail closed: {classification} evidence "
-                "cannot be paired with provider performance-preferred dispatch"
-            )
-
-
-def packed_i4_provider_feedback_tie_back(
-    *,
-    generation_result: dict[str, Any],
-    expectation: abi.OpExpectation,
-    uses_packed_i4_resource: bool,
-    result_classification: dict[str, Any],
-    measurement_evidence_id: str,
-    source_record_context: dict[str, Any],
-) -> dict[str, Any]:
-    if not uses_packed_i4_resource:
-        return {
-            "packed_i4_resource_metadata_selected": False,
-            "baseline_identity": baseline_identity_for(
-                expectation, uses_packed_i4_resource=False
-            ),
-            "status": "not-applicable",
-        }
-
-    boundary = generation_result.get("widening_product_reduction_boundary", {})
-    route_metadata = boundary.get("route_metadata", {})
-    provider_low_precision = (
-        boundary.get("provider_route_facts", {}).get("low_precision_resource", {})
-    )
-    target_artifact_metadata: dict[str, str] = {}
-    for record in (
-        generation_result.get("bundle_checks", {})
-        .get("index", {})
-        .get("parsed", {})
-        .get("records", [])
-    ):
-        for entry in record.get("artifact_metadata", []):
-            key = str(entry.get("key", ""))
-            if not key.startswith("weft_rvv.low_precision_resource."):
-                continue
-            value = str(entry.get("value", ""))
-            previous = target_artifact_metadata.get(key)
-            if previous is not None and previous != value:
-                raise abi.EvidenceError(
-                    "packed-i4 provider feedback tie-back rejects target "
-                    f"artifact metadata disagreement for {key}: "
-                    f"{previous!r} vs {value!r}"
-                )
-            target_artifact_metadata[key] = value
-
-    def resource_field(name: str) -> str:
-        route_key = f"weft_rvv.low_precision_resource.{name}"
-        value = target_artifact_metadata.get(route_key)
-        if value is None:
-            value = route_metadata.get(route_key)
-        if value is None:
-            value = provider_low_precision.get(name)
-        if value is None:
-            raise abi.EvidenceError(
-                f"packed-i4 provider feedback tie-back missing {route_key}"
-            )
-        return str(value)
-
-    expected_resource_metadata = abi.expected_low_precision_resource_metadata(
-        expectation, packed_i4=True
-    )
-    expected_field_names = (
-        "selected_candidate",
-        "selection_reason",
-        "planning_contract",
-        "route_family_plan",
-        "provider_supported_mirror",
-        "runtime_avl_source",
-        "runtime_abi_order",
-        "source_dtype",
-        "source_signedness",
-        "source_sew",
-        "source_lmul",
-        "product_dtype",
-        "product_sew",
-        "product_lmul",
-        "accumulator_dtype",
-        "accumulator_sew",
-        "accumulator_lmul",
-        "result_dtype",
-        "result_sew",
-        "result_lmul",
-        "storage_element_width",
-        "effective_element_width",
-        "vsetvl_region_count",
-        "primitive_contract",
-        "primitive_kind",
-        "primitive_chain_contract",
-        "primitive_chain_kind",
-        "widening_product_multiplicand_roles",
-        "widening_product_extension_policy",
-        "primitive_source_load",
-        "primitive_source_extension",
-        "primitive_widening_product_relation",
-        "primitive_product_reduction_chain_relation",
-        "primitive_widening_product_intrinsic",
-        "primitive_reduction_intrinsic",
-        "primitive_scalar_seed_splat_intrinsic",
-        "primitive_accumulator_layout",
-        "primitive_result_layout",
-        "primitive_reduction_store_vl",
-        "realization_producer",
-        "realization_decision",
-        "realized_unroll_factor",
-        "realized_vsetvl_region_count",
-        "realized_peak_live_vector_groups",
-        "product_region_index",
-        "dequant_region_index",
-        "product_phase",
-        "dequant_phase",
-        "target_capability_provider_mirror",
-        "target_capability_legality_mirror",
-        "performance_feedback",
-        "performance_baseline",
-        "performance_best_speedup_range",
-        "performance_action",
-        "performance_maturity",
-        "performance_maturity_evidence",
-        "performance_maturity_outcome",
-        "performance_selection_eligible",
-        "dispatch_preference",
-        "remediation_handoff_contract",
-        "remediation_diagnosis",
-        "remediation_measurement_evidence",
-        "remediation_decision",
-        "remediation_action",
-        "remediation_dispatch_preference",
-        "remediation_blocker",
-        "remediation_plan_contract",
-        "remediation_plan",
-        "remediation_statement_strategy",
-        "remediation_vector_budget",
-        "remediation_schedule_contract",
-        "remediation_unpack_plan",
-        "remediation_product_plan",
-        "remediation_reduction_plan",
-        "remediation_vl_plan",
-        "schedule_decision_contract",
-        "schedule_decision",
-        "schedule_decision_reason",
-        "resource_cost_contract",
-        "resource_cost_model",
-        "resource_cost_loop_body_steps",
-        "resource_cost_blocker",
-        "performance_admission_decision",
-        "performance_admission_closure",
-        "performance_admission_reopen_requirement",
-        "beyond_local_repair_admission_contract",
-        "beyond_local_repair_admission_decision",
-        "beyond_local_repair_admission_blocker",
-        "beyond_local_repair_admission_reopen_requirement",
-        "realization_admission_contract",
-        "realization_admission_decision",
-        "realization_admission_evidence",
-        "realization_admission_dispatch_policy",
-        "realization_admission_schedule_decision_contract",
-        "realization_admission_schedule_decision",
-        "realization_admission_schedule_decision_reason",
-        "operand_form",
-        "packing_layout",
-        "unpack_intent",
-    )
-    expected_fields = {
-        name: expected_resource_metadata[
-            f"weft_rvv.low_precision_resource.{name}"
-        ]
-        for name in expected_field_names
-    }
-    fields = {name: resource_field(name) for name in expected_fields}
-    for name, expected in expected_fields.items():
-        abi.require_equal(
-            fields[name],
-            expected,
-            f"packed-i4 provider feedback tie-back {name}",
-        )
-
-    maturity_input = packed_i4_maturity_contract_evidence_input(
-        fields=fields,
-        result_classification=result_classification,
-        measurement_evidence_id=measurement_evidence_id,
-        source_record_context=source_record_context,
-    )
-    validate_packed_i4_maturity_contract_evidence_input(
-        fields=fields,
-        result_classification=result_classification,
-        measurement_evidence_id=measurement_evidence_id,
-        source_record_context=source_record_context,
-        maturity_input=maturity_input,
-        context="packed-i4 provider feedback tie-back",
-    )
-
-    return {
-        "packed_i4_resource_metadata_selected": True,
-        "authority": (
-            "provider-owned low-precision resource facts mirrored by generated "
-            "object/header metadata after target artifact validation"
-        ),
-        "fields": fields,
-        "expected_fields": expected_fields,
-        "baseline_identity": baseline_identity_for(
-            expectation, uses_packed_i4_resource=True
-        ),
-        "result_alignment": maturity_input["contract_alignment"],
-        "maturity_contract_evidence_input": maturity_input,
-        "same_target_measurement_record": (
-            packed_i4_same_target_measurement_record(maturity_input)
-        ),
-        "performance_win_claim_allowed": maturity_input[
-            "performance_win_claim_allowed"
-        ],
-        "next_repair_owner_if_no_win": (
-            "RVV plugin-local Gearbox/resource/statement planning for the "
-            "selected packed-i4 product-reduction candidate"
+        "route_support_effect": (
+            "none; measurement records the formula-constructed artifact and "
+            "does not create or alter its plan"
         ),
     }
 
@@ -3135,7 +2001,7 @@ def uses_packed_i4_resource_from_bundle(
     metadata = abi.widening_product_reduction_metadata_from_bundle(
         bundle_checks, expectation
     )
-    return abi.product_dequant_uses_packed_i4_resource_metadata(
+    return abi.product_dequant_uses_packed_i4_typed_body(
         metadata, expectation
     )
 
@@ -3308,7 +2174,6 @@ def op_measurement_summary(
     remote: dict[str, Any] | None,
     uses_packed_i4_resource: bool,
     result_classification: dict[str, Any],
-    provider_feedback_tie_back: dict[str, Any],
     candidate_feedback_record: dict[str, Any],
 ) -> dict[str, Any]:
     bundle_checks = generation_result["bundle_checks"]
@@ -3324,9 +2189,8 @@ def op_measurement_summary(
         "candidate_label": candidate_label or expectation.kind,
         "baseline_identity": baseline_identity,
         "baseline_role": "same-target scalar C comparator and correctness oracle",
-        "packed_i4_resource_metadata_selected": uses_packed_i4_resource,
+        "packed_i4_typed_body": uses_packed_i4_resource,
         "result_classification": result_classification,
-        "provider_feedback_tie_back": provider_feedback_tie_back,
         "candidate_feedback_record": candidate_feedback_record,
         "generated_artifact_identity": {
             "selected_variant": expectation.selected_variant,
@@ -3367,74 +2231,6 @@ def op_measurement_summary(
             {"lower_bound": lower, "upper_bound": upper}
             for lower, upper in abi.DEFAULT_F32_CLAMP_BOUND_PAIRS
         ]
-    if uses_packed_i4_resource:
-        fields = provider_feedback_tie_back.get("fields", {})
-        schedule_decision_evidence = {
-            "schedule_decision": fields.get("schedule_decision", ""),
-            "provider_schedule_decision_contract": fields.get(
-                "schedule_decision_contract", ""
-            ),
-            "provider_schedule_decision": fields.get("schedule_decision", ""),
-            "provider_schedule_decision_reason": fields.get(
-                "schedule_decision_reason", ""
-            ),
-            "provider_resource_cost_contract": fields.get(
-                "resource_cost_contract", ""
-            ),
-            "provider_resource_cost_model": fields.get(
-                "resource_cost_model", ""
-            ),
-            "provider_resource_cost_loop_body_steps": packed_i4_resource_int(
-                fields, "resource_cost_loop_body_steps"
-            ),
-            "provider_resource_cost_blocker": fields.get(
-                "resource_cost_blocker", ""
-            ),
-            "provider_performance_admission_decision": fields.get(
-                "performance_admission_decision", ""
-            ),
-            "provider_performance_admission_closure": fields.get(
-                "performance_admission_closure", ""
-            ),
-            "provider_performance_admission_reopen_requirement": fields.get(
-                "performance_admission_reopen_requirement", ""
-            ),
-            "provider_beyond_local_repair_admission_contract": fields.get(
-                "beyond_local_repair_admission_contract", ""
-            ),
-            "provider_beyond_local_repair_admission_decision": fields.get(
-                "beyond_local_repair_admission_decision", ""
-            ),
-            "provider_beyond_local_repair_admission_blocker": fields.get(
-                "beyond_local_repair_admission_blocker", ""
-            ),
-            "provider_beyond_local_repair_admission_reopen_requirement": fields.get(
-                "beyond_local_repair_admission_reopen_requirement", ""
-            ),
-            "provider_realization_admission_schedule_decision_contract": fields.get(
-                "realization_admission_schedule_decision_contract", ""
-            ),
-            "provider_realization_admission_schedule_decision": fields.get(
-                "realization_admission_schedule_decision", ""
-            ),
-            "provider_realization_admission_schedule_decision_reason": fields.get(
-                "realization_admission_schedule_decision_reason", ""
-            ),
-        }
-        summary["measurement_harness"].update(schedule_decision_evidence)
-        summary["same_target_schedule_decision_evidence"] = (
-            schedule_decision_evidence
-        )
-    maturity_input = provider_feedback_tie_back.get(
-        "maturity_contract_evidence_input"
-    )
-    if maturity_input:
-        summary["performance_maturity_contract_evidence_input"] = maturity_input
-    same_target_record = provider_feedback_tie_back.get(
-        "same_target_measurement_record"
-    )
-    if same_target_record:
-        summary["same_target_measurement_record"] = same_target_record
     if remote:
         commands = remote.get("commands", {})
         summary["ssh_measurement_summary"] = {
@@ -3528,12 +2324,12 @@ def run_one_measurement(
             expectation, uses_packed_i4_resource=uses_packed_i4_resource
         )
         evidence["baseline_identity"] = baseline_identity
-        evidence["packed_i4_resource_metadata_selected"] = uses_packed_i4_resource
+        evidence["packed_i4_typed_body"] = uses_packed_i4_resource
         if uses_packed_i4_resource:
             evidence["packed_i4_reference_oracle"] = {
                 "source": (
-                    "provider-owned low-precision resource metadata selected "
-                    "signed packed-i4 nibbles"
+                    "formula-constructed typed operand encoding uses signed "
+                    "packed-i4 nibbles"
                 ),
                 "baseline_identity": baseline_identity,
                 "operand_form": (
@@ -3602,7 +2398,7 @@ def run_one_measurement(
             result_classification = classify_parsed_timing(
                 remote.get("parsed_timing", {})
             )
-        source_record_context = source_backed_pressure_profile_record_context(
+        source_record_context = source_artifact_record_context(
             generation_result=generation_result,
             expectation=expectation,
             object_path=object_path,
@@ -3624,102 +2420,8 @@ def run_one_measurement(
             measurement_evidence_id=measurement_evidence_id,
             source_record_context=source_record_context,
         )
-        provider_feedback_tie_back = packed_i4_provider_feedback_tie_back(
-            generation_result=generation_result,
-            expectation=expectation,
-            uses_packed_i4_resource=uses_packed_i4_resource,
-            result_classification=result_classification,
-            measurement_evidence_id=measurement_evidence_id,
-            source_record_context=source_record_context,
-        )
-        if uses_packed_i4_resource:
-            fields = provider_feedback_tie_back["fields"]
-            schedule_decision_evidence = {
-                "schedule_decision": fields["schedule_decision"],
-                "provider_schedule_decision_contract": fields[
-                    "schedule_decision_contract"
-                ],
-                "provider_schedule_decision": fields["schedule_decision"],
-                "provider_schedule_decision_reason": fields[
-                    "schedule_decision_reason"
-                ],
-                "provider_resource_cost_contract": fields[
-                    "resource_cost_contract"
-                ],
-                "provider_resource_cost_model": fields["resource_cost_model"],
-                "provider_resource_cost_loop_body_steps": packed_i4_resource_int(
-                    fields, "resource_cost_loop_body_steps"
-                ),
-                "provider_resource_cost_blocker": fields[
-                    "resource_cost_blocker"
-                ],
-                "provider_performance_admission_decision": fields[
-                    "performance_admission_decision"
-                ],
-                "provider_performance_admission_closure": fields[
-                    "performance_admission_closure"
-                ],
-                "provider_performance_admission_reopen_requirement": fields[
-                    "performance_admission_reopen_requirement"
-                ],
-                "provider_beyond_local_repair_admission_contract": fields[
-                    "beyond_local_repair_admission_contract"
-                ],
-                "provider_beyond_local_repair_admission_decision": fields[
-                    "beyond_local_repair_admission_decision"
-                ],
-                "provider_beyond_local_repair_admission_blocker": fields[
-                    "beyond_local_repair_admission_blocker"
-                ],
-                "provider_beyond_local_repair_admission_reopen_requirement": fields[
-                    "beyond_local_repair_admission_reopen_requirement"
-                ],
-                "provider_realization_admission_schedule_decision_contract": fields[
-                    "realization_admission_schedule_decision_contract"
-                ],
-                "provider_realization_admission_schedule_decision": fields[
-                    "realization_admission_schedule_decision"
-                ],
-                "provider_realization_admission_schedule_decision_reason": fields[
-                    "realization_admission_schedule_decision_reason"
-                ],
-                "source": (
-                    "provider-owned packed-i4 schedule decision mirrored by "
-                    "validated generated object/header metadata"
-                ),
-            }
-            evidence["measurement_schedule_decision_evidence"] = (
-                schedule_decision_evidence
-            )
-            evidence["measurement_harness"].update(
-                {
-                    key: value
-                    for key, value in schedule_decision_evidence.items()
-                    if key != "source"
-                }
-            )
-            evidence.setdefault("packed_i4_reference_oracle", {}).update(
-                {
-                    key: value
-                    for key, value in schedule_decision_evidence.items()
-                    if key != "source"
-                }
-            )
         evidence["result_classification"] = result_classification
-        evidence["provider_feedback_tie_back"] = provider_feedback_tie_back
         evidence["candidate_feedback_record"] = candidate_feedback_record
-        maturity_input = provider_feedback_tie_back.get(
-            "maturity_contract_evidence_input"
-        )
-        if maturity_input:
-            evidence["performance_maturity_contract_evidence_input"] = (
-                maturity_input
-            )
-        same_target_record = provider_feedback_tie_back.get(
-            "same_target_measurement_record"
-        )
-        if same_target_record:
-            evidence["same_target_measurement_record"] = same_target_record
         evidence["op_summary"] = op_measurement_summary(
             expectation=expectation,
             candidate_label=candidate_label,
@@ -3729,7 +2431,6 @@ def run_one_measurement(
             remote=remote,
             uses_packed_i4_resource=uses_packed_i4_resource,
             result_classification=result_classification,
-            provider_feedback_tie_back=provider_feedback_tie_back,
             candidate_feedback_record=candidate_feedback_record,
         )
         evidence["completed_at"] = abi.utc_timestamp()
@@ -3806,8 +2507,6 @@ def run_measurement(args: argparse.Namespace) -> int:
         "op_results": {},
         "candidate_results": {},
         "candidate_feedback_records": {},
-        "performance_maturity_contract_inputs": {},
-        "same_target_measurement_records": {},
     }
     try:
         validate_measurement_config(config)
@@ -3849,8 +2548,8 @@ def run_measurement(args: argparse.Namespace) -> int:
                 "op_kind": op_kinds[0],
                 "authority": (
                     "candidate labels are measurement evidence keys only; "
-                    "provider-owned low-precision resource metadata remains "
-                    "candidate authority"
+                    "the compiler formula-constructed typed plan remains "
+                    "the only route authority"
                 ),
                 "candidate_labels": [candidate.label for candidate in candidate_inputs],
                 "same_target_measurement": not args.dry_run,
@@ -3904,18 +2603,6 @@ def run_measurement(args: argparse.Namespace) -> int:
                 evidence["candidate_feedback_records"][result_key] = (
                     candidate_feedback
                 )
-            maturity_input = result.get(
-                "performance_maturity_contract_evidence_input"
-            )
-            if maturity_input:
-                evidence["performance_maturity_contract_inputs"][
-                    result_key
-                ] = maturity_input
-            same_target_record = result.get("same_target_measurement_record")
-            if same_target_record:
-                evidence["same_target_measurement_records"][
-                    result_key
-                ] = same_target_record
 
         evidence["ssh_evidence"] = not args.dry_run
         evidence["status"] = "success" if not args.dry_run else "dry_run_success"
@@ -3930,17 +2617,11 @@ def run_measurement(args: argparse.Namespace) -> int:
                     .get("parsed_timing", {})
                 )
                 classification = result.get("result_classification", {})
-                maturity_input = result.get(
-                    "performance_maturity_contract_evidence_input", {}
-                )
                 print(
                     f"[{op_kind}] summaries={parsed.get('summary_record_count', 0)} "
                     f"measurements={parsed.get('measurement_record_count', 0)} "
                     f"classification={classification.get('classification', '')} "
-                    f"best_speedup_range={classification.get('best_speedup_range', '')} "
-                    "selection_eligible="
-                    f"{maturity_input.get('provider_performance_selection_eligible', '')} "
-                    f"claim_allowed={maturity_input.get('performance_win_claim_allowed', '')}"
+                    f"best_speedup_range={classification.get('best_speedup_range', '')}"
                 )
         return 0
     except Exception as exc:  # noqa: BLE001 - evidence should record blockers.
@@ -3964,94 +2645,59 @@ def run_self_test() -> int:
         compile_flags=list(DEFAULT_COMPILE_FLAGS),
     )
     validate_measurement_config(config)
+
+    header_name = (
+        "artifact-1-runtime-callable-c-header-rvv-generic-typed-body-"
+        "emitc-route-family.header.h"
+    )
     for op_kind in DEFAULT_OP_KINDS:
         expectation = selected_pre_realized_expectation(op_kind)
         harness = measurement_harness_source(
-            header_file_name="artifact-1-runtime-callable-c-header-rvv-generic-typed-body-emitc-route-family.header.h",
+            header_file_name=header_name,
             expectation=expectation,
             config=config,
             compile_flags_summary=shlex.join(config.compile_flags),
         )
-        required_tokens = [
+        for token in (
             BASELINE_IDENTITIES[op_kind],
             expectation.function_name,
             "CLOCK_MONOTONIC_RAW",
             "CORRECTNESS_GUARD_BEFORE_TIMING",
-            "MEASURE_CONFIG op=" + op_kind,
-            "MEASURE op=" + op_kind,
-            "SUMMARY op=" + op_kind,
-            "baseline_ns",
-            "generated_ns",
-            "MEASURE_ITERATIONS",
-            "PASS op=" + op_kind + " measurement",
-        ]
-        for token in required_tokens:
+            f"MEASURE_CONFIG op={op_kind}",
+            f"SUMMARY op={op_kind}",
+            f"PASS op={op_kind} measurement",
+        ):
             if token not in harness:
                 raise AssertionError(
                     f"self-test harness for {op_kind} lost token: {token}"
                 )
-        if (
-            op_kind == "widening_product_reduce_dequantize_f32"
-            and "packed_i4_reference_oracle" in harness
-        ):
-            raise AssertionError(
-                "self-test default dequant measurement harness leaked packed-i4 oracle"
-            )
+
     packed_expectation = selected_pre_realized_expectation(
         "widening_product_reduce_dequantize_f32"
     )
     packed_harness = measurement_harness_source(
-        header_file_name="artifact-1-runtime-callable-c-header-rvv-generic-typed-body-emitc-route-family.header.h",
+        header_file_name=header_name,
         expectation=packed_expectation,
         config=config,
         compile_flags_summary=shlex.join(config.compile_flags),
         uses_packed_i4_resource=True,
     )
-    for token in [
-        PACKED_I4_BASELINE_IDENTITIES["widening_product_reduce_dequantize_f32"],
+    for token in (
+        PACKED_I4_BASELINE_IDENTITIES[packed_expectation.kind],
         "baseline_product_reduction_dequant_packed_i4_v1",
         "pack_signed_i4_pair",
         "sign_extend_i4",
-        "low_product + high_product",
         "packed_i4_reference_oracle=true",
         "runtime_n_unit=packed_bytes",
-        "PASS op=widening_product_reduce_dequantize_f32 measurement",
-    ]:
+    ):
         if token not in packed_harness:
             raise AssertionError(
-                f"self-test packed-i4 measurement harness lost token: {token}"
+                f"self-test packed-i4 harness lost token: {token}"
             )
-    packed_clamp_expectation = selected_pre_realized_expectation(
-        "widening_product_reduce_dequant_clamp_f32"
-    )
-    packed_clamp_harness = measurement_harness_source(
-        header_file_name="artifact-1-runtime-callable-c-header-rvv-generic-typed-body-emitc-route-family.header.h",
-        expectation=packed_clamp_expectation,
-        config=config,
-        compile_flags_summary=shlex.join(config.compile_flags),
-        uses_packed_i4_resource=True,
-    )
-    for token in [
-        PACKED_I4_BASELINE_IDENTITIES[
-            "widening_product_reduce_dequant_clamp_f32"
-        ],
-        "baseline_product_reduction_dequant_clamp_packed_i4_v1",
-        "pack_signed_i4_pair",
-        "sign_extend_i4",
-        "low_product + high_product",
-        "bound_pairs=",
-        "packed_i4_reference_oracle=true",
-        "runtime_n_unit=packed_bytes",
-        "PASS op=widening_product_reduce_dequant_clamp_f32 measurement",
-    ]:
-        if token not in packed_clamp_harness:
-            raise AssertionError(
-                "self-test packed-i4 clamp measurement harness lost token: "
-                f"{token}"
-            )
+
     parsed = parse_measurement_stdout(
         "\n".join(
-            [
+            (
                 "MEASURE_CONFIG op=widening_product_reduce_dequantize_f32",
                 "CORRECTNESS op=widening_product_reduce_dequantize_f32 n=257",
                 "MEASURE op=widening_product_reduce_dequantize_f32 n=257 "
@@ -4060,7 +2706,7 @@ def run_self_test() -> int:
                 "pattern=0 scale=-0.125 baseline_best_per_iter_ns=100 "
                 "generated_best_per_iter_ns=125 best_speedup=0.800000",
                 "PASS op=widening_product_reduce_dequantize_f32 measurement",
-            ]
+            )
         )
     )
     if (
@@ -4077,6 +2723,7 @@ def run_self_test() -> int:
         or regression["best_speedup_range"] != "0.800000..0.800000"
     ):
         raise AssertionError("self-test timing classifier lost regression result")
+
     win = classify_parsed_timing(
         parse_measurement_stdout(
             "SUMMARY op=widening_product_reduce_dequantize_f32 n=257 "
@@ -4086,924 +2733,87 @@ def run_self_test() -> int:
     )
     if win["classification"] != RESULT_CLASSIFICATION_WIN:
         raise AssertionError("self-test timing classifier lost win result")
-    mixed = classify_parsed_timing(
-        parse_measurement_stdout(
-            "\n".join(
-                [
-                    "SUMMARY op=widening_product_reduce_dequantize_f32 n=257 "
-                    "pattern=0 scale=-0.125 baseline_best_per_iter_ns=100 "
-                    "generated_best_per_iter_ns=100 best_speedup=1.000000",
-                    "SUMMARY op=widening_product_reduce_dequantize_f32 n=4096 "
-                    "pattern=1 scale=0.375 baseline_best_per_iter_ns=110 "
-                    "generated_best_per_iter_ns=100 best_speedup=1.100000",
-                ]
-            )
-        )
-    )
-    if mixed["classification"] != RESULT_CLASSIFICATION_NO_WIN:
-        raise AssertionError("self-test timing classifier lost no-win result")
-    feedback_metadata = abi.expected_low_precision_resource_metadata(
-        packed_expectation, packed_i4=True
-    )
 
-    def self_test_source_record_context(
-        expectation: abi.OpExpectation,
-        result_classification: dict[str, Any],
-    ) -> dict[str, Any]:
-        measured = (
-            result_classification["classification"]
-            != RESULT_CLASSIFICATION_NOT_MEASURED
-        )
-        return {
-            "source_record_contract": SOURCE_BACKED_MEASUREMENT_RECORD_CONTRACT,
-            "source_selected_variant": expectation.selected_variant,
-            "source_selected_input": str(expectation.input_path),
-            "source_generated_function": expectation.function_name,
-            "generated_artifact_identity_contract": (
-                GENERATED_ARTIFACT_IDENTITY_CONTRACT
-            ),
-            "generated_artifact_object_path": (
-                f"self-test/generated_bundle/{expectation.kind}.o"
-            ),
-            "generated_artifact_object_sha256": (
-                f"self-test-object-sha256-{expectation.kind}"
-            ),
-            "generated_artifact_header_path": (
-                f"self-test/generated_bundle/{expectation.kind}.h"
-            ),
-            "generated_artifact_header_sha256": (
-                f"self-test-header-sha256-{expectation.kind}"
-            ),
-            "measurement_target": (
-                PACKED_I4_SSH_TARGET_PROFILE if measured else ""
-            ),
-            "measurement_target_provenance": MEASUREMENT_TARGET_PROVENANCE,
-            "measurement_runtime_count_set": runtime_count_set(config.counts),
-            "measurement_runtime_count_provenance": (
-                MEASUREMENT_RUNTIME_COUNT_PROVENANCE
-            ),
-            "pressure_profile_label": PRODUCTION_PRESSURE_PROFILE_LABEL,
-            "pressure_profile_label_provenance": (
-                PRODUCTION_PRESSURE_PROFILE_LABEL_PROVENANCE
-            ),
-        }
-
-    def check_packed_i4_contract_input(
-        result_classification: dict[str, Any],
-        *,
-        expected_alignment: str,
-        expected_denial_reason: str,
-        expected_update_required: bool,
-    ) -> dict[str, Any]:
-        measurement_evidence_id = (
-            "self-test/"
-            f"{result_classification['classification']}/same_target_measurement_evidence.json"
-        )
-        source_record_context = self_test_source_record_context(
-            packed_expectation, result_classification
-        )
-        tie_back = packed_i4_provider_feedback_tie_back(
-            generation_result={
-                "widening_product_reduction_boundary": {
-                    "route_metadata": feedback_metadata
-                }
-            },
-            expectation=packed_expectation,
-            uses_packed_i4_resource=True,
-            result_classification=result_classification,
-            measurement_evidence_id=measurement_evidence_id,
-            source_record_context=source_record_context,
-        )
-        maturity_input = tie_back["maturity_contract_evidence_input"]
-        if tie_back["result_alignment"] != expected_alignment:
-            raise AssertionError("self-test packed-i4 contract alignment changed")
-        if (
-            tie_back["performance_win_claim_allowed"]
-            or maturity_input["performance_win_claim_allowed"]
-        ):
-            raise AssertionError("self-test packed-i4 contract allowed stale win")
-        record = tie_back["same_target_measurement_record"]
-        if tuple(record.keys()) != PACKED_I4_SAME_TARGET_MEASUREMENT_RECORD_FIELDS:
-            raise AssertionError(
-                "self-test packed-i4 measurement record field order changed"
-            )
-        expected_record = {
-            field: maturity_input[field]
-            for field in PACKED_I4_SAME_TARGET_MEASUREMENT_RECORD_FIELDS
-        }
-        if record != expected_record:
-            raise AssertionError(
-                "self-test packed-i4 measurement record lost evidence fields"
-            )
-        for reporting_only_field in (
-            "contract_alignment",
-            "provider_remediation_plan",
-            "provider_remediation_product_plan",
-        ):
-            if reporting_only_field in record:
-                raise AssertionError(
-                    "self-test packed-i4 measurement record leaked "
-                    f"{reporting_only_field}"
-                )
-        if maturity_input["measurement_evidence_id"] != measurement_evidence_id:
-            raise AssertionError("self-test packed-i4 measurement evidence id lost")
-        if maturity_input["authority"] != PACKED_I4_MATURITY_CONTRACT_AUTHORITY:
-            raise AssertionError("self-test packed-i4 authority contract changed")
-        expected_measured = (
-            result_classification["classification"]
-            != RESULT_CLASSIFICATION_NOT_MEASURED
-        )
-        if maturity_input["same_target_measurement"] != expected_measured:
-            raise AssertionError("self-test packed-i4 same-target flag changed")
-        if maturity_input["ssh_evidence"] != expected_measured:
-            raise AssertionError("self-test packed-i4 ssh evidence flag changed")
-        expected_target_profile = (
-            PACKED_I4_SSH_TARGET_PROFILE if expected_measured else ""
-        )
-        if maturity_input["target_profile"] != expected_target_profile:
-            raise AssertionError("self-test packed-i4 target profile changed")
-        if (
-            record["source_record_contract"]
-            != SOURCE_BACKED_MEASUREMENT_RECORD_CONTRACT
-            or record["source_selected_variant"]
-            != packed_expectation.selected_variant
-            or record["source_generated_function"]
-            != packed_expectation.function_name
-            or record["generated_artifact_identity_contract"]
-            != GENERATED_ARTIFACT_IDENTITY_CONTRACT
-            or record["measurement_runtime_count_set"]
-            != runtime_count_set(config.counts)
-            or record["pressure_profile_label"]
-            != PRODUCTION_PRESSURE_PROFILE_LABEL
-            or record["pressure_profile_label_provenance"]
-            != PRODUCTION_PRESSURE_PROFILE_LABEL_PROVENANCE
-        ):
-            raise AssertionError(
-                "self-test packed-i4 source-backed measurement record lost "
-                "selected-boundary, artifact, runtime-count, or pressure "
-                "provenance"
-            )
-        if (
-            maturity_input["performance_preference_denial_reason"]
-            != expected_denial_reason
-        ):
-            raise AssertionError("self-test packed-i4 denial reason changed")
-        if (
-            maturity_input["provider_contract_update_required"]
-            != expected_update_required
-        ):
-            raise AssertionError("self-test packed-i4 update-required flag changed")
-        if (
-            not maturity_input["correctness_execution_allowed"]
-            or not maturity_input["performance_preference_denied"]
-        ):
-            raise AssertionError(
-                "self-test packed-i4 contract lost correctness/performance split"
-            )
-        return tie_back
-
-    clamp_feedback_metadata = abi.expected_low_precision_resource_metadata(
-        packed_clamp_expectation, packed_i4=True
-    )
-    clamp_tie_back = packed_i4_provider_feedback_tie_back(
-        generation_result={
-            "widening_product_reduction_boundary": {
-                "route_metadata": clamp_feedback_metadata
-            }
+    formula_metadata = {
+        "weft_rvv.low_precision_primitive.source_lmul": "mf4",
+        "weft_rvv.low_precision_primitive.product_lmul": "mf2",
+        "weft_rvv.low_precision_primitive.accumulator_lmul": "m1",
+        "weft_rvv.low_precision_primitive.source_sew": "8",
+        "weft_rvv.low_precision_primitive.product_sew": "16",
+        "weft_rvv.low_precision_primitive.accumulator_sew": "32",
+    }
+    generation_result: dict[str, Any] = {
+        "widening_product_reduction_boundary": {
+            "route_metadata": formula_metadata,
+            "deferred_wide_accumulate": True,
         },
-        expectation=packed_clamp_expectation,
+        "bundle_checks": {"index": {"parsed": {"records": []}}},
+    }
+    formula_plan = low_precision_formula_plan_metadata(generation_result)
+    if formula_plan != {
+        "source_lmul": "mf4",
+        "product_lmul": "mf2",
+        "accumulator_lmul": "m1",
+        "source_sew": "8",
+        "product_sew": "16",
+        "accumulator_sew": "32",
+    }:
+        raise AssertionError("self-test formula plan extraction changed")
+
+    feedback = low_precision_candidate_feedback_record(
+        generation_result=generation_result,
+        expectation=packed_expectation,
+        candidate_label="packed-i4-formula",
         uses_packed_i4_resource=True,
         result_classification=not_measured_result_classification(
-            "self-test clamp not measured"
+            "self-test artifact only"
         ),
-        measurement_evidence_id=(
-            "self-test/clamp/same_target_measurement_evidence.json"
-        ),
-        source_record_context=self_test_source_record_context(
-            packed_clamp_expectation,
-            not_measured_result_classification("self-test clamp not measured"),
-        ),
-    )
-    clamp_fields = clamp_tie_back["fields"]
-    if (
-        clamp_fields["selected_candidate"]
-        != abi.WIDENING_PRODUCT_REDUCE_DEQUANT_CLAMP_F32_PACKED_I4_RESOURCE_SELECTED_CANDIDATE
-        or clamp_fields["performance_baseline"]
-        != abi.WIDENING_PRODUCT_REDUCE_DEQUANT_CLAMP_F32_PACKED_I4_PERFORMANCE_BASELINE
-        or clamp_fields["runtime_abi_order"]
-        != "lhs,rhs,acc,scale,lower_bound,upper_bound,out,n"
-        or clamp_tie_back["maturity_contract_evidence_input"][
-            "provider_runtime_abi_order"
-        ]
-        != "lhs,rhs,acc,scale,lower_bound,upper_bound,out,n"
-    ):
-        raise AssertionError(
-            "self-test packed-i4 clamp provider tie-back lost selected "
-            "candidate, baseline, or clamp ABI order"
-        )
-
-    not_measured = not_measured_result_classification("self-test-not-measured")
-    check_packed_i4_contract_input(
-        not_measured,
-        expected_alignment="not-measured",
-        expected_denial_reason="same-target-measurement-not-run",
-        expected_update_required=False,
-    )
-    regression_tie_back = check_packed_i4_contract_input(
-        regression,
-        expected_alignment="same-no-win-family-denies-performance-preference",
-        expected_denial_reason="same-target-measurement-no-win-or-regression",
-        expected_update_required=True,
-    )
-    check_packed_i4_contract_input(
-        mixed,
-        expected_alignment="matches-provider-maturity-outcome",
-        expected_denial_reason="same-target-measurement-no-win-or-regression",
-        expected_update_required=False,
-    )
-    check_packed_i4_contract_input(
-        win,
-        expected_alignment=(
-            "measurement-win-conflicts-with-provider-maturity-contract-requires-provider-update"
-        ),
-        expected_denial_reason="provider-contract-performance-selection-ineligible",
-        expected_update_required=True,
-    )
-
-    def expect_maturity_input_failure(
-        field: str, stale_value: Any, expected_token: str
-    ) -> None:
-        fields = regression_tie_back["fields"]
-        result_classification = regression
-        measurement_evidence_id = (
-            "self-test/"
-            f"{result_classification['classification']}/same_target_measurement_evidence.json"
-        )
-        source_record_context = self_test_source_record_context(
-            packed_expectation, result_classification
-        )
-        stale_input = dict(
-            regression_tie_back["maturity_contract_evidence_input"]
-        )
-        stale_input[field] = stale_value
-        try:
-            validate_packed_i4_maturity_contract_evidence_input(
-                fields=fields,
-                result_classification=result_classification,
-                measurement_evidence_id=measurement_evidence_id,
-                source_record_context=source_record_context,
-                maturity_input=stale_input,
-                context="self-test stale packed-i4 maturity input",
-            )
-        except abi.EvidenceError as exc:
-            if expected_token not in str(exc):
-                raise AssertionError(
-                    "self-test stale packed-i4 maturity input failure "
-                    f"for {field} missed token {expected_token}: {exc}"
-                ) from exc
-            return
-        raise AssertionError(
-            f"self-test stale packed-i4 maturity input accepted {field}"
-        )
-
-    for field, stale_value, expected_token in [
-        (
-            "measurement_evidence_id",
-            "stale/same_target_measurement_evidence.json",
-            "measurement_evidence_id",
-        ),
-        ("authority", "metadata-derived-policy-authority", "authority"),
-        ("measurement_classification", RESULT_CLASSIFICATION_WIN, "classification"),
-        ("measurement_outcome_family", RESULT_CLASSIFICATION_WIN, "outcome_family"),
-        ("measurement_best_speedup_range", "2.000000..2.500000", "speedup"),
-        ("correctness_record_count", 0, "correctness_record_count"),
-        ("same_target_measurement", False, "same_target_measurement"),
-        ("ssh_evidence", False, "ssh_evidence"),
-        ("target_profile", "local-x86", "target_profile"),
-        (
-            "source_selected_variant",
-            "metadata-only-selected-variant",
-            "source_selected_variant",
-        ),
-        (
-            "generated_artifact_object_sha256",
-            "metadata-only-object-sha256",
-            "generated_artifact_object_sha256",
-        ),
-        ("measurement_target", "local-x86", "measurement_target"),
-        (
-            "measurement_runtime_count_set",
-            "257",
-            "measurement_runtime_count_set",
-        ),
-        (
-            "pressure_profile_label",
-            "q8-label-only-pressure",
-            "pressure_profile_label",
-        ),
-        ("provider_maturity_outcome", RESULT_CLASSIFICATION_WIN, "maturity"),
-        (
-            "provider_resource_planning_contract",
-            "metadata-derived-resource-planning-contract",
-            "planning_contract",
-        ),
-        (
-            "provider_resource_operand_form",
-            "metadata-only-packed-form",
-            "operand_form",
-        ),
-        (
-            "provider_resource_source_signedness",
-            "unsigned",
-            "source_signedness",
-        ),
-        (
-            "provider_resource_storage_element_width",
-            16,
-            "storage_element_width",
-        ),
-        (
-            "provider_resource_effective_element_width",
-            8,
-            "effective_element_width",
-        ),
-        (
-            "provider_resource_packing_layout",
-            "metadata-only-packed-layout",
-            "packing_layout",
-        ),
-        (
-            "provider_resource_unpack_intent",
-            "metadata-only-unpack-intent",
-            "unpack_intent",
-        ),
-        (
-            "provider_resource_vsetvl_region_count",
-            3,
-            "vsetvl_region_count",
-        ),
-        (
-            "provider_resource_cost_contract",
-            "metadata-derived-resource-cost-contract",
-            "resource_cost_contract",
-        ),
-        (
-            "provider_resource_cost_model",
-            "metadata-derived-resource-cost-model",
-            "resource_cost_model",
-        ),
-        (
-            "provider_resource_cost_loop_body_steps",
-            99,
-            "resource_cost_loop_body_steps",
-        ),
-        (
-            "provider_resource_cost_blocker",
-            "metadata-derived-resource-cost-blocker",
-            "resource_cost_blocker",
-        ),
-        (
-            "provider_performance_admission_decision",
-            "metadata-derived-performance-admission",
-            "performance_admission_decision",
-        ),
-        (
-            "provider_performance_admission_closure",
-            "metadata-derived-performance-admission-closure",
-            "performance_admission_closure",
-        ),
-        (
-            "provider_performance_admission_reopen_requirement",
-            "metadata-derived-performance-admission-reopen-requirement",
-            "performance_admission_reopen_requirement",
-        ),
-        (
-            "provider_beyond_local_repair_admission_contract",
-            "metadata-derived-beyond-local-repair-admission-contract",
-            "beyond_local_repair_admission_contract",
-        ),
-        (
-            "provider_beyond_local_repair_admission_decision",
-            "metadata-derived-beyond-local-repair-admission-decision",
-            "beyond_local_repair_admission_decision",
-        ),
-        (
-            "provider_beyond_local_repair_admission_blocker",
-            "metadata-derived-beyond-local-repair-admission-blocker",
-            "beyond_local_repair_admission_blocker",
-        ),
-        (
-            "provider_beyond_local_repair_admission_reopen_requirement",
-            "metadata-derived-beyond-local-repair-admission-reopen-requirement",
-            "beyond_local_repair_admission_reopen_requirement",
-        ),
-        (
-            "provider_runtime_avl_source",
-            "metadata-derived-avl",
-            "runtime_avl_source",
-        ),
-        (
-            "provider_resource_route_family_plan",
-            "stale-route-family-plan.v1",
-            "route_family_plan",
-        ),
-        (
-            "provider_supported_mirror",
-            "provider_supported_mirror:stale",
-            "provider_supported_mirror",
-        ),
-        (
-            "provider_runtime_abi_order",
-            "lhs,rhs,out,n",
-            "runtime_abi_order",
-        ),
-        (
-            "provider_primitive_chain_kind",
-            "stale-primitive-chain-kind",
-            "primitive_chain_kind",
-        ),
-        (
-            "provider_primitive_source_extension",
-            "stale-primitive-source-extension",
-            "primitive_source_extension",
-        ),
-        (
-            "provider_primitive_reduction_intrinsic",
-            "__riscv_vwredsum_vs_i32m1_i32m1",
-            "primitive_reduction_intrinsic",
-        ),
-        (
-            "provider_remediation_handoff_contract",
-            "stale-remediation-handoff.v1",
-            "remediation_handoff_contract",
-        ),
-        (
-            "provider_remediation_measurement_evidence",
-            "stale/remediation/same_target_measurement_evidence.json",
-            "remediation_measurement_evidence",
-        ),
-        (
-            "provider_remediation_decision",
-            "stale-remediation-decision",
-            "remediation_decision",
-        ),
-        (
-            "provider_remediation_dispatch_preference",
-            PACKED_I4_PERFORMANCE_PREFERRED_DISPATCH,
-            "remediation_dispatch_preference",
-        ),
-        (
-            "provider_remediation_product_plan",
-            "metadata-only-packed-i4-product-plan",
-            "remediation_product_plan",
-        ),
-        (
-            "provider_remediation_vl_plan",
-            "metadata-only-packed-i4-vl-plan",
-            "remediation_vl_plan",
-        ),
-        (
-            "provider_schedule_decision",
-            "metadata-only-packed-i4-schedule-decision",
-            "schedule_decision",
-        ),
-        (
-            "provider_realization_admission_evidence",
-            "sibling-route-packed-i4-measurement-evidence",
-            "realization_admission_evidence",
-        ),
-        (
-            "provider_realization_admission_schedule_decision",
-            "metadata-only-packed-i4-admission-schedule-decision",
-            "realization_admission_schedule_decision",
-        ),
-        (
-            "target_capability_legality_mirror",
-            "stale-target-capability-legality",
-            "target_capability_legality_mirror",
-        ),
-        (
-            "provider_performance_selection_eligible",
-            "true",
-            "selection",
-        ),
-        (
-            "provider_dispatch_preference",
-            PACKED_I4_PERFORMANCE_PREFERRED_DISPATCH,
-            "dispatch",
-        ),
-        ("performance_win_claim_allowed", True, "performance_win_claim_allowed"),
-    ]:
-        expect_maturity_input_failure(field, stale_value, expected_token)
-
-    def expect_stale_provider_metadata_failure(
-        metadata_key: str, stale_value: str, expected_token: str
-    ) -> None:
-        stale_metadata = dict(feedback_metadata)
-        stale_metadata[metadata_key] = stale_value
-        try:
-            packed_i4_provider_feedback_tie_back(
-                generation_result={
-                    "widening_product_reduction_boundary": {
-                        "route_metadata": stale_metadata
-                    }
-                },
-                expectation=packed_expectation,
-                uses_packed_i4_resource=True,
-                result_classification=regression,
-                measurement_evidence_id=(
-                    "self-test/stale-provider/same_target_measurement_evidence.json"
-                ),
-                source_record_context=self_test_source_record_context(
-                    packed_expectation, regression
-                ),
-            )
-        except abi.EvidenceError as exc:
-            if expected_token not in str(exc):
-                raise AssertionError(
-                    "self-test stale packed-i4 provider metadata failure for "
-                    f"{metadata_key} missed token {expected_token}: {exc}"
-                ) from exc
-            return
-        raise AssertionError(
-            f"self-test stale packed-i4 provider metadata accepted {metadata_key}"
-        )
-
-    def expect_missing_provider_metadata_failure(
-        metadata_key: str, expected_token: str
-    ) -> None:
-        missing_metadata = dict(feedback_metadata)
-        del missing_metadata[metadata_key]
-        try:
-            packed_i4_provider_feedback_tie_back(
-                generation_result={
-                    "widening_product_reduction_boundary": {
-                        "route_metadata": missing_metadata
-                    }
-                },
-                expectation=packed_expectation,
-                uses_packed_i4_resource=True,
-                result_classification=regression,
-                measurement_evidence_id=(
-                    "self-test/missing-provider/same_target_measurement_evidence.json"
-                ),
-                source_record_context=self_test_source_record_context(
-                    packed_expectation, regression
-                ),
-            )
-        except abi.EvidenceError as exc:
-            if expected_token not in str(exc):
-                raise AssertionError(
-                    "self-test missing packed-i4 provider metadata failure for "
-                    f"{metadata_key} missed token {expected_token}: {exc}"
-                ) from exc
-            return
-        raise AssertionError(
-            f"self-test missing packed-i4 provider metadata accepted {metadata_key}"
-        )
-
-    for metadata_key, stale_value, expected_token in [
-        (
-            "weft_rvv.low_precision_resource.planning_contract",
-            "metadata-derived-resource-planning-contract",
-            "planning_contract",
-        ),
-        (
-            "weft_rvv.low_precision_resource.operand_form",
-            "metadata-only-packed-form",
-            "operand_form",
-        ),
-        (
-            "weft_rvv.low_precision_resource.source_signedness",
-            "unsigned",
-            "source_signedness",
-        ),
-        (
-            "weft_rvv.low_precision_resource.storage_element_width",
-            "16",
-            "storage_element_width",
-        ),
-        (
-            "weft_rvv.low_precision_resource.effective_element_width",
-            "8",
-            "effective_element_width",
-        ),
-        (
-            "weft_rvv.low_precision_resource.packing_layout",
-            "metadata-only-packed-layout",
-            "packing_layout",
-        ),
-        (
-            "weft_rvv.low_precision_resource.unpack_intent",
-            "metadata-only-unpack-intent",
-            "unpack_intent",
-        ),
-        (
-            "weft_rvv.low_precision_resource.vsetvl_region_count",
-            "3",
-            "vsetvl_region_count",
-        ),
-        (
-            "weft_rvv.low_precision_resource.runtime_avl_source",
-            "metadata-derived-avl",
-            "runtime_avl_source",
-        ),
-        (
-            "weft_rvv.low_precision_resource.route_family_plan",
-            "stale-route-family-plan.v1",
-            "route_family_plan",
-        ),
-        (
-            "weft_rvv.low_precision_resource.provider_supported_mirror",
-            "provider_supported_mirror:stale",
-            "provider_supported_mirror",
-        ),
-        (
-            "weft_rvv.low_precision_resource.remediation_handoff_contract",
-            "stale-remediation-handoff.v1",
-            "remediation_handoff_contract",
-        ),
-        (
-            "weft_rvv.low_precision_resource.remediation_measurement_evidence",
-            "stale/remediation/same_target_measurement_evidence.json",
-            "remediation_measurement_evidence",
-        ),
-        (
-            "weft_rvv.low_precision_resource.remediation_decision",
-            "stale-remediation-decision",
-            "remediation_decision",
-        ),
-        (
-            "weft_rvv.low_precision_resource.remediation_product_plan",
-            "metadata-only-packed-i4-product-plan",
-            "remediation_product_plan",
-        ),
-        (
-            "weft_rvv.low_precision_resource.remediation_vl_plan",
-            "metadata-only-packed-i4-vl-plan",
-            "remediation_vl_plan",
-        ),
-        (
-            "weft_rvv.low_precision_resource.schedule_decision",
-            "metadata-only-packed-i4-schedule-decision",
-            "schedule_decision",
-        ),
-        (
-            "weft_rvv.low_precision_resource.performance_maturity_outcome",
-            RESULT_CLASSIFICATION_WIN,
-            "performance_maturity_outcome",
-        ),
-        (
-            "weft_rvv.low_precision_resource.performance_selection_eligible",
-            "true",
-            "performance_selection_eligible",
-        ),
-        (
-            "weft_rvv.low_precision_resource.dispatch_preference",
-            PACKED_I4_PERFORMANCE_PREFERRED_DISPATCH,
-            "dispatch_preference",
-        ),
-        (
-            "weft_rvv.low_precision_resource.performance_best_speedup_range",
-            "2.000000..2.500000",
-            "performance_best_speedup_range",
-        ),
-        (
-            "weft_rvv.low_precision_resource.primitive_reduction_intrinsic",
-            "__riscv_vwredsum_vs_i32m1_i32m1",
-            "primitive_reduction_intrinsic",
-        ),
-        (
-            "weft_rvv.low_precision_resource.primitive_chain_kind",
-            "stale-primitive-chain-kind",
-            "primitive_chain_kind",
-        ),
-        (
-            "weft_rvv.low_precision_resource.primitive_source_extension",
-            "stale-primitive-source-extension",
-            "primitive_source_extension",
-        ),
-        (
-            "weft_rvv.low_precision_resource.realization_decision",
-            "stale-realization-decision",
-            "realization_decision",
-        ),
-        (
-            "weft_rvv.low_precision_resource.target_capability_legality_mirror",
-            "stale-target-capability-legality",
-            "target_capability_legality_mirror",
-        ),
-    ]:
-        expect_stale_provider_metadata_failure(
-            metadata_key, stale_value, expected_token
-        )
-    for metadata_key, expected_token in [
-        (
-            "weft_rvv.low_precision_resource.route_family_plan",
-            "route_family_plan",
-        ),
-        (
-            "weft_rvv.low_precision_resource.provider_supported_mirror",
-            "provider_supported_mirror",
-        ),
-        (
-            "weft_rvv.low_precision_resource.remediation_handoff_contract",
-            "remediation_handoff_contract",
-        ),
-        (
-            "weft_rvv.low_precision_resource.remediation_product_plan",
-            "remediation_product_plan",
-        ),
-    ]:
-        expect_missing_provider_metadata_failure(metadata_key, expected_token)
-
-    grouped_candidate_metadata = abi.expected_low_precision_resource_metadata(
-        packed_expectation, packed_i4=False
-    )
-    candidate_source_context = self_test_source_record_context(
-        packed_expectation, not_measured
-    )
-    grouped_candidate_feedback = low_precision_candidate_feedback_record(
-        generation_result={
-            "widening_product_reduction_boundary": {
-                "route_metadata": grouped_candidate_metadata
-            }
-        },
-        expectation=packed_expectation,
-        candidate_label="grouped-u2",
-        uses_packed_i4_resource=False,
-        result_classification=not_measured,
-        measurement_evidence_id=(
-            "self-test/grouped-u2/"
-            "widening_product_reduce_dequantize_f32/"
-            "same_target_measurement_evidence.json"
-        ),
-        source_record_context=candidate_source_context,
+        measurement_evidence_id="self-test-evidence",
+        source_record_context={"source": "self-test"},
     )
     if (
-        grouped_candidate_feedback["status"] != "ready-for-same-target-measurement"
-        or grouped_candidate_feedback["fields"]["selected_candidate_index"] != "2"
-        or grouped_candidate_feedback["fields"]["candidate_count"] != "3"
-        or grouped_candidate_feedback["measurement_result_is_route_authority"]
+        feedback["status"] != "formula-plan-artifact-ready"
+        or feedback["formula_plan"] != formula_plan
+        or not feedback["packed_i4_typed_body"]
+        or feedback["measurement_result_is_route_authority"]
     ):
-        raise AssertionError(
-            "self-test low-precision candidate feedback lost grouped-u2 facts "
-            "or promoted measurement results to route authority"
-        )
-    measured_candidate_feedback = low_precision_candidate_feedback_record(
-        generation_result={
-            "widening_product_reduction_boundary": {
-                "route_metadata": grouped_candidate_metadata
-            }
+        raise AssertionError("self-test formula-plan evidence contract changed")
+
+    conflicting_result: dict[str, Any] = {
+        "widening_product_reduction_boundary": {
+            "route_metadata": formula_metadata
         },
-        expectation=packed_expectation,
-        candidate_label="grouped-u2",
-        uses_packed_i4_resource=False,
-        result_classification=regression,
-        measurement_evidence_id=(
-            "self-test/grouped-u2/"
-            "widening_product_reduce_dequantize_f32/"
-            "same_target_measurement_evidence.json"
-        ),
-        source_record_context=self_test_source_record_context(
-            packed_expectation, regression
-        ),
-    )
-    if (
-        measured_candidate_feedback["status"] != "same-target-measured"
-        or not measured_candidate_feedback["same_target_measurement"]
-        or not measured_candidate_feedback["ssh_evidence"]
-        or measured_candidate_feedback["measurement_result_is_route_authority"]
-    ):
-        raise AssertionError(
-            "self-test measured candidate feedback did not record measured "
-            "policy/evidence state without promoting route authority"
-        )
-
-    def expect_candidate_feedback_metadata_failure(
-        *,
-        generation_result: dict[str, Any],
-        expected_token: str,
-        context: str,
-    ) -> None:
-        try:
-            low_precision_candidate_feedback_record(
-                generation_result=generation_result,
-                expectation=packed_expectation,
-                candidate_label="grouped-u2",
-                uses_packed_i4_resource=False,
-                result_classification=not_measured,
-                measurement_evidence_id=(
-                    "self-test/stale-candidate/"
-                    "same_target_measurement_evidence.json"
-                ),
-                source_record_context=candidate_source_context,
-            )
-        except abi.EvidenceError as exc:
-            if expected_token not in str(exc):
-                raise AssertionError(
-                    f"self-test {context} missed token {expected_token}: {exc}"
-                ) from exc
-            return
-        raise AssertionError(f"self-test accepted {context}")
-
-    stale_candidate_metadata = dict(grouped_candidate_metadata)
-    stale_candidate_metadata[
-        "weft_rvv.low_precision_resource.selected_candidate_index"
-    ] = "3"
-    expect_candidate_feedback_metadata_failure(
-        generation_result={
-            "widening_product_reduction_boundary": {
-                "route_metadata": stale_candidate_metadata
-            }
-        },
-        expected_token="selected_candidate_index",
-        context="stale candidate selected index",
-    )
-
-    missing_candidate_metadata = dict(grouped_candidate_metadata)
-    del missing_candidate_metadata[
-        "weft_rvv.low_precision_resource.candidate_count"
-    ]
-    expect_candidate_feedback_metadata_failure(
-        generation_result={
-            "widening_product_reduction_boundary": {
-                "route_metadata": missing_candidate_metadata
-            }
-        },
-        expected_token="candidate_count",
-        context="missing candidate count",
-    )
-
-    expect_candidate_feedback_metadata_failure(
-        generation_result={
-            "widening_product_reduction_boundary": {
-                "route_metadata": grouped_candidate_metadata
-            },
-            "bundle_checks": {
-                "index": {
-                    "parsed": {
-                        "records": [
-                            {
-                                "artifact_metadata": [
-                                    {
-                                        "key": (
-                                            "weft_rvv.low_precision_resource."
-                                            "selected_candidate_index"
-                                        ),
-                                        "value": "3",
-                                    }
-                                ]
-                            }
-                        ]
-                    }
+        "bundle_checks": {
+            "index": {
+                "parsed": {
+                    "records": [
+                        {
+                            "artifact_metadata": [
+                                {
+                                    "key": (
+                                        "weft_rvv.low_precision_primitive."
+                                        "source_lmul"
+                                    ),
+                                    "value": "m2",
+                                }
+                            ]
+                        }
+                    ]
                 }
-            },
+            }
         },
-        expected_token="selected_candidate_index",
-        context="stale target artifact candidate metadata",
-    )
+    }
+    try:
+        low_precision_formula_plan_metadata(conflicting_result)
+    except abi.EvidenceError as exc:
+        if "disagrees" not in str(exc):
+            raise AssertionError(
+                "self-test formula-plan conflict lost bounded diagnostic"
+            ) from exc
+    else:
+        raise AssertionError("self-test accepted conflicting formula-plan evidence")
 
-    expect_candidate_feedback_metadata_failure(
-        generation_result={
-            "widening_product_reduction_boundary": {
-                "route_metadata": grouped_candidate_metadata
-            },
-            "bundle_checks": {
-                "index": {
-                    "parsed": {
-                        "records": [
-                            {
-                                "artifact_metadata": [
-                                    {
-                                        "key": (
-                                            "weft_rvv.low_precision_resource."
-                                            "selected_candidate_index"
-                                        ),
-                                        "value": "2",
-                                    }
-                                ]
-                            },
-                            {
-                                "artifact_metadata": [
-                                    {
-                                        "key": (
-                                            "weft_rvv.low_precision_resource."
-                                            "selected_candidate_index"
-                                        ),
-                                        "value": "3",
-                                    }
-                                ]
-                            },
-                        ]
-                    }
-                }
-            },
-        },
-        expected_token="metadata disagreement",
-        context="disagreeing target artifact candidate metadata",
-    )
-    print(f"{SCRIPT_NAME} self-test passed")
+    print(f"{SCRIPT_NAME}: self_test_success")
     return 0
 
 
@@ -5031,9 +2841,8 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         default=None,
         help=(
             "override the pre-realized selected-body MLIR fixture for exactly "
-            "one --op-kind; packed-i4 timing support is selected only after "
-            "provider-owned low-precision resource metadata validates the "
-            "generated bundle"
+            "one --op-kind; packed-i4 timing support follows the generated "
+            "typed operand encoding"
         ),
     )
     parser.add_argument(
@@ -5043,9 +2852,8 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         metavar="LABEL=PATH",
         help=(
             "add a labelled selected-body fixture for candidate feedback under "
-            "one --op-kind; LABEL is an evidence key only, while provider-owned "
-            "resource metadata in the generated bundle remains candidate "
-            "authority"
+            "one --op-kind; LABEL is an evidence key only and cannot alter the "
+            "formula-constructed plan"
         ),
     )
     parser.add_argument(

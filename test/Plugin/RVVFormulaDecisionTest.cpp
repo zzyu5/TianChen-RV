@@ -1,6 +1,10 @@
 //===- RVVFormulaDecisionTest.cpp ----------------------------------------===//
 
 #include "Weft/Plugin/RVV/RVVFormulaDecision.h"
+#include "Weft/Plugin/RVV/RVVContractionPathSelection.h"
+#include "Weft/Plugin/RVV/RVVLowPrecisionResourceFormula.h"
+#include "Weft/Plugin/RVV/RVVRepackScheduleFormula.h"
+#include "Weft/Plugin/RVV/RVVScheduleFormula.h"
 
 #include "llvm/ADT/Twine.h"
 #include "llvm/Support/raw_ostream.h"
@@ -53,7 +57,7 @@ int runNibbleDecisionTest() {
       invalid.fallback != pluginrvv::NibbleDecodeFallback::Reject)
     return fail("invalid nibble geometry must fail closed with no selected plan");
 
-  llvm::outs() << "A2 nibble decision: typed g decisive, c/omega honest-null, "
+  llvm::outs() << "nibble decision: typed g decisive, c/omega honest-null, "
                   "invalid geometry rejects\n";
   return 0;
 }
@@ -188,7 +192,7 @@ int runCodebookGatherDecisionTest() {
           pluginrvv::CodebookGatherReason::RejectedEmptyLegalSet)
     return fail("VLEN32 must reject: m4 gather would widen to illegal i32m16");
 
-  llvm::outs() << "A3 codebook decision: fixed production 16-entry g, "
+  llvm::outs() << "codebook decision: fixed production 16-entry g, "
                   "VLEN64 m2/VLEN128 m1/VLEN256 mf2, SEW8+32, missing "
                   "and widening ceiling reject\n";
   return 0;
@@ -201,9 +205,18 @@ int runRepackAccumulatorDecisionTest() {
       /*halfLanes=*/8,
       /*vectorRegisterBudget=*/32};
 
+  pluginrvv::RepackAccumulatorLMULFormulaResult formula =
+      pluginrvv::constructRepackAccumulatorLMULFormula(
+          g, rvv10, pluginrvv::RepackAccumulatorLMULNoStaticContext{});
+  if (!formula.hasLegalCandidate() ||
+      formula.geometryUse != pluginrvv::RVVDecisionAxisUse::Decisive ||
+      formula.capabilityUse != pluginrvv::RVVDecisionAxisUse::Decisive ||
+      formula.contextUse != pluginrvv::RVVDecisionAxisUse::HonestNull)
+    return fail("repack formula must construct a legal set from g/c with "
+                "honest-null static context");
   pluginrvv::RepackAccumulatorLMULDecision prior =
-      pluginrvv::decideRepackAccumulatorLMUL(
-          g, rvv10, pluginrvv::RepackAccumulatorLMULStaticContext{});
+      pluginrvv::selectRepackAccumulatorLMUL(
+          formula, pluginrvv::RepackAccumulatorLMULSelectionInput{});
   if (!prior.isLegal() || prior.usesM1() ||
       prior.selectedHalfLanes != 8 || prior.integerCoreLMUL != "mf2" ||
       prior.accumulatorLMUL != "m2" ||
@@ -218,22 +231,25 @@ int runRepackAccumulatorDecisionTest() {
 
   pluginrvv::RepackAccumulatorLMULCapabilityFacts rvv07 = rvv10;
   rvv07.hasFractionalLMUL = false;
+  pluginrvv::RepackAccumulatorLMULFormulaResult rvv07Formula =
+      pluginrvv::constructRepackAccumulatorLMULFormula(
+          g, rvv07, pluginrvv::RepackAccumulatorLMULNoStaticContext{});
   pluginrvv::RepackAccumulatorLMULDecision correctness =
-      pluginrvv::decideRepackAccumulatorLMUL(
-          g, rvv07, pluginrvv::RepackAccumulatorLMULStaticContext{});
+      pluginrvv::selectRepackAccumulatorLMUL(
+          rvv07Formula, pluginrvv::RepackAccumulatorLMULSelectionInput{});
   if (!correctness.isLegal() || !correctness.usesM1() ||
       correctness.selectedHalfLanes != 16 ||
       correctness.reason !=
           pluginrvv::RepackAccumulatorLMULReason::CorrectnessNoFractionalLMUL)
     return fail("no fractional LMUL must make m1 the only feasible result");
 
-  pluginrvv::RepackAccumulatorLMULStaticContext measured;
+  pluginrvv::RepackAccumulatorLMULSelectionInput measured;
   measured.measurement =
       pluginrvv::RepackAccumulatorLMULQualifiedMeasurement{
           /*key=*/{"q4_0"},
           /*winner=*/pluginrvv::RepackAccumulatorLMULCandidate::M1};
   pluginrvv::RepackAccumulatorLMULDecision winner =
-      pluginrvv::decideRepackAccumulatorLMUL(g, rvv10, measured);
+      pluginrvv::selectRepackAccumulatorLMUL(formula, measured);
   if (!winner.isLegal() || !winner.usesM1() || !winner.measurementKey ||
       winner.measurementKey->scaleModel != "q4_0" ||
       winner.reason !=
@@ -242,25 +258,36 @@ int runRepackAccumulatorDecisionTest() {
 
   pluginrvv::RepackAccumulatorLMULCapabilityFacts narrowBudget = rvv10;
   narrowBudget.vectorRegisterBudget = 4;
+  pluginrvv::RepackAccumulatorLMULFormulaResult narrowFormula =
+      pluginrvv::constructRepackAccumulatorLMULFormula(
+          g, narrowBudget,
+          pluginrvv::RepackAccumulatorLMULNoStaticContext{});
   pluginrvv::RepackAccumulatorLMULDecision noFlip =
-      pluginrvv::decideRepackAccumulatorLMUL(g, narrowBudget, measured);
+      pluginrvv::selectRepackAccumulatorLMUL(narrowFormula, measured);
   if (!noFlip.isLegal() || noFlip.usesM1() || noFlip.measurementKey ||
       noFlip.reason != pluginrvv::RepackAccumulatorLMULReason::AnalyticPrior)
     return fail("an infeasible measured winner must not escape legality");
 
   pluginrvv::RepackAccumulatorLMULGeometryFacts widerG{
       /*weightInterleave=*/32};
+  pluginrvv::RepackAccumulatorLMULFormulaResult widerFormula =
+      pluginrvv::constructRepackAccumulatorLMULFormula(
+          widerG, rvv10,
+          pluginrvv::RepackAccumulatorLMULNoStaticContext{});
   pluginrvv::RepackAccumulatorLMULDecision gDecisive =
-      pluginrvv::decideRepackAccumulatorLMUL(widerG, rvv10, measured);
+      pluginrvv::selectRepackAccumulatorLMUL(widerFormula, measured);
   if (!gDecisive.isLegal() || !gDecisive.usesM1() ||
       gDecisive.selectedHalfLanes != 32)
     return fail("changing typed repack g must change selected realization geometry");
 
   pluginrvv::RepackAccumulatorLMULCapabilityFacts missing = rvv10;
   missing.vectorRegisterBudget.reset();
+  pluginrvv::RepackAccumulatorLMULFormulaResult missingFormula =
+      pluginrvv::constructRepackAccumulatorLMULFormula(
+          g, missing, pluginrvv::RepackAccumulatorLMULNoStaticContext{});
   pluginrvv::RepackAccumulatorLMULDecision missingDecision =
-      pluginrvv::decideRepackAccumulatorLMUL(
-          g, missing, pluginrvv::RepackAccumulatorLMULStaticContext{});
+      pluginrvv::selectRepackAccumulatorLMUL(
+          missingFormula, pluginrvv::RepackAccumulatorLMULSelectionInput{});
   if (missingDecision.isLegal() ||
       missingDecision.fallback !=
           pluginrvv::RepackAccumulatorLMULFallback::Reject ||
@@ -270,16 +297,351 @@ int runRepackAccumulatorDecisionTest() {
 
   pluginrvv::RepackAccumulatorLMULCapabilityFacts impossible = rvv10;
   impossible.vectorRegisterBudget = 2;
+  pluginrvv::RepackAccumulatorLMULFormulaResult impossibleFormula =
+      pluginrvv::constructRepackAccumulatorLMULFormula(
+          g, impossible,
+          pluginrvv::RepackAccumulatorLMULNoStaticContext{});
   pluginrvv::RepackAccumulatorLMULDecision empty =
-      pluginrvv::decideRepackAccumulatorLMUL(
-          g, impossible, pluginrvv::RepackAccumulatorLMULStaticContext{});
+      pluginrvv::selectRepackAccumulatorLMUL(
+          impossibleFormula,
+          pluginrvv::RepackAccumulatorLMULSelectionInput{});
   if (empty.isLegal() ||
       empty.reason !=
           pluginrvv::RepackAccumulatorLMULReason::RejectedEmptyLegalSet)
     return fail("empty LMUL legal set must reject");
 
-  llvm::outs() << "A2 repack LMUL decision: g/c/omega decisive, legal measured "
-                  "winner bounded, miss-to-prior, empty set rejects\n";
+  llvm::outs() << "repack LMUL formula/selector split: g/c construct legal set, "
+                  "static context honest-null, qualified winner bounded, "
+                  "miss-to-prior, empty set rejects\n";
+  return 0;
+}
+
+int runContractionFormulaSelectionTest() {
+  pluginrvv::ContractionOpponentFacts computeHeavy;
+  computeHeavy.blockDotComputeHeavy = true;
+
+  pluginrvv::ContractionAlgorithmFormulaResult at256 =
+      pluginrvv::constructContractionAlgorithmFormula(
+          computeHeavy, {/*minimumVLEN=*/256},
+          {/*mRegime=*/pluginrvv::MRegime::Decode});
+  if (!at256.isLegal(pluginrvv::ContractionAlgorithm::Repack) ||
+      !at256.isLegal(pluginrvv::ContractionAlgorithm::BlockDot) ||
+      at256.analyticPrior != pluginrvv::ContractionAlgorithm::BlockDot ||
+      !at256.acceptsQualifiedMeasurement)
+    return fail("VLEN256 decode formula must construct both legal candidates "
+                "with a conservative block-dot prior");
+
+  pluginrvv::ContractionSelection unmeasured =
+      pluginrvv::selectContractionAlgorithm(
+          at256, pluginrvv::ContractionSelectionInput{});
+  if (unmeasured.algorithm != pluginrvv::ContractionAlgorithm::BlockDot ||
+      unmeasured.reason != "block-dot-decline-vlen256-decode-unmeasured" ||
+      unmeasured.measurementKey)
+    return fail("an unmeasured VLEN256 decode cell must use the analytic prior");
+
+  pluginrvv::ContractionSelectionInput beneficial;
+  beneficial.measurement = pluginrvv::ContractionQualifiedMeasurement{
+      /*key=*/{"q5_1"},
+      /*winner=*/pluginrvv::ContractionAlgorithm::Repack};
+  pluginrvv::ContractionSelection measuredRepack =
+      pluginrvv::selectContractionAlgorithm(at256, beneficial);
+  if (measuredRepack.algorithm != pluginrvv::ContractionAlgorithm::Repack ||
+      measuredRepack.reason !=
+          "repack-kept-vlen256-decode-measured-beneficial" ||
+      !measuredRepack.measurementKey ||
+      measuredRepack.measurementKey->scaleModel != "q5_1")
+    return fail("a qualified VLEN256 winner must select an existing legal path");
+
+  pluginrvv::ContractionSelectionInput negative;
+  negative.measurement = pluginrvv::ContractionQualifiedMeasurement{
+      /*key=*/{"q4_0"},
+      /*winner=*/pluginrvv::ContractionAlgorithm::BlockDot};
+  pluginrvv::ContractionSelection measuredBlockDot =
+      pluginrvv::selectContractionAlgorithm(at256, negative);
+  if (measuredBlockDot.algorithm !=
+          pluginrvv::ContractionAlgorithm::BlockDot ||
+      measuredBlockDot.reason !=
+          "block-dot-decline-vlen256-decode-measured-negative")
+    return fail("a qualified negative result must remain inside the legal set");
+
+  pluginrvv::ContractionAlgorithmFormulaResult prefill =
+      pluginrvv::constructContractionAlgorithmFormula(
+          computeHeavy, {/*minimumVLEN=*/256},
+          {/*mRegime=*/pluginrvv::MRegime::Prefill});
+  pluginrvv::ContractionSelection prefillSelection =
+      pluginrvv::selectContractionAlgorithm(prefill, negative);
+  if (prefill.acceptsQualifiedMeasurement ||
+      prefillSelection.algorithm != pluginrvv::ContractionAlgorithm::Repack ||
+      prefillSelection.measurementKey)
+    return fail("winner memory must not override a non-measured prefill prior");
+
+  pluginrvv::ContractionOpponentFacts nativeOpponent = computeHeavy;
+  nativeOpponent.ggmlVlenNativeKernelFloor = 128;
+  pluginrvv::ContractionAlgorithmFormulaResult nativeFormula =
+      pluginrvv::constructContractionAlgorithmFormula(
+          nativeOpponent, {/*minimumVLEN=*/256},
+          {/*mRegime=*/pluginrvv::MRegime::Decode});
+  pluginrvv::ContractionSelection illegalWinner =
+      pluginrvv::selectContractionAlgorithm(nativeFormula, beneficial);
+  if (nativeFormula.isLegal(pluginrvv::ContractionAlgorithm::Repack) ||
+      illegalWinner.algorithm != pluginrvv::ContractionAlgorithm::BlockDot ||
+      illegalWinner.measurementKey)
+    return fail("measurement must not create a candidate rejected by formula legality");
+
+  llvm::outs() << "contraction formula/selector split: g/c/omega construct "
+                  "candidates and prior, qualified measurement only selects "
+                  "inside legality\n";
+  return 0;
+}
+
+int runRepackScheduleFormulaTest() {
+  pluginrvv::RVVRepackScheduleGeometryFacts g{
+      /*weightBlockStride=*/2304,
+      /*activationBlockStride=*/1168,
+      /*qk=*/256,
+      /*weightInterleave=*/16,
+      /*activationInterleave=*/4,
+      /*halfLanes=*/8,
+      /*integerCoreLMUL=*/"mf2",
+      /*foldModel=*/"kquant_dmin_bsums_min"};
+  pluginrvv::RVVRepackScheduleCapabilityFacts c{
+      /*minimumVLEN=*/128,
+      /*vectorRegisterCount=*/32};
+  pluginrvv::RVVRepackScheduleContext prefill{
+      pluginrvv::RVVRepackScheduleRegime::GemmPrefill};
+
+  auto formula = pluginrvv::constructRVVRepackScheduleFormula(g, c, prefill);
+  if (!formula || formula->loopOrderCandidates.size() != 2 ||
+      formula->mainTermCandidates.size() != 2 ||
+      formula->loopOrderPrior != pluginrvv::RVVRepackLoopOrder::ColOuter ||
+      formula->mainTermPrior !=
+          pluginrvv::RVVRepackMainTermForm::Unrolled ||
+      !formula->mainTermMeasurementEligible)
+    return fail("repack schedule formula must construct both real axes and "
+                "their analytic priors from typed g/c/omega");
+
+  pluginrvv::RVVRepackScheduleSelectionInput winners;
+  winners.qualifiedLoopOrderWinner =
+      pluginrvv::RVVRepackLoopOrder::RowOuter;
+  winners.qualifiedMainTermWinner =
+      pluginrvv::RVVRepackMainTermForm::Rolled;
+  pluginrvv::RVVRepackFinalSchedule selected =
+      pluginrvv::selectRVVRepackSchedule(*formula, winners);
+  if (selected.loopOrder != pluginrvv::RVVRepackLoopOrder::RowOuter ||
+      selected.mainTermForm != pluginrvv::RVVRepackMainTermForm::Rolled)
+    return fail("qualified winners must select only already-realized repack "
+                "schedule candidates");
+
+  g.weightBlockStride = 864;
+  auto rowPrior = pluginrvv::constructRVVRepackScheduleFormula(g, c, prefill);
+  if (!rowPrior ||
+      rowPrior->loopOrderPrior != pluginrvv::RVVRepackLoopOrder::RowOuter)
+    return fail("changing the typed stride geometry must change loop-order prior");
+
+  g.qk = 128;
+  g.weightInterleave = 16;
+  g.activationInterleave = 1;
+  g.halfLanes = 16;
+  pluginrvv::RVVRepackScheduleContext decode{
+      pluginrvv::RVVRepackScheduleRegime::Gemv};
+  auto compact = pluginrvv::constructRVVRepackScheduleFormula(g, c, decode);
+  if (!compact || compact->loopOrderPrior ||
+      compact->mainTermMeasurementEligible)
+    return fail("GEVM must have no fake loop-order axis and a small main term "
+                "must stay outside the measured crossover");
+  pluginrvv::RVVRepackFinalSchedule bounded =
+      pluginrvv::selectRVVRepackSchedule(*compact, winners);
+  if (bounded.mainTermForm != pluginrvv::RVVRepackMainTermForm::Unrolled)
+    return fail("a winner outside the eligible residual must fall back to prior");
+
+  c.minimumVLEN = 64;
+  if (pluginrvv::constructRVVRepackScheduleFormula(g, c, prefill))
+    return fail("prefill loop-order construction must reject an incapable target");
+
+  llvm::outs() << "repack schedule formula: loop-order and main-term candidates "
+                  "constructed before emission; winner bounded; SP4 fake axis absent\n";
+  return 0;
+}
+
+int runGenericScheduleFormulaTest() {
+  auto descriptor =
+      pluginrvv::lookupRVVScheduleFormula("q4_0_q8_0_gemm");
+  if (!descriptor)
+    return fail("generic schedule formula registry must expose GEMM");
+
+  auto selectedM = [](const std::optional<pluginrvv::GenericScheduleCandidate>
+                          &candidate)
+      -> llvm::StringRef {
+    if (!candidate)
+      return {};
+    for (const pluginrvv::NamedKnob &knob : candidate->knobs)
+      if (knob.recordKey == "activation_cols")
+        return knob.value;
+    return {};
+  };
+
+  pluginrvv::RVVScheduleGeometryFacts g{"q4_0_q8_0_gemm"};
+  pluginrvv::RVVScheduleCapabilityFacts c{
+      /*minimumVLEN=*/128,
+      /*resourceBudget=*/descriptor->resourceBudget};
+  pluginrvv::RVVScheduleFormulaResult prior =
+      pluginrvv::evaluateRVVScheduleFormula(
+          *descriptor, g, c, pluginrvv::RVVScheduleNoStaticContext{});
+  if (prior.candidates.empty() || selectedM(prior.analyticPrior) != "4")
+    return fail("generic schedule analytic prior must select a generated plan");
+
+  pluginrvv::RVVScheduleSelectionInput selection{
+      /*targetKey=*/"rv64gcv",
+      "tune kernel=q4_0_q8_0_gemm march=rv64gcv activation_cols=6 "
+      "measured_ns=1243.8\n"};
+  auto measured = pluginrvv::selectRVVSchedule(*descriptor, prior, selection);
+  if (selectedM(measured) != "6")
+    return fail("qualified schedule winner must select an existing legal plan");
+
+  selection.qualifiedWinnerMemory =
+      "tune kernel=q4_0_q8_0_gemm march=rv64gcv activation_cols=16 "
+      "measured_ns=1.0\n";
+  auto stale = pluginrvv::selectRVVSchedule(*descriptor, prior, selection);
+  if (selectedM(stale) != "4")
+    return fail("stale schedule winner must fall back inside current legality");
+
+  pluginrvv::RVVScheduleFormulaResult wrongGeometry =
+      pluginrvv::evaluateRVVScheduleFormula(
+          *descriptor, pluginrvv::RVVScheduleGeometryFacts{"q4_0"}, c,
+          pluginrvv::RVVScheduleNoStaticContext{});
+  if (!wrongGeometry.candidates.empty() || wrongGeometry.analyticPrior)
+    return fail("schedule formula must not consume a mismatched geometry key");
+
+  llvm::outs() << "generic schedule formula: typed g/c with honest-null omega "
+                  "construct candidates/prior; selector winner bounded\n";
+  return 0;
+}
+
+int runLowPrecisionConstructionFormulaTest() {
+  pluginrvv::RVVLowPrecisionResourceGeometryFacts g{
+      pluginrvv::RVVLowPrecisionContractionResourceOperation::
+          ProductReductionDequantizeF32,
+      pluginrvv::RVVLowPrecisionOperandEncoding::UnpackedI8,
+      /*tailPolicy=*/"agnostic",
+      /*maskPolicy=*/"agnostic",
+      /*sourceSEW=*/8,
+      /*sourceLMUL=*/"mf4",
+      /*productSEW=*/16,
+      /*productLMUL=*/"mf2",
+      /*resultSEW=*/32,
+      /*resultLMUL=*/"m1"};
+
+  auto wide = pluginrvv::constructRVVLowPrecisionResourceFormula(
+      g, {/*vectorRegisterBudget=*/32},
+      pluginrvv::RVVLowPrecisionResourceNoStaticContext{});
+  if (!wide || !wide->analyticPrior ||
+      wide->analyticPrior->implementation !=
+          pluginrvv::RVVLowPrecisionResourceImplementation::DeferredWide ||
+      !pluginrvv::containsRVVLowPrecisionResourceImplementation(
+          wide->legalCandidates,
+          pluginrvv::RVVLowPrecisionResourceImplementation::GroupedNarrow) ||
+      !pluginrvv::containsRVVLowPrecisionResourceImplementation(
+          wide->legalCandidates,
+          pluginrvv::RVVLowPrecisionResourceImplementation::DeferredWide))
+    return fail("unpacked i8 with a 32-register capability must construct the "
+                "grouped and deferred-wide domain with the wide analytic prior");
+
+  auto grouped = pluginrvv::constructRVVLowPrecisionResourceFormula(
+      g, {/*vectorRegisterBudget=*/16},
+      pluginrvv::RVVLowPrecisionResourceNoStaticContext{});
+  if (!grouped || !grouped->analyticPrior ||
+      grouped->analyticPrior->implementation !=
+          pluginrvv::RVVLowPrecisionResourceImplementation::GroupedNarrow ||
+      pluginrvv::containsRVVLowPrecisionResourceImplementation(
+          grouped->legalCandidates,
+          pluginrvv::RVVLowPrecisionResourceImplementation::DeferredWide))
+    return fail("a narrower capability budget must retain the grouped body "
+                "without inventing a deferred-wide realization");
+
+  g.operandEncoding = pluginrvv::RVVLowPrecisionOperandEncoding::PackedI4;
+  auto packed = pluginrvv::constructRVVLowPrecisionResourceFormula(
+      g, {/*vectorRegisterBudget=*/32},
+      pluginrvv::RVVLowPrecisionResourceNoStaticContext{});
+  if (!packed || packed->legalCandidates.size() != 1 ||
+      !packed->analyticPrior ||
+      packed->analyticPrior->implementation !=
+          pluginrvv::RVVLowPrecisionResourceImplementation::PackedI4Narrow)
+    return fail("typed packed-i4 geometry must construct only the packed body");
+
+  g.operandEncoding = pluginrvv::RVVLowPrecisionOperandEncoding::UnpackedI8;
+  g.operation = pluginrvv::RVVLowPrecisionContractionResourceOperation::
+      ProductReductionDequantClampF32;
+  auto clamp = pluginrvv::constructRVVLowPrecisionResourceFormula(
+      g, {/*vectorRegisterBudget=*/32},
+      pluginrvv::RVVLowPrecisionResourceNoStaticContext{});
+  if (!clamp || !clamp->analyticPrior ||
+      clamp->analyticPrior->implementation !=
+          pluginrvv::RVVLowPrecisionResourceImplementation::GroupedNarrow ||
+      pluginrvv::containsRVVLowPrecisionResourceImplementation(
+          clamp->legalCandidates,
+          pluginrvv::RVVLowPrecisionResourceImplementation::DeferredWide))
+    return fail("the clamp geometry must keep the complete grouped program");
+
+  if (pluginrvv::constructRVVLowPrecisionResourceFormula(
+          g, {/*vectorRegisterBudget=*/0},
+          pluginrvv::RVVLowPrecisionResourceNoStaticContext{}))
+    return fail("missing resource capability must reject formula construction");
+
+  pluginrvv::RVVDotReduceScheduleGeometryFacts dotG{
+      /*sourceSEW=*/16, /*sourceLMUL=*/"mf2",
+      /*resultSEW=*/32, /*resultLMUL=*/"m1"};
+  auto dotWide = pluginrvv::constructRVVDotReduceScheduleFormula(
+      dotG, {/*vectorRegisterBudget=*/32}, {});
+  if (!dotWide ||
+      dotWide->structure != pluginrvv::RVVDotReduceStructure::DeferredAccumulate ||
+      !dotWide->deferredRung || dotWide->deferredRung->sourceLMUL != "m4" ||
+      dotWide->deferredRung->accumulatorLMUL != "m8")
+    return fail("dot formula must choose the widest legal deferred rung");
+
+  auto dotMinimal = pluginrvv::constructRVVDotReduceScheduleFormula(
+      dotG, {/*vectorRegisterBudget=*/9}, {});
+  if (!dotMinimal || !dotMinimal->deferredRung ||
+      dotMinimal->deferredRung->sourceLMUL != "mf2" ||
+      dotMinimal->deferredRung->accumulatorLMUL != "m1")
+    return fail("dot capability pressure must shrink the deferred rung");
+
+  pluginrvv::RVVDotReduceScheduleContext forceDirect{
+      pluginrvv::RVVDotReduceStructure::PerIteration};
+  auto direct = pluginrvv::constructRVVDotReduceScheduleFormula(
+      dotG, {/*vectorRegisterBudget=*/32}, forceDirect);
+  if (!direct ||
+      direct->structure != pluginrvv::RVVDotReduceStructure::PerIteration ||
+      direct->deferredRung)
+    return fail("an explicit typed direct structure must be validated, not "
+                "silently replaced by the analytic prior");
+
+  pluginrvv::RVVDotReduceScheduleContext forceDeferred{
+      pluginrvv::RVVDotReduceStructure::DeferredAccumulate};
+  if (pluginrvv::constructRVVDotReduceScheduleFormula(
+          dotG, {/*vectorRegisterBudget=*/8}, forceDeferred))
+    return fail("an explicit deferred structure outside capability legality "
+                "must reject");
+
+  pluginrvv::RVVStandaloneDequantGeometryFacts dequantG{
+      /*sourceSEW=*/32,
+      /*sourceLMUL=*/"m1",
+      /*resultSEW=*/32,
+      /*resultLMUL=*/"m1",
+      /*relation=*/"signed-i32m1-to-f32m1-scale-f32"};
+  auto dequant = pluginrvv::constructRVVStandaloneDequantScheduleFormula(
+      dequantG, pluginrvv::RVVStandaloneDequantNoCapabilityInput{},
+      pluginrvv::RVVStandaloneDequantNoStaticContext{});
+  if (!dequant || dequant->unrollFactor != 2)
+    return fail("standalone typed dequant formula must construct unroll two");
+  dequantG.relation = "stale-relation";
+  if (pluginrvv::constructRVVStandaloneDequantScheduleFormula(
+          dequantG, pluginrvv::RVVStandaloneDequantNoCapabilityInput{},
+          pluginrvv::RVVStandaloneDequantNoStaticContext{}))
+    return fail("standalone dequant outside the typed relation must reject");
+
+  llvm::outs() << "low-precision formulas: typed encoding and g/c construct "
+                  "resource, dot-reduce, and standalone-dequant plans; invalid "
+                  "domains reject\n";
   return 0;
 }
 
@@ -291,6 +653,14 @@ int main() {
   if (int result = runCodebookGatherDecisionTest())
     return result;
   if (int result = runRepackAccumulatorDecisionTest())
+    return result;
+  if (int result = runContractionFormulaSelectionTest())
+    return result;
+  if (int result = runRepackScheduleFormulaTest())
+    return result;
+  if (int result = runGenericScheduleFormulaTest())
+    return result;
+  if (int result = runLowPrecisionConstructionFormulaTest())
     return result;
   llvm::outs() << "RVV formula decision contract tests passed\n";
   return 0;

@@ -1,6 +1,7 @@
 #include "Weft/Plugin/ExtensionPlugin.h"
 
 #include "mlir/IR/Attributes.h"
+#include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/DialectRegistry.h"
 #include "mlir/IR/Operation.h"
 #include "llvm/ADT/STLExtras.h"
@@ -41,6 +42,10 @@ constexpr llvm::StringLiteral kRiscvELFRelocatableObjectArtifactKind(
 
 bool shouldIncludePlugin(const ExtensionPlugin &plugin, bool enabledOnly) {
   return !enabledOnly || plugin.isEnabled();
+}
+
+std::string getDefaultAnalyticPriorFormulaID(llvm::StringRef pluginName) {
+  return (llvm::Twine("weft.") + pluginName + ".default-analytic-prior").str();
 }
 
 bool isNestedUnder(mlir::Operation *operation, mlir::Operation *ancestor) {
@@ -340,10 +345,11 @@ PluginCapability::PluginCapability(llvm::StringRef id, llvm::StringRef kind,
 
 SourceFrontDoorPassRegistration::SourceFrontDoorPassRegistration(
     llvm::StringRef ownerPlugin, llvm::StringRef argument,
-    llvm::StringRef description, Factory factory,
+    llvm::StringRef description, llvm::StringRef formulaID, Factory factory,
     DefaultArtifactFrontDoorPolicy policy)
     : ownerPlugin(ownerPlugin.str()), argument(argument.str()),
-      description(description.str()), factory(std::move(factory)),
+      description(description.str()), formulaID(formulaID.str()),
+      factory(std::move(factory)),
       defaultArtifactFrontDoorPolicy(policy) {}
 
 VariantProposalRequest::VariantProposalRequest(
@@ -567,6 +573,24 @@ llvm::Error ExtensionPlugin::verifyExecutableConstructionConformance() const {
   return llvm::Error::success();
 }
 
+void ExtensionPlugin::collectFormulaDescriptors(
+    llvm::SmallVectorImpl<FormulaDescriptor> &out) const {
+  FormulaDescriptor descriptor(
+      getDefaultAnalyticPriorFormulaID(getName()), getName(),
+      "operator/plugin-default", FormulaResultKind::AnalyticPrior,
+      FormulaConstructionStrength::ConstructedWeak);
+  descriptor.getGeometryAxis().set(FormulaAxisUse::Decisive,
+                                   "SelectedVariantIdentity");
+  descriptor.getGeometryAxis().addConsumedField("variant-symbol");
+  descriptor.getCapabilityAxis().set(FormulaAxisUse::HonestNull,
+                                     "DefaultCostNoCapabilityProjection");
+  descriptor.getStaticContextAxis().set(FormulaAxisUse::HonestNull,
+                                        "DefaultCostNoStaticContext");
+  descriptor.addSemanticCase("stable-zero-default-prior");
+  descriptor.addProductionEntry("plugin:analytic-cost");
+  out.push_back(std::move(descriptor));
+}
+
 llvm::Error ExtensionPlugin::proposeVariants(
     const VariantProposalRequest &request,
     llvm::SmallVectorImpl<VariantProposal> &out) const {
@@ -599,6 +623,7 @@ llvm::Error ExtensionPlugin::estimateVariantCost(
   out.setScore(0.0);
   out.setExplicitPreference(false);
   out.setOriginPlugin(getName());
+  out.setFormulaID(getDefaultAnalyticPriorFormulaID(getName()));
   if (weft::exec::VariantOp variant = request.getVariant())
     out.setVariantSymbol(variant.getSymName());
   return llvm::Error::success();
@@ -611,6 +636,11 @@ llvm::Error ExtensionPlugin::checkVariantEmissionReadiness(
       request.getVariant() ? request.getVariant().getSymName()
                            : llvm::StringRef("<missing>"),
       "origin plugin does not provide an emission readiness path");
+  return llvm::Error::success();
+}
+
+llvm::Error ExtensionPlugin::constructFormulaPlans(mlir::ModuleOp module) const {
+  (void)module;
   return llvm::Error::success();
 }
 
@@ -772,6 +802,147 @@ void ExtensionPluginRegistry::collectCapabilitiesByKind(
   }
 }
 
+llvm::Error ExtensionPluginRegistry::validateFormulaDescriptor(
+    const ExtensionPlugin &plugin,
+    const FormulaDescriptor &descriptor) const {
+  if (descriptor.getID().trim().empty())
+    return makePluginRegistryError(
+        llvm::Twine("extension plugin '") + plugin.getName() +
+        "' exposed a formula descriptor with an empty id");
+  if (descriptor.getOwnerPlugin() != plugin.getName())
+    return makePluginRegistryError(
+        llvm::Twine("formula '") + descriptor.getID() + "' owner '" +
+        descriptor.getOwnerPlugin() + "' does not match registry plugin '" +
+        plugin.getName() + "'");
+  if (descriptor.getOperatorDomain().trim().empty())
+    return makePluginRegistryError(
+        llvm::Twine("formula '") + descriptor.getID() +
+        "' must name a non-empty operator domain");
+
+  auto validateAxis = [&](llvm::StringRef name,
+                          const FormulaAxisDescriptor &axis) -> llvm::Error {
+    if (axis.getUse() == FormulaAxisUse::Absent) {
+      if (!axis.getType().empty() || !axis.getConsumedFields().empty())
+        return makePluginRegistryError(
+            llvm::Twine("formula '") + descriptor.getID() + "' absent " +
+            name + " axis must not carry a type or consumed fields");
+      return llvm::Error::success();
+    }
+    if (axis.getType().trim().empty())
+      return makePluginRegistryError(
+          llvm::Twine("formula '") + descriptor.getID() + "' " + name +
+          " axis must name its typed input");
+    if (axis.getUse() == FormulaAxisUse::Decisive &&
+        axis.getConsumedFields().empty())
+      return makePluginRegistryError(
+          llvm::Twine("formula '") + descriptor.getID() + "' decisive " +
+          name + " axis must list at least one consumed field");
+    if (axis.getUse() == FormulaAxisUse::HonestNull &&
+        !axis.getConsumedFields().empty())
+      return makePluginRegistryError(
+          llvm::Twine("formula '") + descriptor.getID() + "' honest-null " +
+          name + " axis must not claim consumed fields");
+    llvm::StringSet<> fields;
+    for (const std::string &field : axis.getConsumedFields()) {
+      if (llvm::StringRef(field).trim().empty() || !fields.insert(field).second)
+        return makePluginRegistryError(
+            llvm::Twine("formula '") + descriptor.getID() + "' " + name +
+            " axis has an empty or duplicate consumed field");
+    }
+    return llvm::Error::success();
+  };
+
+  if (llvm::Error error = validateAxis("g", descriptor.getGeometryAxis()))
+    return error;
+  if (llvm::Error error =
+          validateAxis("c", descriptor.getCapabilityAxis()))
+    return error;
+  if (llvm::Error error =
+          validateAxis("omega", descriptor.getStaticContextAxis()))
+    return error;
+  if (descriptor.getGeometryAxis().getUse() == FormulaAxisUse::Absent)
+    return makePluginRegistryError(
+        llvm::Twine("formula '") + descriptor.getID() +
+        "' must consume a typed operator/geometry axis");
+  if (descriptor.getSemanticCases().empty())
+    return makePluginRegistryError(
+        llvm::Twine("formula '") + descriptor.getID() +
+        "' must enumerate at least one semantic case");
+  if (descriptor.getProductionEntries().empty())
+    return makePluginRegistryError(
+        llvm::Twine("formula '") + descriptor.getID() +
+        "' must enumerate at least one production construction entry");
+
+  llvm::StringSet<> cases;
+  for (const std::string &semanticCase : descriptor.getSemanticCases()) {
+    if (llvm::StringRef(semanticCase).trim().empty() ||
+        !cases.insert(semanticCase).second)
+      return makePluginRegistryError(
+          llvm::Twine("formula '") + descriptor.getID() +
+          "' has an empty or duplicate semantic case");
+  }
+  llvm::StringSet<> entries;
+  for (const std::string &entry : descriptor.getProductionEntries()) {
+    if (llvm::StringRef(entry).trim().empty() || !entries.insert(entry).second)
+      return makePluginRegistryError(
+          llvm::Twine("formula '") + descriptor.getID() +
+          "' has an empty or duplicate production entry");
+  }
+  return llvm::Error::success();
+}
+
+llvm::Error ExtensionPluginRegistry::collectFormulaCatalog(
+    llvm::SmallVectorImpl<FormulaDescriptor> &out, bool enabledOnly) const {
+  llvm::StringSet<> ids;
+  for (const FormulaDescriptor &existing : out) {
+    if (!existing.getID().empty())
+      ids.insert(existing.getID());
+  }
+  for (const ExtensionPlugin *plugin : plugins) {
+    if (!shouldIncludePlugin(*plugin, enabledOnly))
+      continue;
+    llvm::SmallVector<FormulaDescriptor, 16> descriptors;
+    plugin->collectFormulaDescriptors(descriptors);
+    for (const FormulaDescriptor &descriptor : descriptors) {
+      if (llvm::Error error = validateFormulaDescriptor(*plugin, descriptor))
+        return error;
+      if (!ids.insert(descriptor.getID()).second)
+        return makePluginRegistryError(
+            llvm::Twine("duplicate formula id '") + descriptor.getID() + "'");
+    }
+    out.append(descriptors.begin(), descriptors.end());
+  }
+  return llvm::Error::success();
+}
+
+llvm::Error ExtensionPluginRegistry::validateFormulaReference(
+    const ExtensionPlugin &plugin, llvm::StringRef formulaID,
+    llvm::StringRef productionEntry, llvm::StringRef context) const {
+  if (formulaID.trim().empty())
+    return makePluginRegistryError(
+        llvm::Twine(context) + " from plugin '" + plugin.getName() +
+        "' is missing its formula/construction owner");
+  llvm::SmallVector<FormulaDescriptor, 16> descriptors;
+  plugin.collectFormulaDescriptors(descriptors);
+  for (const FormulaDescriptor &descriptor : descriptors) {
+    if (descriptor.getID() != formulaID)
+      continue;
+    if (llvm::Error error = validateFormulaDescriptor(plugin, descriptor))
+      return error;
+    if (productionEntry.empty())
+      return llvm::Error::success();
+    if (llvm::is_contained(descriptor.getProductionEntries(),
+                           productionEntry.str()))
+      return llvm::Error::success();
+    return makePluginRegistryError(
+        llvm::Twine(context) + " '" + productionEntry + "' references formula '" +
+        formulaID + "', but that entry is not declared by the formula owner");
+  }
+  return makePluginRegistryError(
+      llvm::Twine(context) + " references unknown formula '" + formulaID +
+      "' for plugin '" + plugin.getName() + "'");
+}
+
 llvm::Error ExtensionPluginRegistry::collectSourceFrontDoorPasses(
     llvm::SmallVectorImpl<SourceFrontDoorPassRegistration> &out) const {
   llvm::StringSet<> passArguments;
@@ -808,6 +979,10 @@ llvm::Error ExtensionPluginRegistry::collectSourceFrontDoorPasses(
       if (pass.getDescription().trim().empty())
         return makeSourceFrontDoorPassRegistrationError(
             *plugin, pass, "pass description must be non-empty");
+      if (llvm::Error error = validateFormulaReference(
+              *plugin, pass.getFormulaID(), pass.getArgument(),
+              "source front-door pass"))
+        return error;
       if (!pass.getFactory())
         return makeSourceFrontDoorPassRegistrationError(
             *plugin, pass, "pass factory must be non-empty");
@@ -1079,6 +1254,24 @@ llvm::Error ExtensionPluginRegistry::checkVariantEmissionReadiness(
             "' reported unsupported emission path: " + status.getReason());
 
   out = status;
+  return llvm::Error::success();
+}
+
+llvm::Error
+ExtensionPluginRegistry::constructFormulaPlans(mlir::ModuleOp module) const {
+  if (!module)
+    return llvm::createStringError(llvm::inconvertibleErrorCode(),
+                                   "formula construction requires a module");
+  for (const ExtensionPlugin *plugin : plugins) {
+    if (!plugin || !plugin->isEnabled())
+      continue;
+    if (llvm::Error error = plugin->constructFormulaPlans(module))
+      return llvm::createStringError(
+          llvm::inconvertibleErrorCode(),
+          "plugin '%s' formula construction failed: %s",
+          plugin->getName().str().c_str(),
+          llvm::toString(std::move(error)).c_str());
+  }
   return llvm::Error::success();
 }
 
@@ -1417,6 +1610,11 @@ llvm::Error ExtensionPluginRegistry::validateVariantProposal(
         llvm::Twine("Weft-RV extension plugin '") + plugin.getName() +
         "' produced invalid variant proposal: origin plugin must be non-empty");
 
+  if (llvm::Error error = validateFormulaReference(
+          plugin, proposal.getFormulaID(), "plugin:variant-proposal",
+          "variant proposal"))
+    return error;
+
   const support::TargetCapabilitySet &capabilities = request.getCapabilities();
   for (const std::string &requiredIDStorage :
        proposal.getRequiredCapabilityIDs()) {
@@ -1478,6 +1676,11 @@ llvm::Error ExtensionPluginRegistry::validateVariantCostEstimate(
         variant, kernel,
         llvm::Twine("origin plugin '") + plugin.getName() +
             "' produced invalid cost estimate: score is missing");
+
+  if (llvm::Error error = validateFormulaReference(
+          plugin, estimate.getFormulaID(), "plugin:analytic-cost",
+          "variant cost estimate"))
+    return error;
 
   double score = estimate.getScore();
   if (!std::isfinite(score))

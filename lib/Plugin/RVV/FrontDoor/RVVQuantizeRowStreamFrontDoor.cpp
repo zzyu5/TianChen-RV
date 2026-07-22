@@ -14,6 +14,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "Weft/Plugin/RVV/RVVQuantizeRowStreamFrontDoor.h"
+#include "Weft/Plugin/RVV/RVVFormulaCatalog.h"
+#include "Weft/Plugin/RVV/RVVQuantizeFormula.h"
 
 #include "Weft/Dialect/RVV/IR/RVVDialect.h"
 #include "Weft/Dialect/RVV/IR/RVVQuantizeRowConstruction.h"
@@ -36,14 +38,14 @@ namespace weftrvv = ::weft::rvv;
 
 // One pending abstract quantize op: its generic Operation*, the three ABI values
 // the shared construction needs (input f32 base / output byte buffer / runtime
-// element count), and the encode_model determined by the op's CONCRETE type (the 3
-// quantize ops carry no `format` attr -- the model IS the op identity).
+// element count), and the typed semantic leaf determined by the source op.  The
+// formula, not this record or the emitter, constructs provenance and layout facts.
 struct PendingQuant {
   mlir::Operation *op;
   mlir::Value input;
   mlir::Value output;
   mlir::Value n;
-  llvm::StringRef encodeModel;
+  weftrvv::QuantizeRowLeaf leaf;
 };
 
 class MaterializeRVVQuantizeRowStreamFrontDoorPass final
@@ -73,33 +75,39 @@ public:
     mlir::IRRewriter rewriter(module.getContext());
 
     // Collect first, then rewrite: constructTypedQuantizeRowLoopBody erases each
-    // abstract op, so mutating during the walk would be unsafe. The encode_model is
-    // fixed by the op TYPE (q8_0/q8_1/q8_K each its own op).
+    // abstract op, so mutating during the walk would be unsafe.  Source identity is
+    // converted once into the typed geometry leaf consumed by the formula.
     llvm::SmallVector<PendingQuant> pending;
     module.walk([&](weftrvv::GgmlQuantizeRowQ80Op op) {
       pending.push_back({op.getOperation(), op.getInput(), op.getOutput(),
-                         op.getElementCount(), "q8_0"});
+                         op.getElementCount(), weftrvv::QuantizeRowLeaf::Q8_0});
     });
     module.walk([&](weftrvv::GgmlQuantizeRowQ81Op op) {
       pending.push_back({op.getOperation(), op.getInput(), op.getOutput(),
-                         op.getElementCount(), "q8_1"});
+                         op.getElementCount(), weftrvv::QuantizeRowLeaf::Q8_1});
     });
     module.walk([&](weftrvv::GgmlQuantizeRowQ8KOp op) {
       pending.push_back({op.getOperation(), op.getInput(), op.getOutput(),
-                         op.getElementCount(), "q8_K"});
+                         op.getElementCount(), weftrvv::QuantizeRowLeaf::Q8_K});
     });
 
     for (const PendingQuant &p : pending) {
       std::optional<weftrvv::QuantizeRowStreamFacts> facts =
-          weftrvv::lookupQuantizeRowStreamFacts(p.encodeModel);
-      if (!facts)
-        continue; // not a constructed encode_model (defensive; unreachable here).
+          constructQuantizeRowPlan(QuantizeRowGeometryFacts{p.leaf},
+                                   QuantizeRowNoCapabilityInput{},
+                                   QuantizeRowNoStaticContext{});
+      if (!facts) {
+        p.op->emitError() << "quantize_row formula rejected typed leaf '"
+                          << weftrvv::stringifyQuantizeRowLeaf(p.leaf) << "'";
+        signalPassFailure();
+        return;
+      }
       if (mlir::failed(weftrvv::constructTypedQuantizeRowLoopBody(
-              rewriter, p.op, p.input, p.output, p.n, p.encodeModel, *facts))) {
+              rewriter, p.op, p.input, p.output, p.n, *facts))) {
         p.op->emitError()
             << "quantize_row-stream front door failed to construct the typed "
-               "region for encode_model '"
-            << p.encodeModel << "'";
+               "region for leaf '"
+            << weftrvv::stringifyQuantizeRowLeaf(p.leaf) << "'";
         signalPassFailure();
         return;
       }
@@ -118,12 +126,13 @@ llvm::Error registerRVVQuantizeRowStreamFrontDoorPasses(
     llvm::StringRef ownerPlugin, const ExtensionPluginRegistry & /*registry*/,
     llvm::SmallVectorImpl<SourceFrontDoorPassRegistration> &out) {
   out.push_back(SourceFrontDoorPassRegistration(
-      ownerPlugin, "weft-rvv-materialize-quantize-row-stream-front-door",
+      ownerPlugin, formula_catalog::kQuantizeRowSourceEntry,
       "Pre-emitc construct the typed streaming quantize_row loop-body region "
       "(weft_rvv.typed_quantize_row_loop_body { quantize_row_encode_core; yield }) "
       "in place of the abstract weft_rvv.quantize_row_q8_{0,1,K} so the realized "
       "region is walkable before --weft-rvv-lower-to-emitc (the shared byte-exact "
       "construction; the f32->QUANT mirror of the dequant-stream front door)",
+      formula_catalog::kQuantizeRowConstruction,
       [] { return createMaterializeRVVQuantizeRowStreamFrontDoorPass(); },
       SourceFrontDoorPassRegistration::DefaultArtifactFrontDoorPolicy::
           ExplicitOnly));

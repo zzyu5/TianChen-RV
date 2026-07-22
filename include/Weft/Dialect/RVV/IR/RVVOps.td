@@ -66,6 +66,25 @@ def WEFTRVV_MaskPolicy : I32EnumAttr<
   let cppNamespace = "::weft::rvv";
 }
 
+def WEFTRVV_QuantizeRowLeafQ80
+    : I32EnumAttrCase<"Q8_0", 0, "q8_0">;
+def WEFTRVV_QuantizeRowLeafQ81
+    : I32EnumAttrCase<"Q8_1", 1, "q8_1">;
+def WEFTRVV_QuantizeRowLeafQ8K
+    : I32EnumAttrCase<"Q8_K", 2, "q8_K">;
+
+def WEFTRVV_QuantizeRowLeaf : I32EnumAttr<
+    "QuantizeRowLeaf", "closed typed quantize-row compute leaf",
+    [WEFTRVV_QuantizeRowLeafQ80, WEFTRVV_QuantizeRowLeafQ81,
+     WEFTRVV_QuantizeRowLeafQ8K]> {
+  let cppNamespace = "::weft::rvv";
+  let genSpecializedAttr = 0;
+}
+
+def WEFTRVV_QuantizeRowLeafAttr
+    : EnumAttr<WEFT_RVV_Dialect, WEFTRVV_QuantizeRowLeaf,
+               "quantize_row_leaf">;
+
 def WEFTRVV_PolicyAttr : WEFTRVV_Attr<"Policy", "policy"> {
   let summary = "RVV non-compute tail and mask policy metadata";
   let description = [{
@@ -330,130 +349,6 @@ def WithVLOp : WEFTRVV_Op<"with_vl",
   let regions = (region SizedRegion<1>:$body);
 
   let assemblyFormat = "$vl attr-dict-with-keyword $body `:` type($vl)";
-  let hasVerifier = 1;
-}
-
-def VSetVLRegionMarkerOp : WEFTRVV_Op<"vsetvl_region_marker"> {
-  let summary = "RVV plugin-owned vsetvl placement marker";
-  let description = [{
-    Records one RVV plugin-local selected-body realization boundary for a
-    resource-aware vsetvl placement decision. The op is nested directly under
-    weft_rvv.with_vl, consumes the active !weft_rvv.vl token, and carries the
-    realized region phase, one-based region index, total region count,
-    selected resource-planning contract, and resource decision string.
-
-    This op is structural schedule evidence only. It does not model compute,
-    dtype, memory access, an intrinsic wrapper, route id, artifact metadata,
-    source-front-door marker, or executable proof. The RVV provider may use it
-    to validate that resource facts have been consumed into realized body
-    structure before building a WEFTEmitCLowerableRoute.
-  }];
-
-  let arguments = (ins
-    AnyType:$vl,
-    StrAttr:$phase,
-    OptionalAttr<StrAttr>:$planning_contract,
-    I64Attr:$region_index,
-    I64Attr:$region_count,
-    StrAttr:$resource_decision
-  );
-
-  let assemblyFormat = "$vl attr-dict `:` type($vl)";
-  let hasVerifier = 1;
-}
-
-def GearboxCrossRegionHandoffOp
-    : WEFTRVV_Op<"gearbox_cross_region_handoff"> {
-  let summary =
-      "RVV plugin-owned Gearbox value and runtime boundary handoff";
-  let description = [{
-    Records the bounded structural handoff between the low-precision Gearbox
-    product/reduction region and the dequant/store region. The op is nested
-    directly under weft_rvv.with_vl, consumes the reduced i32 vector value, the
-    active !weft_rvv.vl token, and the explicit runtime n/AVL SSA value, then
-    forwards the reduced value as an SSA result for weft_rvv.dequantize.
-
-    This operation is a bridge toward true multi-region selected-body
-    realization. It makes product/reduction/dequant value handoff, runtime AVL
-    source, VL token, phase ordering, region count, selected resource
-    candidate, resource budget, operand packing/unpack policy, remediation plan
-    facts when applicable, primitive-chain resource facts including source
-    signedness/load/extension and widening-product multiplicand-role/extension
-    policy plus widening-product/reduction candidate facts, and the
-    producer/consumer region scopes structural before provider
-    route support. It is not a math op, intrinsic wrapper, descriptor, route
-    id, artifact metadata, or executable proof.
-  }];
-
-  let arguments = (ins
-    AnyType:$input,
-    AnyType:$vl,
-    AnyType:$runtime_avl,
-    StrAttr:$contract,
-    StrAttr:$from_phase,
-    StrAttr:$to_phase,
-    I64Attr:$region_count,
-    StrAttr:$runtime_avl_source,
-    StrAttr:$resource_decision,
-    StrAttr:$resource_candidate_set,
-    StrAttr:$resource_selected_candidate,
-    I64Attr:$resource_candidate_count,
-    I64Attr:$resource_legal_candidate_count,
-    I64Attr:$resource_selected_candidate_index,
-    StrAttr:$operand_form,
-    StrAttr:$packing_layout,
-    StrAttr:$unpack_intent,
-    I64Attr:$peak_live_vector_groups,
-    I64Attr:$vector_register_budget,
-    OptionalAttr<StrAttr>:$resource_cost_contract,
-    OptionalAttr<StrAttr>:$resource_cost_model,
-    OptionalAttr<I64Attr>:$resource_cost_loop_body_steps,
-    OptionalAttr<StrAttr>:$resource_cost_blocker,
-    OptionalAttr<StrAttr>:$performance_admission_decision,
-    OptionalAttr<StrAttr>:$performance_admission_closure,
-    OptionalAttr<StrAttr>:$performance_admission_reopen_requirement,
-    OptionalAttr<StrAttr>:$beyond_local_repair_admission_contract,
-    OptionalAttr<StrAttr>:$beyond_local_repair_admission_decision,
-    OptionalAttr<StrAttr>:$beyond_local_repair_admission_blocker,
-    OptionalAttr<StrAttr>:$beyond_local_repair_admission_reopen_requirement,
-    I64Attr:$product_region_index,
-    I64Attr:$dequant_region_index,
-    OptionalAttr<StrAttr>:$remediation_plan_contract,
-    OptionalAttr<StrAttr>:$remediation_plan,
-    OptionalAttr<StrAttr>:$remediation_statement_strategy,
-    OptionalAttr<StrAttr>:$remediation_vector_budget,
-    OptionalAttr<StrAttr>:$remediation_schedule_contract,
-    OptionalAttr<StrAttr>:$remediation_unpack_plan,
-    OptionalAttr<StrAttr>:$remediation_product_plan,
-    OptionalAttr<StrAttr>:$remediation_reduction_plan,
-    OptionalAttr<StrAttr>:$remediation_vl_plan,
-    OptionalAttr<StrAttr>:$schedule_decision_contract,
-    OptionalAttr<StrAttr>:$schedule_decision,
-    OptionalAttr<StrAttr>:$schedule_decision_reason,
-    StrAttr:$producer_scope,
-    StrAttr:$consumer_scope,
-    StrAttr:$primitive_chain_contract,
-    StrAttr:$primitive_chain_kind,
-    StrAttr:$primitive_source_signedness,
-    StrAttr:$primitive_source_load,
-    StrAttr:$primitive_source_extension,
-    StrAttr:$widening_product_multiplicand_roles,
-    StrAttr:$widening_product_extension_policy,
-    StrAttr:$widening_product_candidate_fact,
-    StrAttr:$reduction_candidate_fact,
-    StrAttr:$primitive_widening_product_relation,
-    StrAttr:$primitive_product_reduction_chain_relation,
-    StrAttr:$primitive_widening_product_intrinsic,
-    StrAttr:$primitive_reduction_intrinsic,
-    StrAttr:$primitive_scalar_seed_splat_intrinsic,
-    StrAttr:$primitive_accumulator_layout,
-    StrAttr:$primitive_result_layout,
-    StrAttr:$primitive_reduction_store_vl
-  );
-  let results = (outs AnyType:$output);
-
-  let assemblyFormat =
-    "$input `,` $vl `,` $runtime_avl attr-dict `:` type($input) `,` type($vl) `,` type($runtime_avl) `->` type($output)";
   let hasVerifier = 1;
 }
 
@@ -1337,6 +1232,7 @@ def TypedWideningDotReducePreRealizedBodyOp
     I64Attr:$result_sew,
     StrAttr:$result_lmul,
     StrAttr:$dot_product_relation,
+    OptionalAttr<StrAttr>:$reduction_structure,
     WEFTRVV_PolicyAttr:$policy
   );
 
@@ -1606,6 +1502,7 @@ def TypedWideningProductReduceDequantizePreRealizedBodyOp
     StrAttr:$accumulator_carry_boundary,
     I64Attr:$source_sew,
     StrAttr:$source_lmul,
+    StrAttr:$operand_encoding,
     I64Attr:$product_sew,
     StrAttr:$product_lmul,
     I64Attr:$accumulator_sew,
@@ -1667,6 +1564,7 @@ def TypedWideningProductReduceDequantClampF32PreRealizedBodyOp
     StrAttr:$accumulator_carry_boundary,
     I64Attr:$source_sew,
     StrAttr:$source_lmul,
+    StrAttr:$operand_encoding,
     I64Attr:$product_sew,
     StrAttr:$product_lmul,
     I64Attr:$accumulator_sew,
@@ -1732,6 +1630,7 @@ def TypedWideningProductReduceDequantClampF32BodyOp
     StrAttr:$accumulator_carry_boundary,
     I64Attr:$source_sew,
     StrAttr:$source_lmul,
+    StrAttr:$operand_encoding,
     I64Attr:$product_sew,
     StrAttr:$product_lmul,
     I64Attr:$accumulator_sew,
@@ -7101,8 +7000,7 @@ def GgmlBlockDotTQ20Q8KTernaryCoreOp
 
 def GgmlBlockDotTQ10Q8KTernaryCoreOp
     : WEFTRVV_Op<"tq1_0_q8_k_ternary_core",
-    [WEFTEmitCLowerableOpInterface,
-     DeclareOpInterfaceMethods<TunableScheduleOpInterface>]> {
+    [WEFTEmitCLowerableOpInterface]> {
   let summary =
       "generic typed RVV ggml TQ1_0 x Q8_K super-block BASE-3 TERNARY SCALAR "
       "integer-core op (sumi, the tq1_0 ternary brick, the SECOND TQ-family member)";
@@ -7198,24 +7096,11 @@ def GgmlBlockDotTQ10Q8KTernaryCoreOp
     read at `weight_base + block_index*54` and `activation_base + block_index*292`.
     When ABSENT the op keeps the standalone single-super-block form.
 
-    The optional `integer_core_lmul` attribute is the SAME bounded resource shape
-    knob the q1_0 / tq2_0 siblings carry, and here it tunes ONLY the integer DOT
-    (section B): the base-3 trit unpack (section A) lands an element-ordered
-    aux8[256] and aux8[k] pairs with q8[k] across the WHOLE super-block (single
-    fp16 scale, NO per-sub-block scale), so the dot is a flat 256-element i8*i8
-    contraction. The narrow 16x e8m1(16) reductions widen to 32-lane strips at the
-    whole-LMUL anchor whose i8 VLMAX spans 32 -- m2 at VLEN128 (e8m1 VLMAX 16 <
-    32), the lighter m1 at VLEN256 -- selected by the schedule autotuner from the
-    SAME getRVVStripVLMAXElements truth source (kernel key "tq1_0"). The
-    dot-product is byte-exact for any legal value (integer addition is
-    order-independent). The anchor defaults to "m2" (the VLEN-universal-safe
-    floor), so an attr-less brick verifies + lowers correctly and the gearbox is
-    free to REFINE m2->m1 at VLEN>=256 -- the Win-A capability-keyed selection
-    preserved across the tq1_0 flip. NOTE: only the DOT widens; section A's base-3
-    unpack + the aux8 scratch round-trip are KEPT (full ggml-style fusion is a
-    separate larger emit -- ggml's tq1_0 `_vl128`/`_vl256` are DIFFERENT shapes,
-    not a clean LMUL flip), so this targets tq1_0's narrow-strip LOSS without a
-    parity claim. The verifier rejects any other anchor fail-closed (I7).
+    The current BASE-3 mechanism has one realized vector body. Its aux8 scratch
+    unpack and fused dot use a fixed universal shape, so this op intentionally
+    carries no schedule knob. A future second body must first become a real
+    formula candidate with a distinct consumer; an emitter-inert LMUL field is
+    not a valid schedule axis.
   }];
 
   let arguments = (ins
@@ -7233,9 +7118,7 @@ def GgmlBlockDotTQ10Q8KTernaryCoreOp
     I64Attr:$weight_qh_byte_offset,
     I64Attr:$weight_d_byte_offset,
     I64Attr:$activation_d_byte_offset,
-    I64Attr:$activation_quant_byte_offset,
-    OptionalAttr<StrAttr>:$integer_core_lmul,
-    OptionalAttr<I64Attr>:$minimum_vlen
+    I64Attr:$activation_quant_byte_offset
   );
   let results = (outs AnyType:$sumi);
 
@@ -7390,9 +7273,8 @@ def GgmlBlockDotIQ4XSQ8KCodebookCoreOp
 // per-super-block body was code-moved into the byte-exact
 // emitTypedSuperBlockScalarDeltaGridLoopBodyTQ10 lowering (the sole live caller). It REUSES
 // the whole tq2_0 ternary scaffold at C2 marginal cost and differs ONLY in the base-3 trit
-// unpack (section A). Like tq2_0 the ternary-core brick carries the SAME Win-A
-// integer_core_lmul m2/m1 gearbox (kernel key "tq1_0") so the VLEN capability selection is
-// preserved on the constructed op. tq1_0's weight_block_stride 54 is UNIQUE among the
+// unpack (section A). Unlike tq2_0, the realized tq1_0 body is VLEN-universal and carries
+// no emitter-inert schedule field. tq1_0's weight_block_stride 54 is UNIQUE among the
 // scalar_delta_grid bricks, so it dispatches by stride with NO tie-breaker (the emitter
 // still disambiguates by the DISTINCT base-3 ternary-core brick op type).
 
@@ -9082,47 +8964,26 @@ def DequantizeRowDecodeCoreOp : WEFTRVV_Op<"dequantize_row_decode_core",
     gather + the E8M0 / UE4M3 scale), and "tq1_0"/"tq2_0" (the base-3 pow3 / 2-bit
     unpack of the {-1,0,+1} ternary weights + the fp16 super-block scale): the
     per-format scale seam + the codebook / grid / ternary gather, folded
-    d*scale*value. The block-layout facts (qk, weight_block_stride,
-    scale_byte_offset, quant_byte_offset) are the ggml ABI constants. For the
-    small-codebook subset "iq4_nl"/"iq4_xs"/"mxfp4"/"nvfp4", construction writes
-    `dequant_mechanism = "codebook-gather"` and `codebook_scale_model` as typed g.
-    Backend preparation projects typed c from the unique selected RVV provider, runs
-    Formula -> legality -> selector, and writes the complete seven-field
-    `codebook_gather_*` stamp (table, entries, strip lanes, load LMUL, minimum VLEN,
-    provider, selection reason). All seven fields may be absent before selection or
-    must all be present after selection; a partial stamp is invalid. Small-codebook
-    emission reads only this typed mechanism/g/stamp contract. Its `decode_model` is
-    source identity/coherence/provenance, not a post-construction formula classifier
-    or input. KQuant/Grid/Ternary currently retain their decode_model-selected leaf
-    debt; this small-codebook contract does not claim those paths are migrated. The OPTIONAL
-    codebook_entry_lanes descriptor carries the per-format codebook grid ENTRY
-    byte-width (the g-axis geometry: grid-of-4 uint32 = 4 lanes for iq3_s, grid-of-8
-    uint64 = 8 lanes for iq2_xs/iq1_m) so the owned narrow-per-entry grid dequant
-    bodies READ the entry lane count from this descriptor instead of baking the format
-    constant into the mechanism body; it is stamped ONLY for the three consuming
-    grid-codebook decode models and the emitter fails closed (never value_or
-    self-supply) if a consuming leaf reaches emit without it. The OPTIONAL
-    nibble-family decode-mechanism descriptor (carrier_kind = the ALREADY-SEPARATE
-    leaf selector "bare_int8" (q8_0) vs "nibble4" (q4_0/q4_1/q5_0/q5_1) -- [K-10]
-    leaf selection between two separate leaves, NOT a plan-internal mechanism switch;
-    nibble_bias = the pre-scale bias `sub`; the OPTIONAL min_byte_offset /
-    qh_byte_offset whose PRESENCE is the hasMin / hasQh gate) is stamped ONLY for the
-    flat nibble family so the shared nibble decode body READS the 8-tuple from this
-    descriptor instead of re-baking the ggml format constants at emit. For the current
-    bounded surface decode_model is limited to the flat streaming family
-    "q8_0"/"q4_0"/"q4_1"/"q5_0"/"q5_1" + the flat binary-sign leaf "q1_0" + the
-    K-quant super-blocks
-    "q2_K"/"q3_K"/"q4_K"/"q5_K"/"q6_K" + the IQ grid-table super-blocks
-    "iq2_xxs"/"iq2_xs"/"iq2_s"/"iq3_xxs"/"iq3_s" + the codebook / ternary-grid leaves
-    "iq1_s"/"iq1_m"/"iq4_nl"/"iq4_xs"/"mxfp4"/"nvfp4" + the ternary super-blocks
-    "tq1_0"/"tq2_0".
+    d*scale*value.
+
+    The family-local formula consumes complete typed g and the real capability
+    projection before this op is built.  The resulting final body carries exactly
+    one mechanism plus only its code-affecting fields: load/strip for nibble,
+    load/strip/table for codebook, and load/strip/scale-min/high-bit fields for
+    K-quant. Grid, ternary, binary and int8 use their typed geometry directly.
+    Provider, reason, minimum-VLEN mirrors and partial/forged stamp states do not
+    exist on this IR boundary. `codebook_entry_lanes` is typed g for leaves that
+    consume entry geometry.
+
+    `decode_model` is retained only as non-empty source provenance and for parent/core
+    provenance coherence. It does not classify the mechanism, select a leaf, constrain
+    formula legality, or drive emission.
 
     Anti-bypass (I7): the brick's `block_index` MUST be the parent loop region's
     induction variable so the per-block address arithmetic is `base + ib*stride`,
     not super-block-0. The op owns no dtype/route authority. Typed op identity drives
-    common lowering; for small-codebook emission, typed mechanism/g plus the complete
-    selected stamp are authoritative and decode_model remains provenance/coherence.
-    The bounded KQuant/Grid/Ternary decode_model leaf debt above remains explicit.
+    common lowering; typed mechanism/g plus the final formula fields are
+    authoritative and decode_model remains provenance/coherence.
     Emission is never inferred from candidate-mirror metadata, route ids, ABI strings,
     artifact names, status fields, or exact intrinsic spellings.
   }];
@@ -9136,15 +8997,20 @@ def DequantizeRowDecodeCoreOp : WEFTRVV_Op<"dequantize_row_decode_core",
     I64Attr:$weight_block_stride,
     I64Attr:$scale_byte_offset,
     I64Attr:$quant_byte_offset,
-    OptionalAttr<StrAttr>:$dequant_mechanism,
+    StrAttr:$dequant_mechanism,
     OptionalAttr<StrAttr>:$codebook_scale_model,
+    OptionalAttr<StrAttr>:$kquant_scale_model,
+    OptionalAttr<StrAttr>:$grid_decode_leaf,
+    OptionalAttr<StrAttr>:$ternary_decode_leaf,
+    OptionalAttr<StrAttr>:$dequant_load_lmul,
+    OptionalAttr<I64Attr>:$dequant_strip_lanes,
+    OptionalAttr<BoolAttr>:$kquant_has_min,
+    OptionalAttr<I64Attr>:$kquant_min_byte_offset,
+    OptionalAttr<I64Attr>:$kquant_sub_scale_byte_offset,
+    OptionalAttr<BoolAttr>:$kquant_has_high_bit_plane,
+    OptionalAttr<I64Attr>:$kquant_high_bit_byte_offset,
     OptionalAttr<StrAttr>:$codebook_gather_table,
     OptionalAttr<I64Attr>:$codebook_gather_entries,
-    OptionalAttr<I64Attr>:$codebook_gather_strip_lanes,
-    OptionalAttr<StrAttr>:$codebook_gather_load_lmul,
-    OptionalAttr<I64Attr>:$codebook_gather_minimum_vlen,
-    OptionalAttr<StrAttr>:$codebook_gather_provider,
-    OptionalAttr<StrAttr>:$codebook_gather_selection_reason,
     OptionalAttr<I64Attr>:$codebook_entry_lanes,
     OptionalAttr<StrAttr>:$carrier_kind,
     OptionalAttr<I64Attr>:$nibble_bias,
@@ -9179,7 +9045,8 @@ def TypedQuantizeRowLoopBodyOp
     the quantize front door instead CONSTRUCTS this typed region -- one per-block
     ENCODE brick (weft_rvv.quantize_row_encode_core) carried inside a single-block
     region terminated by weft_rvv.typed_quantize_row_loop_yield -- and the emitter
-    lowers it by op identity + encode_model, NEVER inferred from candidate-mirror
+    lowers the formula-produced typed quantize_leaf, NEVER inferred from encode_model,
+    candidate-mirror
     metadata, route ids, ABI strings, artifact names, status fields, exact intrinsic
     spellings, or q8 names (I5).
 
@@ -9198,9 +9065,10 @@ def TypedQuantizeRowLoopBodyOp
 
     The bounded scheduling facts (qk, the AoS block stride) are the same byte-exact
     shape constants the monolithic body pins off the per-format op (the ggml ABI
-    layout, NOT tunable knobs). encode_model KEYS which per-format ENCODE leaf the
-    region's brick carries; for the current bounded surface kind is limited to
-    "typed_quantize_row_loop_body" and encode_model to the activation-quantizer
+    layout, NOT tunable knobs). quantize_leaf is the closed formula result naming
+    which per-format ENCODE leaf the region carries; encode_model is provenance only
+    and cannot select compute. For the current bounded surface kind is limited to
+    "typed_quantize_row_loop_body" and quantize_leaf to the activation-quantizer
     family "q8_0" (the family-head block_q8_0 bare fp16-scale int8 narrow, the
     structurally simplest flat quantizer) plus "q8_1" (the q8_0 amax/scale/narrow
     SIBLING + the extra vwredsum integer block sum stored as the fp16 block_q8_1.s)
@@ -9217,6 +9085,7 @@ def TypedQuantizeRowLoopBodyOp
     StrAttr:$kind,
     I64Attr:$qk,
     I64Attr:$block_stride,
+    WEFTRVV_QuantizeRowLeafAttr:$quantize_leaf,
     StrAttr:$encode_model
   );
   let regions = (region SizedRegion<1>:$body);
@@ -9263,7 +9132,7 @@ def QuantizeRowEncodeCoreOp : WEFTRVV_Op<"quantize_row_encode_core",
     the weft_rvv.dequantize_row_decode_core DECODE brick). It consumes the f32 input
     base pointer, the block_qX output byte cursor, and the `block_index` region
     induction variable, and encodes one AoS block of `qk` f32 inputs into the
-    per-format quant layout -- for encode_model "q8_0": load the 32 f32 lanes in one
+    per-format quant layout -- for quantize_leaf q8_0: load the 32 f32 lanes in one
     e32m8 strip, take amax via vfabs + vfredmax, the scalar d = amax/127 + the
     load-bearing id = d ? 1/d : 0, store the native (_Float16)d, scale by id, narrow
     f32->i16->i8 via vfncvt (rne) + vncvt, store the 32 int8 qs; for "q8_1": the SAME
@@ -9271,15 +9140,17 @@ def QuantizeRowEncodeCoreOp : WEFTRVV_Op<"quantize_row_encode_core",
     block_q8_1.s; for "q8_K": the QK_K=256 super-block min/max-symmetric iscale, the
     FLOAT d, the vfcvt/vnclip RNE narrow, the per-16 vwredsum bsums, and the zero-block
     memset special case. The block-layout facts (qk, block_stride, scale_byte_offset,
-    quant_byte_offset) are the ggml ABI constants; encode_model pins WHICH encode leaf
+    quant_byte_offset) are the ggml ABI constants; quantize_leaf pins WHICH encode leaf
     (the per-format extra offsets -- the q8_1 sum, the q8_K bsums -- are baked into the
-    per-format encode leaf). For the current bounded surface encode_model is limited to
-    the activation-quantizer family "q8_0"/"q8_1"/"q8_K".
+    per-format encode leaf). For the current bounded surface quantize_leaf is the
+    closed q8_0/q8_1/q8_K enum. encode_model is retained only as construction
+    provenance and is not compute authority.
 
     Anti-bypass (I7): the brick's `block_index` MUST be the parent loop region's
     induction variable so the per-block address arithmetic is `base + ib*stride`,
     not block-0. The op owns no dtype/route authority; emission is determined by op
-    identity + encode_model + the layout facts, never inferred from candidate-mirror
+    identity + quantize_leaf + the layout facts, never inferred from encode_model,
+    candidate-mirror
     metadata, route ids, ABI strings, artifact names, status fields, or exact
     intrinsic spellings.
   }];
@@ -9288,6 +9159,7 @@ def QuantizeRowEncodeCoreOp : WEFTRVV_Op<"quantize_row_encode_core",
     AnyType:$input,
     AnyType:$output,
     AnyType:$block_index,
+    WEFTRVV_QuantizeRowLeafAttr:$quantize_leaf,
     StrAttr:$encode_model,
     I64Attr:$qk,
     I64Attr:$block_stride,
@@ -9738,13 +9610,14 @@ def TypedFlatBlockDotLoopBodyOp : WEFTRVV_Op<"typed_flat_block_dot_loop_body",
     lowering rather than an init operand -- mirroring the block-dot ops, which
     also carry no init operand).
 
-    The bounded scheduling facts (qk, the AoS block strides, the optional
+    The bounded scheduling facts (qk, the AoS block strides, and the
     integer_core_lmul / multi_block_factor / strip_elision / fold_structure, the
-    fold_model) are the same byte-exact shape knobs deriveBlockDotFacts reads for
-    the monolithic body (the *how* -- LMUL / unroll / elision / fold-scheduling --
+    fold_model) are syntactically absent only before formula construction and
+    complete at emission. They are the same byte-exact shape knobs consumed by
+    the typed body lowering (the *how* -- LMUL / unroll / elision / fold-scheduling --
     never the *what*). fold_model fixes the ARITHMETIC fold tree (region-invariant);
     fold_structure is the orthogonal SCHEDULE knob for HOW that same pinned fold
-    (measurement/浮点折叠oracle.md §1) is issued -- "per-block" (default)
+    (measurement/浮点折叠oracle.md §1) is issued -- "per-block"
     folds each block's scalar term into the running f32 sum as it is produced;
     "deferred-ordered" (P2c, q8_0 only) batches multi_block_factor blocks, packs
     their integer sumi into one vector, strided-loads the fp16 scales, and issues
@@ -10179,26 +10052,10 @@ def TypedRepackGemvLoopBodyOp
     // the flat codebook fold and the q4_0 / ternary / K-quant folds. A pure I4 shape
     // mirror, never a route/dtype WHAT.
     OptionalAttr<I64Attr>:$weight_scales_high_byte_offset,
-    // OPTIONAL emission-SCHEDULE knob (the *how*, never the *what*): selects the
-    // K-quant super-block main-term GEVM decode-nest emission shape between the
-    // register-resident "unrolled" full static unroll (the default shipped form:
-    // the per-super-half / per-pair / per-k / per-16-element inner decode nest is
-    // statically unrolled, trading code volume for zero loop overhead) and a compact
-    // "rolled" form (the dominant per-16-element inner ii-loop is emitted as ONE
-    // runtime emitc.for with the per-strip i16 partials carried as RESIDENT SSA-
-    // register VariableOps -- a single wide accumulator, NEVER a materialized stack
-    // decode tile -- eliminating the [GAP-EMIT-KQUANT-GEVM-TILE-ROUNDTRIP] whole-reg
-    // decode-tile round-trip + collapsing the vsetvli tax). This is the whole-K-nest
-    // S6 maturity lever: CAPABILITY-KEYED (the emitter derives the default from a
-    // code-volume-vs-budget fact when ABSENT; this attr is the explicit forcing
-    // override for A/B byte-exact measurement + a capability policy pin). BYTE-EXACT
-    // across both values by construction: the integer vwmacc accumulation order is
-    // preserved (rolled == unrolled arithmetic, only the loop is materialized instead
-    // of unrolled). ONLY the q5_K GEVM decode leaf carries a rolled variant today (the
-    // other K-quant GEVM leaves ignore this knob). Bounded to {"unrolled","rolled"};
-    // ABSENT => capability-derived default. A pure I4/schedule mirror, never a
-    // route/dtype WHAT.
-    OptionalAttr<StrAttr>:$emit_loop_schedule
+    // Final K-quant main-term construction result. Present exactly for the two
+    // K-quant fold models and bounded to {"unrolled","rolled"}. The formula layer
+    // constructs it before this op is created; absence is never an emitter default.
+    OptionalAttr<StrAttr>:$main_term_form
   );
   let regions = (region SizedRegion<1>:$body);
 
@@ -11234,6 +11091,9 @@ def TypedRepackGemmLoopBodyOp
     I64Attr:$activation_interleave,
     I64Attr:$half_lanes,
     StrAttr:$fold_model,
+    // Final prefill GEMM group-loop order. Both values name realized bodies; the
+    // formula/selector produces this required field before op creation.
+    StrAttr:$loop_order,
     OptionalAttr<StrAttr>:$integer_core_lmul,
     // OPTIONAL ternary tq1_0 base-3 SECOND weight-plane (qh) byte offset: the
     // repacked block_tq1_0x16 qh base-3 plane offset (+800, after the 16 inline
@@ -11267,23 +11127,10 @@ def TypedRepackGemmLoopBodyOp
     // the flat codebook fold and the q4_0 / ternary / K-quant folds. A pure I4 shape
     // mirror, never a route/dtype WHAT.
     OptionalAttr<I64Attr>:$weight_scales_high_byte_offset,
-    // OPTIONAL emission-SCHEDULE knob (the *how*, never the *what*): selects the
-    // inner contraction-block main-term emission shape between the register-resident
-    // "unrolled" full static unroll (the default S6-tiled shipped form: the whole
-    // per-super-half / per-m-half / per-16-weight-group main term is statically
-    // unrolled, trading code volume for zero loop overhead + register-resident
-    // partials) and a compact "rolled" form (the dominant per-16-weight-group inner
-    // loop is emitted as ONE runtime emitc.for with stack-panel-carried i16 partials,
-    // trading register residence for code compactness). This is the [GAP-EMIT-UNROLL]
-    // maturity lever: it is CAPABILITY-KEYED (the emitter derives the default from a
-    // code-volume-vs-budget fact when this attr is ABSENT; this attr is the explicit
-    // forcing override for A/B byte-exact measurement and for a capability policy that
-    // pins the schedule). BYTE-EXACT across both values by construction: the integer
-    // vwmacc accumulation order is preserved (rolled == unrolled arithmetic, only the
-    // loop is materialized instead of unrolled). Bounded to {"unrolled","rolled"};
-    // ABSENT => capability-derived default. A pure I4/schedule mirror, never a
-    // route/dtype WHAT.
-    OptionalAttr<StrAttr>:$emit_loop_schedule
+    // Final K-quant main-term construction result. Present exactly for the two
+    // K-quant fold models and bounded to {"unrolled","rolled"}; no emission-time
+    // default or selection is permitted.
+    OptionalAttr<StrAttr>:$main_term_form
   );
   let regions = (region SizedRegion<1>:$body);
 

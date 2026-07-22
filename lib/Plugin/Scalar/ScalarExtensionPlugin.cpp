@@ -22,6 +22,10 @@ constexpr llvm::StringLiteral kScalarFallbackFirstSliceVariantName(
     "scalar_fallback_first_slice");
 constexpr llvm::StringLiteral kScalarFallbackPolicy(
     "portable_scalar_fallback_first_slice");
+constexpr llvm::StringLiteral kScalarConstructionFormulaID(
+    "weft.scalar.fallback.construct");
+constexpr llvm::StringLiteral kScalarCostFormulaID(
+    "weft.scalar.fallback.analytic-prior");
 constexpr llvm::StringLiteral kOriginAttrName("origin");
 constexpr llvm::StringLiteral kRequiresAttrName("requires");
 
@@ -133,6 +137,42 @@ void ScalarExtensionPlugin::registerDialects(
   registry.insert<weft::scalar::WEFTScalarDialect>();
 }
 
+void ScalarExtensionPlugin::collectFormulaDescriptors(
+    llvm::SmallVectorImpl<FormulaDescriptor> &out) const {
+  FormulaDescriptor construction(
+      kScalarConstructionFormulaID, kScalarPluginName, "operator/fallback",
+      FormulaResultKind::CandidateSet,
+      FormulaConstructionStrength::ConstructedWeak);
+  construction.getGeometryAxis().set(FormulaAxisUse::Decisive,
+                                     "ScalarFallbackRequest");
+  construction.getGeometryAxis().addConsumedField("high-level-op");
+  construction.getCapabilityAxis().set(FormulaAxisUse::Decisive,
+                                       "TargetCapabilitySet");
+  construction.getCapabilityAxis().addConsumedField(
+      kScalarFallbackCapabilityID);
+  construction.getStaticContextAxis().set(FormulaAxisUse::HonestNull,
+                                          "ScalarNoStaticContext");
+  construction.addSemanticCase("capability-available-single-candidate");
+  construction.addSemanticCase("capability-unavailable-not-applicable");
+  construction.addProductionEntry("plugin:variant-proposal");
+  out.push_back(std::move(construction));
+
+  FormulaDescriptor cost(
+      kScalarCostFormulaID, kScalarPluginName, "operator/fallback",
+      FormulaResultKind::AnalyticPrior,
+      FormulaConstructionStrength::ConstructedWeak);
+  cost.getGeometryAxis().set(FormulaAxisUse::Decisive,
+                            "ScalarFallbackVariantFacts");
+  cost.getGeometryAxis().addConsumedField("fallback-role");
+  cost.getCapabilityAxis().set(FormulaAxisUse::HonestNull,
+                              "ScalarCostNoCapabilityProjection");
+  cost.getStaticContextAxis().set(FormulaAxisUse::HonestNull,
+                                 "ScalarCostNoStaticContext");
+  cost.addSemanticCase("conservative-fallback-prior");
+  cost.addProductionEntry("plugin:analytic-cost");
+  out.push_back(std::move(cost));
+}
+
 bool ScalarExtensionPlugin::supportsOperation(
     const VariantProposalRequest &request) const {
   return request.getHighLevelOp() && hasAvailableScalarFallbackCapability(request);
@@ -146,6 +186,7 @@ llvm::Error ScalarExtensionPlugin::proposeVariants(
 
   VariantProposal proposal(kScalarFallbackFirstSliceVariantName,
                            kScalarPluginName);
+  proposal.setFormulaID(kScalarConstructionFormulaID);
   proposal.addRequiredCapabilityID(kScalarFallbackCapabilityID);
   proposal.setPolicy(kScalarFallbackPolicy);
   proposal.setFallbackRole(VariantFallbackRole::ConservativeFallback);
@@ -196,6 +237,7 @@ llvm::Error ScalarExtensionPlugin::estimateVariantCost(
   out.setScore(1000.0);
   out.setExplicitPreference(true);
   out.setOriginPlugin(kScalarPluginName);
+  out.setFormulaID(kScalarCostFormulaID);
   out.setVariantSymbol(request.getVariant().getSymName());
   out.setExplanation("portable scalar fallback first slice; conservative "
                      "fallback envelope, not an executable route or "

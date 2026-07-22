@@ -3,7 +3,7 @@
 // default schedule (mbf==4 elided): scalar SeparatedLeftAssoc folds, NO
 // vfredosum. This locks that fold_structure is the knob that toggles the fold
 // SCHEDULE and that the default path is unchanged (zero-regression demonstration).
-// RUN: sed 's/, fold_structure = "deferred-ordered"//' %s | weft-opt --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=PERBLOCK --implicit-check-not=vfredosum
+// RUN: sed 's/fold_structure = "deferred-ordered"/fold_structure = "per-block"/' %s | weft-opt --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=PERBLOCK --implicit-check-not=vfredosum
 
 // M-FLAT P2c: the q8_0 (sumi_times_scales) typed flat block-dot LOOP body with
 // fold_structure = "deferred-ordered" -- the batched-vector cross-block fold
@@ -40,7 +40,7 @@ module {
       %zero_seed = weft_rvv.runtime_abi_value {c_name = "zero_seed", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "loop-body:reduce-seed", role = "accumulator-input-buffer"} : !weft_rvv.runtime_abi_value
       %vl = weft_rvv.setvl %n {lmul = "m2", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, sew = 8 : i64} : index -> !weft_rvv.vl
       weft_rvv.with_vl %vl attributes {lmul = "m2", origin = "rvv-plugin", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @rvv_q8_0_q8_0_block_dot, sew = 8 : i64, source_kernel = "ggml_vec_dot_q8_0_q8_0_kernel", status = "selected-lowering-boundary"} {
-        weft_rvv.typed_flat_block_dot_loop_body %vx, %vy, %s, %n attributes {kind = "typed_flat_block_dot_loop_body", qk = 32 : i64, weight_block_stride = 34 : i64, activation_block_stride = 34 : i64, fold_model = "sumi_times_scales", integer_core_lmul = "m2", strip_elision = "elided", multi_block_factor = 4 : i64, fold_structure = "deferred-ordered"} {
+        weft_rvv.typed_flat_block_dot_loop_body %vx, %vy, %s, %n attributes {kind = "typed_flat_block_dot_loop_body", qk = 32 : i64, weight_block_stride = 34 : i64, activation_block_stride = 34 : i64, fold_model = "sumi_times_scales", integer_core_lmul = "m2", strip_elision = "elided", multi_block_factor = 4 : i64, fold_structure = "deferred-ordered", numerics_tier = "strict"} {
         ^bb0(%block_index: index, %acc: f32):
           %dd = weft_rvv.block_fp16_scale_product %vx, %vy block %block_index : index {kind = "dual_fp16_per_block_scale_product", scale_model = "dual-fp16-per-block-d_x.d_y", lhs_block_stride = 34 : i64, rhs_block_stride = 34 : i64} : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value -> f32
           %wv = weft_rvv.load %vx, %vl block %block_index : index {block_stride = 34 : i64, quant_byte_offset = 2 : i64} : !weft_rvv.runtime_abi_value, !weft_rvv.vl -> !weft_rvv.vector<i8, "m2">

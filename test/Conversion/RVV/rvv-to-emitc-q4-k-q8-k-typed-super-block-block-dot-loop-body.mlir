@@ -65,7 +65,7 @@ module {
           // R1 %r1 = arith.constant 0.0 : f32
           // R2 %r2vl = weft_rvv.setvl %n {lmul = "m2", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, sew = 8 : i64} : index -> !weft_rvv.vl
           // R2 weft_rvv.with_vl %r2vl attributes {lmul = "m2", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, sew = 8 : i64} {
-          // R2   %r2 = weft_rvv.q4_0_q8_0_block_dot %vx, %vy, %s, %n, %r2vl {kind = "ggml_q4_0_q8_0_block_dot", scale_model = "dual-fp16-per-block-d_x.d_y", qk = 32 : i64, weight_block_stride = 18 : i64, activation_block_stride = 34 : i64, quant_byte_offset = 2 : i64, activation_high_byte_offset = 16 : i64, integer_core_lmul = "mf4"} : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index, !weft_rvv.vl -> !weft_rvv.vector<i32, "m1">
+          // R2   %r2 = weft_rvv.q4_0_q8_0_block_dot %vx, %vy, %s, %n, %r2vl {kind = "ggml_q4_0_q8_0_block_dot", scale_model = "dual-fp16-per-block-d_x.d_y", qk = 32 : i64, weight_block_stride = 18 : i64, activation_block_stride = 34 : i64, quant_byte_offset = 2 : i64, activation_high_byte_offset = 16 : i64, integer_core_lmul = "mf4", multi_block_factor = 1 : i64, strip_elision = "robust"} : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index, !weft_rvv.vl -> !weft_rvv.vector<i32, "m1">
           // R2 } : !weft_rvv.vl
           // BRICK 1: plain 4-bit nibble unpack -> aux8[256] scratch (Region A).
           // The `block %super_block_index` operand (W5) makes the weight base

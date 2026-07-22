@@ -1,4 +1,5 @@
 #include "Weft/Plugin/RVV/RVVVectorSourceFrontDoor.h"
+#include "Weft/Plugin/RVV/RVVFormulaCatalog.h"
 
 #include "Weft/Dialect/Exec/IR/ExecOps.h"
 #include "Weft/Dialect/RVV/IR/RVVDialect.h"
@@ -1809,6 +1810,7 @@ llvm::Error registerRVVVectorSourceFrontDoorFamilyPasses(
     RVVVectorSourceFrontDoorFamilyID familyID = family.id;
     out.push_back(SourceFrontDoorPassRegistration(
         ownerPlugin, family.passArgument, family.passDescription,
+        formula_catalog::kVectorSourceConstruction,
         [familyID, registryPtr] {
           return createMaterializeRVVVectorSourceFrontDoorFamilyPass(
               familyID, registryPtr);
@@ -1816,6 +1818,13 @@ llvm::Error registerRVVVectorSourceFrontDoorFamilyPasses(
         family.defaultArtifactPolicy));
   }
   return llvm::Error::success();
+}
+
+void addRVVVectorSourceFormulaProductionEntries(
+    FormulaDescriptor &descriptor) {
+  for (const RVVVectorSourceFrontDoorFamilyDescriptor &family :
+       getRVVVectorSourceFrontDoorFamilyRegistry())
+    descriptor.addProductionEntry(family.passArgument);
 }
 
 } // namespace weft::plugin::rvv

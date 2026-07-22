@@ -1599,14 +1599,13 @@ VariantToEmitCFunc::emitTypedSuperBlockScalarDeltaGridLoopBodyTQ20(
     // i8 strip VLMAX must span the 32-element plane: m2 at VLEN128 (e8m1 VLMAX 16 <
     // 32), the lighter m1 at VLEN256 (e8m1 VLMAX reaches 32). The gearbox stamps
     // integer_core_lmul from getRVVStripVLMAXElements (single truth source); the
-    // default "m2" is the VLEN-universal-safe floor (e8m2 VLMAX 32 spans the plane
-    // at any VLEN), so an attr-less op lowers correctly and the gearbox refines
-    // m2->m1 at VLEN>=256. The i16 accumulator is 2*core (m4 at m2, m2 at m1); the
+    // The i16 accumulator is 2*core (m4 at m2, m2 at m1); the
     // i16 vacc never overflows: |ternary|<=2, |q8|<=127, 4 planes -> max |acc| <=
     // 4*2*127 = 1016 << 32767.
-    llvm::StringRef coreLmul = "m2";
-    if (std::optional<llvm::StringRef> attrLmul = coreOp.getIntegerCoreLmul())
-      coreLmul = *attrLmul;
+    if (!coreOp.getIntegerCoreLmul())
+      return rewriter.notifyMatchFailure(
+          coreOp, "tq2_0 core reached emission without final integer_core_lmul");
+    llvm::StringRef coreLmul = *coreOp.getIntegerCoreLmul();
     llvm::StringRef wideLmul = (coreLmul == "m2") ? "m4" : "m2";
     mlir::Type u8CoreType =
         emitc::OpaqueType::get(ctx, ("vuint8" + coreLmul + "_t").str());
@@ -1965,8 +1964,7 @@ VariantToEmitCFunc::emitTypedSuperBlockScalarDeltaGridLoopBodyTQ20(
 // The emitted C is byte-identical to the retired monolith (same base-3 trit unpack + flat-256
 // integer dot + single-scale scalar fp32 fold, same facts, same op order) modulo the
 // source-op provenance token + the func name. Like tq2_0 the brick carries the SAME Win-A
-// integer_core_lmul m2/m1 gearbox (kernel key "tq1_0"), so the capability-keyed VLEN128 m2 /
-// VLEN256 m1 selection is preserved on the constructed op. It REUSES the whole tq2_0 ternary
+// fixed VLEN-universal body and therefore carries no emitter-inert LMUL schedule field. It REUSES the whole tq2_0 ternary
 // scaffold at C2 marginal cost and differs ONLY in the base-3 unpack (section A).
 mlir::LogicalResult
 VariantToEmitCFunc::emitTypedSuperBlockScalarDeltaGridLoopBodyTQ10(

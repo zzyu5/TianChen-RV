@@ -1,10 +1,10 @@
-// RUN: weft-opt %s --weft-rvv-materialize-gearbox-schedules --weft-materialize-selected-lowering-boundaries | FileCheck %s --check-prefix=WIDE
-// RUN: weft-opt %s --weft-rvv-materialize-gearbox-schedules --weft-materialize-selected-lowering-boundaries | weft-opt --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=EMITC
-// RUN: sed 's/source_lmul = "mf2"/"weft_rvv.low_precision_resource.vector_register_budget" = 12 : i64, source_lmul = "mf2"/' %s | weft-opt --weft-materialize-selected-lowering-boundaries | FileCheck %s --check-prefix=NARROW
-// RUN: sed 's/source_lmul = "mf2"/"weft_rvv.low_precision_resource.vector_register_budget" = 12 : i64, source_lmul = "mf2"/' %s | weft-opt --weft-materialize-selected-lowering-boundaries | weft-opt --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=NARROW-EMITC
-// RUN: sed 's/source_lmul = "mf2"/"weft_rvv.low_precision_resource.vector_register_budget" = 9 : i64, source_lmul = "mf2"/' %s | weft-opt --weft-materialize-selected-lowering-boundaries | weft-opt --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=NARROWEST-EMITC
-// RUN: weft-opt %s --weft-rvv-materialize-gearbox-schedules --weft-materialize-selected-lowering-boundaries --weft-materialize-emission-plans | FileCheck %s --check-prefix=PLAN
-// RUN: weft-opt %s --weft-rvv-materialize-gearbox-schedules --weft-materialize-selected-lowering-boundaries --weft-materialize-emission-plans | weft-translate --weft-export-target-header-artifact | FileCheck %s --check-prefix=HEADER
+// RUN: weft-opt %s --weft-materialize-selected-lowering-boundaries | FileCheck %s --check-prefix=WIDE
+// RUN: weft-opt %s --weft-materialize-selected-lowering-boundaries | weft-opt --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=EMITC
+// RUN: sed '/capability @rvv/s/status = "available"}/status = "available", vreg_count = 12 : i64}/' %s | weft-opt --weft-materialize-selected-lowering-boundaries | FileCheck %s --check-prefix=NARROW
+// RUN: sed '/capability @rvv/s/status = "available"}/status = "available", vreg_count = 12 : i64}/' %s | weft-opt --weft-materialize-selected-lowering-boundaries | weft-opt --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=NARROW-EMITC
+// RUN: sed '/capability @rvv/s/status = "available"}/status = "available", vreg_count = 9 : i64}/' %s | weft-opt --weft-materialize-selected-lowering-boundaries | weft-opt --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=NARROWEST-EMITC
+// RUN: weft-opt %s --weft-materialize-selected-lowering-boundaries --weft-materialize-emission-plans | FileCheck %s --check-prefix=PLAN
+// RUN: weft-opt %s --weft-materialize-selected-lowering-boundaries --weft-materialize-emission-plans | weft-translate --weft-export-target-header-artifact | FileCheck %s --check-prefix=HEADER
 //
 // P-B8 — the N3 autotuner finale for the 2nd kernel family (signed i16 widening
 // dot-reduce), END-TO-END from a kernel (selector-driven), parallel to the byte

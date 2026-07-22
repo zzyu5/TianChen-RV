@@ -1,6 +1,10 @@
 # RUN: weft-rvv-formula-decision-test | FileCheck %s
 
-# CHECK: A2 nibble decision: typed g decisive, c/omega honest-null, invalid geometry rejects
-# CHECK: A3 codebook decision: fixed production 16-entry g, VLEN64 m2/VLEN128 m1/VLEN256 mf2, SEW8+32, missing and widening ceiling reject
-# CHECK: A2 repack LMUL decision: g/c/omega decisive, legal measured winner bounded, miss-to-prior, empty set rejects
+# CHECK: nibble decision: typed g decisive, c/omega honest-null, invalid geometry rejects
+# CHECK: codebook decision: fixed production 16-entry g, VLEN64 m2/VLEN128 m1/VLEN256 mf2, SEW8+32, missing and widening ceiling reject
+# CHECK: repack LMUL formula/selector split: g/c construct legal set, static context honest-null, qualified winner bounded, miss-to-prior, empty set rejects
+# CHECK: contraction formula/selector split: g/c/omega construct candidates and prior, qualified measurement only selects inside legality
+# CHECK: repack schedule formula: loop-order and main-term candidates constructed before emission; winner bounded; SP4 fake axis absent
+# CHECK: generic schedule formula: typed g/c with honest-null omega construct candidates/prior; selector winner bounded
+# CHECK: low-precision formulas: typed encoding and g/c construct resource, dot-reduce, and standalone-dequant plans; invalid domains reject
 # CHECK: RVV formula decision contract tests passed

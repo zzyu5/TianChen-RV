@@ -20,7 +20,6 @@
 #include "RVVEmitCContractionRouteFamilyInternal.h"
 
 #include "Weft/Plugin/RVV/RVVGearboxSchedule.h"
-#include "Weft/Plugin/RVV/RVVLowPrecisionPerformancePolicy.h"
 
 #include "mlir/IR/Attributes.h"
 #include "llvm/ADT/SmallVector.h"

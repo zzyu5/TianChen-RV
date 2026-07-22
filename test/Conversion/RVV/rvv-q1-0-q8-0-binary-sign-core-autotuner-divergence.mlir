@@ -36,8 +36,7 @@ module attributes {
 // STAMP-VLEN128: weft_rvv.q1_0_q8_0_binary_sign_core
 // STAMP-VLEN128-SAME: integer_core_lmul = "m2"
 // STAMP-VLEN128-SAME: minimum_vlen = 128 : i64
-// STAMP-VLEN128-SAME: weft_rvv.q1_0_schedule.has_zvl128b = true
-// STAMP-VLEN128-SAME: weft_rvv.q1_0_schedule.producer = "rvv-q1-0-autotuner"
+// STAMP-VLEN128-NOT: weft_rvv.q1_0_schedule.
 // STAMP-VLEN128-NOT: weft_rvv.q1_0_q8_0_block_dot
 //
 // At VLEN256, the SAME constructed core flips to m1.

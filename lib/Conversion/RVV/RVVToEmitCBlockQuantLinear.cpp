@@ -1,9 +1,7 @@
 #include "RVVToEmitCInternal.h"
-#include "Weft/Conversion/RVV/RVVRepackScheduleMaterialization.h"
 #include "Weft/Conversion/RVV/RVVToEmitCSupport.h"
 #include "Weft/Dialect/Exec/IR/ExecOps.h"
 #include "Weft/Dialect/RVV/IR/RVVDialect.h"
-#include "Weft/Plugin/RVV/RVVRepackTilingSelection.h"
 
 #include "mlir/Dialect/EmitC/IR/EmitC.h"
 #include "mlir/IR/Builders.h"
@@ -56,12 +54,15 @@ mlir::LogicalResult VariantToEmitCFunc::emitQ4_0Q8_0BlockDot(
     if (!descriptor)
       return rewriter.notifyMatchFailure(blockDot,
                                          "block-dot kind not flat-plain");
-    BlockDotFacts facts =
-        deriveBlockDotFacts(blockDot, descriptor->defaultCoreLmul);
+    std::optional<BlockDotFacts> facts = readFinalBlockDotFacts(blockDot);
+    if (!facts)
+      return rewriter.notifyMatchFailure(
+          blockDot, "block-dot reached emission without a complete final "
+                    "schedule");
     return emitFlatBlockDot(rewriter, loc, weightBase, activationBase, output,
                             blockDot.getResult(), avlArg, sizeType, valueMap,
                             blockDot.getWEFTEmitCLowerableSourceOpName(),
-                            blockDot.getWEFTEmitCLowerableSourceRole(), facts,
+                            blockDot.getWEFTEmitCLowerableSourceRole(), *facts,
                             *descriptor);
   }
 
@@ -385,15 +386,12 @@ mlir::LogicalResult VariantToEmitCFunc::emitQ4_0Q8_0Gemm(
     int64_t quantOffset = gemm.getQuantByteOffset();
     int64_t highOffset = gemm.getActivationHighByteOffset();
     int64_t halfBlock = qk / 2; // 16 nibble bytes / q8 half lanes per block
-    // M (the inner activation-column block) is the G3 measurement-tuned knob: the
-    // materialize pass stamps the measured-best M, and absent a pass run the op
-    // falls back to the default cache-friendly tile (M=4, the measured rv64gcv
-    // winner -- INC-25 G2: M=4 ~1.04x, M=6 ~0.857x regression). The attribute is
-    // OPTIONAL so a raw op stays lowerable; the literal mirrors the plugin's
-    // kRVVGemmDefaultActivationCols (the conversion layer stays free of the plugin
-    // schedule header -- it is the consumer of the stamped attr, not the authority).
-    constexpr int64_t kGemmDefaultActivationCols = 4;
-    int64_t cols = gemm.getActivationCols().value_or(kGemmDefaultActivationCols);
+    // M is a final formula result. Emission consumes it mechanically and cannot
+    // recover an analytic or measured choice from absence.
+    if (!gemm.getActivationCols())
+      return rewriter.notifyMatchFailure(
+          gemm, "GEMM reached emission without final activation_cols");
+    int64_t cols = *gemm.getActivationCols();
 
     // The weight decode anchors at the m1 whole-half-block form (one
     // vsetvl_e8m1(16) covers the 16 nibble bytes at VLEN >= 128); the product
@@ -2140,18 +2138,6 @@ void VariantToEmitCFunc::emitRepackDualFp16ScaleFold(
 // to emitRepackGemvQ4_0Q8_0's by construction on every arm (the monolith's trailing
 // unused-result token is its only residue -- the loop-body op has no result).
 
-// Forward declaration ([GAP-EMIT-UNROLL] / [GAP-EMIT-KQUANT-GEVM-TILE-ROUNDTRIP]
-// schedule resolver, defined below): PREFER the explicit emit_loop_schedule stamp,
-// else the MEASURED-GATE default -- UNROLLED unless code-volume>budget AND a board
-// measurement records rolled beneficial (measured table EMPTY today => unrolled; the
-// [ROLL] capability is wired but activation is measured-gated). Shared by the q2_K GEMM
-// main-term dispatch AND the q5_K GEVM whole-K-nest rolled envelope dispatch.
-static bool resolveRepackMainTermRolled(std::optional<llvm::StringRef> stamp,
-                                        llvm::StringRef coreLmul, int64_t qk,
-                                        int64_t weightInterleave,
-                                        int64_t activationInterleave,
-                                        int64_t half);
-
 mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemvLoopBody(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
     weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
@@ -2166,6 +2152,13 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemvLoopBody(
   if (!loopBody)
     return rewriter.notifyMatchFailure(
         scope, "typed repack GEVM loop body missing the op");
+
+  auto requireMainTermRolled = [&]() -> mlir::FailureOr<bool> {
+    std::optional<llvm::StringRef> form = loopBody.getMainTermForm();
+    if (!form || (*form != "unrolled" && *form != "rolled"))
+      return mlir::failure();
+    return *form == "rolled";
+  };
 
   // ---- TERNARY front-door dispatch (the retired emitRepackGem{v}TQ{20,10}Q8K
   // direct emitters, now CONSTRUCTED through this typed-region front door). When the
@@ -2203,7 +2196,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemvLoopBody(
           loopBody, "ternary repack GEVM loop ABI operand unmapped");
     llvm::StringRef opName = loopBody.getWEFTEmitCLowerableSourceOpName();
     llvm::StringRef role = loopBody.getWEFTEmitCLowerableSourceRole();
-    // Fail-closed capability-fact read (was value_or("mf2") board default): the
+    // Fail-closed final capability-fact read: the
     // front door ALWAYS stamps integer_core_lmul on every wired repack leaf.
     if (!loopBody.getIntegerCoreLmul())
       return rewriter.notifyMatchFailure(
@@ -2308,7 +2301,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemvLoopBody(
           loopBody, "codebook repack GEVM loop ABI operand unmapped");
     llvm::StringRef opName = loopBody.getWEFTEmitCLowerableSourceOpName();
     llvm::StringRef role = loopBody.getWEFTEmitCLowerableSourceRole();
-    // Fail-closed capability-fact read (was value_or("mf2") board default): the
+    // Fail-closed final capability-fact read: the
     // front door ALWAYS stamps integer_core_lmul on every wired repack leaf.
     if (!loopBody.getIntegerCoreLmul())
       return rewriter.notifyMatchFailure(
@@ -2425,7 +2418,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemvLoopBody(
           loopBody, "grid repack GEVM loop ABI operand unmapped");
     llvm::StringRef opName = loopBody.getWEFTEmitCLowerableSourceOpName();
     llvm::StringRef role = loopBody.getWEFTEmitCLowerableSourceRole();
-    // Fail-closed capability-fact read (was value_or("mf2") board default): the
+    // Fail-closed final capability-fact read: the
     // front door ALWAYS stamps integer_core_lmul on every wired repack leaf.
     if (!loopBody.getIntegerCoreLmul())
       return rewriter.notifyMatchFailure(
@@ -2615,7 +2608,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemvLoopBody(
           loopBody, "K-quant repack GEVM loop ABI operand unmapped");
     llvm::StringRef opName = loopBody.getWEFTEmitCLowerableSourceOpName();
     llvm::StringRef role = loopBody.getWEFTEmitCLowerableSourceRole();
-    // Fail-closed capability-fact read (was value_or("mf2") board default): the
+    // Fail-closed final capability-fact read: the
     // front door ALWAYS stamps integer_core_lmul on every wired repack leaf.
     if (!loopBody.getIntegerCoreLmul())
       return rewriter.notifyMatchFailure(
@@ -2624,7 +2617,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemvLoopBody(
     llvm::StringRef coreLmul = *loopBody.getIntegerCoreLmul();
     // [GAP-EMIT-KQUANT-GEVM-TILE-ROUNDTRIP] whole-K-nest schedule axis (the *how*, never
     // the *what*), SHARED across the min-fold K-quant GEVM family (q5_K/q4_K/q2_K): PREFER
-    // the explicit emit_loop_schedule stamp, else the MEASURED-GATE default -- UNROLLED
+    // the explicit main_term_form stamp, else the MEASURED-GATE default -- UNROLLED
     // unless code-volume>budget AND a board measurement records rolled beneficial (measured
     // table EMPTY today => UNROLLED, the byte-exact-neutral shipped form; existing fixtures
     // carry NO stamp => unchanged output). The [ROLL] capability is WIRED but activation is
@@ -2632,12 +2625,11 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemvLoopBody(
     // activationInterleave is 1. BYTE-EXACT across both schedules by construction (identical
     // vwmacc accumulation order -- only the dominant per-16-element inner loop is
     // materialized as a runtime emitc.for instead of unrolled).
-    bool rolledMainTerm = resolveRepackMainTermRolled(
-        loopBody.getEmitLoopSchedule(), coreLmul,
-        static_cast<int64_t>(loopBody.getQk()),
-        static_cast<int64_t>(loopBody.getWeightInterleave()),
-        /*activationInterleave=*/1,
-        static_cast<int64_t>(loopBody.getHalfLanes()));
+    mlir::FailureOr<bool> rolled = requireMainTermRolled();
+    if (mlir::failed(rolled))
+      return rewriter.notifyMatchFailure(
+          loopBody, "K-quant repack GEVM requires final main_term_form");
+    bool rolledMainTerm = *rolled;
     // The q5_K (4-bit nibble + qh 5th bit) sibling shares the SAME leaf signature +
     // facts as q4_K PLUS the qh 5th-bit plane byte offset (weight_qh_byte_offset, the
     // SHARED slot -- here on a MIN fold). Its ONLY delta is the decode leaf (the qh
@@ -2753,7 +2745,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemvLoopBody(
           loopBody, "K-quant no-min repack GEVM loop ABI operand unmapped");
     llvm::StringRef opName = loopBody.getWEFTEmitCLowerableSourceOpName();
     llvm::StringRef role = loopBody.getWEFTEmitCLowerableSourceRole();
-    // Fail-closed capability-fact read (was value_or("mf2") board default): the
+    // Fail-closed final capability-fact read: the
     // front door ALWAYS stamps integer_core_lmul on every wired repack leaf.
     if (!loopBody.getIntegerCoreLmul())
       return rewriter.notifyMatchFailure(
@@ -2762,7 +2754,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemvLoopBody(
     llvm::StringRef coreLmul = *loopBody.getIntegerCoreLmul();
     // [GAP-EMIT-KQUANT-GEVM-TILE-ROUNDTRIP] whole-K-nest schedule axis (the *how*, never
     // the *what*), SHARED across the no-min K-quant GEVM family (q6_K/q3_K): PREFER the
-    // explicit emit_loop_schedule stamp, else the MEASURED-GATE default -- UNROLLED unless
+    // explicit main_term_form stamp, else the MEASURED-GATE default -- UNROLLED unless
     // code-volume>budget AND a board measurement records rolled beneficial (measured table
     // EMPTY today => UNROLLED, the byte-exact-neutral shipped form; existing fixtures carry
     // NO stamp => unchanged output). The [ROLL] capability is WIRED but activation is
@@ -2770,12 +2762,11 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemvLoopBody(
     // BYTE-EXACT across both schedules by construction (identical vwmacc accumulation order
     // -- only the dominant inner element loop is materialized as a runtime emitc.for
     // instead of unrolled).
-    bool rolledMainTerm = resolveRepackMainTermRolled(
-        loopBody.getEmitLoopSchedule(), coreLmul,
-        static_cast<int64_t>(loopBody.getQk()),
-        static_cast<int64_t>(loopBody.getWeightInterleave()),
-        /*activationInterleave=*/1,
-        static_cast<int64_t>(loopBody.getHalfLanes()));
+    mlir::FailureOr<bool> rolled = requireMainTermRolled();
+    if (mlir::failed(rolled))
+      return rewriter.notifyMatchFailure(
+          loopBody, "K-quant repack GEVM requires final main_term_form");
+    bool rolledMainTerm = *rolled;
     // q3_K (3-bit subtractive qs|hmask): the qh slot carries the hmask plane offset.
     // RE-EMITs the byte-exact q3_K GEVM body (the no-min sibling of q6_K).
     if (coreBrick.getDecodeModel() == "q3_K")
@@ -2982,7 +2973,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemvLoopBody(
   // m2). Only the type/callee LMUL suffixes change; numHalves, vl, every loop bound
   // and byte offset are driven by half_lanes and stay identical -- exactly the
   // monolithic emitRepackGemvQ4_0Q8_0's rung derivation.
-  // Fail-closed capability-fact read (was value_or("mf2") board default): the
+  // Fail-closed final capability-fact read: the
   // front door ALWAYS stamps integer_core_lmul on every wired repack leaf.
   if (!loopBody.getIntegerCoreLmul())
     return rewriter.notifyMatchFailure(
@@ -3170,103 +3161,6 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemvLoopBody(
 // folds' acc_next; the within-block weight/activation quant byte offsets driving the
 // integer core are SOURCED from the CORE brick (the anti-bypass surface).
 
-// [GAP-EMIT-UNROLL] capability-keyed schedule selection for the repack GEMM/GEVM main
-// term. Returns whether to emit the compact ROLLED runtime-loop form (true) vs the
-// register-resident UNROLLED full static unroll (false).
-//
-// Key hierarchy (the *how*, never the *what*):
-//   1. explicit emit_loop_schedule stamp ("rolled"|"unrolled") -- the A/B forcing
-//      override + a capability policy pin (fixtures / on-board A/B drive it);
-//   2. else the MEASURED-GATE default: the CODE-VOLUME capability fact (the static
-//      main-term unroll instruction volume -- numHalves strips * nSuperHalves *
-//      mHalves(2) * mGroup(16) * columnsPerPass * lanes(4) vwmacc16, measured against
-//      an I-cache instruction budget) is a NECESSARY predicate leg that selects the
-//      roll-ELIGIBLE super-block family, but it is NOT SUFFICIENT on its own. Rolling
-//      only happens when that code volume exceeds the budget AND a per-(shape x board)
-//      MEASUREMENT records the rolled form as beneficial (reason "measured"). The
-//      measured table is EMPTY today (Stage-3 populates the per-format x board
-//      crossover, board-MEASURED and NEVER projected --
-//      [GAP-KQUANT-VLEN256-UNROLL-VS-ROLLED]), so EVERY reached super-block K-quant
-//      main term resolves to the UNROLLED default => BYTE-EXACT with the pre-[ROLL]
-//      shipped emit; every existing no-stamp fixture stays green.
-//
-// This is an independent rolled-vs-unrolled policy. It must not be copied to the
-// selected schedule-plan consumer: SP4/loop-order realization never gates on reason.
-//
-// The register-budget axis is NOT binding for the S6-tiled body (peak-live is already
-// <=32 vreg by construction), so the DISCRIMINANT capability fact is code volume vs
-// I-cache budget, not register pressure. Byte-exact across both schedules by
-// construction (identical integer accumulation order -- only the loop is materialized
-// instead of unrolled), so the measured gate is a PURE perf lever, never a correctness
-// risk (the Stage-3 crossover flips a schedule, not a result).
-
-// STAGE THREE populates this per-(super-block-shape x board) board-measured
-// rolled-vs-unrolled crossover. EMPTY today: nullopt for every shape => the UNROLLED
-// default holds (byte-exact with the pre-[ROLL] emit). Keyed on the CODE-VOLUME /
-// vsetvli-storm SHAPE fact (the unrolled main-term proxy volume + the integer-core
-// LMUL), NEVER the format name/spelling. [GAP-KQUANT-VLEN256-UNROLL-VS-ROLLED]: the
-// VLEN256 single-strip main term is a documented carve-back CANDIDATE (may stay
-// unrolled once measured), but Stage-2 asserts NOTHING here -- no projection.
-static std::optional<bool>
-lookupRollMeasuredBeneficial(int64_t /*unrolledMainTermVwmacc*/,
-                             llvm::StringRef /*coreLmul*/) {
-  return std::nullopt;
-}
-
-static bool resolveRepackMainTermRolled(std::optional<llvm::StringRef> stamp,
-                                        llvm::StringRef coreLmul, int64_t qk,
-                                        int64_t weightInterleave,
-                                        int64_t activationInterleave,
-                                        int64_t half) {
-  if (stamp.has_value()) {
-    if (*stamp == "rolled")
-      return true;
-    if (*stamp == "unrolled")
-      return false;
-    // Any other spelling is verifier-rejected upstream; fall through defensively.
-  }
-  // Capability-derived MEASURED-GATE default keyed on the unrolled main-term code
-  // volume (the BOTTLENECK-SHAPE fact, NEVER the format name/spelling).
-  int64_t numHalves = (half > 0) ? (weightInterleave / half) : 1;
-  int64_t nSuperHalves = (qk > 0) ? (qk / 128) : 1;
-  int64_t columnsPerPass = (coreLmul == "m1") ? 1 : activationInterleave;
-  int64_t unrolledMainTermVwmacc = numHalves * nSuperHalves * /*mHalves*/ 2 *
-                                   /*mGroup*/ 16 * columnsPerPass * /*lanes*/ 4;
-  // [ROLL] MEASURED-GATE producer: the code-volume-vs-I-cache
-  // budget predicate is ONE (NECESSARY) leg -- it identifies the roll-ELIGIBLE
-  // super-block family whose per-position decode storm would not sit in the hot I-cache
-  // window -- but rolling is gated on a SECOND leg: a per-(shape x board) MEASUREMENT
-  // (lookupRollMeasuredBeneficial, reason "measured") confirming the rolled form
-  // beneficial. Absent the measurement the DEFAULT is UNROLLED (the pre-[ROLL] shipped
-  // form; byte-exact, zero drift). The budget is a PROXY-unit threshold: each proxy unit
-  // (one vwmacc16 position) expands to ~6-8 vector decode instrs (vle/vand/vsrl/vsll/
-  // vor/vsub) once fully unrolled, so a ~2K-instr hot-loop reservation (a conservative
-  // fraction of a 32KB / ~8K-instr L1 I$) divided by that ~8x expansion lands a
-  // ~256-position proxy; the conservative value sits just below it so the WHOLE QK_K
-  // super-block K-quant family (q2/q3/q4/q5/q6_K -- proxy 256..4096) is roll-ELIGIBLE,
-  // but NONE of it ships rolled until Stage-3 board A/B seeds the measured gate.
-  // numHalves stays a FIRST-CLASS input (the VLEN256 single-strip main term sits at the
-  // low end of that band and is a carve-back candidate --
-  // [GAP-KQUANT-VLEN256-UNROLL-VS-ROLLED]). This resolver is reached ONLY from the
-  // super-block K-quant GEMM/GEVM dispatch arms (the flat/codebook/ternary front doors
-  // never call it), so no ALREADY-LEAN format is forced through. BYTE-EXACT either way
-  // by construction (identical accumulation order; only the loop is materialized), so
-  // the gate is a PURE perf lever. Stage-3 board calibration POPULATES
-  // lookupRollMeasuredBeneficial per-board x per-compiler ([GAP-KQUANT-VLEN256-UNROLL-
-  // VS-ROLLED]: VLEN256 may carve back to unrolled ONCE MEASURED; Stage-2 does NOT
-  // project that, it defers the whole VLEN split to on-board A/B measurement).
-  constexpr int64_t kMainTermUnrollCodeVolumeICacheBudget = 192;
-  bool codeVolumeExceedsBudget =
-      unrolledMainTermVwmacc > kMainTermUnrollCodeVolumeICacheBudget;
-  if (codeVolumeExceedsBudget)
-    if (std::optional<bool> measuredRollBeneficial =
-            lookupRollMeasuredBeneficial(unrolledMainTermVwmacc, coreLmul))
-      return *measuredRollBeneficial; // reason "measured": Stage-3 board-confirmed.
-  // Measured table EMPTY (or code volume within budget) => the UNROLLED default holds
-  // (byte-identical to the pre-[ROLL] shipped emit; restores the zero-drift default).
-  return false;
-}
-
 mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
     mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
     weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
@@ -3282,21 +3176,17 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
     return rewriter.notifyMatchFailure(
         scope, "typed repack GEMM loop body missing the op");
 
-  llvm::Expected<RVVRepackSchedulePlan> selectedSchedule =
-      readAndVerifyRVVRepackSchedulePlan(loopBody);
-  if (!selectedSchedule) {
-    std::string error = llvm::toString(selectedSchedule.takeError());
-    return rewriter.notifyMatchFailure(
-        loopBody, "selected repack schedule read failed after pre-emission "
-                  "verification: " +
-                      error);
-  }
-  // REALIZE consumes the selected bounded enum exactly once. Selection reason is
-  // provenance checked by the pre-emission verifier; it never changes which
-  // already-legal body is emitted.
-  const bool selectedColGroupOuter =
-      selectedSchedule->loopOrder ==
-      ::weft::plugin::rvv::RVVRepackLoopOrder::ColOuter;
+  auto requireMainTermRolled = [&]() -> mlir::FailureOr<bool> {
+    std::optional<llvm::StringRef> form = loopBody.getMainTermForm();
+    if (!form || (*form != "unrolled" && *form != "rolled"))
+      return mlir::failure();
+    return *form == "rolled";
+  };
+
+  // The loop order is a required final typed field. Construction has already
+  // performed candidate generation, legality, prior and optional winner lookup;
+  // emission only realizes the selected nest.
+  const bool selectedColGroupOuter = loopBody.getLoopOrder() == "col_outer";
 
   // ---- TERNARY front-door dispatch (the retired emitRepackGem{m}TQ{20,10}Q8K
   // direct emitters, now CONSTRUCTED through this typed-region front door). Gate on
@@ -3337,7 +3227,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
           loopBody, "ternary repack GEMM loop ABI operand unmapped");
     llvm::StringRef opName = loopBody.getWEFTEmitCLowerableSourceOpName();
     llvm::StringRef role = loopBody.getWEFTEmitCLowerableSourceRole();
-    // Fail-closed capability-fact read (was value_or("mf2") board default): the
+    // Fail-closed final capability-fact read: the
     // front door ALWAYS stamps integer_core_lmul on every wired repack leaf.
     if (!loopBody.getIntegerCoreLmul())
       return rewriter.notifyMatchFailure(
@@ -3445,7 +3335,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
           loopBody, "codebook repack GEMM loop ABI operand unmapped");
     llvm::StringRef opName = loopBody.getWEFTEmitCLowerableSourceOpName();
     llvm::StringRef role = loopBody.getWEFTEmitCLowerableSourceRole();
-    // Fail-closed capability-fact read (was value_or("mf2") board default): the
+    // Fail-closed final capability-fact read: the
     // front door ALWAYS stamps integer_core_lmul on every wired repack leaf.
     if (!loopBody.getIntegerCoreLmul())
       return rewriter.notifyMatchFailure(
@@ -3569,7 +3459,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
           loopBody, "grid repack GEMM loop ABI operand unmapped");
     llvm::StringRef opName = loopBody.getWEFTEmitCLowerableSourceOpName();
     llvm::StringRef role = loopBody.getWEFTEmitCLowerableSourceRole();
-    // Fail-closed capability-fact read (was value_or("mf2") board default): the
+    // Fail-closed final capability-fact read: the
     // front door ALWAYS stamps integer_core_lmul on every wired repack leaf.
     if (!loopBody.getIntegerCoreLmul())
       return rewriter.notifyMatchFailure(
@@ -3743,7 +3633,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
           loopBody, "K-quant repack GEMM loop ABI operand unmapped");
     llvm::StringRef opName = loopBody.getWEFTEmitCLowerableSourceOpName();
     llvm::StringRef role = loopBody.getWEFTEmitCLowerableSourceRole();
-    // Fail-closed capability-fact read (was value_or("mf2") board default): the
+    // Fail-closed final capability-fact read: the
     // front door ALWAYS stamps integer_core_lmul on every wired repack leaf.
     if (!loopBody.getIntegerCoreLmul())
       return rewriter.notifyMatchFailure(
@@ -3754,28 +3644,17 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
     // schedule axis (the *how*, never the *what*), resolved ONCE for the WHOLE min-fold
     // K-quant GEMM family (q4_K/q2_K/q5_K share it -- the discriminant is the code-volume
     // vs I-cache budget FACT, NEVER the format spelling). PREFER the explicit front-door
-    // emit_loop_schedule stamp, else the MEASURED-GATE default -- UNROLLED unless
+    // main_term_form stamp, else the MEASURED-GATE default -- UNROLLED unless
     // code-volume>budget AND a board measurement records rolled beneficial (measured table
     // EMPTY today => UNROLLED; the [ROLL] capability is WIRED but activation is
     // measured-gated, Stage-3 board A/B). ORTHOGONAL to the q4_K colGroupOuter loop-order
     // axis (both coexist). BYTE-EXACT across both schedules by construction (identical
     // vwmacc16 accumulation order; only the loop is materialized).
-    bool rolledMainTerm = resolveRepackMainTermRolled(
-        loopBody.getEmitLoopSchedule(), coreLmul,
-        static_cast<int64_t>(loopBody.getQk()),
-        static_cast<int64_t>(loopBody.getWeightInterleave()),
-        static_cast<int64_t>(loopBody.getActivationInterleave()),
-        static_cast<int64_t>(loopBody.getHalfLanes()));
-    // SP4 is a mechanical selected->realized mapping. Min-fold has exactly one
-    // implemented/legal body in this slice: S6Tiled. Missing, forged, or Plain
-    // stamps have already failed the common pre-emission verifier; retain this
-    // local assertion so no future caller can bypass that authority boundary.
-    if (!selectedSchedule->tiling ||
-        *selectedSchedule->tiling !=
-            ::weft::plugin::rvv::RVVRepackTilingVariant::S6Tiled)
+    mlir::FailureOr<bool> rolled = requireMainTermRolled();
+    if (mlir::failed(rolled))
       return rewriter.notifyMatchFailure(
-          loopBody,
-          "min-fold repack GEMM realization requires the selected s6_tiled plan");
+          loopBody, "K-quant repack GEMM requires final main_term_form");
+    bool rolledMainTerm = *rolled;
     // q5_K (4-bit nibble + qh 5th bit): the S6-tiled q4_K GEMM body WITH the qh inject.
     // Requires the weight_qh_byte_offset attr (the qh 5th-bit plane, the SHARED slot on a
     // MIN fold). RE-EMITs the byte-exact S6-tiled q5_K GEMM body.
@@ -3904,7 +3783,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
           loopBody, "K-quant no-min repack GEMM loop ABI operand unmapped");
     llvm::StringRef opName = loopBody.getWEFTEmitCLowerableSourceOpName();
     llvm::StringRef role = loopBody.getWEFTEmitCLowerableSourceRole();
-    // Fail-closed capability-fact read (was value_or("mf2") board default): the
+    // Fail-closed final capability-fact read: the
     // front door ALWAYS stamps integer_core_lmul on every wired repack leaf.
     if (!loopBody.getIntegerCoreLmul())
       return rewriter.notifyMatchFailure(
@@ -3915,7 +3794,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
     // schedule axis (the *how*, never the *what*), resolved ONCE for the WHOLE no-min
     // K-quant GEMM family (q6_K AND q3_K share it -- the discriminant is the code-volume
     // vs I-cache budget FACT, NEVER the format spelling; the old "rolled is q6_K-only"
-    // format-name hardcode is REMOVED). PREFER the explicit front-door emit_loop_schedule
+    // format-name hardcode is REMOVED). PREFER the explicit front-door main_term_form
     // stamp ("unrolled"|"rolled"), else the MEASURED-GATE default -- UNROLLED unless
     // code-volume>budget AND a board measurement records rolled beneficial (measured table
     // EMPTY today => UNROLLED; the q3_K/q6_K [ROLL] capability is WIRED SYMMETRICALLY by
@@ -3924,12 +3803,11 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
     // differs from the M=1 GEVM (a distinct structural plan, not a GEVM knob flip).
     // BYTE-EXACT across both schedules by construction (identical vwmacc16 accumulation
     // order).
-    bool rolledMainTerm = resolveRepackMainTermRolled(
-        loopBody.getEmitLoopSchedule(), coreLmul,
-        static_cast<int64_t>(loopBody.getQk()),
-        static_cast<int64_t>(loopBody.getWeightInterleave()),
-        static_cast<int64_t>(loopBody.getActivationInterleave()),
-        static_cast<int64_t>(loopBody.getHalfLanes()));
+    mlir::FailureOr<bool> rolled = requireMainTermRolled();
+    if (mlir::failed(rolled))
+      return rewriter.notifyMatchFailure(
+          loopBody, "K-quant repack GEMM requires final main_term_form");
+    bool rolledMainTerm = *rolled;
     // q3_K (3-bit subtractive qs|hmask): the qh slot carries the hmask plane offset.
     // RE-EMITs the byte-exact q3_K GEMM body (the no-min sibling of q6_K) -- now on the
     // SAME [ROLL] resolver as q6_K (rolledMainTerm passed in).
@@ -3989,7 +3867,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
   // fold granularity columnsPerPass is 4 (all columns, one pass) for the mf2
   // fractional chain and 1 (one column per pass) for the m1 whole-LMUL chain (the
   // spill-avoiding form; see emitRepackGemmQ4_0Q8_0's columnsPerPass rationale).
-  // Fail-closed capability-fact read (was value_or("mf2") board default): the
+  // Fail-closed final capability-fact read: the
   // front door ALWAYS stamps integer_core_lmul on every wired repack leaf.
   if (!loopBody.getIntegerCoreLmul())
     return rewriter.notifyMatchFailure(
@@ -4209,7 +4087,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemmLoopBody(
   // are INDEPENDENT -- every out[y,x] is a private K-accumulation -- so either
   // nesting order yields BYTE-IDENTICAL results and an identical hot inner core.
   // Which loop is OUTER is the selected schedule axis resolved above
-  // from the front-door weft_rvv.loop_order stamp (row-group-OUTER == the
+  // from the front-door loop_order stamp (row-group-OUTER == the
   // M1-committed flat default; col-group-OUTER holds the DRAM-dominant repacked
   // weight panel resident across the row sweep). PURE REALIZE of the SAME loop
   // interchange proven byte-exact for the q4_K min-fold GEMM.
@@ -4447,7 +4325,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemvQ5_0Q8_0(
     llvm::StringRef role = gemv.getWEFTEmitCLowerableSourceRole();
     mlir::MLIRContext *ctx = rewriter.getContext();
 
-    // Fail-closed capability-fact read (was value_or("mf2") board default): the
+    // Fail-closed final capability-fact read: the
     // front door ALWAYS stamps integer_core_lmul on every wired repack leaf.
     if (!gemv.getIntegerCoreLmul())
       return rewriter.notifyMatchFailure(
@@ -4966,7 +4844,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemvQ5_1Q8_1(
     // f32m2 (f16 scale m1), running at half_lanes e16m1 lanes per strip. "m1" is
     // the WHOLE-LMUL chain RVV0.7.1 requires: the entire chain shifts up one
     // notch i8m1 -> i16m2 -> i32m4 -> f32m4 (f16 scale m2), ONE 16-lane strip.
-    // Fail-closed capability-fact read (was value_or("mf2") board default): the
+    // Fail-closed final capability-fact read: the
     // front door ALWAYS stamps integer_core_lmul on every wired repack leaf.
     if (!gemv.getIntegerCoreLmul())
       return rewriter.notifyMatchFailure(
@@ -5504,7 +5382,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemvQ8_0Q8_0(
     // i16m2 -> i32m4 -> f32m4 (f16 scale m2), ONE 16-lane strip at VLEN=128. Only
     // the type/callee LMUL suffixes change; numHalves, vl, every loop bound and
     // byte offset are driven by half_lanes and stay identical.
-    // Fail-closed capability-fact read (was value_or("mf2") board default): the
+    // Fail-closed final capability-fact read: the
     // front door ALWAYS stamps integer_core_lmul on every wired repack leaf.
     if (!gemv.getIntegerCoreLmul())
       return rewriter.notifyMatchFailure(
@@ -5925,7 +5803,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemvQ4_1Q8_1(
     // f32m2 (f16 scale m1), running at half_lanes e16m1 lanes per strip. "m1" is
     // the WHOLE-LMUL chain RVV0.7.1 requires: the entire chain shifts up one
     // notch i8m1 -> i16m2 -> i32m4 -> f32m4 (f16 scale m2), ONE 16-lane strip.
-    // Fail-closed capability-fact read (was value_or("mf2") board default): the
+    // Fail-closed final capability-fact read: the
     // front door ALWAYS stamps integer_core_lmul on every wired repack leaf.
     if (!gemv.getIntegerCoreLmul())
       return rewriter.notifyMatchFailure(
@@ -7674,7 +7552,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedRepackGemvColgroupTiledLoopBody
         loopBody, "colgroup-tiled GEVM loop ABI operand unmapped");
   llvm::StringRef opName = loopBody.getWEFTEmitCLowerableSourceOpName();
   llvm::StringRef role = loopBody.getWEFTEmitCLowerableSourceRole();
-  // Fail-closed capability-fact read (was value_or("mf2") board default): the
+  // Fail-closed final capability-fact read: the
   // front door ALWAYS stamps integer_core_lmul on every wired repack leaf.
   if (!loopBody.getIntegerCoreLmul())
     return rewriter.notifyMatchFailure(
@@ -7730,7 +7608,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemmQ4_1Q8_1(
     // f32m2 (f16 scale m1), running at half_lanes e16m1 lanes per strip. "m1" is
     // the WHOLE-LMUL chain RVV0.7.1 requires: the entire chain shifts up one notch
     // i8m1 -> i16m2 -> i32m4 -> f32m4 (f16 scale m2), ONE 16-lane strip.
-    // Fail-closed capability-fact read (was value_or("mf2") board default): the
+    // Fail-closed final capability-fact read: the
     // front door ALWAYS stamps integer_core_lmul on every wired repack leaf.
     if (!gemm.getIntegerCoreLmul())
       return rewriter.notifyMatchFailure(
@@ -8521,8 +8399,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackKQuantGemmBodyQ4K(
     // identical hot inner core. Which loop is OUTER is therefore a SCHEDULE axis keyed
     // on a LAYOUT/cache FACT (NOT a hardcoded constant). Under M1b this predicate was
     // INLINED here (`weightStride >= activationStride`); under M1c it is LIFTED to the
-    // first-class SEL-1 loop-order selector (RVVRepackTilingSelection selectRepackLoopOrder,
-    // stamped as weft_rvv.loop_order). The caller passes the validated selected enum;
+    // first-class SEL-1 loop-order selector (RVVRepackScheduleFormula,
+    // stamped as loop_order). The caller passes the validated selected enum;
     // this body never reads attrs, reasons, measurements, or strides to select again.
     // Key rationale (unchanged): hold the DRAM-DOMINANT repacked
     // stream cache-resident across the hot inner sweep and restream the SMALLER one. For
@@ -10070,7 +9948,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackKQuantGemmBodyQ5K(
     // are INDEPENDENT -- every out[y,x] is a private K-accumulation -- so either
     // nesting order yields BYTE-IDENTICAL results and an identical hot inner core.
     // Which loop is OUTER is a SCHEDULE axis the caller resolves from the front-door
-    // weft_rvv.loop_order stamp into `colGroupOuter` (row-group-OUTER == the
+    // loop_order stamp into `colGroupOuter` (row-group-OUTER == the
     // M1-committed sibling default; col-group-OUTER holds the DRAM-dominant repacked
     // weight panel resident across the row sweep). PURE REALIZE of the SAME loop
     // interchange proven byte-exact for the q4_K min-fold GEMM.
@@ -11504,7 +11382,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackKQuantGemmBodyQ6K(
     // are INDEPENDENT -- every out[y,x] is a private K-accumulation -- so either
     // nesting order yields BYTE-IDENTICAL results and an identical hot inner core.
     // Which loop is OUTER is a SCHEDULE axis the caller resolves from the front-door
-    // weft_rvv.loop_order stamp into `colGroupOuter` (row-group-OUTER == the
+    // loop_order stamp into `colGroupOuter` (row-group-OUTER == the
     // M1-committed sibling default; col-group-OUTER holds the DRAM-dominant repacked
     // weight panel resident across the row sweep). PURE REALIZE of the SAME loop
     // interchange proven byte-exact for the q4_K min-fold GEMM.
@@ -11951,28 +11829,23 @@ deriveFlatBlockDotDescriptor(mlir::Operation *op) {
   if (kind == "ggml_q8_0_q8_0_block_dot") {
     d.decodePrimitive = FlatDecodePrimitive::PlainI8;
     d.foldModel = FlatFoldModel::SumiTimesScales;
-    d.defaultCoreLmul = "m2";
     d.blockLen = d.qk; // whole 32-element block (no nibble half-split)
   } else if (kind == "ggml_q4_0_q8_0_block_dot") {
     d.decodePrimitive = FlatDecodePrimitive::OffsetBinaryNibble;
     d.foldModel = FlatFoldModel::LeftAssoc;
-    d.defaultCoreLmul = "m1";
     d.blockLen = d.qk / 2; // 16 nibble bytes / q8 half lanes per block
   } else if (kind == "ggml_q4_1_q8_1_block_dot") {
     d.decodePrimitive = FlatDecodePrimitive::UnsignedNibble;
     d.foldModel = FlatFoldModel::ScalePlusMin;
-    d.defaultCoreLmul = "m1";
     d.blockLen = d.qk / 2;
   } else if (kind == "ggml_q5_0_q8_0_block_dot") {
     d.decodePrimitive = FlatDecodePrimitive::FiveBitOffsetBinary;
     d.foldModel = FlatFoldModel::ScalesTimesSumi;
-    d.defaultCoreLmul = "m1";
     d.blockLen = d.qk / 2;
     d.applyOffsetBias = true; // the `-16` offset-binary bias
   } else if (kind == "ggml_q5_1_q8_1_block_dot") {
     d.decodePrimitive = FlatDecodePrimitive::FiveBitOffsetBinary;
     d.foldModel = FlatFoldModel::ScalePlusMin;
-    d.defaultCoreLmul = "m1";
     d.blockLen = d.qk / 2;
     d.applyOffsetBias = false; // the bias lives in the per-block MIN scale
   } else if (kind == "ggml_iq4_nl_q8_0_block_dot") {
@@ -11982,7 +11855,6 @@ deriveFlatBlockDotDescriptor(mlir::Operation *op) {
     // plain fp16 read (same as q8_0/q4_0); the codebook table is broadcast once.
     d.decodePrimitive = FlatDecodePrimitive::CodebookGatherNibble;
     d.foldModel = FlatFoldModel::SumiTimesScales;
-    d.defaultCoreLmul = "m1";
     d.blockLen = d.qk / 2; // 16 nibble bytes / q8 half lanes per block
     d.weightScaleSource = FlatWeightScaleSource::Fp16;
     d.codebookTableName = "weft_iq4_nl_kvalues";
@@ -11993,7 +11865,6 @@ deriveFlatBlockDotDescriptor(mlir::Operation *op) {
     // mxfp4 scales-first order (SumiTimesScales, node-identical to iq4_nl's).
     d.decodePrimitive = FlatDecodePrimitive::CodebookGatherNibble;
     d.foldModel = FlatFoldModel::SumiTimesScales;
-    d.defaultCoreLmul = "m1";
     d.blockLen = d.qk / 2;
     d.weightScaleSource = FlatWeightScaleSource::E8M0;
     d.codebookTableName = "weft_mxfp4_kvalues";
@@ -12837,7 +12708,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackKQuantGemmBodyQ2K(
     // are INDEPENDENT -- every out[y,x] is a private K-accumulation -- so either
     // nesting order yields BYTE-IDENTICAL results and an identical hot inner core.
     // Which loop is OUTER is a SCHEDULE axis the caller resolves from the front-door
-    // weft_rvv.loop_order stamp into `colGroupOuter` (row-group-OUTER == the
+    // loop_order stamp into `colGroupOuter` (row-group-OUTER == the
     // M1-committed sibling default; col-group-OUTER holds the DRAM-dominant repacked
     // weight panel resident across the row sweep). PURE REALIZE of the SAME loop
     // interchange proven byte-exact for the q4_K min-fold GEMM.
@@ -14077,16 +13948,6 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
     return rewriter.notifyMatchFailure(
         scope, "typed flat block-dot loop body missing the op");
 
-  // M-FLAT schedule-parametrization step 1: the loop-body's bounded scheduling
-  // knobs (I7-bounded by the op verifier: multi_block_factor in {1,2,4},
-  // strip_elision in {robust,elided}). These drive the *how* (outer-loop unroll /
-  // inner strip form); the region bricks drive the *what*. The q4_0 (left_assoc)
-  // flat body below materializes the FULL {integer_core_lmul, multi_block_factor,
-  // strip_elision} cross product byte-exact to the monolithic emitFlatBlockDot;
-  // the other folds still require the mbf==1 + elided default (fail-closed).
-  int64_t multiBlockFactor = loopBody.getMultiBlockFactor().value_or(1);
-  bool stripElided = loopBody.getStripElision().value_or("robust") == "elided";
-
   mlir::Value weightBase = valueMap.lookup(loopBody.getWeightBase());
   mlir::Value activationBase = valueMap.lookup(loopBody.getActivationBase());
   mlir::Value output = valueMap.lookup(loopBody.getOutput());
@@ -14161,13 +14022,10 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
       return rewriter.notifyMatchFailure(loopBody,
                                          "q1_0 loop-body output not a pointer");
 
-    // [A-line stage-3: NOT debakeable] this "m2" default is LIVE: the q1_0 flat
-    // front door leaves the binary-sign core's optional integer_core_lmul UNSTAMPED
-    // by design (proven: the q1_0 production e2e lowers at this default). Fail-
-    // closing breaks byte-exact; a real debake stamps it in the front door first.
-    llvm::StringRef coreLmul = "m2";
-    if (std::optional<llvm::StringRef> attrLmul = coreOp.getIntegerCoreLmul())
-      coreLmul = *attrLmul;
+    if (!coreOp.getIntegerCoreLmul())
+      return rewriter.notifyMatchFailure(
+          coreOp, "q1_0 core reached emission without final integer_core_lmul");
+    llvm::StringRef coreLmul = *coreOp.getIntegerCoreLmul();
 
     (void)emitQ1_0TypedFlatBlockDotBody(
         rewriter, loc, weightBase, activationBase, outPointer, avlArg, sizeType,
@@ -14242,15 +14100,11 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
       return rewriter.notifyMatchFailure(loopBody,
                                          "nvfp4 loop-body output not a pointer");
 
-    // The codebook gather pins the m1 anchor (VLMAX >= 16); the brick's optional
-    // integer_core_lmul is verifier-restricted to m1.
-    // [A-line stage-3: NOT debakeable] this "m1" default is LIVE: the nvfp4 flat
-    // front door leaves the codebook core's optional integer_core_lmul UNSTAMPED by
-    // design (proven: the nvfp4 production e2e lowers at this default). Fail-closing
-    // breaks byte-exact; a real debake stamps it in the front door first.
-    llvm::StringRef coreLmul = "m1";
-    if (std::optional<llvm::StringRef> attrLmul = coreOp.getIntegerCoreLmul())
-      coreLmul = *attrLmul;
+    if (!coreOp.getIntegerCoreLmul())
+      return rewriter.notifyMatchFailure(
+          coreOp, "nvfp4 codebook core reached emission without its final m1 "
+                  "integer_core_lmul construction fact");
+    llvm::StringRef coreLmul = *coreOp.getIntegerCoreLmul();
 
     (void)emitNVFP4BlockDotBodyShared(
         rewriter, loc, weightBase, activationBase, outPointer, avlArg, sizeType,
@@ -14261,6 +14115,17 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
         coreOp.getActivationHighByteOffset(), coreOp.getCodebook());
     return mlir::success();
   }
+
+  // All remaining flat-loop families consume a complete construction-time
+  // schedule.  The two closed whole-body families above do not use these axes.
+  std::optional<BlockDotFacts> finalSchedule =
+      readFinalBlockDotFacts(loopBody);
+  if (!finalSchedule)
+    return rewriter.notifyMatchFailure(
+        loopBody, "flat block-dot body reached emission without the complete "
+                  "integer_core_lmul/multi_block_factor/strip_elision plan");
+  int64_t multiBlockFactor = finalSchedule->multiBlockFactor;
+  bool stripElided = finalSchedule->stripElided;
 
   // iq4_nl / FP4 codebook class (2nd primitive class): peek the region for the
   // 16-entry codebook table broadcast + the codebook-gather integer core. When
@@ -14323,7 +14188,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
   // gather branch is the only reader).
   mlir::Value codebookValues;
   if (peekCodebookTable) {
-    llvm::StringRef codebookCoreLmul = deriveBlockDotFacts(loopBody, "m1").coreLmul;
+    llvm::StringRef codebookCoreLmul = finalSchedule->coreLmul;
     mlir::Type i8CoreType =
         emitc::OpaqueType::get(ctx, ("vint8" + codebookCoreLmul + "_t").str());
     mlir::Type i8PtrType =
@@ -14370,8 +14235,11 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
   // that would fall to the q4_0 branch, the skeleton else, or any body without
   // the full q8_0 integer core must NOT silently emit the per-block schedule
   // (IR-says-deferred / emit-does-per-block is a lie) -- reject it here.
-  llvm::StringRef foldStructure =
-      loopBody.getFoldStructure().value_or("per-block");
+  if (!loopBody.getFoldStructure())
+    return rewriter.notifyMatchFailure(
+        loopBody, "flat block-dot body reached emission without final "
+                  "fold_structure");
+  llvm::StringRef foldStructure = *loopBody.getFoldStructure();
   if (foldStructure == "deferred-ordered" && !isQ80ScheduleParam)
     return rewriter.notifyMatchFailure(
         loopBody,
@@ -14387,8 +14255,11 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
   // minimal surgical delta). A relaxed request on any OTHER path must NOT silently
   // emit the strict fold (IR-says-relaxed / emit-does-strict is a lie) -- reject it
   // fail-closed so the tier is only ever honored where a relaxed body exists.
-  llvm::StringRef numericsTier =
-      loopBody.getNumericsTier().value_or("strict");
+  if (!loopBody.getNumericsTier())
+    return rewriter.notifyMatchFailure(
+        loopBody, "flat block-dot body reached emission without final "
+                  "numerics_tier");
+  llvm::StringRef numericsTier = *loopBody.getNumericsTier();
   if (numericsTier == "relaxed" &&
       !(foldStructure == "deferred-ordered" && isQ80ScheduleParam))
     return rewriter.notifyMatchFailure(
@@ -14502,8 +14373,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
     FlatBlockDotDescriptor descriptor;
     descriptor.decodePrimitive = FlatDecodePrimitive::OffsetBinaryNibble;
     descriptor.foldModel = FlatFoldModel::LeftAssoc;
-    descriptor.defaultCoreLmul = "m1";
-    BlockDotFacts facts = deriveBlockDotFacts(loopBody, "m1");
+    BlockDotFacts facts = *finalSchedule;
     FlatBlockDotEmitState st = buildFlatBlockDotEmitState(
         rewriter, descriptor, facts, weightBase, activationBase,
         sumfVar.getResult(), /*codebookValues=*/mlir::Value(), sizeType, opName,
@@ -14886,8 +14756,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
     FlatBlockDotDescriptor descriptor;
     descriptor.decodePrimitive = FlatDecodePrimitive::PlainI8;
     descriptor.foldModel = FlatFoldModel::SeparatedLeftAssoc;
-    descriptor.defaultCoreLmul = "m2";
-    BlockDotFacts facts = deriveBlockDotFacts(loopBody, "m2");
+    BlockDotFacts facts = *finalSchedule;
     FlatBlockDotEmitState st = buildFlatBlockDotEmitState(
         rewriter, descriptor, facts, weightBase, activationBase,
         sumfVar.getResult(), /*codebookValues=*/mlir::Value(), sizeType, opName,
@@ -15685,9 +15554,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
         FlatBlockDotDescriptor descriptor;
         descriptor.decodePrimitive = FlatDecodePrimitive::FiveBitOffsetBinary;
         descriptor.foldModel = FlatFoldModel::ScalePlusMin;
-        descriptor.defaultCoreLmul = "m1";
         descriptor.applyOffsetBias = false;
-        BlockDotFacts facts = deriveBlockDotFacts(loopBody, "m1");
+        BlockDotFacts facts = *finalSchedule;
         FlatBlockDotEmitState st = buildFlatBlockDotEmitState(
             rewriter, descriptor, facts, weightBase, activationBase,
             sumfVar.getResult(), /*codebookValues=*/mlir::Value(), sizeType,
@@ -15995,7 +15863,6 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
         FlatBlockDotDescriptor descriptor;
         descriptor.decodePrimitive = FlatDecodePrimitive::CodebookGatherNibble;
         descriptor.foldModel = FlatFoldModel::SumiTimesScales;
-        descriptor.defaultCoreLmul = "m1";
         descriptor.qk = qk;
         descriptor.weightStride = loopBody.getWeightBlockStride();
         descriptor.activationStride = loopBody.getActivationBlockStride();
@@ -16012,7 +15879,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
         descriptor.codebook = peekCodebookTable.getCodebook();
         descriptor.codebookTableName = peekCodebookTable.getTableSymbol();
 
-        BlockDotFacts facts = deriveBlockDotFacts(loopBody, "m1");
+        BlockDotFacts facts = *finalSchedule;
         FlatBlockDotEmitState st = buildFlatBlockDotEmitState(
             rewriter, descriptor, facts, weightBase, activationBase,
             sumfVar.getResult(), codebookValues, sizeType, opName, role);
@@ -16110,8 +15977,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
         FlatBlockDotDescriptor descriptor;
         descriptor.decodePrimitive = FlatDecodePrimitive::OffsetBinaryNibble;
         descriptor.foldModel = FlatFoldModel::LeftAssoc;
-        descriptor.defaultCoreLmul = "m1";
-        BlockDotFacts facts = deriveBlockDotFacts(loopBody, "m1");
+        BlockDotFacts facts = *finalSchedule;
         FlatBlockDotEmitState st = buildFlatBlockDotEmitState(
             rewriter, descriptor, facts, weightBase, activationBase,
             sumfVar.getResult(), /*codebookValues=*/mlir::Value(), sizeType,
@@ -16300,7 +16166,6 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
       FlatBlockDotDescriptor descriptor;
       descriptor.decodePrimitive = FlatDecodePrimitive::PlainI8;
       descriptor.foldModel = FlatFoldModel::SeparatedLeftAssoc;
-      descriptor.defaultCoreLmul = "m2";
       descriptor.qk = qk;
       descriptor.weightStride = loopBody.getWeightBlockStride();
       descriptor.activationStride = loopBody.getActivationBlockStride();
@@ -16406,7 +16271,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
       // is now sourced from the region ops. Only emitFlatFold (the fused-tail
       // assembler, fed operand-derived d_x/d_y + the sumi lvalue) is reused for the
       // brick 1/2/3 collapse; the fold_model selecting the tree is the gated attr.
-      BlockDotFacts facts = deriveBlockDotFacts(loopBody, "m2");
+      BlockDotFacts facts = *finalSchedule;
       FlatBlockDotEmitState st = buildFlatBlockDotEmitState(
           rewriter, descriptor, facts, weightBase, activationBase,
           sumfVar.getResult(), /*codebookValues=*/mlir::Value(), sizeType,
@@ -16663,8 +16528,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
         FlatBlockDotDescriptor descriptor;
         descriptor.decodePrimitive = FlatDecodePrimitive::UnsignedNibble;
         descriptor.foldModel = FlatFoldModel::ScalePlusMin;
-        descriptor.defaultCoreLmul = "m1";
-        BlockDotFacts facts = deriveBlockDotFacts(loopBody, "m1");
+        BlockDotFacts facts = *finalSchedule;
         FlatBlockDotEmitState st = buildFlatBlockDotEmitState(
             rewriter, descriptor, facts, weightBase, activationBase,
             sumfVar.getResult(), /*codebookValues=*/mlir::Value(), sizeType,
@@ -16968,9 +16832,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
         FlatBlockDotDescriptor descriptor;
         descriptor.decodePrimitive = FlatDecodePrimitive::FiveBitOffsetBinary;
         descriptor.foldModel = FlatFoldModel::ScalesTimesSumi;
-        descriptor.defaultCoreLmul = "m1";
         descriptor.applyOffsetBias = true;
-        BlockDotFacts facts = deriveBlockDotFacts(loopBody, "m1");
+        BlockDotFacts facts = *finalSchedule;
         FlatBlockDotEmitState st = buildFlatBlockDotEmitState(
             rewriter, descriptor, facts, weightBase, activationBase,
             sumfVar.getResult(), /*codebookValues=*/mlir::Value(), sizeType,
@@ -18400,7 +18263,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackKQuantGemvBodyQ3K(
 // main term is a 20933-line body that thrashes I$ + leaves residual spill => unrolled+S6
 // cold ~0.79 (near-miss); the [ROLL] schedule (runtime l-loop, measured-beneficial for
 // q3_K) collapses it to a 3021-line body => rolled+S6 cold ~1.40 WIN. [ROLL] is the
-// orthogonal schedule axis (resolveRepackMainTermRolled), per-format measured (q6_K
+// orthogonal schedule axis (RVVRepackScheduleFormula), per-format measured (q6_K
 // prefers unrolled). The q3_K prefill sibling of emitRepackKQuantGemvBodyQ3K: the SAME
 // 3-bit SUBTRACTIVE-hmask signed-weight assembly (-4
 // bias), the SAME 16 SIGNED 6-bit scales (pre-unpacked + -32-biased at repack), and
@@ -18641,7 +18504,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackKQuantGemmBodyQ3K(
     // are INDEPENDENT -- every out[y,x] is a private K-accumulation -- so either
     // nesting order yields BYTE-IDENTICAL results and an identical hot inner core.
     // Which loop is OUTER is a SCHEDULE axis the caller resolves from the front-door
-    // weft_rvv.loop_order stamp into `colGroupOuter` (row-group-OUTER == the
+    // loop_order stamp into `colGroupOuter` (row-group-OUTER == the
     // M1-committed sibling default; col-group-OUTER holds the DRAM-dominant repacked
     // weight panel resident across the row sweep). PURE REALIZE of the SAME loop
     // interchange proven byte-exact for the q4_K min-fold GEMM.
@@ -19609,7 +19472,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackTernaryGemmBodyTQ20(
     // are INDEPENDENT -- every out[y,x] is a private K-accumulation -- so either
     // nesting order yields BYTE-IDENTICAL results and an identical hot inner core.
     // Which loop is OUTER is a SCHEDULE axis the caller resolves from the front-door
-    // weft_rvv.loop_order stamp into `colGroupOuter` (row-group-OUTER == the
+    // loop_order stamp into `colGroupOuter` (row-group-OUTER == the
     // M1-committed sibling default; col-group-OUTER holds the DRAM-dominant repacked
     // weight panel resident across the row sweep). PURE REALIZE of the SAME loop
     // interchange proven byte-exact for the q4_K min-fold GEMM.
@@ -20515,7 +20378,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackTernaryGemmBodyTQ10(
     // are INDEPENDENT -- every out[y,x] is a private K-accumulation -- so either
     // nesting order yields BYTE-IDENTICAL results and an identical hot inner core.
     // Which loop is OUTER is a SCHEDULE axis the caller resolves from the front-door
-    // weft_rvv.loop_order stamp into `colGroupOuter` (row-group-OUTER == the
+    // loop_order stamp into `colGroupOuter` (row-group-OUTER == the
     // M1-committed sibling default; col-group-OUTER holds the DRAM-dominant repacked
     // weight panel resident across the row sweep). PURE REALIZE of the SAME loop
     // interchange proven byte-exact for the q4_K min-fold GEMM.
@@ -21248,7 +21111,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackCodebookGemmBodyIq4Nl(
     // are INDEPENDENT -- every out[y,x] is a private K-accumulation -- so either
     // nesting order yields BYTE-IDENTICAL results and an identical hot inner core.
     // Which loop is OUTER is a SCHEDULE axis the caller resolves from the front-door
-    // weft_rvv.loop_order stamp into `colGroupOuter` (row-group-OUTER == the
+    // loop_order stamp into `colGroupOuter` (row-group-OUTER == the
     // M1-committed sibling default; col-group-OUTER holds the DRAM-dominant repacked
     // weight panel resident across the row sweep). PURE REALIZE of the SAME loop
     // interchange proven byte-exact for the q4_K min-fold GEMM.
@@ -22153,7 +22016,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackCodebookGemmBodyMxfp4(
     // are INDEPENDENT -- every out[y,x] is a private K-accumulation -- so either
     // nesting order yields BYTE-IDENTICAL results and an identical hot inner core.
     // Which loop is OUTER is a SCHEDULE axis the caller resolves from the front-door
-    // weft_rvv.loop_order stamp into `colGroupOuter` (row-group-OUTER == the
+    // loop_order stamp into `colGroupOuter` (row-group-OUTER == the
     // M1-committed sibling default; col-group-OUTER holds the DRAM-dominant repacked
     // weight panel resident across the row sweep). PURE REALIZE of the SAME loop
     // interchange proven byte-exact for the q4_K min-fold GEMM.
@@ -23077,7 +22940,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackCodebookGemmBodyIq4Xs(
     // are INDEPENDENT -- every out[y,x] is a private K-accumulation -- so either
     // nesting order yields BYTE-IDENTICAL results and an identical hot inner core.
     // Which loop is OUTER is a SCHEDULE axis the caller resolves from the front-door
-    // weft_rvv.loop_order stamp into `colGroupOuter` (row-group-OUTER == the
+    // loop_order stamp into `colGroupOuter` (row-group-OUTER == the
     // M1-committed sibling default; col-group-OUTER holds the DRAM-dominant repacked
     // weight panel resident across the row sweep). PURE REALIZE of the SAME loop
     // interchange proven byte-exact for the q4_K min-fold GEMM.
@@ -24029,7 +23892,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGridGemmBodyIq2Xxs(
     // are INDEPENDENT -- every out[y,x] is a private K-accumulation -- so either
     // nesting order yields BYTE-IDENTICAL results and an identical hot inner core.
     // Which loop is OUTER is a SCHEDULE axis the caller resolves from the front-door
-    // weft_rvv.loop_order stamp into `colGroupOuter` (row-group-OUTER == the
+    // loop_order stamp into `colGroupOuter` (row-group-OUTER == the
     // M1-committed sibling default; col-group-OUTER holds the DRAM-dominant repacked
     // weight panel resident across the row sweep). PURE REALIZE of the SAME loop
     // interchange proven byte-exact for the q4_K min-fold GEMM.
@@ -25201,7 +25064,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemmGridDualEntryQ8K(
     // are INDEPENDENT -- every out[y,x] is a private K-accumulation -- so either
     // nesting order yields BYTE-IDENTICAL results and an identical hot inner core.
     // Which loop is OUTER is a SCHEDULE axis the caller resolves from the front-door
-    // weft_rvv.loop_order stamp into `colGroupOuter` (row-group-OUTER == the
+    // loop_order stamp into `colGroupOuter` (row-group-OUTER == the
     // M1-committed sibling default; col-group-OUTER holds the DRAM-dominant repacked
     // weight panel resident across the row sweep). PURE REALIZE of the SAME loop
     // interchange proven byte-exact for the q4_K min-fold GEMM.
@@ -26277,7 +26140,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitRepackGemmIq2DualScaleQ8K(
     // are INDEPENDENT -- every out[y,x] is a private K-accumulation -- so either
     // nesting order yields BYTE-IDENTICAL results and an identical hot inner core.
     // Which loop is OUTER is a SCHEDULE axis the caller resolves from the front-door
-    // weft_rvv.loop_order stamp into `colGroupOuter` (row-group-OUTER == the
+    // loop_order stamp into `colGroupOuter` (row-group-OUTER == the
     // M1-committed sibling default; col-group-OUTER holds the DRAM-dominant repacked
     // weight panel resident across the row sweep). PURE REALIZE of the SAME loop
     // interchange proven byte-exact for the q4_K min-fold GEMM.

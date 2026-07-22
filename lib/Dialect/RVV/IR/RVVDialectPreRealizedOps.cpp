@@ -2495,8 +2495,9 @@ mlir::LogicalResult TypedWideningDotReducePreRealizedBodyOp::verify() {
              << kSourceLMULAttrName << "', '" << kAccumulatorSEWAttrName
              << "', '" << kAccumulatorLMULAttrName << "', '"
              << kResultSEWAttrName << "', '" << kResultLMULAttrName
-             << "', '" << kDotProductRelationAttrName << "', and '"
-             << kPolicyAttrName << "'; unexpected attribute '"
+             << "', '" << kDotProductRelationAttrName << "', '"
+             << kReductionStructureAttrName << "', and '" << kPolicyAttrName
+             << "'; unexpected attribute '"
              << attr.getName() << "'";
   }
 
@@ -2514,6 +2515,12 @@ mlir::LogicalResult TypedWideningDotReducePreRealizedBodyOp::verify() {
            << "currently supports only op_kind "
               "\"signed_widening_dot_reduce_add\" for the bounded "
               "selected-body widening dot-product reduction hook";
+  if (std::optional<llvm::StringRef> structure = getReductionStructure();
+      structure && *structure != "per_iteration" &&
+      *structure != "deferred_accumulate")
+    return emitOpError()
+           << "requires optional reduction_structure to be \"per_iteration\" "
+              "or \"deferred_accumulate\"";
   if (!isSupportedTypedWideningDotReducePreRealizedMemoryForm(
           getMemoryForm()))
     return emitOpError()
@@ -3347,8 +3354,9 @@ TypedWideningProductReduceDequantizePreRealizedBodyOp::verify() {
              << kProductRelationAttrName << "', '"
              << kProductReductionChainRelationAttrName << "', '"
              << kDequantRelationAttrName << "', '" << kScaleRoleAttrName
-             << "', '" << kDequantStoreBoundaryAttrName << "', and '"
-             << kPolicyAttrName << "'; unexpected attribute '"
+             << "', '" << kDequantStoreBoundaryAttrName << "', '"
+             << kOperandEncodingAttrName << "', and '" << kPolicyAttrName
+             << "'; unexpected attribute '"
              << attr.getName() << "'";
   }
 
@@ -3367,6 +3375,10 @@ TypedWideningProductReduceDequantizePreRealizedBodyOp::verify() {
            << "currently supports only op_kind "
               "\"widening_product_reduce_dequantize_f32\" for the bounded "
               "selected-body product-reduction-dequantization hook";
+  if (getOperandEncoding() != "unpacked_i8" &&
+      getOperandEncoding() != "packed_i4")
+    return emitOpError()
+           << "requires operand_encoding \"unpacked_i8\" or \"packed_i4\"";
   if (!isSupportedTypedWideningProductReduceDequantizePreRealizedMemoryForm(
           getMemoryForm()))
     return emitOpError()
@@ -3536,9 +3548,9 @@ verifyTypedWideningProductReduceDequantClampF32Body(BodyOp body,
              << "', '" << kLowerPredicateKindAttrName << "', '"
              << kUpperPredicateKindAttrName << "', '" << kBoundOrderAttrName
              << "', '" << kSelectLayoutAttrName << "', '"
-             << kDequantStoreBoundaryAttrName << "', and '" << kPolicyAttrName
-             << "', plus RVV provider-owned low-precision resource and "
-                "Gearbox scope facts; unexpected attribute '"
+             << kDequantStoreBoundaryAttrName << "', '"
+             << kOperandEncodingAttrName << "', and '" << kPolicyAttrName
+             << "'; unexpected attribute '"
              << attr.getName() << "'";
   }
 
@@ -3558,6 +3570,10 @@ verifyTypedWideningProductReduceDequantClampF32Body(BodyOp body,
            << "currently supports only op_kind "
               "\"widening_product_reduce_dequant_clamp_f32\" for the "
               "bounded selected-body product-reduction-dequant-clamp hook";
+  if (body.getOperandEncoding() != "unpacked_i8" &&
+      body.getOperandEncoding() != "packed_i4")
+    return body.emitOpError()
+           << "requires operand_encoding \"unpacked_i8\" or \"packed_i4\"";
   if (!isSupportedTypedWideningProductReduceDequantClampF32PreRealizedMemoryForm(
           body.getMemoryForm()))
     return body.emitOpError()

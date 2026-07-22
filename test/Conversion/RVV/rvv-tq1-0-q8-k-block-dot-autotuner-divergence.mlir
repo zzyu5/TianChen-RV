@@ -1,32 +1,18 @@
-// The tq1_0 FUSED vec_dot leaf VLEN-UNIVERSALITY (deployed at the P1 flip): the
-// COMPILER SELECTS the ggml TQ1_0 x Q8_K integer-DOT anchor (the base-3 unpack is
-// fixed), and the deployed leaf is the P1-proven owned FUSED structure -- a SINGLE
+// The tq1_0 fused vec_dot leaf has one real VLEN-universal body -- a SINGLE
 // i16m4 accumulator (vmul_vv init / vmacc chain, NO aux8 scratch) reduced by ONE
-// vwredsum. That leaf is VLEN-UNIVERSAL: it emits the SAME core at VLEN128 AND
-// VLEN256 (byte-identical), so ONE table entry covers both boards -- C3'
-// "change VLEN, don't change the entry".
-//
-// The unified schedule autotuner (the SAME walk-all pass that auto-discovers every
-// TunableScheduleOpInterface op, NO per-tq1_0 pass) STILL stamps a per-VLEN
-// integer_core_lmul m2->m1 selection onto the CONSTRUCTED
-// weft_rvv.tq1_0_q8_k_ternary_core brick (the gearbox mechanism + kernel key "tq1_0"
-// are unchanged). But the FUSED leaf does NOT consume that stamp: unlike the retired
-// aux8 + widening-dot form (whose dot narrowed i16m4->i16m2 WITH the anchor), the
-// fused single-accumulator core is fixed m2/m4 at ANY VLEN >= 128 (the fixed vl=32
-// reduce bounds it). So the stamp is now VESTIGIAL for tq1_0, and the emit does NOT
-// diverge by VLEN -- the honest SUPERSEDE of the old per-VLEN gearbox divergence by a
-// VLEN-universal owned leaf (byte-exact on rvv AND k1).
+// vwredsum. It emits the SAME core at VLEN128 and VLEN256. The former
+// integer_core_lmul/minimum_vlen fields were emitter-inert, so they are removed
+// instead of being retained as a fake formula axis.
 
-// First, the DECISION-LEVEL fact: the unified autotuner STILL stamps DIFFERENT
-// anchors onto the SAME attr-less ternary-core brick purely by the VLEN capability
-// fact (the gearbox walk is unchanged) -- even though the fused leaf no longer
-// consumes it.
-// RUN: weft-opt %s --weft-rvv-materialize-schedule=march=rv64gcv | FileCheck %s --check-prefix=STAMP-VLEN128
-// RUN: weft-opt %s --weft-rvv-materialize-schedule=march=rv64gcv_zvl256b | FileCheck %s --check-prefix=STAMP-VLEN256
+// The schedule formula walk is a structural no-op for this non-tunable body at
+// either capability, and must not invent final schedule fields.
+// RUN: weft-opt %s --weft-rvv-materialize-schedule=march=rv64gcv > %t.plan128.mlir
+// RUN: weft-opt %s --weft-rvv-materialize-schedule=march=rv64gcv_zvl256b > %t.plan256.mlir
+// RUN: diff %t.plan128.mlir %t.plan256.mlir
+// RUN: FileCheck %s --check-prefix=NO-FAKE --implicit-check-not=integer_core_lmul --implicit-check-not=minimum_vlen < %t.plan128.mlir
 //
 // Then the EMISSION-LEVEL VLEN-UNIVERSAL proof: the emit is BYTE-IDENTICAL at VLEN128
-// and VLEN256 (the fused single-accumulator core does NOT consume the per-VLEN
-// stamp). ONE entry, both boards -- NOT the retired byte-different m2/m1 dot.
+// and VLEN256.
 // RUN: weft-opt %s --weft-rvv-materialize-schedule=march=rv64gcv --weft-rvv-lower-to-emitc > %t.vlen128.mlir
 // RUN: weft-opt %s --weft-rvv-materialize-schedule=march=rv64gcv_zvl256b --weft-rvv-lower-to-emitc > %t.vlen256.mlir
 // RUN: diff %t.vlen128.mlir %t.vlen256.mlir
@@ -52,21 +38,7 @@ module {
   }
 }
 
-// ============= STAMPED ANCHOR (the autotuner decision, UNCHANGED) ============
-// rv64gcv (VLEN128): the autotuner still SELECTS m2 (the ONLY anchor whose e8 VLMAX
-// 32 spans a 32-lane strip at VLEN128) + the SEMANTIC minimum_vlen = 128 and stamps
-// the CONSTRUCTED brick. The FUSED leaf does NOT consume this stamp (VLEN-universal).
-// STAMP-VLEN128: weft_rvv.tq1_0_q8_k_ternary_core
-// STAMP-VLEN128-SAME: integer_core_lmul = "m2"
-// STAMP-VLEN128-SAME: minimum_vlen = 128 : i64
-// STAMP-VLEN128-SAME: weft_rvv.tq1_0_schedule.has_zvl128b = true
-// STAMP-VLEN128-SAME: weft_rvv.tq1_0_schedule.producer = "rvv-tq1-0-autotuner"
-//
-// rv64gcv_zvl256b (VLEN256): the SAME brick still stamps m1 (the gearbox tie-break
-// is unchanged) + minimum_vlen = 256 -- also NOT consumed by the fused leaf.
-// STAMP-VLEN256: weft_rvv.tq1_0_q8_k_ternary_core
-// STAMP-VLEN256-SAME: integer_core_lmul = "m1"
-// STAMP-VLEN256-SAME: minimum_vlen = 256 : i64
+// NO-FAKE: weft_rvv.tq1_0_q8_k_ternary_core
 
 // ================= VLEN-UNIVERSAL FUSED LEAF (identical both VLEN) ===========
 // The deployed fused leaf: a SINGLE i16m4 accumulator (vmul_vv_i16m4 INIT +

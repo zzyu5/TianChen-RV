@@ -17,12 +17,19 @@
 
 #include <algorithm>
 #include <string>
+#include <utility>
 
 namespace weft::plugin {
 namespace {
 
 constexpr llvm::StringLiteral kToyPluginName("toy-plugin");
 constexpr llvm::StringLiteral kToyPluginVersion("0.1.0");
+constexpr llvm::StringLiteral kToyConstructionFormulaID(
+    "weft.toy.template.construct");
+constexpr llvm::StringLiteral kToyCostFormulaID(
+    "weft.toy.template.analytic-prior");
+constexpr llvm::StringLiteral kToySourceFrontDoorArgument(
+    "weft-toy-materialize-template-source-front-door");
 constexpr llvm::StringLiteral kToyTemplateCapabilityID("toy.template");
 constexpr llvm::StringLiteral kToyTemplateCapabilityKind(
     "extension-template");
@@ -248,6 +255,7 @@ buildToyTemplateProposal(const VariantProposalRequest &request) {
     return capabilityView.takeError();
 
   VariantProposal proposal(kToyTemplateFirstSliceVariantName, kToyPluginName);
+  proposal.setFormulaID(kToyConstructionFormulaID);
   proposal.addRequiredCapabilityID(kToyTemplateCapabilityID);
   proposal.setCondition(kToyTemplateCondition);
   proposal.setGuard(kToyTemplateGuard);
@@ -429,6 +437,43 @@ llvm::Error ToyExtensionPlugin::verifyExecutableConstructionConformance()
   return toy::verifyToyConstructionProtocolReady();
 }
 
+void ToyExtensionPlugin::collectFormulaDescriptors(
+    llvm::SmallVectorImpl<FormulaDescriptor> &out) const {
+  FormulaDescriptor construction(
+      kToyConstructionFormulaID, kToyPluginName, "operator/toy-template",
+      FormulaResultKind::CandidateSet,
+      FormulaConstructionStrength::ConstructedWeak);
+  construction.getGeometryAxis().set(FormulaAxisUse::Decisive,
+                                     "ToyTemplateOperationFacts");
+  construction.getGeometryAxis().addConsumedField("source-role-sequence");
+  construction.getCapabilityAxis().set(FormulaAxisUse::Decisive,
+                                       "ToyTemplateCapabilityView");
+  construction.getCapabilityAxis().addConsumedField("template-abi");
+  construction.getCapabilityAxis().addConsumedField("handoff-kind");
+  construction.getStaticContextAxis().set(FormulaAxisUse::HonestNull,
+                                          "ToyNoStaticContext");
+  construction.addSemanticCase("template-capability-applicable");
+  construction.addSemanticCase("template-capability-decline");
+  construction.addProductionEntry("plugin:variant-proposal");
+  construction.addProductionEntry(kToySourceFrontDoorArgument);
+  out.push_back(std::move(construction));
+
+  FormulaDescriptor cost(
+      kToyCostFormulaID, kToyPluginName, "operator/toy-template",
+      FormulaResultKind::AnalyticPrior,
+      FormulaConstructionStrength::ConstructedWeak);
+  cost.getGeometryAxis().set(FormulaAxisUse::Decisive,
+                            "ToySelectedVariantFacts");
+  cost.getGeometryAxis().addConsumedField("role-sequence");
+  cost.getCapabilityAxis().set(FormulaAxisUse::HonestNull,
+                              "ToyCostNoCapabilityProjection");
+  cost.getStaticContextAxis().set(FormulaAxisUse::HonestNull,
+                                 "ToyCostNoStaticContext");
+  cost.addSemanticCase("toy-template-prior");
+  cost.addProductionEntry("plugin:analytic-cost");
+  out.push_back(std::move(cost));
+}
+
 bool ToyExtensionPlugin::supportsOperation(
     const VariantProposalRequest &request) const {
   return request.getHighLevelOp() && hasAvailableToyTemplateCapability(request);
@@ -473,9 +518,10 @@ llvm::Error ToyExtensionPlugin::registerSourceFrontDoorPasses(
     llvm::SmallVectorImpl<SourceFrontDoorPassRegistration> &out) const {
   (void)registry;
   out.push_back(SourceFrontDoorPassRegistration(
-      getName(), "weft-toy-materialize-template-source-front-door",
+      getName(), kToySourceFrontDoorArgument,
       "Materialize one bounded Toy construction-template source marker into "
       "the Toy selected compute_skeleton front door",
+      kToyConstructionFormulaID,
       [] { return createMaterializeToyTemplateSourceFrontDoorPass(); },
       SourceFrontDoorPassRegistration::DefaultArtifactFrontDoorPolicy::
           Eligible));
@@ -503,6 +549,7 @@ llvm::Error ToyExtensionPlugin::estimateVariantCost(
   out.setScore(50.0);
   out.setExplicitPreference(true);
   out.setOriginPlugin(kToyPluginName);
+  out.setFormulaID(kToyCostFormulaID);
   out.setVariantSymbol(request.getVariant().getSymName());
   out.setExplanation(
       "Toy extension template first slice; route materializes an EmitC module "

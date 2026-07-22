@@ -56,6 +56,7 @@ module {
 // CONSTRUCT-SAME: activation_quant_byte_offset = 4
 // CONSTRUCT-SAME: fold_model = "kquant_dmin_bsums_min"
 // CONSTRUCT-SAME: half_lanes = 8
+// CONSTRUCT-SAME: main_term_form = "unrolled"
 // CONSTRUCT-SAME: n_subblocks = 16
 // CONSTRUCT-SAME: scale_model = "superblock-d.dmin-fp16-plus-bsums-min-16-subblocks-2bit"
 // CONSTRUCT-SAME: weft_rvv.contraction_algorithm = "repack"

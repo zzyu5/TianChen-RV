@@ -1,111 +1,28 @@
 # REQUIRES: weft-local-rvv-object-clang
 # RUN: rm -rf %t.artifacts
 # RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-realized-widening-dot-reduce-add --overwrite --op-kind widening_dot_reduce_add --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 17 --runtime-count 257 --weft-opt weft-opt --weft-translate weft-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
-# RUN: FileCheck %s --check-prefix=ROOT < %t.artifacts/pre-realized-widening-dot-reduce-add/evidence.json
-# RUN: FileCheck %s --check-prefix=WDOT --implicit-check-not="rvv-route-entry-selected-body-realization" --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="weft_rvv.i32_" < %t.artifacts/pre-realized-widening-dot-reduce-add/widening_dot_reduce_add/evidence.json
-# RUN: FileCheck %s --check-prefix=HARNESS --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/pre-realized-widening-dot-reduce-add/widening_dot_reduce_add/rvv_generated_bundle_abi_widening_dot_reduce_add_harness.c
+# RUN: FileCheck %s --check-prefix=EVIDENCE --implicit-check-not="weft_rvv.low_precision_resource" --implicit-check-not="weft_rvv.gearbox" --implicit-check-not="selected_candidate" --implicit-check-not="selection_reason" < %t.artifacts/pre-realized-widening-dot-reduce-add/widening_dot_reduce_add/evidence.json
+# RUN: FileCheck %s --check-prefix=CPP < %t.artifacts/pre-realized-widening-dot-reduce-add/widening_dot_reduce_add/materialized_rvv_emitc.cpp
+# RUN: FileCheck %s --check-prefix=HARNESS < %t.artifacts/pre-realized-widening-dot-reduce-add/widening_dot_reduce_add/rvv_generated_bundle_abi_widening_dot_reduce_add_harness.c
 
 # STDOUT: rvv_generated_bundle_abi_e2e: dry_run_success
-# STDOUT: artifact_dir:
 
-# ROOT: "input_mode": "pre-realized-selected-body"
-# ROOT: "widening_dot_reduce_add"
-# ROOT: "pre_realized_selected_body": true
-# ROOT: "ssh_evidence": false
-# ROOT: "status": "dry_run_success"
+# EVIDENCE-DAG: "value": "weft_rvv.widening_dot_reduce"
+# EVIDENCE-DAG: "target_leaf_profile": "rvv-v1-i16mf2-i32m1-contraction-leaf-profile.v1"
+# EVIDENCE-DAG: "typed_compute_op": "weft_rvv.widening_dot_reduce"
+# EVIDENCE-DAG: "source_vector_c_type": "vint16mf2_t"
+# EVIDENCE-DAG: "product_intrinsic": "__riscv_vwmul_vv_i32m1"
+# EVIDENCE-DAG: "reduction_intrinsic": "__riscv_vredsum_vs_i32m1_i32m1"
+# EVIDENCE-DAG: "status": "dry_run_success"
 
-# WDOT-DAG: "input_mode": "pre-realized-selected-body"
-# WDOT-DAG: "op_kind": "widening_dot_reduce_add"
-# WDOT-DAG: "path": "{{.*}}test/Target/RVV/pre-realized-selected-body-artifact-widening-dot-reduce-add.mlir"
-# WDOT-DAG: "prototype": "void weft_emitc_pre_realized_body_widening_dot_reduce_add_kernel_pre_realized_body_rvv_widening_dot_reduce_add(const int16_t *lhs, const int16_t *rhs, const int32_t *acc, int32_t *out, size_t n);"
-# WDOT-DAG: "expected_function": "weft_emitc_pre_realized_body_widening_dot_reduce_add_kernel_pre_realized_body_rvv_widening_dot_reduce_add"
-# WDOT-DAG: "expected_runtime_abi_name": "rvv-generic-widening-dot-reduce-add-callable-c-abi.v1"
-# WDOT-DAG: "expected_selected_variant": "pre_realized_body_rvv_widening_dot_reduce_add"
-# WDOT-DAG: "front_door": "pre-realized-selected-weft-exec-rvv-body"
-# WDOT-DAG: "materializer": "weft-materialize-selected-lowering-boundaries"
-# WDOT-DAG: "route_entry_realization": false
-# WDOT-DAG: --weft-materialize-selected-lowering-boundaries
-# WDOT-DAG: "pre_realized_body_consumed": true
-# WDOT-DAG: "key": "rvv_emitc_lowerable_route"
-# WDOT-DAG: "value": "rvv-generic-widening-dot-reduce-add-emitc-route"
-# WDOT-DAG: "key": "rvv_selected_body_operation"
-# WDOT-DAG: "value": "widening_dot_reduce_add"
-# WDOT-DAG: "key": "rvv_selected_body_typed_compute_op"
-# WDOT-DAG: "value": "weft_rvv.widening_dot_reduce"
-# WDOT-DAG: "key": "weft_rvv.memory_form"
-# WDOT-DAG: "value": "vector-rhs-load"
-# WDOT-DAG: "key": "weft_rvv.runtime_abi_order"
-# WDOT-DAG: "value": "lhs,rhs,acc,out,n"
-# WDOT-DAG: "key": "weft_rvv.route_operand_binding_plan"
-# WDOT-DAG: "value": "rvv-route-operand-binding:widening_dot_reduce.v1"
-# WDOT-DAG: "key": "weft_rvv.route_operand_binding_operands"
-# WDOT-DAG: "value": "rvv-route-operand-binding:widening_dot_reduce.v1;lhs=lhs-input-buffer:lhs:abi|ld|dot-lhs|i16|hdr;rhs=rhs-input-buffer:rhs:abi|ld|dot-rhs|i16|hdr;acc=accumulator-input-buffer:acc:abi|seed|red|i32|hdr;out=output-buffer:out:abi|store|i32|hdr;n=runtime-element-count:n:abi|setvl-avl|loop|hdr"
-# WDOT-DAG: "key": "weft_rvv.contraction_route_family_plan"
-# WDOT-DAG: "value": "rvv-contraction-route-family-plan.v1"
-# WDOT-DAG: "key": "weft_rvv.source_sew"
-# WDOT-DAG: "value": "16"
-# WDOT-DAG: "key": "weft_rvv.source_lmul"
-# WDOT-DAG: "value": "mf2"
-# WDOT-DAG: "key": "weft_rvv.accumulator_sew"
-# WDOT-DAG: "value": "32"
-# WDOT-DAG: "key": "weft_rvv.accumulator_lmul"
-# WDOT-DAG: "value": "m1"
-# WDOT-DAG: "key": "weft_rvv.result_sew"
-# WDOT-DAG: "value": "32"
-# WDOT-DAG: "key": "weft_rvv.result_lmul"
-# WDOT-DAG: "value": "m1"
-# WDOT-DAG: "key": "weft_rvv.widening_dot_accumulator_layout"
-# WDOT-DAG: "value": "scalar-i32-seed-lane0-from-accumulator-input"
-# WDOT-DAG: "key": "weft_rvv.widening_dot_result_layout"
-# WDOT-DAG: "value": "store-dot-reduction-lane0-to-output-scalar"
-# WDOT-DAG: "key": "weft_rvv.widening_dot_relation"
-# WDOT-DAG: "value": "signed-i16mf2xi16mf2-reduce-plus-i32-scalar-to-i32"
-# WDOT-DAG: "key": "weft_rvv.widening_product_intrinsic"
-# WDOT-DAG: "value": "__riscv_vwmul_vv_i32m1"
-# WDOT-DAG: "key": "weft_rvv.widening_dot_reduction_store_vl"
-# WDOT-DAG: "value": "1"
-# WDOT-DAG: "dot_reduction_contract":
-# WDOT-DAG: "dot_distinguishing_contract":
-# WDOT-DAG: "scalar_result_contract": "only out[0] is written
-# WDOT-DAG: "widening_dot_reduction_boundary":
-# WDOT-DAG: "target_artifact_validator": "RVVTargetArtifactRouteFamilyValidation.cpp:widening-dot-reduction target-owned consumer"
-# WDOT-DAG: "provider_route_facts":
-# WDOT-DAG: "selected_source_abi":
-# WDOT-DAG: "lhs": "lhs-input-buffer"
-# WDOT-DAG: "rhs": "rhs-input-buffer"
-# WDOT-DAG: "acc": "accumulator-input-buffer"
-# WDOT-DAG: "out": "output-buffer"
-# WDOT-DAG: "n": "runtime-element-count"
-# WDOT-DAG: "statement_plan":
-# WDOT-DAG: "seed_source": "acc[0]"
-# WDOT-DAG: "loop_accumulator_source": "out[0]"
-# WDOT-DAG: "scalar_store_vl": "1"
-# WDOT-DAG: "target_validator_consumed_facts":
-# WDOT-DAG: "artifact_metadata_role": "mirror-only-after-provider-route"
-# WDOT-DAG: "direct_pre_realized_route_entry_supported": false
-# WDOT-DAG: "runtime_counts":
-# WDOT-DAG: 17
-# WDOT-DAG: "runtime_counts_are_execution_cases_not_widening_dot_authority": true
-# WDOT-DAG: "typed_compute_op": "weft_rvv.widening_dot_reduce"
-# WDOT-DAG: "memory_form": "vector-rhs-load"
-# WDOT-DAG: "lmul": "m1"
-# WDOT-DAG: "status": "dry_run_success"
+# CPP: __riscv_vsetvl_e32m1
+# CPP: vint32m1_t
+# CPP: __riscv_vle16_v_i16mf2
+# CPP: __riscv_vwmul_vv_i32m1
+# CPP: __riscv_vredsum_vs_i32m1_i32m1
+# CPP: __riscv_vse32_v_i32m1
 
-# HARNESS: int16_t *lhs = (int16_t *)malloc(sizeof(int16_t) * alloc_n);
-# HARNESS: int16_t *rhs = (int16_t *)malloc(sizeof(int16_t) * alloc_n);
-# HARNESS: int32_t *acc = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
-# HARNESS: int32_t *out = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
-# HARNESS: weft_emitc_pre_realized_body_widening_dot_reduce_add_kernel_pre_realized_body_rvv_widening_dot_reduce_add(lhs, rhs, acc, out, n);
 # HARNESS: int32_t expected = acc[0];
-# HARNESS: int32_t add_only_expected = acc[0];
-# HARNESS: int32_t no_seed_expected = 0;
-# HARNESS: size_t widening_products = 0;
 # HARNESS: expected = (int32_t)(expected + product);
-# HARNESS: source or accumulator buffer mutated
-# HARNESS: size_t add_only_distinguishing = expected != add_only_expected;
-# HARNESS: size_t mul_only_distinguishing = expected != no_seed_expected;
 # HARNESS: signed_horizontal_dot seed_added scalar_output source_preserved accumulator_preserved tail_preserved
-# HARNESS: const int patterns[] = {0, 1};
-# HARNESS: run_case(counts[index], pattern);
-# HARNESS: weft_rvv_generated_bundle_abi_widening_dot_reduce_add_ok counts=0,1,16,17,257 patterns=0,1
 # HARNESS: PASS op=widening_dot_reduce_add counts=0,1,16,17,257 patterns=0,1

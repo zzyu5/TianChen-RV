@@ -1,17 +1,8 @@
-// RUN: weft-opt %s --weft-rvv-lower-to-emitc | FileCheck %s
+// RUN: not weft-opt %s --weft-rvv-lower-to-emitc 2>&1 | FileCheck %s --check-prefix=REJECT
 
-// I5 no-read guard (Stage 3 single-scope packed-i4 flip, risk #2): the realization
-// re-homes the gearbox resource facts onto the lone weft_rvv.with_vl as
-// REPORTING-only metadata. This fixture stamps ADVERSARIAL / contradictory values
-// on every such mirror attr (operand_form claims unpacked-byte, unpack_intent
-// claims none-direct, realized_unroll_factor=99, low_precision_resource.* set to
-// garbage) and asserts the RVV->emitc conversion STILL emits the identical correct
-// packed-i4 nibble-unpack widening-product chain. The conversion derives compute
-// from the TYPED OPS only (weft_rvv.packed_i4_nibble_unpack_product carries the
-// nibble-unpack structure; the fixed vsll/vsra/vwmul/vsra/vwmacc chain is its
-// lowering) -- it reads ZERO resource-mirror strings (RVVToEmitC.cpp:2564). If any
-// conversion read pulled compute from these strings, the adversarial values would
-// corrupt the emission and this test would diverge.
+// Retired low-precision resource mirrors are no longer accepted as public IR.
+// Compute comes from the typed packed-i4 operation and the formula-owned plan;
+// allowing contradictory mirror strings would recreate a second authority.
 
 module {
   weft.exec.kernel @i5_no_read_kernel {
@@ -39,23 +30,4 @@ module {
   }
 }
 
-// The conversion derives the nibble-unpack compute from the TYPED OP, NOT the
-// adversarial with_vl resource-mirror strings: the i4 sign-extend/unpack chain is
-// emitted correctly regardless.
-// CHECK-LABEL: emitc.func @weft_emitc_i5_no_read_kernel_i5_no_read
-// CHECK: %[[ACC:.*]] = "emitc.variable"() <{value = #emitc.opaque<"">}> : () -> !emitc.lvalue<!emitc.opaque<"vint32m1_t">>
-// CHECK: call_opaque "__riscv_vmv_v_x_i32m1"
-// The fixed signed-i4 nibble-unpack widening-product intrinsic chain, unperturbed by
-// the adversarial operand_form="unpacked-byte-elements" / unpack_intent="none" attrs.
-// CHECK: call_opaque "__riscv_vsll_vx_i8mf4"
-// CHECK: call_opaque "__riscv_vsll_vx_i8mf4"
-// CHECK: call_opaque "__riscv_vwmul_vv_i16mf2"
-// CHECK: call_opaque "__riscv_vsra_vx_i16mf2"
-// CHECK: call_opaque "__riscv_vsra_vx_i8mf4"
-// CHECK: call_opaque "__riscv_vsra_vx_i8mf4"
-// CHECK: call_opaque "__riscv_vwmacc_vv_i16mf2"
-// CHECK: call_opaque "__riscv_vwredsum_vs_i16mf2_i32m1"
-// Single runtime-VL chunk loop despite realized_unroll_factor=99 / region_count=7:
-// the loop is driven by the structural unroll_factor op-attr + the typed slices, not
-// the adversarial realized_* mirrors. NO unroll: exactly one widening reduce.
-// CHECK-NOT: call_opaque "__riscv_vwredsum_vs_i16mf2_i32m1"
+// REJECT: unexpected attribute '{{.*}}weft_rvv.low_precision_resource.operand_form{{.*}}'

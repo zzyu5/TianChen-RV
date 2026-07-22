@@ -1,174 +1,101 @@
-//===- RVVContractionPathSelection.cpp ------------------------------------===//
-//
-// The option-2 stage-B IN-COMPILER contraction-PATH SELECTION authority (the
-// pure free function selectContractionAlgorithm). It is the in-compiler encoding
-// of the measured repack-vs-block-dot win/loss matrix, collapsed to three
-// per-quant CAPABILITY FACTS so the selection is a branch-free 3-fact AND of
-// facts the abstract op + the derived target capability supply -- never a
-// string-match on op kind, ABI string, or family name (I3/N2).
-//
-// This file changes ZERO runtime behavior on its own; it is consumed by the
-// RVVLowerQuantContraction pass, which stamps the returned algorithm + reason as
-// inert audit attrs on the lowered op (the emitted C is byte-identical on every
-// path -- stage B is SELECTION-correctness in-compiler, not an e2e algorithm
-// switch; the weight MATERIALIZATION that moves e2e is stage C).
-//
-//===----------------------------------------------------------------------===//
-
 #include "Weft/Plugin/RVV/RVVContractionPathSelection.h"
 
 namespace weft::plugin::rvv {
-
-// ============================================================================
-// GGML OPPONENT ROSTER -- verified cell-by-cell (READ-ONLY) against
-// llama.cpp/ggml/src/ggml-cpu/arch/riscv/{quants.c,repack.cpp} (checkout of
-// 2026-06-15). This is the HONEST opponent identity the win/loss facts below
-// encode; it feeds the Win-B certification WORDING (see the tiering note).
-//
-// opponent_class in {hand_tuned_vec_dot, hand_tuned_repack, scalar_fallback,
-// generic}, per (quant, VLEN):
-//
-//   quant | block-dot opponent (vec_dot)          | repack opponent (gemv/gemm)
-//   ------+---------------------------------------+---------------------------
-//   q4_0  | hand_tuned_vec_dot  @128 & @256        | hand_tuned_repack
-//         |   quants.c:222, RVV intrinsics (m1),   |   16x1 gemv/gemm RVV
-//         |   NOT VLEN-specialized (one body)      |   (8x8 -> generic)
-//   q8_0  | hand_tuned_vec_dot  @128 & @256        | hand_tuned_repack
-//         |   quants.c:435, RVV intrinsics (m2),   |   16x1 gemv/gemm RVV
-//         |   NOT VLEN-specialized (one body)      |
-//   q4_K  | hand_tuned_vec_dot  @128 & @256        | hand_tuned_repack
-//         |   PER-VLEN dispatch (quants.c:2064):   |   16x1 gemv/gemm RVV
-//         |   @128 INLINE RVV ASM  (quants.c:1770) |   (gemv:260 gemm:983)
-//         |   @256 VLEN256-tuned   (quants.c:1975) |
-//         |   xtheadvector variant (quants.c:1634) |
-//
-// >>> FACTUAL CORRECTION (supersedes an earlier premise that "q4_K has no riscv
-//     vec_dot / K-quants fall to portable generic, so q4_K@128 == scalar_fallback"):
-//     that is FALSE for this ggml checkout. q4_K@128 is the STRONGEST opponent in
-//     the roster -- literal inline RVV assembly (quants.c:1770) -- NOT a scalar
-//     fallback; K-quants are NOT all-generic here. NO cell in this roster is
-//     scalar_fallback or generic; EVERY cell faces a hand-tuned opponent.
-//
-// WIN WORDING TIERING (pin this when a measured number is reported):
-//   * beating scalar_fallback / generic  => PRODUCT-GAP evidence, NOT Win-B.
-//   * beating hand_tuned_vec_dot / _repack => Win-B CERTIFICATION candidate.
-//   Because every q4_0/q8_0/q4_K cell above is hand-tuned, ANY measured repack-
-//   vs-block-dot win here is a Win-B candidate (never a mere product-gap) and is
-//   correspondingly HARDER to earn than a vs-scalar number.
-// ============================================================================
-
-// The roster above is now the EMPIRICAL JUSTIFICATION for the per-format opponent
-// facts the abstract op CARRIES as structured attrs (the IR declaration layer),
-// NOT a set of C++ switches this selector reads. Facts 1, 2 and 2b arrive in the
-// `facts` parameter (read from the op's opponent_vlen_native_floor /
-// block_dot_compute_heavy / block_dot_memory_bound attrs by
-// RVVLowerQuantContraction); only fact 3 (the pure VLEN/M-regime capability rule)
-// is still computed here.
-//
-// Fact 2 (compute-heavy) and fact 2b (memory-bandwidth-bound) are the two DUAL
-// roofline mechanisms by which the repacked block_<fmt>x16 stream removes redundant
-// work: fact 2 removes COMPUTE (scattered nibble decode -> out-of-block stream,
-// q4_0), fact 2b removes MEMORY TRAFFIC (contiguous 16-column weight stream +
-// activation reuse, q8_0 -- the widest linear quant, lean compute but bandwidth-
-// bound). Both are read off the format's block layout + the ggml vec_dot roofline
-// (STRUCTURAL provenance, see opponent-facts.pin.json), never a measured e2e number.
-
 namespace {
 
-// Fact 3: does the VLEN regime (or the prefill M-regime) favor repack? THREE cells:
-//   (a) any Prefill GEMM amortizes the repack weight decode across the M columns -> favor.
-//   (b) VLEN128 decode keeps the two disjoint 8-lane halves repack is tuned for -> favor.
-//       (This is the rvv deployed cell; it is UNCHANGED, so rvv sees ZERO drift.)
-//   (c) VLEN256+ decode is PER-FORMAT MEASURED [G8 六.3]. The old rule declined this cell
-//       BLANKET ("VLEN256 decode always declines"), generalizing a q4_0-only 0.74x LOSS to
-//       every format. The k1 GEVM sweep (ac5ea76f) FALSIFIED that: the VLEN256 decode
-//       repack-GEVM leaf WINS for q5_0/q5_1 (1.190x/1.306x) and LOSES for q4_0/iq4_nl. So
-//       this cell now reads the BOARD-MEASURED per-format fact (populated by
-//       RVVLowerQuantContraction's kRepackVlen256DecodeMeasurements registry) -- the
-//       selector stays BLIND to the format label, consulting only the fact. An UNMEASURED
-//       format (nullopt) DECLINES (conservative == the old blanket behavior for it).
-bool vlenOrPrefillFavorsRepack(std::int64_t minVLEN, MRegime mRegime,
-                               const ContractionOpponentFacts &facts) {
-  if (mRegime == MRegime::Prefill)
-    return true; // (a) prefill amortizes -- unchanged
-  if (minVLEN == 128)
-    return true; // (b) VLEN128 decode -- unchanged (rvv deployed cell, zero drift)
-  if (minVLEN >= 256)
-    // (c) VLEN256+ decode -- per-format BOARD-MEASURED (was blanket decline)
-    return facts.vlen256DecodeRepackBeneficial.value_or(false);
-  return false; // minVLEN < 128 decode: no repack-affording capability -- unchanged
+llvm::StringRef getAnalyticReason(
+    const ContractionAlgorithmFormulaResult &formula) {
+  switch (formula.reason) {
+  case ContractionFormulaReason::RepackPrefillPrior:
+    return formula.benefit == ContractionBenefitMechanism::Memory
+               ? "repack-kept-q8_0-memory-bound-prefill"
+               : "repack-kept-q4_0-prefill";
+  case ContractionFormulaReason::RepackVLEN128Prior:
+    return formula.benefit == ContractionBenefitMechanism::Memory
+               ? "repack-kept-q8_0-memory-bound-vlen128-decode"
+               : "repack-kept-q4_0-vlen128-decode";
+  case ContractionFormulaReason::BlockDotNativeOpponent:
+    return "block-dot-decline-q4_K-vlen-native-exists";
+  case ContractionFormulaReason::BlockDotNoRepackBenefit:
+    return "block-dot-decline-lean-no-repack-benefit";
+  case ContractionFormulaReason::BlockDotNoRepackCapability:
+    return "block-dot-decline-no-repack-capability";
+  case ContractionFormulaReason::BlockDotVLEN256MeasurementPending:
+    return "block-dot-decline-vlen256-decode-unmeasured";
+  }
+  return "block-dot-decline-no-repack-capability";
 }
 
 } // namespace
 
-ContractionSelection
-selectContractionAlgorithm(const ContractionOpponentFacts &facts,
-                           MRegime mRegime, std::int64_t minVLEN) {
-  // Fact 1, evaluated against the DERIVED capability VLEN: a VLEN-native
-  // hand-tuned opponent the repack loses to exists iff the op DECLARES a floor
-  // AND the target meets it. Read from facts -- never switched on a format name.
-  bool ggmlVlenNativeExists =
-      facts.ggmlVlenNativeKernelFloor.has_value() &&
-      minVLEN >= *facts.ggmlVlenNativeKernelFloor;
+ContractionAlgorithmFormulaResult constructContractionAlgorithmFormula(
+    const ContractionOpponentFacts &g,
+    const ContractionCapabilityFacts &c,
+    const ContractionStaticContext &omega) {
+  ContractionAlgorithmFormulaResult formula;
+  formula.mRegime = omega.mRegime;
+  formula.minimumVLEN = c.minimumVLEN;
+  formula.benefit =
+      g.blockDotComputeHeavy
+          ? ContractionBenefitMechanism::Compute
+          : (g.blockDotMemoryBound ? ContractionBenefitMechanism::Memory
+                                   : ContractionBenefitMechanism::None);
 
-  // The repack rewrite removes REDUNDANT WORK when EITHER benefit mechanism holds
-  // (facts 2 and 2b are DUAL roofline mechanisms): the plain block-dot is COMPUTE-
-  // heavy (fact 2 -- repack out-COMPUTES the scattered nibble decode, q4_0) OR it is
-  // MEMORY-BANDWIDTH-bound (fact 2b -- repack's contiguous x16 stream + activation
-  // reuse out-STREAMS the redundant traffic, q8_0). Requiring compute-heaviness
-  // ALONE wrongly declined q8_0: its block-dot is compute-LEAN yet the WIDEST linear
-  // quant (~1 byte/weight) so it is bandwidth-bound, and repack removes MEMORY work
-  // it cannot remove on the compute side.
-  bool repackRemovesRedundantWork =
-      facts.blockDotComputeHeavy || facts.blockDotMemoryBound;
-
-  bool selectRepack = !ggmlVlenNativeExists && repackRemovesRedundantWork &&
-                      vlenOrPrefillFavorsRepack(minVLEN, mRegime, facts);
-
-  if (selectRepack) {
-    // Repack SELECTED. Differentiate the reason by (a) WHICH benefit mechanism
-    // carried it -- compute-heavy out-stream (fact 2) vs memory-bandwidth-bound
-    // locality (fact 2b) -- and (b) prefill (amortized) vs VLEN128 decode vs the new
-    // VLEN256 board-measured-beneficial decode cell, so the audit reflects the carrying
-    // fact. When BOTH facts hold the compute reason wins (nibble decode is the stronger,
-    // historically-first cell). The audit token retains the historical format spelling as
-    // pure PROVENANCE (it names the fact-pattern/cell, it is NOT read from the op's format
-    // label). The VLEN256-decode cell names the MEASURED fact-pattern (format-blind: two
-    // formats, q5_0/q5_1, share it).
-    bool memoryCarried = !facts.blockDotComputeHeavy; // then fact 2b carried it
-    if (mRegime == MRegime::Prefill)
-      return {ContractionAlgorithm::Repack,
-              memoryCarried ? "repack-kept-q8_0-memory-bound-prefill"
-                            : "repack-kept-q4_0-prefill"};
-    // VLEN256+ decode reaches Repack ONLY via the board-measured-beneficial fact (fact
-    // 3-measured); VLEN128 decode via the capability/regime rule. Name the cell.
-    if (minVLEN >= 256)
-      return {ContractionAlgorithm::Repack,
-              "repack-kept-vlen256-decode-measured-beneficial"};
-    return {ContractionAlgorithm::Repack,
-            memoryCarried ? "repack-kept-q8_0-memory-bound-vlen128-decode"
-                          : "repack-kept-q4_0-vlen128-decode"};
+  const bool nativeOpponentExists =
+      g.ggmlVlenNativeKernelFloor &&
+      c.minimumVLEN >= *g.ggmlVlenNativeKernelFloor;
+  if (nativeOpponentExists) {
+    formula.reason = ContractionFormulaReason::BlockDotNativeOpponent;
+    return formula;
+  }
+  if (formula.benefit == ContractionBenefitMechanism::None) {
+    formula.reason = ContractionFormulaReason::BlockDotNoRepackBenefit;
+    return formula;
   }
 
-  // BlockDot (decline) SELECTED. Differentiate the reason by WHICH fact declined
-  // so the audit token is a precise, stable provenance string.
-  if (ggmlVlenNativeExists)
-    return {ContractionAlgorithm::BlockDot,
-            "block-dot-decline-q4_K-vlen-native-exists"};
-  if (!repackRemovesRedundantWork)
-    return {ContractionAlgorithm::BlockDot,
-            "block-dot-decline-lean-no-repack-benefit"};
-  // A benefit fact holds + no native kernel, but fact 3 declined. The VLEN256+ decode
-  // cell is per-format MEASURED: distinguish a board-measured-NEGATIVE format (q4_0 0.74x
-  // / iq4_nl 0.248x) from an UNMEASURED one (both DECLINE, but the token is precise). The
-  // remaining case is the sub-128 decode cell with no repack-affording capability.
-  if (mRegime == MRegime::Decode && minVLEN >= 256)
-    return {ContractionAlgorithm::BlockDot,
-            facts.vlen256DecodeRepackBeneficial.has_value()
-                ? "block-dot-decline-vlen256-decode-measured-negative"
-                : "block-dot-decline-vlen256-decode-unmeasured"};
-  return {ContractionAlgorithm::BlockDot,
-          "block-dot-decline-no-repack-capability"};
+  if (omega.mRegime == MRegime::Prefill) {
+    formula.candidates[0].isLegal = true;
+    formula.analyticPrior = ContractionAlgorithm::Repack;
+    formula.reason = ContractionFormulaReason::RepackPrefillPrior;
+    return formula;
+  }
+  if (c.minimumVLEN == 128) {
+    formula.candidates[0].isLegal = true;
+    formula.analyticPrior = ContractionAlgorithm::Repack;
+    formula.reason = ContractionFormulaReason::RepackVLEN128Prior;
+    return formula;
+  }
+  if (c.minimumVLEN >= 256) {
+    formula.candidates[0].isLegal = true;
+    formula.acceptsQualifiedMeasurement = true;
+    formula.reason =
+        ContractionFormulaReason::BlockDotVLEN256MeasurementPending;
+    return formula;
+  }
+
+  formula.reason = ContractionFormulaReason::BlockDotNoRepackCapability;
+  return formula;
+}
+
+ContractionSelection selectContractionAlgorithm(
+    const ContractionAlgorithmFormulaResult &formula,
+    const ContractionSelectionInput &selectionInput) {
+  if (formula.acceptsQualifiedMeasurement && selectionInput.measurement &&
+      !selectionInput.measurement->key.scaleModel.empty() &&
+      formula.isLegal(selectionInput.measurement->winner)) {
+    ContractionSelection selected;
+    selected.algorithm = selectionInput.measurement->winner;
+    selected.measurementKey = selectionInput.measurement->key;
+    selected.reason =
+        selected.algorithm == ContractionAlgorithm::Repack
+            ? llvm::StringRef(
+                  "repack-kept-vlen256-decode-measured-beneficial")
+            : llvm::StringRef(
+                  "block-dot-decline-vlen256-decode-measured-negative");
+    return selected;
+  }
+
+  return {formula.analyticPrior, getAnalyticReason(formula), std::nullopt};
 }
 
 } // namespace weft::plugin::rvv

@@ -1,10 +1,7 @@
-// N3 Win-C — the reduction-STRUCTURE axis (deferred-accumulate vs per-iteration
-// reduce), ISOLATED from the LMUL/budget (Win-A) axis, all-compiler-emitted.
-//
-// The reduction-structure pass option stamps an orthogonal body fact the
-// realization owner reads BEFORE the budget rung logic. The fixed-LMUL ablation
-// arms hold both bodies at i16mf2 source / i32m1 accumulator, so the ONLY
-// difference between the two emitted bodies is the reduction STRUCTURE:
+// Formula-constructed dot-reduce schedule: reduction structure is a bounded
+// typed direct-authoring constraint, while vreg_count remains capability c.
+// The fixed-LMUL arms hold both bodies at i16mf2 source / i32m1 accumulator, so
+// the only emitted difference is reduction structure:
 //
 //   deferred_accumulate (ON)  : i16mf2 loads, vwmul_vv_i32m1 product, vadd.vv
 //                               i32m1 DEFERRED accumulate into a loop-carried
@@ -15,38 +12,14 @@
 //                               seed. NO deferred vadd, NO trailing standalone
 //                               reduce.
 //
-// Both are m1 (e16mf2 VLMAX == e32m1 VLMAX at any VLEN), so this is a pure
-// STRUCTURE flip -- the make-or-break ablation measured 3.0-3.3x on ssh rvv
-// (VLEN=128). Absent the fact, the realizer keeps its existing budget-driven
-// behavior unchanged (I7 fail-closed); see the autotuner-e2e companion test.
-//
-// (1) OPTION-MECHANISM coverage: the gearbox pass option stamps the body fact on
-// a clean (no pre-stamped budget) body. Budget defaults to 32 here and is
-// irrelevant -- this run only proves option -> body fact.
-// RUN: weft-opt %s --weft-rvv-materialize-gearbox-schedules='reduction-structure=deferred_accumulate' | FileCheck %s --check-prefix=STAMP-DEFERRED
-// RUN: weft-opt %s --weft-rvv-materialize-gearbox-schedules='reduction-structure=per_iteration' | FileCheck %s --check-prefix=STAMP-PERITER
-// RUN: not weft-opt %s --weft-rvv-materialize-gearbox-schedules='reduction-structure=bogus' 2>&1 | FileCheck %s --check-prefix=BADOPT
-//
-// (2) REALIZER-at-fixed-m1 coverage: inject the structure fact directly (mirror
-// the existing budget-injection arms, which skip the gearbox because its stale-
-// fact check pins budget=32). The deferred arm also injects budget 9 (the
-// smallest deferred rung mf2->m1) so its LMUL is m1; per_iteration ignores budget
-// (the structure read short-circuits to the per-iter family realizer first).
-// RUN: sed 's/source_lmul = "mf2"/"weft_rvv.low_precision_resource.vector_register_budget" = 9 : i64, "weft_rvv.low_precision_resource.reduction_structure" = "deferred_accumulate", source_lmul = "mf2"/' %s | weft-opt --weft-materialize-selected-lowering-boundaries | FileCheck %s --check-prefix=DEFERRED
-// RUN: sed 's/source_lmul = "mf2"/"weft_rvv.low_precision_resource.vector_register_budget" = 9 : i64, "weft_rvv.low_precision_resource.reduction_structure" = "deferred_accumulate", source_lmul = "mf2"/' %s | weft-opt --weft-materialize-selected-lowering-boundaries | weft-opt --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=DEFERRED-EMITC
-// RUN: sed 's/source_lmul = "mf2"/"weft_rvv.low_precision_resource.reduction_structure" = "per_iteration", source_lmul = "mf2"/' %s | weft-opt --weft-materialize-selected-lowering-boundaries | FileCheck %s --check-prefix=PERITER
-// RUN: sed 's/source_lmul = "mf2"/"weft_rvv.low_precision_resource.reduction_structure" = "per_iteration", source_lmul = "mf2"/' %s | weft-opt --weft-materialize-selected-lowering-boundaries | weft-opt --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=PERITER-EMITC
-//
-// (3) ORTHOGONALITY: structure OVERRIDES budget. per_iteration at budget 32
-// (which would otherwise pick the WIDE deferred m8 rung) still emits per-iter m1
-// -- proving the structure axis is independent of (beats) the LMUL/budget axis.
-// RUN: sed 's/source_lmul = "mf2"/"weft_rvv.low_precision_resource.vector_register_budget" = 32 : i64, "weft_rvv.low_precision_resource.reduction_structure" = "per_iteration", source_lmul = "mf2"/' %s | weft-opt --weft-materialize-selected-lowering-boundaries | FileCheck %s --check-prefix=PERITER
-// (4) deferred at budget 8 (all rungs pruned) falls to the always-available
-// minimal mf2->m1 deferred rung -- the structure request is honored at m1.
-// RUN: sed 's/source_lmul = "mf2"/"weft_rvv.low_precision_resource.vector_register_budget" = 8 : i64, "weft_rvv.low_precision_resource.reduction_structure" = "deferred_accumulate", source_lmul = "mf2"/' %s | weft-opt --weft-materialize-selected-lowering-boundaries | FileCheck %s --check-prefix=DEFERRED
-// (5) I7: a directly-injected unrecognized structure fact fails closed at the
-// realizer (bounded diagnostic), never silently falling through to budget logic.
-// RUN: sed 's/source_lmul = "mf2"/"weft_rvv.low_precision_resource.reduction_structure" = "bogus", source_lmul = "mf2"/' %s | not weft-opt --weft-materialize-selected-lowering-boundaries 2>&1 | FileCheck %s --check-prefix=BADFACT
+// Both are m1, so this is a pure structure flip. Absent the optional constraint,
+// the analytic prior uses the budget-legal deferred schedule; an invalid typed
+// constraint fails closed at dialect verification.
+// RUN: sed -e '/capability @rvv/s/status = "available"}/status = "available", vreg_count = 9 : i64}/' -e 's/source_lmul = "mf2"/reduction_structure = "deferred_accumulate", source_lmul = "mf2"/' %s | weft-opt --weft-materialize-selected-lowering-boundaries | FileCheck %s --check-prefix=DEFERRED
+// RUN: sed -e '/capability @rvv/s/status = "available"}/status = "available", vreg_count = 9 : i64}/' -e 's/source_lmul = "mf2"/reduction_structure = "deferred_accumulate", source_lmul = "mf2"/' %s | weft-opt --weft-materialize-selected-lowering-boundaries | weft-opt --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=DEFERRED-EMITC
+// RUN: sed 's/source_lmul = "mf2"/reduction_structure = "per_iteration", source_lmul = "mf2"/' %s | weft-opt --weft-materialize-selected-lowering-boundaries | FileCheck %s --check-prefix=PERITER
+// RUN: sed 's/source_lmul = "mf2"/reduction_structure = "per_iteration", source_lmul = "mf2"/' %s | weft-opt --weft-materialize-selected-lowering-boundaries | weft-opt --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=PERITER-EMITC
+// RUN: sed 's/source_lmul = "mf2"/reduction_structure = "bogus", source_lmul = "mf2"/' %s | not weft-opt --weft-materialize-selected-lowering-boundaries 2>&1 | FileCheck %s --check-prefix=BADFACT
 
 module {
   weft.exec.kernel @dot_reduce_winc_kernel {
@@ -68,15 +41,6 @@ module {
     }
   }
 }
-
-// STAMP: the gearbox pass option materializes the orthogonal reduction-structure
-// body fact on the dot-reduce pre-realized body (the same op the budget fact
-// lives on; consumed and erased at realization, never mirrored onto a realized
-// op -- I5).
-// STAMP-DEFERRED: weft_rvv.typed_widening_dot_reduce_pre_realized_body
-// STAMP-DEFERRED-SAME: weft_rvv.low_precision_resource.reduction_structure = "deferred_accumulate"
-// STAMP-PERITER: weft_rvv.typed_widening_dot_reduce_pre_realized_body
-// STAMP-PERITER-SAME: weft_rvv.low_precision_resource.reduction_structure = "per_iteration"
 
 // DEFERRED (ON): the reduction-structure fact forces the deferred-accumulate
 // chain at the budget-9 m1 LMUL -- widening_product + deferred_accumulate + ONE
@@ -118,10 +82,4 @@ module {
 // PERITER-EMITC: call_opaque "__riscv_vredsum_vs_i32m1_i32m1"
 // PERITER-EMITC-NOT: call_opaque "__riscv_vadd_vv_i32m1"
 
-// An unrecognized reduction-structure option value is a bounded pass error (no
-// silent fall-through to a wrong structure).
-// BADOPT: reduction-structure option must be 'deferred_accumulate' or 'per_iteration', got 'bogus'
-
-// A directly-injected unrecognized reduction_structure body fact fails closed at
-// the realizer (I7), never silently falling through to budget-driven emission.
-// BADFACT: cannot consume unrecognized reduction_structure fact 'bogus'
+// BADFACT: requires optional reduction_structure to be "per_iteration" or "deferred_accumulate"

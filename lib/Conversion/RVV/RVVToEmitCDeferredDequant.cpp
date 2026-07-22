@@ -137,9 +137,8 @@ mlir::LogicalResult VariantToEmitCFunc::emitLowPrecisionDequantBody(
                            weftrvv::SelectOp>(op)) {
         epilogueOps.push_back(&op);
       } else {
-        // Any unexpected op (e.g. a leftover vsetvl_region_marker, the gearbox
-        // handoff) means this is not the fully-typed dequant body the routine
-        // owns yet -- fall back to legacy so nothing is mislowered.
+        // Any unexpected op means this is not the fully typed dequant body
+        // owned by this mechanical lowering.
         return rewriter.notifyMatchFailure(
             &op, "unsupported op in low-precision dequant body");
       }
@@ -889,17 +888,16 @@ mlir::LogicalResult VariantToEmitCFunc::emitStandaloneDequantBody(
       return rewriter.notifyMatchFailure(scope,
                                          "standalone dequant scale unmapped");
 
-    // The Gearbox unroll factor (schedule fact carried on the realized scope).
-    // The simple two-slice expansion below reproduces the legacy u<unroll> loop;
-    // require it present and >= 1 so an un-scheduled body falls back.
+    // The formula-constructed unroll factor is the complete schedule carried on
+    // the realized scope. Require it present and positive; conversion never
+    // invents a default or reconstructs a candidate.
     int64_t unroll = 0;
-    if (auto u =
-            scope->getAttrOfType<mlir::IntegerAttr>("weft_rvv.gearbox.unroll"))
+    if (auto u = scope->getAttrOfType<mlir::IntegerAttr>("unroll_factor"))
       unroll = u.getInt();
     if (unroll < 1)
       return rewriter.notifyMatchFailure(
           scope, "standalone dequant body missing positive "
-                 "weft_rvv.gearbox.unroll schedule fact");
+                 "unroll_factor final schedule");
 
     // v6 = v5 * unroll (the unrolled loop step). For unroll == 1 the step is
     // plain vlmax (no literal multiply, matching the un-unrolled single loop).

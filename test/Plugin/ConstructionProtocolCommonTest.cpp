@@ -735,7 +735,6 @@ int runRVVCommonValidationTest() {
     else if (isWideningProductReductionDequantizationRoute)
       executableComputeOp = "weft_rvv.widening_product+"
                             "weft_rvv.standalone_reduce+"
-                            "weft_rvv.gearbox_cross_region_handoff+"
                             "weft_rvv.dequantize";
     else if (isWideningDotReduceRoute || isStridedInputWideningDotReduceRoute)
       executableComputeOp = "weft_rvv.widening_dot_reduce";
@@ -971,8 +970,8 @@ int runRVVCommonValidationTest() {
         : isStandaloneReduceRoute                ? 9u
         : hasWideningMAcc                       ? 12u
         : hasWideningProductReduction           ? 12u
-        : hasWideningProductReductionDequantization ? 16u
-        : hasWideningProductReductionDequantClamp ? 24u
+        : hasWideningProductReductionDequantization ? 14u
+        : hasWideningProductReductionDequantClamp ? 22u
         : hasWideningDotReduce                  ? 11u
         : hasStridedInputWideningDotReduce      ? 13u
         : hasComputedMaskWideningDotReduce       ? 16u

@@ -1,9 +1,0 @@
-# RUN: python3 %S/check-formula-authority-matrix.py --repo-root %S/../.. --matrix %S/../../experiments/active/formula-layer-migration/authority-matrix.v1.json | FileCheck %s --check-prefix=CHECK
-# RUN: python3 %S/check-formula-authority-matrix.py --repo-root %S/../.. --matrix %S/../../experiments/active/formula-layer-migration/authority-matrix.v1.json --self-test | FileCheck %s --check-prefix=SELFTEST
-
-# A1 freezes both the working paths and the named debts at the current HEAD.  The
-# self-test mutates the decision set, a source census count, and a task binding in
-# memory; every mutation must make the validator red before this invocation can pass.
-
-# CHECK: formula authority matrix ok: 8 decisions, all source/test contracts match
-# SELFTEST: formula authority matrix self-test ok

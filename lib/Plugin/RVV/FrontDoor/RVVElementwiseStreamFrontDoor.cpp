@@ -13,6 +13,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "Weft/Plugin/RVV/RVVElementwiseStreamFrontDoor.h"
+#include "Weft/Plugin/RVV/RVVFormulaCatalog.h"
 
 #include "Weft/Dialect/RVV/IR/RVVDialect.h"
 #include "Weft/Dialect/RVV/IR/RVVElementwiseStreamConstruction.h"
@@ -95,12 +96,13 @@ llvm::Error registerRVVElementwiseStreamFrontDoorPasses(
     llvm::StringRef ownerPlugin, const ExtensionPluginRegistry & /*registry*/,
     llvm::SmallVectorImpl<SourceFrontDoorPassRegistration> &out) {
   out.push_back(SourceFrontDoorPassRegistration(
-      ownerPlugin, "weft-rvv-materialize-forward-elementwise-stream-front-door",
+      ownerPlugin, formula_catalog::kElementwiseSourceEntry,
       "Pre-emitc construct the typed streaming forward-elementwise loop-body "
       "region (weft_rvv.typed_elementwise_loop_body { <map/reduce/rotate core "
       "brick>; yield }) in place of the abstract weft_rvv.ggml_forward_elementwise "
       "so the realized region is walkable before --weft-rvv-lower-to-emitc (the "
       "shared byte-exact construction; scale/silu/rms_norm/soft_max/rope)",
+      formula_catalog::kElementwiseConstruction,
       [] { return createMaterializeRVVElementwiseStreamFrontDoorPass(); },
       SourceFrontDoorPassRegistration::DefaultArtifactFrontDoorPolicy::
           ExplicitOnly));

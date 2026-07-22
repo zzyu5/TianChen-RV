@@ -5,8 +5,8 @@
 // dequant-row DECODE plan.
 //
 // A TernaryDecodePlan is the transient C++ compile-period object the RVV plugin's dequant
-// FormulaProvider (ternaryDecodePlanFromFacts, RVVGearboxSchedule.h -- the formula-layer
-// home) produces from the stamped decode_core descriptor facts, and the dequant-row ternary
+// family-local construction formula (`constructTernaryDecodePlan`) produces from the
+// stamped decode_core descriptor facts, and the dequant-row ternary
 // EMITTER (emitDequantizeRowTernaryDecodeBodyShared) reads plan.* INSTEAD of dispatching on
 // the decode_model string. Format names lose ALL dispatch power: the plan's `mechanism` tag
 // routes the ternary family (the dispatch tests plan.mechanism == TernaryDecode, NOT the
@@ -60,8 +60,10 @@
 #include "Weft/Support/NibbleDecodePlan.h" // the shared closed DequantMechanism taxonomy
 
 #include "llvm/ADT/StringRef.h"
+#include "llvm/ADT/StringSwitch.h"
 
 #include <cstdint>
+#include <optional>
 
 namespace weft {
 
@@ -76,6 +78,30 @@ enum class TernaryDecodeLeaf {
   Iq1M,  ///< iq1_m: signed iq1s_grid gather + per-8-group delta, reconstructed packed scale.
   Iq1S,  ///< iq1_s: signed iq1s_grid gather + per-sub-block delta, fp16 d.
 };
+
+inline llvm::StringRef stringifyTernaryDecodeLeaf(TernaryDecodeLeaf leaf) {
+  switch (leaf) {
+  case TernaryDecodeLeaf::Tq1_0:
+    return "tq1-0";
+  case TernaryDecodeLeaf::Tq2_0:
+    return "tq2-0";
+  case TernaryDecodeLeaf::Iq1M:
+    return "iq1-m";
+  case TernaryDecodeLeaf::Iq1S:
+    return "iq1-s";
+  }
+  return "";
+}
+
+inline std::optional<TernaryDecodeLeaf>
+parseTernaryDecodeLeaf(llvm::StringRef value) {
+  return llvm::StringSwitch<std::optional<TernaryDecodeLeaf>>(value)
+      .Case("tq1-0", TernaryDecodeLeaf::Tq1_0)
+      .Case("tq2-0", TernaryDecodeLeaf::Tq2_0)
+      .Case("iq1-m", TernaryDecodeLeaf::Iq1M)
+      .Case("iq1-s", TernaryDecodeLeaf::Iq1S)
+      .Default(std::nullopt);
+}
 
 /// The legality gate (fail-closed, the shared MechanismPlan discipline). Ternary is its own
 /// mechanism and is NOT gated on the grid registry (the [K-10] split point): the four

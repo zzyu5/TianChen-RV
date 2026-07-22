@@ -1154,6 +1154,13 @@ public:
                                                         : other.registry) {}
 
   void runOnOperation() override {
+    if (llvm::Error error = registry->constructFormulaPlans(getOperation())) {
+      getOperation()->emitError()
+          << "formula construction failed before emission planning: "
+          << llvm::toString(std::move(error));
+      signalPassFailure();
+      return;
+    }
     llvm::SmallVector<KernelOp, 4> kernels;
     getOperation()->walk([&](KernelOp kernel) { kernels.push_back(kernel); });
 

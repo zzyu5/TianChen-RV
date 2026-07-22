@@ -5,8 +5,8 @@
 // dequant-row DECODE plan.
 //
 // A GridLookupPlan is the transient C++ compile-period object the RVV plugin's dequant
-// FormulaProvider (gridLookupPlanFromFacts, RVVGearboxSchedule.h -- the formula-layer
-// home) produces from the stamped decode_core descriptor facts, and the dequant-row grid
+// family-local construction formula (`constructGridLookupPlan`) produces from the
+// stamped decode_core descriptor facts, and the dequant-row grid
 // EMITTER (emitDequantizeRowIQGridBodyShared) reads plan.* INSTEAD of dispatching on the
 // decode_model string. Format names lose ALL dispatch power: the plan's `mechanism` tag
 // routes the grid family (the dispatch tests plan.mechanism == GridLookup, NOT the format
@@ -20,11 +20,9 @@
 // BLOCK-DOT emitters (RVVToEmitCBlockQuantLinear.cpp) query DIRECTLY -- it is the closed
 // authority for the legal grid decode_model set. The dequant-row grid path did NOT go
 // through it at all (it dispatched on the decode_model string and read the entry-lane
-// descriptor). This plan SINGLE-HEADS the dequant-row consumer: gridLookupPlanFromFacts
-// consults lookupGridDecodePlan as the fail-closed grid AUTHORITY (an UNREGISTERED grid
-// model yields legality.isLegal == false => the emitter REJECTS, [D-1] preserved and now
-// SHARED between the dequant-row and block-dot heads), then the dequant-row emitter reads
-// plan.* -- it no longer keys on the format string. The registry's OTHER head (the
+// descriptor). This plan single-heads the dequant-row consumer: the typed grid leaf and
+// entry geometry determine legality before emission, then the dequant-row emitter reads
+// plan.* -- it no longer keys on the format string. The registry's other head (the
 // block-dot VERIFIER + repack emitters) still queries lookupGridDecodePlan directly and is
 // left UNTOUCHED (that is the vec_dot/block-dot path, ISSUE-122 deferred). So the fold is
 // COMPLETE for the dequant-row head and the registry stays the single closed-set authority
@@ -67,8 +65,10 @@
 #include "Weft/Support/NibbleDecodePlan.h" // the shared closed DequantMechanism taxonomy
 
 #include "llvm/ADT/StringRef.h"
+#include "llvm/ADT/StringSwitch.h"
 
 #include <cstdint>
+#include <optional>
 
 namespace weft {
 
@@ -85,6 +85,32 @@ enum class GridDecodeLeaf {
   Iq3Xxs, ///< iq3_xxs: grid-of-4 (uint32, 256-entry) + ksigns, single-mul store scale.
   Iq3S,   ///< iq3_s: grid-of-4 (uint32, 512-entry) + EXPLICIT signs256 bytes.
 };
+
+inline llvm::StringRef stringifyGridDecodeLeaf(GridDecodeLeaf leaf) {
+  switch (leaf) {
+  case GridDecodeLeaf::Iq2Xxs:
+    return "iq2-xxs";
+  case GridDecodeLeaf::Iq2Xs:
+    return "iq2-xs";
+  case GridDecodeLeaf::Iq2S:
+    return "iq2-s";
+  case GridDecodeLeaf::Iq3Xxs:
+    return "iq3-xxs";
+  case GridDecodeLeaf::Iq3S:
+    return "iq3-s";
+  }
+  return "";
+}
+
+inline std::optional<GridDecodeLeaf> parseGridDecodeLeaf(llvm::StringRef value) {
+  return llvm::StringSwitch<std::optional<GridDecodeLeaf>>(value)
+      .Case("iq2-xxs", GridDecodeLeaf::Iq2Xxs)
+      .Case("iq2-xs", GridDecodeLeaf::Iq2Xs)
+      .Case("iq2-s", GridDecodeLeaf::Iq2S)
+      .Case("iq3-xxs", GridDecodeLeaf::Iq3Xxs)
+      .Case("iq3-s", GridDecodeLeaf::Iq3S)
+      .Default(std::nullopt);
+}
 
 /// The legality gate (fail-closed, the GridDecodePlan / NibbleDecodePlan /
 /// CodebookGatherPlan / KQuantScaleMinPlan discipline). isLegal is set by the

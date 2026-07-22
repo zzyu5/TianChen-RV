@@ -14,6 +14,7 @@ class Pass;
 namespace weft::plugin {
 class SourceFrontDoorPassRegistration;
 class ExtensionPluginRegistry;
+class FormulaDescriptor;
 } // namespace weft::plugin
 
 namespace weft::plugin::rvv {
@@ -35,6 +36,11 @@ llvm::Error registerRVVVectorSourceFrontDoorFamilyPasses(
     const ::weft::plugin::ExtensionPluginRegistry &registry,
     llvm::SmallVectorImpl<
         ::weft::plugin::SourceFrontDoorPassRegistration> &out);
+
+/// Keep the catalog's production-entry set sourced from the same bounded
+/// family registry that creates the passes; the catalog remains metadata only.
+void addRVVVectorSourceFormulaProductionEntries(
+    ::weft::plugin::FormulaDescriptor &descriptor);
 
 } // namespace weft::plugin::rvv
 

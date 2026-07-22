@@ -28,6 +28,7 @@
 #include <initializer_list>
 #include <optional>
 #include <string>
+#include <utility>
 
 using weft::plugin::ExtensionPlugin;
 using weft::plugin::ExtensionBundleRegistry;
@@ -72,6 +73,29 @@ public:
 
   bool isEnabled() const override { return enabled; }
 
+  void collectFormulaDescriptors(
+      llvm::SmallVectorImpl<weft::plugin::FormulaDescriptor> &out)
+      const override {
+    weft::plugin::FormulaDescriptor descriptor(
+        getFormulaID(), getName(), "test/selection-cost",
+        weft::plugin::FormulaResultKind::AnalyticPrior,
+        weft::plugin::FormulaConstructionStrength::ConstructedWeak);
+    descriptor.getGeometryAxis().set(
+        weft::plugin::FormulaAxisUse::Decisive,
+        "SelectionCostVariantFacts");
+    descriptor.getGeometryAxis().addConsumedField("variant-symbol");
+    descriptor.getCapabilityAxis().set(
+        weft::plugin::FormulaAxisUse::HonestNull,
+        "SelectionCostNoCapabilityProjection");
+    descriptor.getStaticContextAxis().set(
+        weft::plugin::FormulaAxisUse::HonestNull,
+        "SelectionCostNoStaticContext");
+    descriptor.addSemanticCase("ranked");
+    descriptor.addSemanticCase("invalid-test-fixture");
+    descriptor.addProductionEntry("plugin:analytic-cost");
+    out.push_back(std::move(descriptor));
+  }
+
   llvm::Error estimateVariantCost(const VariantCostRequest &request,
                                   VariantCostEstimate &out) const override {
     if (behavior == CostBehavior::Failure)
@@ -80,6 +104,7 @@ public:
 
     out = VariantCostEstimate();
     out.setOriginPlugin(name);
+    out.setFormulaID(getFormulaID());
     out.setVariantSymbol(request.getVariant().getSymName());
     if (behavior == CostBehavior::Valid) {
       out.setScore(score);
@@ -89,6 +114,9 @@ public:
   }
 
 private:
+  std::string getFormulaID() const {
+    return name + ".selection-cost.analytic-prior";
+  }
   std::string name;
   double score;
   bool enabled;

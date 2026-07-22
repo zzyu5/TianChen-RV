@@ -1,13 +1,8 @@
-// RUN: weft-opt %s --weft-rvv-materialize-gearbox-schedules --weft-materialize-emission-plans | FileCheck %s --check-prefix=PLAN
-// RUN: weft-opt %s --weft-rvv-materialize-gearbox-schedules --weft-materialize-emission-plans | weft-translate --weft-export-target-header-artifact | FileCheck %s --check-prefix=HEADER
-// RUN: not weft-opt %s --weft-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=MISSING-GEARBOX
-// RUN: weft-opt %s --weft-rvv-materialize-gearbox-schedules --weft-materialize-emission-plans | sed '0,/weft_rvv.dequantization_relation", value = "signed-i32m1-to-f32m1-scale-f32"/s//weft_rvv.dequantization_relation", value = "script-derived-dequant"/' | not weft-translate --weft-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-RELATION
-// RUN: weft-opt %s --weft-rvv-materialize-gearbox-schedules --weft-materialize-emission-plans | sed '0,/weft_rvv.dequant_scale_role", value = "dequant-scale-value"/s//weft_rvv.dequant_scale_role", value = "output-buffer"/' | not weft-translate --weft-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-SCALE
-// RUN: weft-opt %s --weft-rvv-materialize-gearbox-schedules --weft-materialize-emission-plans | sed '0,/weft_rvv.dest_lmul", value = "m1"/s//weft_rvv.dest_lmul", value = "m2"/' | not weft-translate --weft-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-DEST-LMUL
-// RUN: weft-opt %s --weft-rvv-materialize-gearbox-schedules | sed '0,/weft_rvv.gearbox.candidate_set = "rvv-gearbox-candidate-set.v1\[rvv-gearbox-dequantize-i32-to-f32-e32-m1-u1.v1,rvv-gearbox-dequantize-i32-to-f32-e32-m1-u2.v1\]"/s//weft_rvv.gearbox.candidate_set = "rvv-gearbox-candidate-set.v1[artifact-name-derived-gear]"/' | not weft-opt --weft-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=BAD-GEARBOX-CANDIDATE-SET
-// RUN: weft-opt %s --weft-rvv-materialize-gearbox-schedules | sed '0,/weft_rvv.gearbox.unroll = 2 : i64/s//weft_rvv.gearbox.unroll = 3 : i64/' | not weft-opt --weft-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=UNSUPPORTED-GEARBOX-UNROLL
-// RUN: weft-opt %s --weft-rvv-materialize-gearbox-schedules --weft-materialize-emission-plans | sed '0,/weft_rvv.gearbox.selected_candidate", value = "rvv-gearbox-dequantize-i32-to-f32-e32-m1-u2.v1"/s//weft_rvv.gearbox.selected_candidate", value = "artifact-name-derived-gear"/' | not weft-translate --weft-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-GEARBOX-SELECTED
-// RUN: weft-opt %s --weft-rvv-materialize-gearbox-schedules --weft-materialize-emission-plans | sed '0,/weft_rvv.gearbox.schedule_id", value = "rvv-gearbox-dequantize-i32-to-f32-e32-m1-u2.v1"/s//weft_rvv.gearbox.schedule_id", value = "artifact-name-derived-gear"/' | not weft-translate --weft-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-GEARBOX
+// RUN: weft-opt %s --weft-materialize-emission-plans | FileCheck %s --check-prefix=PLAN
+// RUN: weft-opt %s --weft-materialize-emission-plans | weft-translate --weft-export-target-header-artifact | FileCheck %s --check-prefix=HEADER
+// RUN: weft-opt %s --weft-materialize-emission-plans | sed '0,/weft_rvv.dequantization_relation", value = "signed-i32m1-to-f32m1-scale-f32"/s//weft_rvv.dequantization_relation", value = "script-derived-dequant"/' | not weft-translate --weft-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-RELATION
+// RUN: weft-opt %s --weft-materialize-emission-plans | sed '0,/weft_rvv.dequant_scale_role", value = "dequant-scale-value"/s//weft_rvv.dequant_scale_role", value = "output-buffer"/' | not weft-translate --weft-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-SCALE
+// RUN: weft-opt %s --weft-materialize-emission-plans | sed '0,/weft_rvv.dest_lmul", value = "m1"/s//weft_rvv.dest_lmul", value = "m2"/' | not weft-translate --weft-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-DEST-LMUL
 
 // Hand-authored explicit selected-body input for one bounded Stage 2
 // i32-to-f32 runtime-scale dequantization slice. The typed weft_rvv body and
@@ -69,21 +64,6 @@ module {
 // PLAN-SAME: {key = "weft_rvv.dequant_scale_role", value = "dequant-scale-value"}
 // PLAN-SAME: {key = "weft_rvv.dequant_scale_c_type", value = "float"}
 // PLAN-SAME: {key = "weft_rvv.dequant_scale_name", value = "scale"}
-// PLAN-SAME: {key = "weft_rvv.gearbox.candidate_set", value = "rvv-gearbox-candidate-set.v1[rvv-gearbox-dequantize-i32-to-f32-e32-m1-u1.v1,rvv-gearbox-dequantize-i32-to-f32-e32-m1-u2.v1]"}
-// PLAN-SAME: {key = "weft_rvv.gearbox.selected_candidate", value = "rvv-gearbox-dequantize-i32-to-f32-e32-m1-u2.v1"}
-// PLAN-SAME: {key = "weft_rvv.gearbox.selection_reason", value = "select-bounded-u2-two-slice-route-plan-for-typed-dequantize-i32-to-f32-e32-m1-runtime-avl"}
-// PLAN-SAME: {key = "weft_rvv.gearbox.legality_scope", value = "typed-dequantize-i32-to-f32-sew32-lmul-m1-runtime-avl"}
-// PLAN-SAME: {key = "weft_rvv.gearbox.schedule_id", value = "rvv-gearbox-dequantize-i32-to-f32-e32-m1-u2.v1"}
-// PLAN-SAME: {key = "weft_rvv.gearbox.selector", value = "static-dequantize-i32-to-f32-e32-m1-u2"}
-// PLAN-SAME: {key = "weft_rvv.gearbox.source", value = "rvv-gearbox-static-pass.v1"}
-// PLAN-SAME: {key = "weft_rvv.gearbox.operation", value = "dequantize_i32_to_f32"}
-// PLAN-SAME: {key = "weft_rvv.gearbox.unroll", value = "2"}
-// PLAN-SAME: {key = "weft_rvv.gearbox.vl_policy", value = "runtime-avl-two-slice-setvl"}
-// PLAN-SAME: {key = "weft_rvv.gearbox.source_sew", value = "32"}
-// PLAN-SAME: {key = "weft_rvv.gearbox.source_lmul", value = "m1"}
-// PLAN-SAME: {key = "weft_rvv.gearbox.dest_sew", value = "32"}
-// PLAN-SAME: {key = "weft_rvv.gearbox.dest_lmul", value = "m1"}
-// PLAN-SAME: {key = "weft_rvv.gearbox.runtime_avl_source", value = "runtime_abi:n"}
 // PLAN-SAME: emission_kind = "materialized-emitc-cpp-rvv-intrinsic-object"
 // PLAN-SAME: lowering_boundary = "weft_rvv.with_vl"
 // PLAN-SAME: origin = "rvv-plugin"
@@ -108,21 +88,6 @@ module {
 // HEADER: weft.rvv.dequant_scale_role: dequant-scale-value
 // HEADER: weft.rvv.dequant_scale_c_type: float
 // HEADER: weft.rvv.dequant_scale_name: scale
-// HEADER: weft.rvv.gearbox_candidate_set: rvv-gearbox-candidate-set.v1[rvv-gearbox-dequantize-i32-to-f32-e32-m1-u1.v1,rvv-gearbox-dequantize-i32-to-f32-e32-m1-u2.v1]
-// HEADER: weft.rvv.gearbox_selected_candidate: rvv-gearbox-dequantize-i32-to-f32-e32-m1-u2.v1
-// HEADER: weft.rvv.gearbox_selection_reason: select-bounded-u2-two-slice-route-plan-for-typed-dequantize-i32-to-f32-e32-m1-runtime-avl
-// HEADER: weft.rvv.gearbox_legality_scope: typed-dequantize-i32-to-f32-sew32-lmul-m1-runtime-avl
-// HEADER: weft.rvv.gearbox_schedule_id: rvv-gearbox-dequantize-i32-to-f32-e32-m1-u2.v1
-// HEADER: weft.rvv.gearbox_selector: static-dequantize-i32-to-f32-e32-m1-u2
-// HEADER: weft.rvv.gearbox_source: rvv-gearbox-static-pass.v1
-// HEADER: weft.rvv.gearbox_operation: dequantize_i32_to_f32
-// HEADER: weft.rvv.gearbox_unroll: 2
-// HEADER: weft.rvv.gearbox_vl_policy: runtime-avl-two-slice-setvl
-// HEADER: weft.rvv.gearbox_source_sew: 32
-// HEADER: weft.rvv.gearbox_source_lmul: m1
-// HEADER: weft.rvv.gearbox_dest_sew: 32
-// HEADER: weft.rvv.gearbox_dest_lmul: m1
-// HEADER: weft.rvv.gearbox_runtime_avl_source: runtime_abi:n
 // HEADER: weft.rvv.target_leaf_profile: rvv-v1-i32m1-f32m1-runtime-scale-dequantization-leaf-profile.v1
 // HEADER: weft.rvv.runtime_control_plan: rvv-runtime-avl-vl-control-plan.v1
 // HEADER: weft.rvv.provider_supported_mirror: provider_supported_mirror:rvv-dequantize-i32-to-f32-runtime-scale-plan-validated
@@ -132,13 +97,11 @@ module {
 // HEADER: weft.rvv.c_type_mapping: vl:size_t,source:signed-e32m1,converted/scaled:float-e32m1,scale:float
 // HEADER: void weft_emitc_explicit_selected_body_dequantize_i32_to_f32_kernel_explicit_selected_body_rvv_dequantize_i32_to_f32(const int32_t *lhs, float scale, float *out, size_t n);
 
-// MISSING-GEARBOX: requires pass-produced RVV Gearbox candidate-selection fact 'weft_rvv.gearbox.candidate_set'
 // MISSING-GEARBOX-SAME: before provider route construction
 
 // BAD-GEARBOX-CANDIDATE-SET: selected RVV Gearbox candidate
 // BAD-GEARBOX-CANDIDATE-SET-SAME: belong to pass-produced legal candidate set
 
-// UNSUPPORTED-GEARBOX-UNROLL: requires RVV Gearbox schedule fact 'weft_rvv.gearbox.unroll'
 // UNSUPPORTED-GEARBOX-UNROLL-SAME: provider-derived '2' but found '3'
 
 // STALE-RELATION: metadata key '{{.*}}dequantization_relation'{{.*}}'signed-i32m1-to-f32m1-scale-f32' but was 'script-derived-dequant'

@@ -21,6 +21,17 @@ target_link_libraries(weft-plugin-registry-test
   MLIRSupport
 )
 
+add_executable(weft-formula-catalog-test
+  Plugin/FormulaCatalogTest.cpp
+)
+
+target_link_libraries(weft-formula-catalog-test
+  PRIVATE
+  WeftBuiltinPlugins
+  WeftPlugin
+  MLIRSupport
+)
+
 add_executable(weft-plugin-variant-proposal-test
   Plugin/PluginVariantProposalTest.cpp
 )
@@ -351,6 +362,7 @@ add_lit_testsuite(check-weft "Running Weft-RV lit tests"
   weft-load-time-resolution-test
   weft-construction-protocol-common-test
   weft-plugin-emission-plan-test
+  weft-formula-catalog-test
   weft-plugin-variant-cost-test
   weft-plugin-registry-test
   weft-plugin-variant-legality-test

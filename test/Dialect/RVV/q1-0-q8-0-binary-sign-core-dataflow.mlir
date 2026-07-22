@@ -11,9 +11,9 @@
 // base (vx), the q8_0 activation base (vy), the runtime element
 // count (n), and the active vl token, and carries the super-block-format structural
 // facts (qk, the strides, the per-super-block q8-block span, the two quant byte
-// offsets) as typed attrs (I4 mirror). The verifier is fail-closed (I7) on a wrong
-// kind / scale model / super-block-format fact / out-of-set anchor / an anchor whose
-// i8 VLMAX does not span the 32-element sub-block at the minimum_vlen / operand C type.
+// offsets) as typed attrs (I4 mirror). The verifier is fail-closed on structural
+// vocabulary and tuple atomicity. Capability-dependent candidate legality belongs
+// to the schedule formula runner and is tested at that boundary.
 
 // CHECK-LABEL: weft.exec.kernel @q1_0_q8_0_binary_sign_core_accepts_ggml_abi
 module {
@@ -157,7 +157,7 @@ module {
       %vl = weft_rvv.setvl %n {lmul = "m1", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !weft_rvv.vl
       weft_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @rvv, sew = 32 : i64, source_kernel = "q1_0_q8_0_binary_sign_core_rejects_out_of_set_anchor", status = "selected-lowering-boundary"} {
         // expected-error @+1 {{only accepts integer_core_lmul "m1" or "m2"}}
-        %sumi = weft_rvv.q1_0_q8_0_binary_sign_core %vx, %vy, %n, %vl {kind = "ggml_q1_0_q8_0_binary_sign_core", scale_model = "binary-sign-per-bit", qk = 128 : i64, weight_block_stride = 18 : i64, activation_block_stride = 34 : i64, activation_blocks_per_weight = 4 : i64, weight_quant_byte_offset = 2 : i64, activation_quant_byte_offset = 2 : i64, integer_core_lmul = "mf4"} : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index, !weft_rvv.vl -> i32
+        %sumi = weft_rvv.q1_0_q8_0_binary_sign_core %vx, %vy, %n, %vl {kind = "ggml_q1_0_q8_0_binary_sign_core", scale_model = "binary-sign-per-bit", qk = 128 : i64, weight_block_stride = 18 : i64, activation_block_stride = 34 : i64, activation_blocks_per_weight = 4 : i64, weight_quant_byte_offset = 2 : i64, activation_quant_byte_offset = 2 : i64, integer_core_lmul = "mf4", minimum_vlen = 128 : i64} : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index, !weft_rvv.vl -> i32
       } : !weft_rvv.vl
     }
   }
@@ -165,20 +165,19 @@ module {
 
 // -----
 
-// Reject the m1 anchor at minimum_vlen 128 (the SILENT-WRONG VLEN guard, I7): e8m1's
-// VLMAX is 16 at VLEN128, so a single vsetvl_e8m1(32) cover would process only 16 of
-// the 32 sub-block lanes and DROP the rest. The verifier recomputes this from the
-// SAME getRVVStripVLMAXElements formula the gearbox selects with, so m1 is admitted
-// ONLY at minimum_vlen >= 256.
+// The dialect verifier checks only the closed tuple shape. Capability legality is
+// owned by the schedule formula runner, not replayed here.
+// CHECK-LABEL: weft.exec.kernel @q1_0_q8_0_binary_sign_core_structurally_accepts_complete_m1_vlen128
 module {
-  weft.exec.kernel @q1_0_q8_0_binary_sign_core_rejects_m1_at_vlen128 {
+  weft.exec.kernel @q1_0_q8_0_binary_sign_core_structurally_accepts_complete_m1_vlen128 {
     weft.exec.variant @rvv attributes {origin = "rvv-plugin", requires = []} {
       %n = weft_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "n", role = "runtime-element-count"} : index
       %vx = weft_rvv.runtime_abi_value {c_name = "vx", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "q1-weight", role = "lhs-input-buffer"} : !weft_rvv.runtime_abi_value
       %vy = weft_rvv.runtime_abi_value {c_name = "vy", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "q8-act", role = "rhs-input-buffer"} : !weft_rvv.runtime_abi_value
       %vl = weft_rvv.setvl %n {lmul = "m1", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !weft_rvv.vl
-      weft_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @rvv, sew = 32 : i64, source_kernel = "q1_0_q8_0_binary_sign_core_rejects_m1_at_vlen128", status = "selected-lowering-boundary"} {
-        // expected-error @+1 {{requires an integer_core_lmul whose i8 strip VLMAX spans the 32-element q8 sub-block at the guaranteed minimum_vlen (128)}}
+      weft_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @rvv, sew = 32 : i64, source_kernel = "q1_0_q8_0_binary_sign_core_structurally_accepts_complete_m1_vlen128", status = "selected-lowering-boundary"} {
+        // CHECK: integer_core_lmul = "m1"
+        // CHECK-SAME: minimum_vlen = 128
         %sumi = weft_rvv.q1_0_q8_0_binary_sign_core %vx, %vy, %n, %vl {kind = "ggml_q1_0_q8_0_binary_sign_core", scale_model = "binary-sign-per-bit", qk = 128 : i64, weight_block_stride = 18 : i64, activation_block_stride = 34 : i64, activation_blocks_per_weight = 4 : i64, weight_quant_byte_offset = 2 : i64, activation_quant_byte_offset = 2 : i64, integer_core_lmul = "m1", minimum_vlen = 128 : i64} : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index, !weft_rvv.vl -> i32
       } : !weft_rvv.vl
     }

@@ -65,8 +65,7 @@ module {
 // STAMP-VLEN128: weft_rvv.tq2_0_q8_k_ternary_core
 // STAMP-VLEN128-SAME: integer_core_lmul = "m2"
 // STAMP-VLEN128-SAME: minimum_vlen = 128 : i64
-// STAMP-VLEN128-SAME: weft_rvv.tq2_0_schedule.has_zvl128b = true
-// STAMP-VLEN128-SAME: weft_rvv.tq2_0_schedule.producer = "rvv-tq2-0-autotuner"
+// STAMP-VLEN128-NOT: weft_rvv.tq2_0_schedule.
 //
 // rv64gcv_zvl256b (VLEN256): the SAME brick FLIPS to m1 -- at VLEN256 m1's e8 VLMAX
 // reaches 32, so it spans the plane in ONE vsetvl, TIES m2 on the capability-blind

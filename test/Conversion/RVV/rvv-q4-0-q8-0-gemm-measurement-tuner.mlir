@@ -57,26 +57,23 @@ module {
 }
 
 // =================== (1) MEASURED (record present, M legal) ==================
-// The compiler stamped the MEASURED-fastest M (=6), overturning the static
-// default (=4), with measured-fastest provenance + the recorded ns.
+// The formula constructed the measured winner M (=6), overturning the static
+// prior (=4). Only the final field crosses into IR.
 // MEASURED: weft_rvv.q4_0_q8_0_gemm
 // MEASURED-SAME: activation_cols = 6 : i64
-// MEASURED-SAME: weft_rvv.q4_0_gemm_schedule.measured_ns = 1.243800e+03
-// MEASURED-SAME: weft_rvv.q4_0_gemm_schedule.selection_reason = "measured-fastest
+// MEASURED-NOT: weft_rvv.q4_0_gemm_schedule.
 
 // =================== (2) FALLBACK (no record -> static default) ==============
 // With no record the SAME op gets the STATIC default M (=4, the safe
-// cache-friendly tile), with NO measured_ns.
+// cache-friendly tile), again carrying only the final field.
 // FALLBACK: weft_rvv.q4_0_q8_0_gemm
 // FALLBACK-SAME: activation_cols = 4 : i64
-// FALLBACK-SAME: weft_rvv.q4_0_gemm_schedule.selection_reason = "static default
-// FALLBACK-NOT: weft_rvv.q4_0_gemm_schedule.measured_ns
+// FALLBACK-NOT: weft_rvv.q4_0_gemm_schedule.
 
 // =================== (3) STALE -> FAIL-CLOSED (static default) ===============
 // The stale record named M=16 (outside the legal band), so the pass revalidated,
 // found it illegal, and fell back to the static default M (=4) -- it never
-// stamped the stale illegal M.
+// constructs the stale illegal M.
 // STALE: weft_rvv.q4_0_q8_0_gemm
 // STALE-SAME: activation_cols = 4 : i64
-// STALE-SAME: weft_rvv.q4_0_gemm_schedule.selection_reason = "static default
-// STALE-NOT: weft_rvv.q4_0_gemm_schedule.measured_ns
+// STALE-NOT: weft_rvv.q4_0_gemm_schedule.

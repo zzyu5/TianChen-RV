@@ -15,11 +15,16 @@
 
 #include <algorithm>
 #include <string>
+#include <utility>
 
 namespace weft::plugin {
 namespace {
 
 constexpr llvm::StringLiteral kTemplatePluginName("template-plugin");
+constexpr llvm::StringLiteral kTemplateConstructionFormulaID(
+    "weft.template.role-sequence.construct");
+constexpr llvm::StringLiteral kTemplateCostFormulaID(
+    "weft.template.role-sequence.analytic-prior");
 constexpr llvm::StringLiteral kTemplatePluginVersion("0.1.0");
 constexpr llvm::StringLiteral kTemplateExtensionCapabilityID(
     "template.extension");
@@ -237,6 +242,7 @@ buildTemplateExtensionProposal(const VariantProposalRequest &request) {
   const template_ext::TemplateConstructionManifest &manifest =
       template_ext::getTemplateConstructionManifest();
   VariantProposal proposal(kTemplateExtensionFirstSliceVariantName, kTemplatePluginName);
+  proposal.setFormulaID(kTemplateConstructionFormulaID);
   proposal.addRequiredCapabilityID(kTemplateExtensionCapabilityID);
   proposal.setCondition(kTemplateExtensionCondition);
   proposal.setGuard(kTemplateExtensionGuard);
@@ -421,6 +427,42 @@ TemplateExtensionPlugin::verifyExecutableConstructionConformance() const {
   return template_ext::verifyTemplateConstructionProtocolReady();
 }
 
+void TemplateExtensionPlugin::collectFormulaDescriptors(
+    llvm::SmallVectorImpl<FormulaDescriptor> &out) const {
+  FormulaDescriptor construction(
+      kTemplateConstructionFormulaID, kTemplatePluginName,
+      "operator/extension-template", FormulaResultKind::CandidateSet,
+      FormulaConstructionStrength::ConstructedWeak);
+  construction.getGeometryAxis().set(FormulaAxisUse::Decisive,
+                                     "TemplateOperationFacts");
+  construction.getGeometryAxis().addConsumedField("source-op-interface");
+  construction.getCapabilityAxis().set(FormulaAxisUse::Decisive,
+                                       "TemplateCapabilityView");
+  construction.getCapabilityAxis().addConsumedField("integration-contract");
+  construction.getCapabilityAxis().addConsumedField("handoff-kind");
+  construction.getStaticContextAxis().set(FormulaAxisUse::HonestNull,
+                                          "TemplateNoStaticContext");
+  construction.addSemanticCase("capability-applicable-role-sequence");
+  construction.addSemanticCase("capability-decline");
+  construction.addProductionEntry("plugin:variant-proposal");
+  out.push_back(std::move(construction));
+
+  FormulaDescriptor cost(
+      kTemplateCostFormulaID, kTemplatePluginName,
+      "operator/extension-template", FormulaResultKind::AnalyticPrior,
+      FormulaConstructionStrength::ConstructedWeak);
+  cost.getGeometryAxis().set(FormulaAxisUse::Decisive,
+                            "TemplateSelectedVariantFacts");
+  cost.getGeometryAxis().addConsumedField("role-sequence");
+  cost.getCapabilityAxis().set(FormulaAxisUse::HonestNull,
+                              "TemplateCostNoCapabilityProjection");
+  cost.getStaticContextAxis().set(FormulaAxisUse::HonestNull,
+                                 "TemplateCostNoStaticContext");
+  cost.addSemanticCase("template-integration-prior");
+  cost.addProductionEntry("plugin:analytic-cost");
+  out.push_back(std::move(cost));
+}
+
 bool TemplateExtensionPlugin::supportsOperation(
     const VariantProposalRequest &request) const {
   return request.getHighLevelOp() && hasAvailableTemplateExtensionCapability(request);
@@ -481,6 +523,7 @@ llvm::Error TemplateExtensionPlugin::estimateVariantCost(
   out.setScore(50.0);
   out.setExplicitPreference(true);
   out.setOriginPlugin(kTemplatePluginName);
+  out.setFormulaID(kTemplateCostFormulaID);
   out.setVariantSymbol(request.getVariant().getSymName());
   out.setExplanation(
       "Template extension construction-template first slice; route "

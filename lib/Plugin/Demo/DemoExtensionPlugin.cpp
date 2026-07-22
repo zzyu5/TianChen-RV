@@ -15,11 +15,16 @@
 
 #include <algorithm>
 #include <string>
+#include <utility>
 
 namespace weft::plugin {
 namespace {
 
 constexpr llvm::StringLiteral kDemoPluginName("demo-plugin");
+constexpr llvm::StringLiteral kDemoConstructionFormulaID(
+    "weft.demo.role-sequence.construct");
+constexpr llvm::StringLiteral kDemoCostFormulaID(
+    "weft.demo.role-sequence.analytic-prior");
 constexpr llvm::StringLiteral kDemoPluginVersion("0.1.0");
 constexpr llvm::StringLiteral kDemoExtensionCapabilityID(
     "demo.extension");
@@ -237,6 +242,7 @@ buildDemoExtensionProposal(const VariantProposalRequest &request) {
   const demo_ext::DemoConstructionManifest &manifest =
       demo_ext::getDemoConstructionManifest();
   VariantProposal proposal(kDemoExtensionFirstSliceVariantName, kDemoPluginName);
+  proposal.setFormulaID(kDemoConstructionFormulaID);
   proposal.addRequiredCapabilityID(kDemoExtensionCapabilityID);
   proposal.setCondition(kDemoExtensionCondition);
   proposal.setGuard(kDemoExtensionGuard);
@@ -421,6 +427,42 @@ DemoExtensionPlugin::verifyExecutableConstructionConformance() const {
   return demo_ext::verifyDemoConstructionProtocolReady();
 }
 
+void DemoExtensionPlugin::collectFormulaDescriptors(
+    llvm::SmallVectorImpl<FormulaDescriptor> &out) const {
+  FormulaDescriptor construction(
+      kDemoConstructionFormulaID, kDemoPluginName, "operator/demo-extension",
+      FormulaResultKind::CandidateSet,
+      FormulaConstructionStrength::ConstructedWeak);
+  construction.getGeometryAxis().set(FormulaAxisUse::Decisive,
+                                     "DemoOperationFacts");
+  construction.getGeometryAxis().addConsumedField("source-op-interface");
+  construction.getCapabilityAxis().set(FormulaAxisUse::Decisive,
+                                       "DemoCapabilityView");
+  construction.getCapabilityAxis().addConsumedField("integration-contract");
+  construction.getCapabilityAxis().addConsumedField("handoff-kind");
+  construction.getStaticContextAxis().set(FormulaAxisUse::HonestNull,
+                                          "DemoNoStaticContext");
+  construction.addSemanticCase("capability-applicable-role-sequence");
+  construction.addSemanticCase("capability-decline");
+  construction.addProductionEntry("plugin:variant-proposal");
+  out.push_back(std::move(construction));
+
+  FormulaDescriptor cost(
+      kDemoCostFormulaID, kDemoPluginName, "operator/demo-extension",
+      FormulaResultKind::AnalyticPrior,
+      FormulaConstructionStrength::ConstructedWeak);
+  cost.getGeometryAxis().set(FormulaAxisUse::Decisive,
+                            "DemoSelectedVariantFacts");
+  cost.getGeometryAxis().addConsumedField("role-sequence");
+  cost.getCapabilityAxis().set(FormulaAxisUse::HonestNull,
+                              "DemoCostNoCapabilityProjection");
+  cost.getStaticContextAxis().set(FormulaAxisUse::HonestNull,
+                                 "DemoCostNoStaticContext");
+  cost.addSemanticCase("demo-integration-prior");
+  cost.addProductionEntry("plugin:analytic-cost");
+  out.push_back(std::move(cost));
+}
+
 bool DemoExtensionPlugin::supportsOperation(
     const VariantProposalRequest &request) const {
   return request.getHighLevelOp() && hasAvailableDemoExtensionCapability(request);
@@ -481,6 +523,7 @@ llvm::Error DemoExtensionPlugin::estimateVariantCost(
   out.setScore(50.0);
   out.setExplicitPreference(true);
   out.setOriginPlugin(kDemoPluginName);
+  out.setFormulaID(kDemoCostFormulaID);
   out.setVariantSymbol(request.getVariant().getSymName());
   out.setExplanation(
       "Demo extension construction-demo first slice; route "

@@ -15,8 +15,8 @@
 // hardcoded `== "m1"` literal: at the byte-exact VLEN128 a narrow mf2 anchor's gather
 // VLMAX is 8 < 16, so it is rejected fail-closed WITH THE VLMAX REASON (NARROWANCHOR);
 // the m1 anchor (VLMAX 16) verifies clean and round-trips the attr (WIDEANCHOR).
-// RUN: sed 's/-8, -12>}/-8, -12>, integer_core_lmul = "mf2"}/' %s | not weft-opt 2>&1 | FileCheck %s --check-prefix=NARROWANCHOR
-// RUN: sed 's/-8, -12>}/-8, -12>, integer_core_lmul = "m1"}/' %s | weft-opt | FileCheck %s --check-prefix=WIDEANCHOR
+// RUN: sed 's/integer_core_lmul = "m1"/integer_core_lmul = "mf2"/' %s | not weft-opt 2>&1 | FileCheck %s --check-prefix=NARROWANCHOR
+// RUN: weft-opt %s | FileCheck %s --check-prefix=WIDEANCHOR
 
 // nvfp4 (NVIDIA's FP4, the SECOND FP4-CODEBOOK sibling) constructed FLAT-loop emit
 // (the flip lowering + the emitter-inlined per-super-block codebook body). nvfp4 is a
@@ -68,7 +68,7 @@ module {
           // SCALAR i32 result (UNUSED -- the fold is per-sub-block float, no single
           // scalar state). The `block %block_index` operand makes the weight base
           // per-super-block (vx + ib*36) and the q8 block-pair base (2*ib).
-          %partial = weft_rvv.nvfp4_q8_0_codebook_core %vx, %vy, %n, %vl block %block_index : index {kind = "ggml_nvfp4_q8_0_codebook_core", scale_model = "ue4m3-half-per-sub-block", qk = 64 : i64, qk_sub = 16 : i64, weight_block_stride = 36 : i64, activation_block_stride = 34 : i64, weight_quant_byte_offset = 4 : i64, activation_quant_byte_offset = 2 : i64, activation_high_byte_offset = 8 : i64, codebook = array<i8: 0, 1, 2, 3, 4, 6, 8, 12, 0, -1, -2, -3, -4, -6, -8, -12>} : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index, !weft_rvv.vl -> i32
+          %partial = weft_rvv.nvfp4_q8_0_codebook_core %vx, %vy, %n, %vl block %block_index : index {kind = "ggml_nvfp4_q8_0_codebook_core", scale_model = "ue4m3-half-per-sub-block", qk = 64 : i64, qk_sub = 16 : i64, weight_block_stride = 36 : i64, activation_block_stride = 34 : i64, weight_quant_byte_offset = 4 : i64, activation_quant_byte_offset = 2 : i64, activation_high_byte_offset = 8 : i64, integer_core_lmul = "m1", codebook = array<i8: 0, 1, 2, 3, 4, 6, 8, 12, 0, -1, -2, -3, -4, -6, -8, -12>} : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index, !weft_rvv.vl -> i32
           // SINGLE carried-out SCALAR accumulator (acc ONLY). The byte-exact
           // per-sub-block float fold acc += (dy*d)*(float)sumi + the trailing *s = acc
           // (NO factor) are emitter-inlined.

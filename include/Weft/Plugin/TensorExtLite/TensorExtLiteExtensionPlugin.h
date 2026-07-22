@@ -28,6 +28,8 @@ public:
   llvm::ArrayRef<PluginCapability> getCapabilities() const override;
   void registerDialects(mlir::DialectRegistry &registry) const override;
   llvm::Error verifyExecutableConstructionConformance() const override;
+  void collectFormulaDescriptors(
+      llvm::SmallVectorImpl<FormulaDescriptor> &out) const override;
   bool supportsOperation(const VariantProposalRequest &request) const override;
   llvm::Error
   proposeVariants(const VariantProposalRequest &request,

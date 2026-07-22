@@ -1894,7 +1894,7 @@ inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
        // carries it; the row is reached by the marker for construction and by this selector
        // for export resolution). The SECOND TQ member REUSES the whole tq2_0 ternary scaffold
        // at C2 marginal cost and only adds a variant integer-core brick (base-3 unpack) that
-       // PRESERVES tq1_0's Win-A integer_core_lmul m2/m1 gearbox (kernel key "tq1_0").
+       // has one VLEN-universal vector body and no inert LMUL schedule field.
        TypedFlatBlockDotLoopSelector::SuperBlockScalarDeltaGrid},
       {"weft_rvv.tq2_0_q8_k_block_dot",
        MonolithicBlockDotRouteFamily::SuperBlock, "ggml_tq2_0_q8_k_block_dot",
@@ -1916,8 +1916,8 @@ inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
        // string -- no op carries it; the row is reached by the marker for construction and by
        // this selector for export resolution). The FIRST TQ member reuses the whole iq1_s
        // scaffold and only adds a variant integer-core brick that PRESERVES tq2_0's Win-A
-       // integer_core_lmul m2/m1 gearbox (kernel key "tq2_0"); tq1_0 (base-3) reuses this
-       // ternary scaffold next at C2 marginal cost.
+       // integer_core_lmul m2/m1 gearbox (kernel key "tq2_0"); tq1_0 (base-3) reuses the
+       // ternary scaffold with its own fixed VLEN-universal body.
        TypedFlatBlockDotLoopSelector::SuperBlockScalarDeltaGrid},
       {weft::rvv::GgmlBlockDotQ40Q80Op::getOperationName(),
        MonolithicBlockDotRouteFamily::Flat, "ggml_q4_0_q8_0_block_dot",

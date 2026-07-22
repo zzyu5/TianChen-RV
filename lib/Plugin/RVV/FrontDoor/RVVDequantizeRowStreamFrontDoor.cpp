@@ -13,6 +13,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "Weft/Plugin/RVV/RVVDequantizeRowStreamFrontDoor.h"
+#include "Weft/Plugin/RVV/RVVFormulaCatalog.h"
+#include "Weft/Plugin/RVV/RVVDequantFormula.h"
 
 #include "Weft/Dialect/RVV/IR/RVVDequantizeRowConstruction.h"
 #include "Weft/Dialect/RVV/IR/RVVDialect.h"
@@ -46,8 +48,8 @@ public:
   llvm::StringRef getDescription() const final {
     return "Pre-emitc CONSTRUCT the typed weft_rvv.typed_dequantize_row_loop_body "
            "{ dequantize_row_decode_core; typed_dequantize_row_loop_yield } region "
-           "in place of each abstract weft_rvv.dequantize_row (one of the 24 "
-           "constructed streaming formats) and STOP before --weft-rvv-lower-to-emitc "
+           "in place of each recognized abstract weft_rvv.dequantize_row and STOP "
+           "before --weft-rvv-lower-to-emitc "
            "so the realized region is walkable (the shared byte-exact construction; "
            "the emit half is unchanged). The whole dequantize_row spectrum is now "
            "front-door CONSTRUCTED (q1_0 was the last flat leaf flipped).";
@@ -70,10 +72,32 @@ public:
     for (weftrvv::GgmlDequantizeRowOp deqOp : deqOps) {
       std::optional<weftrvv::DequantizeRowStreamFacts> facts =
           weftrvv::lookupDequantizeRowStreamFacts(deqOp.getFormat());
-      if (!facts)
-        continue; // unrecognized format: leave abstract (dispatch-wired monolith).
+      if (!facts) {
+        deqOp.emitError()
+            << "dequantize_row-stream front door has no typed construction for "
+               "format '"
+            << deqOp.getFormat() << "'";
+        signalPassFailure();
+        return;
+      }
+      llvm::Expected<std::optional<CodebookGatherCapabilityFacts>> capability =
+          projectDequantizeRowCapability(
+              deqOp.getOperation(), *facts,
+              "dequantize-row inspection front door");
+      if (!capability) {
+        deqOp.emitError() << llvm::toString(capability.takeError());
+        signalPassFailure();
+        return;
+      }
+      llvm::Expected<weftrvv::DequantizeRowConstruction> construction =
+          constructDequantizeRowFormula(*facts, *capability);
+      if (!construction) {
+        deqOp.emitError() << llvm::toString(construction.takeError());
+        signalPassFailure();
+        return;
+      }
       if (mlir::failed(weftrvv::constructTypedDequantizeRowLoopBody(
-              rewriter, deqOp, *facts))) {
+              rewriter, deqOp, *construction))) {
         deqOp.emitError()
             << "dequantize_row-stream front door failed to construct the typed "
                "region for decode_model '"
@@ -83,11 +107,8 @@ public:
       }
     }
 
-    // Deliberately stop after construction-owned typed g.  Capability selection
-    // is the RVV backend preparation hook's responsibility, shared by the direct
-    // wrapper and registry/artifact entry points.  Keeping it out of this plugin
-    // front door avoids a Plugin -> Conversion dependency and leaves preselection
-    // typed IR inspectable without pretending that an emission target was chosen.
+    // Stop after the complete typed formula result has become the final body.
+    // The emitter sees no preselection/partial-plan state.
   }
 };
 
@@ -102,12 +123,13 @@ llvm::Error registerRVVDequantizeRowStreamFrontDoorPasses(
     llvm::StringRef ownerPlugin, const ExtensionPluginRegistry & /*registry*/,
     llvm::SmallVectorImpl<SourceFrontDoorPassRegistration> &out) {
   out.push_back(SourceFrontDoorPassRegistration(
-      ownerPlugin, "weft-rvv-materialize-dequantize-row-stream-front-door",
+      ownerPlugin, formula_catalog::kDequantizeRowSourceEntry,
       "Pre-emitc construct the typed streaming dequantize_row loop-body region "
       "(weft_rvv.typed_dequantize_row_loop_body { dequantize_row_decode_core; "
       "yield }) in place of the abstract weft_rvv.dequantize_row so the realized "
       "region is walkable before --weft-rvv-lower-to-emitc (the shared byte-exact "
       "construction; the whole dequantize_row spectrum is front-door constructed)",
+      formula_catalog::kDequantizeRowConstruction,
       [] { return createMaterializeRVVDequantizeRowStreamFrontDoorPass(); },
       SourceFrontDoorPassRegistration::DefaultArtifactFrontDoorPolicy::
           ExplicitOnly));

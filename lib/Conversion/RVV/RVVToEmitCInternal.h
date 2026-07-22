@@ -140,15 +140,11 @@ enum class FlatFoldModel {
 // geometry fields mirror the typed op attrs (I4); the Group-B primitive/fold
 // fields lift the decode-primitive + fold-model selection from op-identity to
 // descriptor fields. deriveFlatBlockDotDescriptor builds it from the op's
-// `kind` + attr-presence; the LMUL / unroll / elision SCHEDULE facts stay in
-// BlockDotFacts (deriveBlockDotFacts), read separately by the caller.
+// `kind` + attr-presence; the LMUL / unroll / elision schedule facts stay in
+// BlockDotFacts, read as a complete formula result by the caller.
 struct FlatBlockDotDescriptor {
   FlatDecodePrimitive decodePrimitive = FlatDecodePrimitive::PlainI8;
   FlatFoldModel foldModel = FlatFoldModel::SumiTimesScales;
-  // The i8 integer-core LMUL anchor floor for an attr-less op ("m2" for q8_0's
-  // whole 32-element block, "m1" for the nibble half-blocks). Passed to
-  // deriveBlockDotFacts by the caller.
-  llvm::StringRef defaultCoreLmul = "m2";
   int64_t qk = 0;
   int64_t weightStride = 0;
   int64_t activationStride = 0;
@@ -183,8 +179,8 @@ struct FlatBlockDotDescriptor {
 
 // Build a FlatBlockDotDescriptor from a GgmlBlockDot* op's `kind` string + its
 // block-format attrs (attr-presence for the optional-by-format ones). This is
-// the emitter-side mirror of the front-door family table + deriveBlockDotFacts:
-// the `kind` selects the decode primitive / fold model / core-LMUL floor, and
+// the emitter-side mirror of the front-door family table: the `kind` selects
+// the decode primitive / fold model, and
 // the I4 geometry attrs fill the block-format fields. Returns std::nullopt for a
 // non-flat-plain kind (the caller keeps its bespoke emitter).
 std::optional<FlatBlockDotDescriptor>
@@ -599,42 +595,11 @@ private:
   /// result type + wraps emitElementwiseSoftMaxReduceStrip's f64 sum in `return`.
   static bool isTypedElementwiseSoftMaxReduceLoopBody(weftrvv::WithVLOp scope);
 
-  /// True iff the with_vl body is EXACTLY a single weft_rvv.quantize_row_q8_0
-  /// (the F4 f32->block_q8_0 activation quantizer: per-32-block amax reduction +
-  /// scale + f32->i16->i8 narrowing convert + the fp16 d / int8 qs AoS store).
-  /// The op identity is the dispatch key; the emitter owns the structured block
-  /// loop with the vfredmax reduction, the d?1/d:0 conditional, and the
-  /// vfncvt/vncvt narrowing chain.
-  static bool isGgmlQuantizeRowQ80Body(weftrvv::WithVLOp scope);
-
-  /// True iff the with_vl body is EXACTLY a single weft_rvv.quantize_row_q8_1
-  /// (the f32->block_q8_1 activation quantizer: the q8_0 amax/scale/narrow SIBLING
-  /// plus the extra vwredsum integer block sum stored as the fp16 block_q8_1.s).
-  /// The op identity is the dispatch key; the emitter owns the structured block
-  /// loop. DISPATCH-WIRED ([L-6] wiring != construction).
-  static bool isGgmlQuantizeRowQ81Body(weftrvv::WithVLOp scope);
-
-  /// True iff the with_vl body is EXACTLY a single weft_rvv.quantize_row_q8_K
-  /// (the f32->block_q8_K K-quant activation quantizer: the QK_K=256 min/max
-  /// symmetric scale, the vfcvt/vnclip RNE narrowing, the float d store, and the
-  /// per-16 vwredsum bsums, with the zero-block memset special case). The op
-  /// identity is the dispatch key; the emitter owns the structured super-block
-  /// loop. DISPATCH-WIRED ([L-6] wiring != construction).
-  static bool isGgmlQuantizeRowQ8KBody(weftrvv::WithVLOp scope);
-
   // NOTE: isGgmlForwardElementwiseF32Body was RETIRED at the support flip
   // (dispatch-wired -> constructed, C_construct 73->77): add/mul/cpy/gelu are now
   // CONSTRUCTED through the abstract weft_rvv.ggml_forward_elementwise source op
   // (recognized by isTypedElementwiseLoopBody after the front door constructs the
   // typed region), so no dedicated support recognizer remains.
-
-  /// True iff the with_vl body is EXACTLY one weft_rvv.dequantize_row op.
-  /// DISPATCH-WIRED: the op identity (+ its bounded `format`) is the dispatch key;
-  /// the emitter owns the hand-written per-format monolith decode body (an AoS
-  /// block loop reproducing ggml's reference dequantize_row_<format>). NOT
-  /// constructed ([L-6] wiring != construction: no typed loop brick, no
-  /// pattern-library primitive).
-  static bool isGgmlDequantizeRowBody(weftrvv::WithVLOp scope);
 
   static bool isDeferredWideDotReduceBody(weftrvv::WithVLOp scope);
 
@@ -778,7 +743,7 @@ private:
   /// per accumulated VL, matching the legacy `v18=base+i; v19=v18+vl0` form).
   /// The two-slice remaining-VL setvl covers the tail naturally -- there is NO
   /// separate scalar tail loop (unlike the product-reduce dequant routine).
-  /// The unroll factor is read from the realized scope's `weft_rvv.gearbox.unroll`
+  /// The unroll factor is read from the realized scope's formula-owned `unroll_factor`
   /// attribute (the Gearbox schedule fact); absent or non-positive fails the
   /// match so the body falls back to the legacy materializer unchanged.
   mlir::LogicalResult emitStandaloneDequantBody(
@@ -2762,7 +2727,7 @@ private:
   // + the flat-256 integer dot + the single-scale scalar fp32 fold), re-parameterized to
   // source the per-super-block addresses from the ternary-core brick's operands. REUSES the
   // whole tq2_0 ternary scaffold at C2 marginal cost, differing ONLY in the base-3 unpack.
-  // Carries the Win-A m2/m1 gearbox on the brick's integer_core_lmul (kernel key "tq1_0").
+  // The realized tq1_0 body is VLEN-universal and carries no fake LMUL schedule axis.
   mlir::LogicalResult emitTypedSuperBlockScalarDeltaGridLoopBodyTQ10(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
       weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
@@ -4393,50 +4358,6 @@ private:
       weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
 
-  /// Emit the COMPLETE ggml `quantize_row_q8_0` RVV-path forward-pass op (the F4
-  /// f32 -> block_q8_0 activation quantizer; riscv/quants.c:32-71) for one
-  /// weft_rvv.quantize_row_q8_0 op as fully STRUCTURED emitc nodes (I5; no
-  /// verbatim C-string blob -- every value is a node in the IR graph):
-  ///   size_t nb = n / 32;
-  ///   for (size_t ib = 0; ib < nb; ib += 1) {
-  ///     size_t vl = 32;                                    // = QK8_0 (one strip)
-  ///     const float *xb = x + ib*32;
-  ///     uint8_t *yb = vy + ib*34;                          // AoS block cursor
-  ///     vfloat32m8_t v_x  = __riscv_vle32_v_f32m8(xb, vl);
-  ///     vfloat32m8_t vabs = __riscv_vfabs_v_f32m8(v_x, vl);
-  ///     vfloat32m1_t tmp  = __riscv_vfmv_v_f_f32m1(0.0f, vl);
-  ///     vfloat32m1_t vmax = __riscv_vfredmax_vs_f32m8_f32m1(vabs, tmp, vl);
-  ///     float amax = __riscv_vfmv_f_s_f32m1_f32(vmax);
-  ///     float d  = amax / 127.0f;                          // scalar f32
-  ///     float id = 0.0f; if (d != 0.0f) { id = 1.0f / d; } // d ? 1/d : 0
-  ///     *(_Float16 *)(yb + 0) = (_Float16)d;               // fcvt.h.s (rne)
-  ///     vfloat32m8_t x0 = __riscv_vfmul_vf_f32m8(v_x, id, vl);
-  ///     vint16m4_t vi = __riscv_vfncvt_x_f_w_i16m4(x0, vl);  // f32->i16 (rne)
-  ///     vint8m2_t  vs = __riscv_vncvt_x_x_w_i8m2(vi, vl);    // i16->i8 truncate
-  ///     __riscv_vse8_v_i8m2(yb + 2, vs, vl);                // the 32 int8 qs
-  ///   }
-  /// BYTE-EXACTNESS to the DEPLOYED kernel matches ggml's EXACT RVV method, NOT
-  /// the scalar `_ref` (which rounds with `roundf`, round-half-AWAY). The two
-  /// cruxes: (1) vfncvt_x_f_w_i16m4 rounds with the dynamic frm = round-to-
-  /// nearest-EVEN -- replicating that exact intrinsic inherits rne + the i8
-  /// saturating clamp + every edge case (do NOT reason about rounding); (2) the
-  /// board is __riscv_zfhmin, so GGML_CPU_FP32_TO_FP16(d) is the native
-  /// (_Float16)d cast (fcvt.h.s, rne) -- a STRUCTURAL _Float16 store, not a
-  /// software fp16 pack. The `id = d ? 1/d : 0` conditional is load-bearing (the
-  /// all-zero block: amax=0 => d=0 must give id=0 so every q=0; a bare 1/d gives
-  /// inf/NaN) -- emitted as a STRUCTURED emitc.cmp + emitc.if, NOT a raw string.
-  /// The block-format facts (qk/stride/offsets) are the op's typed attrs (I4);
-  /// the emission is the op's fixed structure. vl is hard-pinned to QK8_0=32 (one
-  /// e32m8 strip per block, relying on Zvl128b => VLEN>=128, the same capability
-  /// the q4_0 mb4-elided shape uses) -- replicating ggml's `size_t vl = QK8_0`.
-  /// The intrinsic spellings are HARD-CODED callees (vfabs/vfredmax/vfncvt/vncvt),
-  /// matching ggml's exact path -- never synthesized (a _rm/_tu suffix would
-  /// change the rounding mode or fail to compile).
-  mlir::LogicalResult emitGgmlQuantizeRowQ80(
-      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
-      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
-
   /// Emit ggml's per-block block_q8_0 amax/scale/narrow body (riscv/quants.c:
   /// 47-65) as fully STRUCTURED emitc nodes, consuming an ALREADY-COMPUTED f32m8
   /// block vector `vBlock` (the 32 QK8_0 lanes in one e32m8 strip) and the AoS
@@ -4449,8 +4370,8 @@ private:
   ///     vint16m4_t vi = __riscv_vfncvt_x_f_w_i16m4(x0, vl);      // f32->i16 (rne)
   ///     vint8m2_t  vs = __riscv_vncvt_x_x_w_i8m2(vi, vl);        // i16->i8 trunc
   ///     __riscv_vse8_v_i8m2(yb + quantOff, vs, vl);              // the 32 int8 qs
-  /// This is the SHARED per-block quantize core: emitGgmlQuantizeRowQ80 feeds it
-  /// the f32 block LOADED from x[] (the standalone f32->q8_0 activation quantizer),
+  /// This is the SHARED per-block quantize core: the typed q8_0 leaf feeds it the
+  /// f32 block LOADED from x[] (the standalone f32->q8_0 activation quantizer),
   /// and the [FMT-PROP] fused rms_norm->mul->quantize epilogue feeds it the
   /// register-kept WEIGHTED vector `vz` (no f32 z[] store/reload). BYTE-EXACTNESS
   /// matches ggml's EXACT RVV method (vfncvt = rne + native _Float16 cast); every
@@ -4462,67 +4383,15 @@ private:
                                 int64_t scaleOffset, int64_t quantOffset,
                                 llvm::StringRef opName, llvm::StringRef role) const;
 
-  /// Emit the DISPATCH-WIRED ggml `quantize_row_q8_1` RVV-path body for the single
-  /// weft_rvv.quantize_row_q8_1 op nested under `scope` as fully STRUCTURED emitc
-  /// nodes (I5). The SIBLING of emitGgmlQuantizeRowQ80: the SAME per-32-block amax
-  /// reduction + d = amax/127 + id = d?1/d:0 + fp16 d store + vfmul scale +
-  /// vfncvt/vncvt f32->i16->i8 narrow + the 32 int8 qs store, PLUS the extra
-  /// block sum:
-  ///     vint16m1_t tmp2 = __riscv_vmv_v_x_i16m1(0, vl);
-  ///     vint16m1_t vwrs = __riscv_vwredsum_vs_i8m2_i16m1(vs, tmp2, vl);
-  ///     int sum = __riscv_vmv_x_s_i16m1_i16(vwrs);
-  ///     *(_Float16 *)(yb + 2) = (_Float16)(sum * d);      // block_q8_1.s
-  /// The qs move to AoS byte 4 (after the fp16 d + fp16 s). BYTE-EXACTNESS is to
-  /// ggml's EXACT RVV method (vfncvt rne + native _Float16 casts + vwredsum int
-  /// sum). Hand-written monolith body (wiring, not construction: no typed loop
-  /// brick).
-  mlir::LogicalResult emitGgmlQuantizeRowQ81(
-      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
-      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
-
-  /// Emit the DISPATCH-WIRED ggml `quantize_row_q8_K` RVV-path body for the single
-  /// weft_rvv.quantize_row_q8_K op nested under `scope` as fully STRUCTURED emitc
-  /// nodes (I5). The heaviest quantizer: an outer QK_K=256 super-block loop whose
-  /// body (1) folds a min AND max over an e32m8 strip loop (vfmax_vv/vfmin_vv)
-  /// then vfredmax/vfredmin to scalars, (2) computes amax via fabsf and the
-  /// symmetric iscale = -127/(|max|>|min|?max:min), (3) on amax==0 takes a
-  /// STRUCTURED emitc.if/else zero path (float d=0, memset qs+bsums), else stores
-  /// the FLOAT d = 1/iscale and runs the quantize strip loop: vfmul by iscale,
-  /// vfcvt_x_f_v_i32m8_rm(RNE) + two vnclip_wx(RNE) f32->i32->i16->i8 narrow, the
-  /// 256 int8 qs store, and the 16 per-16-element bsums (vslidedown-advanced
-  /// vwredsum chunks). BYTE-EXACTNESS is to ggml's EXACT RVV method. Hand-written
-  /// monolith body (wiring, not construction: no typed loop brick).
-  mlir::LogicalResult emitGgmlQuantizeRowQ8K(
-      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
-      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
-
-  /// The quantize FRONT DOOR (G3 line-B, the f32->QUANT mirror of
-  /// constructOrEmitGgmlDequantizeRow): CONSTRUCT the typed
-  /// weft_rvv.typed_quantize_row_loop_body region { quantize_row_encode_core;
-  /// typed_quantize_row_loop_yield } in place of the abstract per-format quantize op
-  /// `quantOp` (with encode_model + the ggml ABI block facts), then LOWER it via
-  /// emitTypedQuantizeRowLoopBody. Called by the emitGgmlQuantizeRowQ8{0,1,K} entry
-  /// points (each supplying its encode_model + facts). The emission is DRIVEN by the
-  /// typed region op-identity + encode_model ([L-6]/[L-8] construction), byte-exact to
-  /// the retired per-format monolith modulo only the source-op provenance token.
-  mlir::LogicalResult constructQuantizeRowRegionAndLower(
-      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      weftrvv::WithVLOp scope, mlir::Operation *quantOp, mlir::Value input,
-      mlir::Value output, mlir::Value n, llvm::StringRef encodeModel,
-      int64_t qk, int64_t stride, int64_t scaleOff, int64_t quantOff,
-      mlir::Value avlArg, mlir::Type sizeType,
-      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
-
   /// Lower the CONSTRUCTED streaming quantize_row region
   /// (weft_rvv.typed_quantize_row_loop_body carrying ONE
   /// weft_rvv.quantize_row_encode_core brick + the VOID
   /// weft_rvv.typed_quantize_row_loop_yield). Walks the region, sources the ABI bases
-  /// from the brick (anti-bypass I7: block_index == region arg 0), gates encode_model,
-  /// and dispatches to the per-format SHARED body emitter
+  /// from the brick (anti-bypass I7: block_index == region arg 0), and mechanically
+  /// dispatches the closed formula-produced quantize_leaf to the SHARED body emitter
   /// (emitQuantizeRowQ8{0,1,K}BodyShared) -- byte-exact to the retired per-format
-  /// monolith modulo only the source-op provenance token. The MIRROR of
+  /// monolith modulo only the source-op provenance token. Construction provenance
+  /// is not read by emission. The MIRROR of
   /// emitTypedDequantizeRowLoopBody (f32->QUANT rather than QUANT->f32).
   mlir::LogicalResult emitTypedQuantizeRowLoopBody(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
@@ -4531,7 +4400,7 @@ private:
 
   /// The per-format CONSTRUCTED quantize_row block-encode leaves: each re-emits the
   /// whole AoS `nb = n/QK` block loop + per-block encode, extracted VERBATIM from the
-  /// loop tail of the retired emitGgmlQuantizeRowQ8{0,1,K} monolith, so the CONSTRUCTED
+  /// loop tail of the retired direct per-format monoliths, so the CONSTRUCTED
   /// typed lowering (via emitTypedQuantizeRowLoopBody) is byte-exact to the monolith by
   /// construction (modulo only the source-op provenance token threaded through
   /// opName/role). q8_0 = the family-head bare fp16-scale int8 narrow (calls the SHARED
@@ -4541,15 +4410,21 @@ private:
   mlir::LogicalResult emitQuantizeRowQ80BodyShared(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
       mlir::Value input, mlir::Value output, mlir::Value avlArg,
-      mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role) const;
+      mlir::Type sizeType, int64_t qk, int64_t blockStride,
+      int64_t scaleOffset, int64_t quantOffset, llvm::StringRef opName,
+      llvm::StringRef role) const;
   mlir::LogicalResult emitQuantizeRowQ81BodyShared(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
       mlir::Value input, mlir::Value output, mlir::Value avlArg,
-      mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role) const;
+      mlir::Type sizeType, int64_t qk, int64_t blockStride,
+      int64_t scaleOffset, int64_t quantOffset, llvm::StringRef opName,
+      llvm::StringRef role) const;
   mlir::LogicalResult emitQuantizeRowQ8KBodyShared(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
       mlir::Value input, mlir::Value output, mlir::Value avlArg,
-      mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role) const;
+      mlir::Type sizeType, int64_t qk, int64_t blockStride,
+      int64_t scaleOffset, int64_t quantOffset, llvm::StringRef opName,
+      llvm::StringRef role) const;
 
   // NOTE: emitGgmlForwardElementwiseF32 (the DISPATCH-WIRED support-op monolith
   // dispatcher) was RETIRED at the support flip (dispatch-wired -> constructed,
@@ -4618,44 +4493,15 @@ private:
       mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
 
-  /// Emit the DISPATCH-WIRED dequantize_row body for the single
-  /// weft_rvv.dequantize_row op nested under `scope`. The op's bounded `format`
-  /// selects the per-format AoS block-decode: a scalar block loop reproducing
-  /// ggml's reference dequantize_row_<format> byte-exactly -- the fp16 block scale
-  /// via the `(float)*(const _Float16 *)` seam, then the nibble unpack (q4_0/q4_1),
-  /// the 5th-bit qh merge (q5_0/q5_1), or the bare int8 scale (q8_0). Hand-written
-  /// monolith body (wiring, not construction: no typed loop brick).
-  mlir::LogicalResult emitGgmlDequantizeRow(
+  /// Mechanically emit the selected BinarySign dequant mechanism. The caller
+  /// reaches this helper only from a typed dequant plan; no format string or
+  /// fallback dispatcher participates in emission.
+  mlir::LogicalResult emitDequantizeRowBinarySignBodyShared(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
-      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
-
-  /// Emit the DISPATCH-WIRED dequantize_row body for the EXTENDED (non-legacy)
-  /// bounded `format`s: the K-quant super-blocks (q2_K/q3_K/q4_K/q5_K/q6_K), the
-  /// FP4 codebooks (mxfp4/nvfp4), the ternary formats (tq1_0/tq2_0), and the
-  /// 16-entry non-linear codebook (iq4_nl). Each `format` selects a hand-written
-  /// scalar AoS super-block loop reproducing ggml's reference
-  /// dequantize_row_<format> byte-exactly, reusing the SAME per-format block-decode
-  /// facts already constructed for that format's block-dot vec_dot (the fp16 seam,
-  /// the E8M0/UE4M3 scale reconstruction, the get_scale_min_k4 6-bit unpack, the
-  /// q3_K aux 6-bit scale shuffle, the base-3 tq1_0 unpack, the codebook gather).
-  /// Hand-written monolith body (wiring, not construction: no typed loop brick)
-  /// for the remaining [L-6]-wired extended formats (FP4 / ternary / iq1 / iq4
-  /// codebook). NOTE the K-quant super-blocks (q2_K/q3_K/q4_K/q5_K/q6_K) AND the IQ
-  /// grid-table super-blocks (iq2_xxs/iq2_xs/iq2_s/iq3_xxs/iq3_s) are now FRONT-DOOR
-  /// CONSTRUCTED: their super-block decode is emitted from THIS SAME function (keyed by
-  /// the `format` string, no deqOp needed -- the grid/sign planes are DERIVED at emit,
-  /// not carried as op-attrs), so BOTH the dispatch-wired monolith fallback AND the
-  /// constructed typed lowering (via emitDequantizeRowKQuantBodyShared /
-  /// emitDequantizeRowIQGridBodyShared) reach byte-identical C by calling the SAME
-  /// code -- no duplicated decode leaf. Returns success iff `format` is one of the
-  /// extended formats and its body was emitted; a legacy/unwired format yields a match
-  /// failure so the caller falls back to the legacy chain.
-  mlir::LogicalResult emitGgmlDequantizeRowExtended(
-      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      llvm::StringRef format, mlir::Value input, mlir::Value output,
-      mlir::Value avlArg, mlir::Type sizeType, llvm::StringRef opName,
-      llvm::StringRef role) const;
+      mlir::Value input, mlir::Value output, mlir::Value avlArg,
+      mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role,
+      int64_t qk, int64_t weightBlockStride, int64_t scaleByteOffset,
+      int64_t quantByteOffset) const;
 
   /// True iff `scope`'s body is exactly ONE weft_rvv.typed_dequantize_row_loop_body
   /// (the FRONT-DOOR CONSTRUCTED streaming dequantize_row region). Mirrors
@@ -4675,37 +4521,13 @@ private:
   /// weft_rvv.dequantize_row_decode_core brick + the VOID
   /// weft_rvv.typed_dequantize_row_loop_yield). Walks the region, sources the ABI
   /// bases from the brick (anti-bypass I7: block_index == region arg 0), and re-emits
-  /// the whole nb block loop + per-block decode via the SHARED body emitter
-  /// (emitDequantizeRowQ8_0BodyShared) -- byte-exact to the dispatch-wired q8_0
-  /// monolith modulo only the source-op provenance token. Void-return (the streaming
-  /// store is the sink), so it is wired as a kBlockDotKernels entry.
+  /// the whole nb block loop + per-block decode from the selected typed mechanism
+  /// plan. Void-return (the streaming store is the sink), so it is wired as a
+  /// kBlockDotKernels entry.
   mlir::LogicalResult emitTypedDequantizeRowLoopBody(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
       weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
       llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
-
-  /// The dequant FRONT DOOR for the family-head q8_0: CONSTRUCT the typed
-  /// weft_rvv.typed_dequantize_row_loop_body region { dequantize_row_decode_core;
-  /// typed_dequantize_row_loop_yield } in place of the abstract deqOp, then LOWER it
-  /// via emitTypedDequantizeRowLoopBody. The other 22 formats fall through to the
-  /// dispatch-wired monolith (emitGgmlDequantizeRow). Called from the
-  /// isGgmlDequantizeRowBody branch of the emit driver.
-  mlir::LogicalResult constructOrEmitGgmlDequantizeRow(
-      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      weftrvv::WithVLOp scope, mlir::Value avlArg, mlir::Type sizeType,
-      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap) const;
-
-  /// The SHARED q8_0 dequantize_row block-decode body emit: the AoS `nb = k/32`
-  /// block loop, the fp16 block scale via the `(float)*(const _Float16 *)` seam, and
-  /// the bare signed-int8 scale `y[j] = qs[j] * d` over all 32 block lanes (the load
-  /// sign-extends). Called by BOTH the dispatch-wired monolith
-  /// (emitGgmlDequantizeRow's bareInt8 branch) and the CONSTRUCTED typed lowering
-  /// (emitTypedDequantizeRowLoopBody), so the two are byte-exact by construction. The
-  /// opName/role thread the source-op provenance into the route/step comments.
-  mlir::LogicalResult emitDequantizeRowQ8_0BodyShared(
-      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      mlir::Value input, mlir::Value output, mlir::Value avlArg,
-      mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role) const;
 
   /// The OWNED REAL-VECTOR q8_0 dequantize_row block-decode body emit (PR-31, the
   /// first NON-GRID cell of the dequant true-vector emitter): the AoS `nb = k/32`
@@ -4715,36 +4537,16 @@ private:
   /// (int32->f32) + vfmul_vf (the runtime `d` scale) + vse32 (the contiguous 32-float
   /// store). NO gather (q8_0 is non-grid). Byte-exact-vs-ggml dequantize_row_q8_0 by
   /// construction (vfmul_vf(qf, d) == the scalar `qs[j]*d`; q8_0 has no add/min so no
-  /// fp-contraction ambiguity). Only the CONSTRUCTED path
-  /// (emitTypedDequantizeRowLoopBody) routes here; the dispatch-wired monolith
-  /// fallback stays on the scalar emitDequantizeRowQ8_0BodyShared (iq3_xxs precedent).
+  /// fp-contraction ambiguity). The selected typed Int8Scale mechanism routes here.
   /// The 32-lane block width + the i8m2/i32m8/f32m8 pipeline LMULs are DERIVED from
   /// the fixed q8_0 QK8_0 geometry, NOT tunable knobs. opName/role thread the
   /// source-op provenance into the route/step comments.
   mlir::LogicalResult emitDequantizeRowQ8_0VectorBody(
       mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
       mlir::Value input, mlir::Value output, mlir::Value avlArg,
-      mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role) const;
-
-  /// The SHARED 4-bit nibble dequantize_row block-decode body emit for the flat
-  /// legacy formats q4_0/q4_1/q5_0/q5_1: the AoS `nb = k/32` block loop, the fp16
-  /// block scale d (+ the optional fp16 min m) via the `(float)*(const _Float16 *)`
-  /// seam, the optional byte-assembled uint32 qh 5th-bit plane (q5_0/q5_1), then the
-  /// per-j nibble unpack (`qs[j]&0x0F` -> y[j], `qs[j]>>4` -> y[j+16]) with the
-  /// optional 5th-bit merge, the pre-scale bias `sub` (q4_0 -8 / q5_0 -16) or the
-  /// min add (q4_1/q5_1), and the f32 scale. The per-format AoS layout facts (the
-  /// block stride, the d/m/qh/qs byte offsets, the bias, the has-min/has-qh gates)
-  /// are passed by the caller (the ggml ABI constants, NOT tunable knobs). Called by
-  /// BOTH the dispatch-wired monolith (emitGgmlDequantizeRow's nibble tail) and the
-  /// CONSTRUCTED typed lowering (via the per-format leaves below), so the two are
-  /// byte-exact by construction. Extracted VERBATIM from the nibble tail of
-  /// emitGgmlDequantizeRow. opName/role thread the source-op provenance token.
-  mlir::LogicalResult emitDequantizeRowNibbleBodyShared(
-      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      mlir::Value input, mlir::Value output, mlir::Value avlArg,
       mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role,
-      int64_t stride, int64_t dOff, int64_t mOff, int64_t qhOff, int64_t qsOff,
-      int64_t sub, bool hasMin, bool hasQh) const;
+      int64_t qk, int64_t stride, int64_t scaleOffset,
+      int64_t quantOffset) const;
 
   /// The OWNED REAL-VECTOR 4-bit nibble dequantize_row block-decode body for the flat
   /// legacy formats (q4_0/q5_0 single-mul SAFE set, q4_1/q5_1 min-add FMA set): the AoS
@@ -4778,48 +4580,6 @@ private:
   /// the stamped decode_core descriptor and calls the shared
   /// emitDequantizeRowNibbleVectorBody directly (keyed on carrier_kind == "nibble4").
 
-  /// The per-format CONSTRUCTED dequantize_row decode leaves for the flat nibble
-  /// family (q4_0/q4_1/q5_0/q5_1): each hard-codes its ggml block_qX AoS layout
-  /// facts and calls emitDequantizeRowNibbleBodyShared -- the SAME shared body the
-  /// dispatch-wired monolith invokes, so the constructed lowering is byte-exact to
-  /// the monolith by construction (modulo only the source-op provenance token). The
-  /// streaming siblings of emitDequantizeRowQ8_0BodyShared; no reduction/accumulator.
-  mlir::LogicalResult emitDequantizeRowQ4_0BodyShared(
-      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      mlir::Value input, mlir::Value output, mlir::Value avlArg,
-      mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role) const;
-  mlir::LogicalResult emitDequantizeRowQ4_1BodyShared(
-      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      mlir::Value input, mlir::Value output, mlir::Value avlArg,
-      mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role) const;
-  mlir::LogicalResult emitDequantizeRowQ5_0BodyShared(
-      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      mlir::Value input, mlir::Value output, mlir::Value avlArg,
-      mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role) const;
-  mlir::LogicalResult emitDequantizeRowQ5_1BodyShared(
-      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      mlir::Value input, mlir::Value output, mlir::Value avlArg,
-      mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role) const;
-
-  /// The SHARED K-quant super-block dequantize_row block-decode body for the QK_K=256
-  /// K-quant family (q2_K/q3_K/q4_K/q5_K/q6_K): the AoS `nb = k / 256` super-block
-  /// loop, the fp16 d (+ optional fp16 dmin) seam, the per-format super-block
-  /// scale/min unpack (get_scale_min_k4 6-bit for q4_K/q5_K, the aux kmask shuffle for
-  /// q3_K, the packed 4-bit scale/min for q2_K, the SIGNED int8 scales for q6_K), then
-  /// the per-format quant unpack + fold. This is a thin `format`-keyed FORWARDER to
-  /// emitGgmlDequantizeRowExtended -- the SAME hand-written super-block decode the
-  /// dispatch-wired monolith fallback runs -- so the CONSTRUCTED typed lowering (via
-  /// emitTypedDequantizeRowLoopBody) and the monolith emit byte-identical C by
-  /// construction (modulo only the source-op provenance token threaded through
-  /// opName/role); there is NO duplicated K-quant decode leaf. Byte-exact to ggml's
-  /// reference dequantize_row_<format> (a scalar AoS super-block loop; no reduction).
-  /// Streaming sibling of emitDequantizeRowNibbleBodyShared (no accumulator).
-  mlir::LogicalResult emitDequantizeRowKQuantBodyShared(
-      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
-      mlir::Value input, mlir::Value output, mlir::Value avlArg,
-      mlir::Type sizeType, llvm::StringRef opName, llvm::StringRef role,
-      llvm::StringRef format) const;
-
   /// The OWNED REAL-VECTOR K-quant super-block dequantize_row block-decode bodies for
   /// the QK_K=256 family (q4_K/q5_K shared, q2_K, q3_K, q6_K): the AoS `nb = k/256`
   /// super-block loop, the fp16 d (+ optional fp16 dmin) seam, the per-format
@@ -4838,14 +4598,14 @@ private:
   /// dequantize_row_<fmt> by construction: the integer quant decode is byte-identical
   /// to the scalar reference and the fold rounds identically. Only the CONSTRUCTED path
   /// (emitTypedDequantizeRowLoopBody) routes here; the dispatch-wired monolith fallback
-  /// stays on the scalar emitGgmlDequantizeRowExtended (the q8_0/nibble precedent). The
+  /// was validated against the retired scalar reference. The
   /// per-super-sub-block lane widths + LMULs are DERIVED from the fixed QK_K super-block
   /// geometry, NOT tunable knobs. opName/role thread the source-op provenance.
   ///
   /// Phase-4 (DequantMechanismPlan family #3): the per-format super-block geometry (qk /
   /// stride / scale-block / quant / sub-scale / min / high-bit offsets + strip lanes) is
   /// READ from the KQuantScaleMin MechanismPlan (weft::KQuantScaleMinPlan) the
-  /// FormulaProvider kquantScaleMinPlanFromFacts produced, INSTEAD of scatter-read from
+  /// family-local constructKQuantScaleMinPlan produced, instead of scatter-reading from
   /// the format name. Byte-exact reproduce-current; the plan pins loadLMUL/stripLanes to
   /// the FIXED ggml-ABI super-block geometry (phase-3-kquant c-drives them f(VLEN)). The
   /// q4_K/q5_K body reads the 5th-bit flag off plan.scaleModel (Q5K).
@@ -4879,7 +4639,7 @@ private:
   /// then the per-super-block grid-index + sign decode (grid-of-8 int64 for iq2_xxs,
   /// the 512/1024-entry grids for iq2_xs/iq2_s, the grid-of-4 uint32 for iq3_xxs/iq3_s)
   /// folded d*scale*grid*sign. This is a thin `format`-keyed FORWARDER to
-  /// emitGgmlDequantizeRowExtended -- the SAME hand-written grid decode the
+  /// the retired hand-written grid reference; the
   /// dispatch-wired monolith fallback runs -- so the CONSTRUCTED typed lowering (via
   /// emitTypedDequantizeRowLoopBody) and the monolith emit byte-identical C by
   /// construction (modulo only the source-op provenance token threaded through
@@ -4891,7 +4651,7 @@ private:
   /// sibling of emitDequantizeRowKQuantBodyShared (no accumulator).
   /// Phase-4 (DequantMechanismPlan family #4): the per-format grid leaf + the grid ENTRY
   /// byte-width g-axis geometry are READ from the GridLookup MechanismPlan
-  /// (weft::GridLookupPlan) the FormulaProvider gridLookupPlanFromFacts produced (which
+  /// (weft::GridLookupPlan) that constructGridLookupPlan produced (it
   /// folds the fail-closed GridDecodePlan registry THROUGH itself), INSTEAD of dispatching
   /// on the format string. Byte-exact reproduce-current: plan.leaf selects the same owned
   /// body and plan.entryLanes carries the same descriptor value the retired
@@ -5057,7 +4817,7 @@ private:
   /// ONCE as function-local statics (the SAME emitIQ1SCanonicalGridTableDecl /
   /// emitIQ1MCanonicalGridTableDecl / emitCodebookDecl anchors the block-dot vec_dot
   /// lowerings emit), then the per-block index/nibble decode folded d*scale*value. This
-  /// is a thin `format`-keyed FORWARDER to emitGgmlDequantizeRowExtended -- the SAME
+  /// consumes the selected typed ternary plan; the
   /// hand-written decode the dispatch-wired monolith fallback runs -- so the CONSTRUCTED
   /// typed lowering (via emitTypedDequantizeRowLoopBody) and the monolith emit
   /// byte-identical C by construction (modulo only the source-op provenance token threaded
@@ -5069,7 +4829,7 @@ private:
   /// Phase-4 (DequantMechanismPlan family #5, the [K-10] ternary split): the per-format
   /// ternary leaf + the grid ENTRY byte-width g-axis geometry (iq1 leaves) are READ from
   /// the TernaryDecode MechanismPlan (weft::TernaryDecodePlan) the FormulaProvider
-  /// ternaryDecodePlanFromFacts produced, INSTEAD of dispatching on the format string.
+  /// constructTernaryDecodePlan produced, instead of dispatching on the format string.
   /// Ternary is its OWN mechanism -- it does NOT consult the grid registry (grid != ternary
   /// restored for the dequant-row head). Byte-exact reproduce-current: plan.leaf selects the
   /// same owned body and plan.entryLanes carries the same descriptor value the retired
@@ -5100,7 +4860,7 @@ private:
   /// emitted chain: VLEN64 uses i8m2 -> i32m8/f32m8, VLEN128 uses
   /// i8m1 -> i32m4/f32m4, while VLEN256 with explicit fractional support uses
   /// i8mf2 -> i32m2/f32m2. The integer nibble/codebook/scale decode
-  /// mirrors the scalar emitGgmlDequantizeRowExtended byte-for-byte. Byte-exact to
+  /// mirrors the retired scalar reference byte-for-byte. Byte-exact to
   /// ggml's dequantize_row_{mxfp4,nvfp4,iq4_nl,iq4_xs} by construction. Streaming
   /// sibling of emitDequantizeRowQ8_0VectorBody (no accumulator).
   ///
@@ -5131,7 +4891,7 @@ private:
   /// digits/byte (n=0..4), qh packs 4 (n=0..3). All lane groups are emitted with
   /// nLanes<=16 so every widened LMUL (u16m2 / i32m4 / f32m4) fits VLMAX at VLEN128 (and
   /// processes exactly nLanes elements on any VLEN>=128). The integer ternary decode
-  /// mirrors the scalar emitGgmlDequantizeRowExtended byte-for-byte; the ONE vfmul by d
+  /// mirrors the retired scalar reference byte-for-byte; the ONE vfmul by d
   /// == ggml's single `(q-1)*d` / `(xi-1)*d` mul -> no fp-contraction ambiguity.
   /// Byte-exact to ggml's dequantize_row_{tq1_0,tq2_0} by construction. Streaming
   /// sibling of emitDequantizeRowCodebookVectorBody (no accumulator, no gather).

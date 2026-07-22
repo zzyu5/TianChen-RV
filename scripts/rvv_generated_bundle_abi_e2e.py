@@ -402,20 +402,6 @@ STRIDED_INPUT_WIDENING_DOT_RHS_STRIDE_SOURCE = "runtime_abi:rhs_stride"
 STRIDED_INPUT_WIDENING_DOT_SOURCE_MEMORY_FORM = "strided-load"
 STRIDED_INPUT_WIDENING_DOT_DESTINATION_MEMORY_FORM = "unit-stride-store"
 STRIDED_INPUT_WIDENING_DOT_STRIDED_LOAD_INTRINSIC = "__riscv_vlse16_v_i16mf2"
-STRIDED_INPUT_WIDENING_DOT_LOW_PRECISION_RESOURCE_CANDIDATE_SET = (
-    "rvv-low-precision-direct-contraction-resource-candidate-set.v1"
-    "[strided-input-widening-dot-reduce-add,i16mf2-i32m1,u1]"
-)
-STRIDED_INPUT_WIDENING_DOT_LOW_PRECISION_RESOURCE_SELECTED_CANDIDATE = (
-    "rvv-low-precision-direct-contraction-resource-candidate.v1"
-    "[strided-input-widening-dot-reduce-add,i16mf2-i32m1,u1]"
-)
-STRIDED_INPUT_WIDENING_DOT_LOW_PRECISION_RESOURCE_SELECTION_REASON = (
-    "static-bounded-strided-input-widening-dot-reduce-i16mf2-i32m1-runtime-avl"
-)
-STRIDED_INPUT_WIDENING_DOT_LOW_PRECISION_RESOURCE_LEGALITY_SCOPE = (
-    "typed-low-precision-strided-input-widening-dot-resource-legality.v1"
-)
 RVV_TARGET_CAPABILITY_PROVIDER_MIRROR = (
     "selected_capability_provider_mirror:@rvv;id=rvv;kind=isa-vector;rvv=exact"
 )
@@ -423,43 +409,6 @@ RVV_TARGET_CAPABILITY_LEGALITY_MIRROR = (
     "selected_target_capability_legality_mirror:@rvv;id=rvv;kind=isa-vector;"
     "rvv=exact;sew=32;lmul=m1;tail=agnostic;mask=agnostic"
 )
-COMPOSITE_GATHER_MACC_SCATTER_RESOURCE_CANDIDATE_SET = (
-    "rvv-composite-gather-macc-scatter-resource-candidate-set.v1"
-    "[rt-scmp-indexed-gather-macc-scatter-e32m1-u1]"
-)
-COMPOSITE_GATHER_MACC_SCATTER_RESOURCE_SELECTED_CANDIDATE = (
-    "rvv-composite-gather-macc-scatter-resource-candidate.v1"
-    "[rt-scmp-indexed-gather-macc-scatter,e32m1,u1]"
-)
-COMPOSITE_GATHER_MACC_SCATTER_RESOURCE_SELECTION_REASON = (
-    "static-bounded-runtime-scalar-computed-mask-indexed-gather-macc-"
-    "scatter-e32m1-runtime-avl"
-)
-COMPOSITE_GATHER_MACC_SCATTER_RESOURCE_LEGALITY_SCOPE = (
-    "typed-composite-gather-macc-scatter-resource-legality.v1"
-)
-COMPOSITE_GATHER_MACC_SCATTER_RESOURCE_OPERATION = (
-    "runtime_scalar_cmp_masked_indexed_gather_macc_scatter"
-)
-COMPOSITE_GATHER_MACC_SCATTER_RESOURCE_MEMORY_FORM = (
-    "runtime-scalar-computed-mask-indexed-gather-macc-scatter"
-)
-COMPOSITE_GATHER_MACC_SCATTER_RESOURCE_VL_POLICY = (
-    "runtime-avl-single-setvl"
-)
-COMPOSITE_GATHER_MACC_SCATTER_RESOURCE_ACCUMULATOR_LAYOUT = (
-    "separate-i32-vector-accumulator-input"
-)
-COMPOSITE_GATHER_MACC_SCATTER_RESOURCE_PIPELINE_INTENT = (
-    "single-vl-linear-gather-macc-scatter.v1"
-)
-COMPOSITE_GATHER_MACC_SCATTER_RESOURCE_PREFETCH_INTENT = "none"
-COMPOSITE_GATHER_MACC_SCATTER_RESOURCE_LEGALITY = "legal"
-COMPOSITE_GATHER_MACC_SCATTER_RESOURCE_REJECTION_REASON = "none"
-COMPOSITE_GATHER_MACC_SCATTER_RESOURCE_UNROLL_FACTOR = "1"
-COMPOSITE_GATHER_MACC_SCATTER_RESOURCE_VSETVL_REGION_COUNT = "1"
-COMPOSITE_GATHER_MACC_SCATTER_RESOURCE_PEAK_LIVE_VECTOR_GROUPS = "8"
-COMPOSITE_GATHER_MACC_SCATTER_RESOURCE_VECTOR_REGISTER_BUDGET = "32"
 COMPUTED_MASK_WIDENING_DOT_RUNTIME_ABI_ORDER = (
     "cmp_lhs,cmp_rhs,lhs,rhs,acc,out,n"
 )
@@ -468,22 +417,6 @@ COMPUTED_MASK_STRIDED_INPUT_WIDENING_DOT_RUNTIME_ABI_ORDER = (
 )
 COMPUTED_MASK_STRIDED_INPUT_WIDENING_DOT_MEMORY_LAYOUT = (
     "unit-stride-compare-element-strided-lhs-rhs-dot-source-unit-stride-output-runtime-abi"
-)
-COMPUTED_MASK_STRIDED_INPUT_WIDENING_DOT_LOW_PRECISION_RESOURCE_CANDIDATE_SET = (
-    "rvv-low-precision-direct-contraction-resource-candidate-set.v1"
-    "[computed-mask-strided-input-widening-dot-reduce-add,i16mf2-i32m1,u1]"
-)
-COMPUTED_MASK_STRIDED_INPUT_WIDENING_DOT_LOW_PRECISION_RESOURCE_SELECTED_CANDIDATE = (
-    "rvv-low-precision-direct-contraction-resource-candidate.v1"
-    "[computed-mask-strided-input-widening-dot-reduce-add,i16mf2-i32m1,u1]"
-)
-COMPUTED_MASK_STRIDED_INPUT_WIDENING_DOT_LOW_PRECISION_RESOURCE_SELECTION_REASON = (
-    "static-bounded-computed-mask-strided-input-widening-dot-reduce-"
-    "i16mf2-i32m1-runtime-avl"
-)
-COMPUTED_MASK_STRIDED_INPUT_WIDENING_DOT_LOW_PRECISION_RESOURCE_LEGALITY_SCOPE = (
-    "typed-low-precision-computed-mask-strided-input-widening-dot-resource-"
-    "legality.v1"
 )
 STRIDED_ADD_RUNTIME_ABI_ORDER = "lhs,rhs,out,n,lhs_stride,rhs_stride,out_stride"
 STRIDED_LOAD_UNIT_STORE_RUNTIME_ABI_ORDER = "src,out,n,stride_bytes"
@@ -620,13 +553,11 @@ WIDENING_PRODUCT_REDUCE_RELATION = (
     "signed-i8mf4xi8mf4-to-i16mf2-reduce-plus-i32-scalar-to-i32"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_TYPED_COMPUTE_OP = (
-    "weft_rvv.widening_product+weft_rvv.standalone_reduce+"
-    "weft_rvv.gearbox_cross_region_handoff+weft_rvv.dequantize"
+    "weft_rvv.widening_product+weft_rvv.standalone_reduce+weft_rvv.dequantize"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANT_CLAMP_F32_TYPED_COMPUTE_OP = (
     "weft_rvv.widening_product+weft_rvv.standalone_reduce+"
-    "weft_rvv.gearbox_cross_region_handoff+weft_rvv.dequantize+"
-    "weft_rvv.compare+weft_rvv.select"
+    "weft_rvv.dequantize+weft_rvv.compare+weft_rvv.select"
 )
 WIDENING_PRODUCT_RELATION_I8_I16 = "signed-i8mf4xi8mf4-to-i16mf2"
 WIDENING_PRODUCT_REDUCE_ACCUMULATOR_LAYOUT = (
@@ -648,221 +579,6 @@ WIDENING_PRODUCT_REDUCE_SCALAR_RESULT_BOUNDARY = (
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_SCALAR_RESULT_BOUNDARY = (
     "vector-i32m1-carry-dot_acc_vec-across-runtime-vl-chunks-final-scalar-extract-f32-store.v1"
-)
-WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_CANDIDATE_SET = (
-    "rvv-low-precision-direct-contraction-resource-candidate-set.v4"
-    "[i8mf4-i16mf2-i32m1-f32m1:u1-vector-carry,"
-    "u2-grouped-tail-safe,"
-    "signed-i4n2-in-i8mf4-i16mf2-i32m1-f32m1:u1-unpack-required]"
-)
-WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_SELECTED_CANDIDATE = (
-    "rvv-low-precision-direct-contraction-resource-candidate.v1"
-    "[product-reduction-dequantize-f32,i8mf4-i16mf2-i32m1-f32m1,u2-grouped]"
-)
-WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_RESOURCE_SELECTED_CANDIDATE = (
-    "rvv-low-precision-direct-contraction-resource-candidate.v1"
-    "[product-reduction-dequantize-f32,"
-    "signed-i4n2-in-i8mf4-i16mf2-i32m1-f32m1,u1-unpack-required]"
-)
-WIDENING_PRODUCT_REDUCE_DEQUANT_CLAMP_F32_RESOURCE_SELECTED_CANDIDATE = (
-    "rvv-low-precision-direct-contraction-resource-candidate.v1"
-    "[product-reduction-dequant-clamp-f32,i8mf4-i16mf2-i32m1-f32m1,u2-grouped]"
-)
-WIDENING_PRODUCT_REDUCE_DEQUANT_CLAMP_F32_PACKED_I4_RESOURCE_SELECTED_CANDIDATE = (
-    "rvv-low-precision-direct-contraction-resource-candidate.v1"
-    "[product-reduction-dequant-clamp-f32,"
-    "signed-i4n2-in-i8mf4-i16mf2-i32m1-f32m1,u1-unpack-required]"
-)
-WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_SELECTION_REASON = (
-    "static-bounded-product-reduction-dequant-i8mf4-i16mf2-i32m1-f32m1-u2-grouped-tail-safe-runtime-avl"
-)
-WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_RESOURCE_SELECTION_REASON = (
-    "static-bounded-product-reduction-dequant-signed-i4n2-in-i8mf4-i16mf2-"
-    "i32m1-f32m1-u1-unpack-required-runtime-avl"
-)
-WIDENING_PRODUCT_REDUCE_DEQUANT_CLAMP_F32_RESOURCE_SELECTION_REASON = (
-    "static-bounded-product-reduction-dequant-clamp-i8mf4-i16mf2-i32m1-"
-    "f32m1-u2-grouped-tail-safe-runtime-avl"
-)
-WIDENING_PRODUCT_REDUCE_DEQUANT_CLAMP_F32_PACKED_I4_RESOURCE_SELECTION_REASON = (
-    "static-bounded-product-reduction-dequant-clamp-signed-i4n2-in-"
-    "i8mf4-i16mf2-i32m1-f32m1-u1-unpack-required-runtime-avl"
-)
-WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_LEGALITY_SCOPE = (
-    "typed-low-precision-product-reduction-dequant-resource-legality.v1"
-)
-LOW_PRECISION_RESOURCE_PLANNING_CONTRACT = (
-    "rvv-low-precision-production-resource-planning-contract.v1"
-)
-WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_DECISION = (
-    "consume-low-precision-u2-three-vsetvl-region-budget-7of32.v1"
-)
-WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_RESOURCE_DECISION = (
-    "consume-low-precision-packed-i4-high-nibble-vwmacc-scalar-epilogue-single-reduce-budget-5of32.v1"
-)
-LOW_PRECISION_RESOURCE_PRIMITIVE_CONTRACT = (
-    "rvv-low-precision-widening-primitive-facts.v1"
-)
-LOW_PRECISION_RESOURCE_PRIMITIVE_CHAIN_CONTRACT = (
-    "rvv-low-precision-widening-reduction-primitive-facts.v1"
-)
-LOW_PRECISION_RESOURCE_PRIMITIVE_DEQUANT_KIND = (
-    "signed-i8mf4xi8mf4-to-i16mf2-product-i32m1-reduction-f32m1-dequant.v1"
-)
-LOW_PRECISION_RESOURCE_PRIMITIVE_DEQUANT_CLAMP_KIND = (
-    "signed-i8mf4xi8mf4-to-i16mf2-product-i32m1-reduction-f32m1-dequant-clamp.v1"
-)
-LOW_PRECISION_RESOURCE_PRIMITIVE_CHAIN_KIND = (
-    "signed-i8mf4xi8mf4-to-i16mf2-product-i32m1-vwredsum.v1"
-)
-LOW_PRECISION_RESOURCE_WIDENING_PRODUCT_MULTIPLICAND_ROLES = (
-    "lhs=lhs-input-buffer:wprod-lhs:src-i8mf4;"
-    "rhs=rhs-input-buffer:wprod-rhs:src-i8mf4"
-)
-LOW_PRECISION_RESOURCE_WIDENING_PRODUCT_EXTENSION_POLICY = (
-    "source=signed;extension=sign-extend-i8-to-i16-product;product=i16mf2"
-)
-LOW_PRECISION_RESOURCE_PRIMITIVE_SOURCE_LOAD = "unit-stride-byte-load"
-LOW_PRECISION_RESOURCE_PRIMITIVE_SOURCE_EXTENSION = (
-    "sign-extend-i8-to-i16-product"
-)
-LOW_PRECISION_RESOURCE_REALIZATION_ADMISSION_CONTRACT = (
-    "rvv-low-precision-selected-body-realization-admission.v1"
-)
-LOW_PRECISION_RESOURCE_REALIZATION_ADMISSION_DECISION = "realize"
-LOW_PRECISION_RESOURCE_REALIZATION_ADMISSION_DISPATCH_POLICY = (
-    "correctness-fallback"
-)
-WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_FEEDBACK = (
-    "same-target-packed-i4-no-win.v1"
-)
-WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_BASELINE = (
-    "scalar-c-reference/product-reduction-dequant-packed-i4-v1"
-)
-WIDENING_PRODUCT_REDUCE_DEQUANT_CLAMP_F32_PACKED_I4_PERFORMANCE_BASELINE = (
-    "scalar-c-reference/product-reduction-dequant-clamp-packed-i4-v1"
-)
-WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_BEST_SPEEDUP_RANGE = (
-    "0.895307..1.027027"
-)
-WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_ACTION = (
-    "no-win-repair-required-before-performance-claim"
-)
-WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_MATURITY = (
-    "executable-not-performance-mature"
-)
-WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_MATURITY_EVIDENCE = (
-    "same-target-packed-i4-campaign-no-further-repair-no-win-gate4.v1"
-)
-WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_MATURITY_OUTCOME = (
-    "no-win"
-)
-WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_SELECTION_ELIGIBLE = (
-    "false"
-)
-WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_DISPATCH_PREFERENCE = (
-    "not-performance-preferred"
-)
-WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_HANDOFF_CONTRACT = (
-    "rvv-low-precision-packed-i4-measurement-policy-handoff.v1"
-)
-WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_DIAGNOSIS = (
-    "correctness-supported-no-win-regression"
-)
-WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_MEASUREMENT_EVIDENCE = (
-    "gate4-packed-i4-scalar-epilogue-dequant-ssh/"
-    "widening_product_reduce_dequantize_f32/same_target_measurement_evidence.json"
-)
-WIDENING_PRODUCT_REDUCE_DEQUANT_CLAMP_F32_PACKED_I4_REMEDIATION_MEASUREMENT_EVIDENCE = (
-    "gate4-packed-i4-scalar-epilogue-dequant-clamp-ssh/"
-    "widening_product_reduce_dequant_clamp_f32/same_target_measurement_evidence.json"
-)
-WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_DECISION = (
-    "accepted-beyond-local-scalar-epilogue-repair-candidate.v1"
-)
-WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_ACTION = (
-    WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_ACTION
-)
-WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_DISPATCH_PREFERENCE = (
-    WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_DISPATCH_PREFERENCE
-)
-WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_BLOCKER = (
-    "same-target-packed-i4-beyond-local-scalar-epilogue-no-win-or-regression"
-)
-WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_PLAN_CONTRACT = (
-    "rvv-low-precision-packed-i4-resource-remediation-plan.v1"
-)
-WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_PLAN = (
-    "attempt-packed-i4-beyond-local-scalar-epilogue-before-performance-claim.v1"
-)
-WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_STATEMENT_STRATEGY = (
-    "low-shifted-i4-product-rescale-high-nibble-vwmacc-single-vwredsum-scalar-epilogue"
-)
-WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_VECTOR_BUDGET = (
-    "packed-i4-remediation-budget-5of32-vector-groups"
-)
-WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_SCHEDULE_CONTRACT = (
-    "rvv-low-precision-packed-i4-resource-remediation-schedule.v1"
-)
-WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_UNPACK_PLAN = (
-    "shift-left-low-signed-i4-nibbles-and-shift-right-high-nibbles.v1"
-)
-WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_PRODUCT_PLAN = (
-    "low-shifted-product-i16-rescale-plus-high-nibble-vwmacc-scalar-epilogue.v1"
-)
-WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_REDUCTION_PLAN = (
-    "single-vwredsum-i16-high-vwmacc-pair-sum-with-i32-seed-scalar-epilogue.v1"
-)
-WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_VL_PLAN = (
-    "two-region-runtime-avl-product-reduce-then-scalar-epilogue-store.v1"
-)
-WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_SCHEDULE_DECISION_CONTRACT = (
-    "rvv-low-precision-packed-i4-resource-aware-schedule-decision.v1"
-)
-WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_SCHEDULE_DECISION = (
-    "select-packed-i4-high-nibble-vwmacc-scalar-epilogue-single-reduce-u1-two-region-budget-5of32.v1"
-)
-WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_SCHEDULE_DECISION_REASON = (
-    "accepted-beyond-local-scalar-epilogue-high-nibble-vwmacc-single-vwredsum-"
-    "budget-5of32"
-)
-WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_RESOURCE_COST_CONTRACT = (
-    "rvv-low-precision-packed-i4-resource-cost-contract.v1"
-)
-WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_RESOURCE_COST_MODEL = (
-    "high-nibble-vwmacc-loop-11-peak-live-5of32-scalar-epilogue-two-region-vsetvl.v1"
-)
-WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_RESOURCE_COST_LOOP_BODY_STEPS = (
-    "11"
-)
-WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_RESOURCE_COST_BLOCKER = (
-    "packed-i4-loop-11-budget-5of32-resource-cost-boundary"
-)
-WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_ADMISSION_DECISION = (
-    "deny-performance-preferred-with-campaign-no-further-repair-no-win-blocker"
-)
-WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_ADMISSION_CLOSURE = (
-    "no-further-repair-packed-i4-campaign-loop-11-budget-5of32.v1"
-)
-WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_ADMISSION_REOPEN_REQUIREMENT = (
-    "new-typed-provider-campaign-repair-plus-source-backed-"
-    "measured-win-and-updated-admission-facts.v1"
-)
-WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_BEYOND_LOCAL_REPAIR_ADMISSION_CONTRACT = (
-    "rvv-low-precision-packed-i4-campaign-no-further-repair-admission.v1"
-)
-WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_BEYOND_LOCAL_REPAIR_ADMISSION_DECISION = (
-    "deny-performance-preferred-campaign-no-further-provider-repair"
-)
-WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_BEYOND_LOCAL_REPAIR_ADMISSION_BLOCKER = (
-    "packed-i4-campaign-no-further-provider-repair-after-scalar-epilogue-no-win"
-)
-WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_BEYOND_LOCAL_REPAIR_ADMISSION_REOPEN_REQUIREMENT = (
-    "new-typed-provider-campaign-repair-plus-source-backed-"
-    "measured-win-and-updated-admission-facts.v1"
-)
-LOW_PRECISION_RESOURCE_REALIZATION_PRODUCER = (
-    "rvv-plugin-local-selected-body-realization-resource-consumer.v1"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_BYTE_OPERAND_FORM = (
     "unpacked-byte-elements"
@@ -899,21 +615,6 @@ WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_MEMORY_FORM = (
 )
 WIDENING_PRODUCT_REDUCE_DEQUANT_CLAMP_F32_MEMORY_FORM = (
     "unit-stride-widening-product-reduce-dequant-clamp-f32"
-)
-WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_PRODUCER_SCOPE = (
-    "gearbox-scope:product-reduction"
-)
-WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_CONSUMER_SCOPE = (
-    "gearbox-scope:dequant-store"
-)
-WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_HANDOFF_CONTRACT = (
-    "gearbox-product-reduce-to-dequant-cross-region-handoff.v1"
-)
-WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_PRODUCER_PHASE = (
-    "tail-product-reduce"
-)
-WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_CONSUMER_PHASE = (
-    "dequant-store"
 )
 STRIDED_INPUT_WIDENING_DOT_ROUTE_OPERAND_BINDING_PLAN = (
     "rvv-route-operand-binding:strided_widening_dot_reduce.v1"
@@ -1554,37 +1255,7 @@ DEQUANTIZE_I32_TO_F32_SOURCE_LOAD_INTRINSIC = "__riscv_vle32_v_i32m1"
 DEQUANTIZE_I32_TO_F32_STORE_INTRINSIC = "__riscv_vse32_v_f32m1"
 DEQUANTIZE_I32_TO_F32_SOURCE_VECTOR_C_TYPE = "vint32m1_t"
 DEQUANTIZE_I32_TO_F32_RESULT_VECTOR_C_TYPE = "vfloat32m1_t"
-DEQUANTIZE_I32_TO_F32_GEARBOX_CANDIDATE_SET = (
-    "rvv-gearbox-candidate-set.v1["
-    "rvv-gearbox-dequantize-i32-to-f32-e32-m1-u1.v1,"
-    "rvv-gearbox-dequantize-i32-to-f32-e32-m1-u2.v1]"
-)
-DEQUANTIZE_I32_TO_F32_GEARBOX_SELECTED_CANDIDATE = (
-    "rvv-gearbox-dequantize-i32-to-f32-e32-m1-u2.v1"
-)
-DEQUANTIZE_I32_TO_F32_GEARBOX_SELECTION_REASON = (
-    "select-bounded-u2-two-slice-route-plan-for-typed-"
-    "dequantize-i32-to-f32-e32-m1-runtime-avl"
-)
-DEQUANTIZE_I32_TO_F32_GEARBOX_LEGALITY_SCOPE = (
-    "typed-dequantize-i32-to-f32-sew32-lmul-m1-runtime-avl"
-)
-DEQUANTIZE_I32_TO_F32_GEARBOX_SELECTOR = (
-    "static-dequantize-i32-to-f32-e32-m1-u2"
-)
-DEQUANTIZE_I32_TO_F32_GEARBOX_SOURCE = "rvv-gearbox-static-pass.v1"
-DEQUANTIZE_I32_TO_F32_GEARBOX_OPERATION = "dequantize_i32_to_f32"
-DEQUANTIZE_I32_TO_F32_GEARBOX_UNROLL = "2"
-DEQUANTIZE_I32_TO_F32_GEARBOX_VL_POLICY = "runtime-avl-two-slice-setvl"
-DEQUANTIZE_I32_TO_F32_GEARBOX_SOURCE_SEW = "32"
-DEQUANTIZE_I32_TO_F32_GEARBOX_SOURCE_LMUL = "m1"
-DEQUANTIZE_I32_TO_F32_GEARBOX_DEST_SEW = "32"
-DEQUANTIZE_I32_TO_F32_GEARBOX_DEST_LMUL = "m1"
-DEQUANTIZE_I32_TO_F32_GEARBOX_RUNTIME_AVL_SOURCE = "runtime_abi:n"
-DEQUANTIZE_I32_TO_F32_GEARBOX_SECOND_LOOP_VL_NAME = "gearbox_loop_vl_u1"
-DEQUANTIZE_I32_TO_F32_GEARBOX_SECOND_SOURCE_NAME = "lhs_vec_u1"
-DEQUANTIZE_I32_TO_F32_GEARBOX_SECOND_CONVERTED_NAME = "converted_f32_vec_u1"
-DEQUANTIZE_I32_TO_F32_GEARBOX_SECOND_RESULT_NAME = "dequantized_vec_u1"
+DEQUANTIZE_I32_TO_F32_FORMULA_UNROLL = "2"
 DEQUANT_F32_OUT_SENTINEL = "-98765.25f"
 F32_CLAMP_SELECT_RUNTIME_ABI_ORDER = "input,lower_bound,upper_bound,out,n"
 F32_CLAMP_SELECT_ROUTE_OPERAND_BINDING_PLAN = (
@@ -8321,21 +7992,7 @@ DEQUANTIZATION_METADATA_KEYS = (
     "weft_rvv.dequant_scale_role",
     "weft_rvv.dequant_scale_c_type",
     "weft_rvv.dequant_scale_name",
-    "weft_rvv.gearbox.candidate_set",
-    "weft_rvv.gearbox.selected_candidate",
-    "weft_rvv.gearbox.selection_reason",
-    "weft_rvv.gearbox.legality_scope",
-    "weft_rvv.gearbox.schedule_id",
-    "weft_rvv.gearbox.selector",
-    "weft_rvv.gearbox.source",
-    "weft_rvv.gearbox.operation",
-    "weft_rvv.gearbox.unroll",
-    "weft_rvv.gearbox.vl_policy",
-    "weft_rvv.gearbox.source_sew",
-    "weft_rvv.gearbox.source_lmul",
-    "weft_rvv.gearbox.dest_sew",
-    "weft_rvv.gearbox.dest_lmul",
-    "weft_rvv.gearbox.runtime_avl_source",
+    "weft_rvv.unroll_factor",
     "weft_rvv.source_memory_form",
     "weft_rvv.destination_memory_form",
 )
@@ -8445,150 +8102,28 @@ WIDENING_MACC_METADATA_KEYS = (
     "weft_rvv.widening_macc_result_layout",
     "weft_rvv.widening_macc_relation",
 )
-LOW_PRECISION_RESOURCE_METADATA_KEYS = (
-    "weft_rvv.low_precision_resource.candidate_set",
-    "weft_rvv.low_precision_resource.selected_candidate",
-    "weft_rvv.low_precision_resource.selection_reason",
-    "weft_rvv.low_precision_resource.legality_scope",
-    "weft_rvv.low_precision_resource.source_dtype",
-    "weft_rvv.low_precision_resource.source_sew",
-    "weft_rvv.low_precision_resource.source_lmul",
-    "weft_rvv.low_precision_resource.operand_form",
-    "weft_rvv.low_precision_resource.source_signedness",
-    "weft_rvv.low_precision_resource.storage_element_width",
-    "weft_rvv.low_precision_resource.effective_element_width",
-    "weft_rvv.low_precision_resource.packing_layout",
-    "weft_rvv.low_precision_resource.unpack_intent",
-    "weft_rvv.low_precision_resource.product_dtype",
-    "weft_rvv.low_precision_resource.product_sew",
-    "weft_rvv.low_precision_resource.product_lmul",
-    "weft_rvv.low_precision_resource.product_emul",
-    "weft_rvv.low_precision_resource.accumulator_dtype",
-    "weft_rvv.low_precision_resource.accumulator_sew",
-    "weft_rvv.low_precision_resource.accumulator_lmul",
-    "weft_rvv.low_precision_resource.accumulator_emul",
-    "weft_rvv.low_precision_resource.result_dtype",
-    "weft_rvv.low_precision_resource.result_sew",
-    "weft_rvv.low_precision_resource.result_lmul",
-    "weft_rvv.low_precision_resource.memory_form",
-    "weft_rvv.low_precision_resource.tail_policy",
-    "weft_rvv.low_precision_resource.mask_policy",
-    "weft_rvv.low_precision_resource.unroll_factor",
-    "weft_rvv.low_precision_resource.accumulator_count",
-    "weft_rvv.low_precision_resource.reduction_layout",
-    "weft_rvv.low_precision_resource.vsetvl_region_count",
-    "weft_rvv.low_precision_resource.peak_live_vector_groups",
-    "weft_rvv.low_precision_resource.vector_register_budget",
-    "weft_rvv.low_precision_resource.runtime_avl_source",
-    "weft_rvv.low_precision_resource.runtime_abi_order",
-    "weft_rvv.low_precision_resource.primitive_contract",
-    "weft_rvv.low_precision_resource.primitive_kind",
-    "weft_rvv.low_precision_resource.primitive_chain_contract",
-    "weft_rvv.low_precision_resource.primitive_chain_kind",
-    "weft_rvv.low_precision_resource.widening_product_multiplicand_roles",
-    "weft_rvv.low_precision_resource.widening_product_extension_policy",
-    "weft_rvv.low_precision_resource.primitive_source_load",
-    "weft_rvv.low_precision_resource.primitive_source_extension",
-    "weft_rvv.low_precision_resource.primitive_widening_product_relation",
-    "weft_rvv.low_precision_resource.primitive_product_reduction_chain_relation",
-    "weft_rvv.low_precision_resource.primitive_widening_product_intrinsic",
-    "weft_rvv.low_precision_resource.primitive_reduction_intrinsic",
-    "weft_rvv.low_precision_resource.primitive_scalar_seed_splat_intrinsic",
-    "weft_rvv.low_precision_resource.primitive_accumulator_layout",
-    "weft_rvv.low_precision_resource.primitive_result_layout",
-    "weft_rvv.low_precision_resource.primitive_reduction_store_vl",
-    "weft_rvv.low_precision_resource.realization_producer",
-    "weft_rvv.low_precision_resource.realization_decision",
-    "weft_rvv.low_precision_resource.realized_unroll_factor",
-    "weft_rvv.low_precision_resource.realized_vsetvl_region_count",
-    "weft_rvv.low_precision_resource.realized_peak_live_vector_groups",
-    "weft_rvv.low_precision_resource.product_region_index",
-    "weft_rvv.low_precision_resource.dequant_region_index",
-    "weft_rvv.low_precision_resource.product_phase",
-    "weft_rvv.low_precision_resource.dequant_phase",
-    "weft_rvv.low_precision_resource.performance_feedback",
-    "weft_rvv.low_precision_resource.performance_baseline",
-    "weft_rvv.low_precision_resource.performance_best_speedup_range",
-    "weft_rvv.low_precision_resource.performance_action",
-    "weft_rvv.low_precision_resource.remediation_handoff_contract",
-    "weft_rvv.low_precision_resource.remediation_diagnosis",
-    "weft_rvv.low_precision_resource.remediation_measurement_evidence",
-    "weft_rvv.low_precision_resource.remediation_decision",
-    "weft_rvv.low_precision_resource.remediation_action",
-    "weft_rvv.low_precision_resource.remediation_dispatch_preference",
-    "weft_rvv.low_precision_resource.remediation_blocker",
-    "weft_rvv.low_precision_resource.remediation_plan_contract",
-    "weft_rvv.low_precision_resource.remediation_plan",
-    "weft_rvv.low_precision_resource.remediation_statement_strategy",
-    "weft_rvv.low_precision_resource.remediation_vector_budget",
-    "weft_rvv.low_precision_resource.remediation_schedule_contract",
-    "weft_rvv.low_precision_resource.remediation_unpack_plan",
-    "weft_rvv.low_precision_resource.remediation_product_plan",
-    "weft_rvv.low_precision_resource.remediation_reduction_plan",
-    "weft_rvv.low_precision_resource.remediation_vl_plan",
-    "weft_rvv.low_precision_resource.schedule_decision_contract",
-    "weft_rvv.low_precision_resource.schedule_decision",
-    "weft_rvv.low_precision_resource.schedule_decision_reason",
-    "weft_rvv.low_precision_resource.resource_cost_contract",
-    "weft_rvv.low_precision_resource.resource_cost_model",
-    "weft_rvv.low_precision_resource.resource_cost_loop_body_steps",
-    "weft_rvv.low_precision_resource.resource_cost_blocker",
-    "weft_rvv.low_precision_resource.performance_admission_decision",
-    "weft_rvv.low_precision_resource.performance_admission_closure",
-    "weft_rvv.low_precision_resource.performance_admission_reopen_requirement",
-    "weft_rvv.low_precision_resource.beyond_local_repair_admission_contract",
-    "weft_rvv.low_precision_resource.beyond_local_repair_admission_decision",
-    "weft_rvv.low_precision_resource.beyond_local_repair_admission_blocker",
-    "weft_rvv.low_precision_resource."
-    "beyond_local_repair_admission_reopen_requirement",
-    "weft_rvv.low_precision_resource.realization_admission_contract",
-    "weft_rvv.low_precision_resource.realization_admission_decision",
-    "weft_rvv.low_precision_resource.realization_admission_evidence",
-    "weft_rvv.low_precision_resource.realization_admission_dispatch_policy",
-    "weft_rvv.low_precision_resource."
-    "realization_admission_schedule_decision_contract",
-    "weft_rvv.low_precision_resource.realization_admission_schedule_decision",
-    "weft_rvv.low_precision_resource."
-    "realization_admission_schedule_decision_reason",
-    "weft_rvv.low_precision_resource.performance_maturity",
-    "weft_rvv.low_precision_resource.performance_maturity_evidence",
-    "weft_rvv.low_precision_resource.performance_maturity_outcome",
-    "weft_rvv.low_precision_resource.performance_selection_eligible",
-    "weft_rvv.low_precision_resource.dispatch_preference",
-    "weft_rvv.low_precision_resource.target_capability_provider_mirror",
-    "weft_rvv.low_precision_resource.target_capability_legality_mirror",
-    "weft_rvv.low_precision_resource.legality",
-    "weft_rvv.low_precision_resource.rejection_reason",
-)
-GEARBOX_SCOPE_METADATA_KEYS = (
-    "weft_rvv.gearbox.producer_scope",
-    "weft_rvv.gearbox.consumer_scope",
-)
-COMPOSITE_RESOURCE_METADATA_KEYS = (
-    "weft_rvv.composite_resource.candidate_set",
-    "weft_rvv.composite_resource.selected_candidate",
-    "weft_rvv.composite_resource.selection_reason",
-    "weft_rvv.composite_resource.legality_scope",
-    "weft_rvv.composite_resource.operation",
-    "weft_rvv.composite_resource.memory_form",
-    "weft_rvv.composite_resource.sew",
-    "weft_rvv.composite_resource.lmul",
-    "weft_rvv.composite_resource.tail_policy",
-    "weft_rvv.composite_resource.mask_policy",
-    "weft_rvv.composite_resource.vl_policy",
-    "weft_rvv.composite_resource.accumulator_layout",
-    "weft_rvv.composite_resource.unroll_factor",
-    "weft_rvv.composite_resource.pipeline_intent",
-    "weft_rvv.composite_resource.prefetch_intent",
-    "weft_rvv.composite_resource.vsetvl_region_count",
-    "weft_rvv.composite_resource.peak_live_vector_groups",
-    "weft_rvv.composite_resource.vector_register_budget",
-    "weft_rvv.composite_resource.runtime_avl_source",
-    "weft_rvv.composite_resource.runtime_abi_order",
-    "weft_rvv.composite_resource.target_capability_provider_mirror",
-    "weft_rvv.composite_resource.target_capability_legality_mirror",
-    "weft_rvv.composite_resource.legality",
-    "weft_rvv.composite_resource.rejection_reason",
+LOW_PRECISION_PRIMITIVE_METADATA_KEYS = (
+    "weft_rvv.low_precision_primitive.contract",
+    "weft_rvv.low_precision_primitive.kind",
+    "weft_rvv.low_precision_primitive.source_dtype",
+    "weft_rvv.low_precision_primitive.source_signedness",
+    "weft_rvv.low_precision_primitive.source_load",
+    "weft_rvv.low_precision_primitive.source_extension",
+    "weft_rvv.low_precision_primitive.product_dtype",
+    "weft_rvv.low_precision_primitive.accumulator_dtype",
+    "weft_rvv.low_precision_primitive.result_dtype",
+    "weft_rvv.low_precision_primitive.source_sew",
+    "weft_rvv.low_precision_primitive.source_lmul",
+    "weft_rvv.low_precision_primitive.product_sew",
+    "weft_rvv.low_precision_primitive.product_lmul",
+    "weft_rvv.low_precision_primitive.accumulator_sew",
+    "weft_rvv.low_precision_primitive.accumulator_lmul",
+    "weft_rvv.low_precision_primitive.result_sew",
+    "weft_rvv.low_precision_primitive.result_lmul",
+    "weft_rvv.low_precision_primitive.tail_policy",
+    "weft_rvv.low_precision_primitive.mask_policy",
+    "weft_rvv.low_precision_primitive.runtime_control_plan",
+    "weft_rvv.low_precision_primitive.runtime_avl_source",
 )
 WIDENING_DOT_REDUCTION_METADATA_KEYS = (
     "weft_rvv.config_contract",
@@ -8633,7 +8168,6 @@ WIDENING_DOT_REDUCTION_METADATA_KEYS = (
     "weft_rvv.widening_product_intrinsic",
     "weft_rvv.strided_load_intrinsic",
     "weft_rvv.widening_dot_reduction_store_vl",
-    *LOW_PRECISION_RESOURCE_METADATA_KEYS,
 )
 WIDENING_PRODUCT_REDUCTION_METADATA_KEYS = (
     "weft_rvv.config_contract",
@@ -8687,8 +8221,7 @@ WIDENING_PRODUCT_REDUCTION_METADATA_KEYS = (
     "weft_rvv.dequant_scale_c_type",
     "weft_rvv.dequant_scale_name",
     "weft_rvv.rhs_broadcast_intrinsic",
-    *LOW_PRECISION_RESOURCE_METADATA_KEYS,
-    *GEARBOX_SCOPE_METADATA_KEYS,
+    *LOW_PRECISION_PRIMITIVE_METADATA_KEYS,
 )
 MULTIPLY_ACCUMULATE_METADATA_KEYS = (
     "weft_rvv.config_contract",
@@ -8792,7 +8325,6 @@ COMPUTED_MASKED_WIDENING_DOT_METADATA_KEYS = (
     "weft_rvv.masked_widening_product_intrinsic",
     "weft_rvv.strided_load_intrinsic",
     "weft_rvv.widening_dot_reduction_store_vl",
-    *LOW_PRECISION_RESOURCE_METADATA_KEYS,
 )
 FORBIDDEN_PUBLIC_RESIDUE_TOKENS = (
     "BinarySelfCheck",
@@ -9407,614 +8939,28 @@ def verify_common_record_fields(
     )
 
 
-def product_dequant_uses_packed_i4_resource_metadata(
+def product_dequant_uses_packed_i4_typed_body(
     metadata: dict[str, str], expectation: OpExpectation
 ) -> bool:
-    selected_candidate = metadata.get("weft_rvv.low_precision_resource.selected_candidate")
-    if expectation.is_widening_product_reduce_dequantize_f32:
-        return (
-            selected_candidate
-            == WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_RESOURCE_SELECTED_CANDIDATE
-        )
-    if expectation.is_widening_product_reduce_dequant_clamp_f32:
-        return (
-            selected_candidate
-            == WIDENING_PRODUCT_REDUCE_DEQUANT_CLAMP_F32_PACKED_I4_RESOURCE_SELECTED_CANDIDATE
-        )
-    return False
+    if not (
+        expectation.is_widening_product_reduce_dequantize_f32
+        or expectation.is_widening_product_reduce_dequant_clamp_f32
+    ):
+        return False
+    return "weft_rvv.packed_i4_nibble_unpack_product" in metadata.get(
+        "rvv_selected_body_typed_compute_op", ""
+    )
 
 
-def product_dequant_uses_packed_i4_resource_text(
+def product_dequant_text_uses_packed_i4_typed_body(
     text: str, expectation: OpExpectation
 ) -> bool:
-    if expectation.is_widening_product_reduce_dequantize_f32:
-        selected_candidate = (
-            WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_RESOURCE_SELECTED_CANDIDATE
-        )
-    elif expectation.is_widening_product_reduce_dequant_clamp_f32:
-        selected_candidate = (
-            WIDENING_PRODUCT_REDUCE_DEQUANT_CLAMP_F32_PACKED_I4_RESOURCE_SELECTED_CANDIDATE
-        )
-    else:
-        return False
     return (
-        'weft_rvv.low_precision_resource.selected_candidate = "'
-        f"{selected_candidate}"
-        '"'
-    ) in text
+        expectation.is_widening_product_reduce_dequantize_f32
+        or expectation.is_widening_product_reduce_dequant_clamp_f32
+    ) and "weft_rvv.packed_i4_nibble_unpack_product" in text
 
 
-def product_dequant_low_precision_resource_profile(
-    expectation: OpExpectation, *, packed_i4: bool
-) -> dict[str, str]:
-    if packed_i4:
-        is_product_dequant_clamp = (
-            expectation.is_widening_product_reduce_dequant_clamp_f32
-        )
-        if not (
-            expectation.is_widening_product_reduce_dequantize_f32
-            or is_product_dequant_clamp
-        ):
-            raise EvidenceError(
-                "packed-i4 low-precision resource evidence is currently "
-                "supported only for product-reduction dequantize/dequant-clamp f32"
-            )
-        return {
-            "selected_candidate": (
-                WIDENING_PRODUCT_REDUCE_DEQUANT_CLAMP_F32_PACKED_I4_RESOURCE_SELECTED_CANDIDATE
-                if is_product_dequant_clamp
-                else WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_RESOURCE_SELECTED_CANDIDATE
-            ),
-            "candidate_count": "3",
-            "legal_candidate_count": "3",
-            "selected_candidate_index": "3",
-            "selection_reason": (
-                WIDENING_PRODUCT_REDUCE_DEQUANT_CLAMP_F32_PACKED_I4_RESOURCE_SELECTION_REASON
-                if is_product_dequant_clamp
-                else WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_RESOURCE_SELECTION_REASON
-            ),
-            "memory_form": (
-                WIDENING_PRODUCT_REDUCE_DEQUANT_CLAMP_F32_MEMORY_FORM
-                if is_product_dequant_clamp
-                else WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_MEMORY_FORM
-            ),
-            "resource_decision": (
-                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_RESOURCE_DECISION
-            ),
-            "operand_form": (
-                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_OPERAND_FORM
-            ),
-            "source_signedness": "signed",
-            "storage_element_width": "8",
-            "effective_element_width": "4",
-            "packing_layout": (
-                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PACKING_LAYOUT
-            ),
-            "unpack_intent": (
-                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_UNPACK_INTENT
-            ),
-            "unroll_factor": "1",
-            "accumulator_count": "1",
-            "vsetvl_region_count": "2",
-            "peak_live_vector_groups": "5",
-            "resource_cost_contract": (
-                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_RESOURCE_COST_CONTRACT
-            ),
-            "resource_cost_model": (
-                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_RESOURCE_COST_MODEL
-            ),
-            "resource_cost_loop_body_steps": (
-                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_RESOURCE_COST_LOOP_BODY_STEPS
-            ),
-            "resource_cost_blocker": (
-                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_RESOURCE_COST_BLOCKER
-            ),
-            "performance_admission_decision": (
-                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_ADMISSION_DECISION
-            ),
-            "performance_admission_closure": (
-                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_ADMISSION_CLOSURE
-            ),
-            "performance_admission_reopen_requirement": (
-                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_ADMISSION_REOPEN_REQUIREMENT
-            ),
-            "beyond_local_repair_admission_contract": (
-                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_BEYOND_LOCAL_REPAIR_ADMISSION_CONTRACT
-            ),
-            "beyond_local_repair_admission_decision": (
-                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_BEYOND_LOCAL_REPAIR_ADMISSION_DECISION
-            ),
-            "beyond_local_repair_admission_blocker": (
-                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_BEYOND_LOCAL_REPAIR_ADMISSION_BLOCKER
-            ),
-            "beyond_local_repair_admission_reopen_requirement": (
-                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_BEYOND_LOCAL_REPAIR_ADMISSION_REOPEN_REQUIREMENT
-            ),
-            "primitive_contract": LOW_PRECISION_RESOURCE_PRIMITIVE_CONTRACT,
-            "primitive_kind": (
-                LOW_PRECISION_RESOURCE_PRIMITIVE_DEQUANT_CLAMP_KIND
-                if is_product_dequant_clamp
-                else LOW_PRECISION_RESOURCE_PRIMITIVE_DEQUANT_KIND
-            ),
-            "primitive_chain_contract": LOW_PRECISION_RESOURCE_PRIMITIVE_CHAIN_CONTRACT,
-            "primitive_chain_kind": LOW_PRECISION_RESOURCE_PRIMITIVE_CHAIN_KIND,
-            "primitive_widening_product_relation": WIDENING_PRODUCT_RELATION_I8_I16,
-            "primitive_product_reduction_chain_relation": WIDENING_PRODUCT_REDUCE_RELATION,
-            "primitive_widening_product_intrinsic": WIDENING_PRODUCT_REDUCE_INTRINSIC,
-            "primitive_reduction_intrinsic": (
-                WIDENING_PRODUCT_REDUCE_WIDENING_REDUCTION_INTRINSIC
-            ),
-            "primitive_scalar_seed_splat_intrinsic": (
-                WIDENING_PRODUCT_REDUCE_SCALAR_SEED_SPLAT_INTRINSIC
-            ),
-            "primitive_accumulator_layout": WIDENING_PRODUCT_REDUCE_ACCUMULATOR_LAYOUT,
-            "primitive_result_layout": WIDENING_PRODUCT_REDUCE_RESULT_LAYOUT,
-            "primitive_reduction_store_vl": WIDENING_PRODUCT_REDUCE_STORE_VL,
-            "realization_producer": LOW_PRECISION_RESOURCE_REALIZATION_PRODUCER,
-            "realization_decision": (
-                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_RESOURCE_DECISION
-            ),
-            "realized_unroll_factor": "1",
-            "realized_vsetvl_region_count": "2",
-            "realized_peak_live_vector_groups": "5",
-            "producer_phase": "load-product-reduce",
-            "consumer_phase": WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_CONSUMER_PHASE,
-            "producer_region_index": "1",
-            "consumer_region_index": "2",
-            "performance_feedback": (
-                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_FEEDBACK
-            ),
-            "performance_baseline": (
-                WIDENING_PRODUCT_REDUCE_DEQUANT_CLAMP_F32_PACKED_I4_PERFORMANCE_BASELINE
-                if is_product_dequant_clamp
-                else WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_BASELINE
-            ),
-            "performance_best_speedup_range": (
-                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_BEST_SPEEDUP_RANGE
-            ),
-            "performance_action": (
-                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_ACTION
-            ),
-            "performance_maturity": (
-                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_MATURITY
-            ),
-            "performance_maturity_evidence": (
-                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_MATURITY_EVIDENCE
-            ),
-            "performance_maturity_outcome": (
-                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_MATURITY_OUTCOME
-            ),
-            "performance_selection_eligible": (
-                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_SELECTION_ELIGIBLE
-            ),
-            "dispatch_preference": (
-                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_DISPATCH_PREFERENCE
-            ),
-            "remediation_handoff_contract": (
-                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_HANDOFF_CONTRACT
-            ),
-            "remediation_diagnosis": (
-                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_DIAGNOSIS
-            ),
-            "remediation_measurement_evidence": (
-                WIDENING_PRODUCT_REDUCE_DEQUANT_CLAMP_F32_PACKED_I4_REMEDIATION_MEASUREMENT_EVIDENCE
-                if is_product_dequant_clamp
-                else WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_MEASUREMENT_EVIDENCE
-            ),
-            "remediation_decision": (
-                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_DECISION
-            ),
-            "remediation_action": (
-                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_ACTION
-            ),
-            "remediation_dispatch_preference": (
-                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_DISPATCH_PREFERENCE
-            ),
-            "remediation_blocker": (
-                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_BLOCKER
-            ),
-            "remediation_plan_contract": (
-                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_PLAN_CONTRACT
-            ),
-            "remediation_plan": (
-                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_PLAN
-            ),
-            "remediation_statement_strategy": (
-                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_STATEMENT_STRATEGY
-            ),
-            "remediation_vector_budget": (
-                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_VECTOR_BUDGET
-            ),
-            "remediation_schedule_contract": (
-                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_SCHEDULE_CONTRACT
-            ),
-            "remediation_unpack_plan": (
-                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_UNPACK_PLAN
-            ),
-            "remediation_product_plan": (
-                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_PRODUCT_PLAN
-            ),
-            "remediation_reduction_plan": (
-                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_REDUCTION_PLAN
-            ),
-            "remediation_vl_plan": (
-                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_VL_PLAN
-            ),
-            "schedule_decision_contract": (
-                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_SCHEDULE_DECISION_CONTRACT
-            ),
-            "schedule_decision": (
-                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_SCHEDULE_DECISION
-            ),
-            "schedule_decision_reason": (
-                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_SCHEDULE_DECISION_REASON
-            ),
-            "resource_cost_contract": (
-                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_RESOURCE_COST_CONTRACT
-            ),
-            "resource_cost_model": (
-                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_RESOURCE_COST_MODEL
-            ),
-            "resource_cost_loop_body_steps": (
-                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_RESOURCE_COST_LOOP_BODY_STEPS
-            ),
-            "resource_cost_blocker": (
-                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_RESOURCE_COST_BLOCKER
-            ),
-            "performance_admission_decision": (
-                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_ADMISSION_DECISION
-            ),
-            "performance_admission_closure": (
-                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_ADMISSION_CLOSURE
-            ),
-            "performance_admission_reopen_requirement": (
-                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_ADMISSION_REOPEN_REQUIREMENT
-            ),
-            "beyond_local_repair_admission_contract": (
-                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_BEYOND_LOCAL_REPAIR_ADMISSION_CONTRACT
-            ),
-            "beyond_local_repair_admission_decision": (
-                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_BEYOND_LOCAL_REPAIR_ADMISSION_DECISION
-            ),
-            "beyond_local_repair_admission_blocker": (
-                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_BEYOND_LOCAL_REPAIR_ADMISSION_BLOCKER
-            ),
-            "beyond_local_repair_admission_reopen_requirement": (
-                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_BEYOND_LOCAL_REPAIR_ADMISSION_REOPEN_REQUIREMENT
-            ),
-            "realization_admission_contract": (
-                LOW_PRECISION_RESOURCE_REALIZATION_ADMISSION_CONTRACT
-            ),
-            "realization_admission_decision": (
-                LOW_PRECISION_RESOURCE_REALIZATION_ADMISSION_DECISION
-            ),
-            "realization_admission_evidence": (
-                WIDENING_PRODUCT_REDUCE_DEQUANT_CLAMP_F32_PACKED_I4_REMEDIATION_MEASUREMENT_EVIDENCE
-                if is_product_dequant_clamp
-                else WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_MEASUREMENT_EVIDENCE
-            ),
-            "realization_admission_dispatch_policy": (
-                LOW_PRECISION_RESOURCE_REALIZATION_ADMISSION_DISPATCH_POLICY
-            ),
-            "realization_admission_schedule_decision_contract": (
-                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_SCHEDULE_DECISION_CONTRACT
-            ),
-            "realization_admission_schedule_decision": (
-                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_SCHEDULE_DECISION
-            ),
-            "realization_admission_schedule_decision_reason": (
-                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_SCHEDULE_DECISION_REASON
-            ),
-        }
-    is_product_dequant_clamp = (
-        expectation.is_widening_product_reduce_dequant_clamp_f32
-    )
-    return {
-        "selected_candidate": (
-            WIDENING_PRODUCT_REDUCE_DEQUANT_CLAMP_F32_RESOURCE_SELECTED_CANDIDATE
-            if is_product_dequant_clamp
-            else WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_SELECTED_CANDIDATE
-        ),
-        "candidate_count": "3",
-        "legal_candidate_count": "3",
-        "selected_candidate_index": "2",
-        "selection_reason": (
-            WIDENING_PRODUCT_REDUCE_DEQUANT_CLAMP_F32_RESOURCE_SELECTION_REASON
-            if is_product_dequant_clamp
-            else WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_SELECTION_REASON
-        ),
-        "memory_form": (
-            WIDENING_PRODUCT_REDUCE_DEQUANT_CLAMP_F32_MEMORY_FORM
-            if is_product_dequant_clamp
-            else WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_MEMORY_FORM
-        ),
-        "resource_decision": WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_DECISION,
-        "operand_form": WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_BYTE_OPERAND_FORM,
-        "source_signedness": "signed",
-        "storage_element_width": "8",
-        "effective_element_width": "8",
-        "packing_layout": WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_BYTE_PACKING_LAYOUT,
-        "unpack_intent": WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_BYTE_UNPACK_INTENT,
-        "unroll_factor": "2",
-        "accumulator_count": "2",
-        "vsetvl_region_count": "3",
-        "peak_live_vector_groups": "7",
-        "primitive_contract": LOW_PRECISION_RESOURCE_PRIMITIVE_CONTRACT,
-        "primitive_kind": (
-            LOW_PRECISION_RESOURCE_PRIMITIVE_DEQUANT_CLAMP_KIND
-            if is_product_dequant_clamp
-            else LOW_PRECISION_RESOURCE_PRIMITIVE_DEQUANT_KIND
-        ),
-        "primitive_chain_contract": LOW_PRECISION_RESOURCE_PRIMITIVE_CHAIN_CONTRACT,
-        "primitive_chain_kind": LOW_PRECISION_RESOURCE_PRIMITIVE_CHAIN_KIND,
-        "widening_product_multiplicand_roles": (
-            LOW_PRECISION_RESOURCE_WIDENING_PRODUCT_MULTIPLICAND_ROLES
-        ),
-        "widening_product_extension_policy": (
-            LOW_PRECISION_RESOURCE_WIDENING_PRODUCT_EXTENSION_POLICY
-        ),
-        "primitive_source_load": LOW_PRECISION_RESOURCE_PRIMITIVE_SOURCE_LOAD,
-        "primitive_source_extension": (
-            LOW_PRECISION_RESOURCE_PRIMITIVE_SOURCE_EXTENSION
-        ),
-        "primitive_widening_product_relation": WIDENING_PRODUCT_RELATION_I8_I16,
-        "primitive_product_reduction_chain_relation": WIDENING_PRODUCT_REDUCE_RELATION,
-        "primitive_widening_product_intrinsic": WIDENING_PRODUCT_REDUCE_INTRINSIC,
-        "primitive_reduction_intrinsic": (
-            WIDENING_PRODUCT_REDUCE_WIDENING_REDUCTION_INTRINSIC
-        ),
-        "primitive_scalar_seed_splat_intrinsic": (
-            WIDENING_PRODUCT_REDUCE_SCALAR_SEED_SPLAT_INTRINSIC
-        ),
-        "primitive_accumulator_layout": WIDENING_PRODUCT_REDUCE_ACCUMULATOR_LAYOUT,
-        "primitive_result_layout": WIDENING_PRODUCT_REDUCE_RESULT_LAYOUT,
-        "primitive_reduction_store_vl": WIDENING_PRODUCT_REDUCE_STORE_VL,
-        "realization_producer": LOW_PRECISION_RESOURCE_REALIZATION_PRODUCER,
-        "realization_decision": WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_DECISION,
-        "realized_unroll_factor": "2",
-        "realized_vsetvl_region_count": "3",
-        "realized_peak_live_vector_groups": "7",
-        "producer_phase": WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_PRODUCER_PHASE,
-        "consumer_phase": WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_CONSUMER_PHASE,
-        "producer_region_index": "2",
-        "consumer_region_index": "3",
-    }
-
-
-def expected_low_precision_resource_metadata(
-    expectation: OpExpectation, *, packed_i4: bool
-) -> dict[str, str]:
-    profile = product_dequant_low_precision_resource_profile(
-        expectation, packed_i4=packed_i4
-    )
-    expected = {
-        "candidate_set": WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_CANDIDATE_SET,
-        "selected_candidate": profile["selected_candidate"],
-        "candidate_count": profile["candidate_count"],
-        "legal_candidate_count": profile["legal_candidate_count"],
-        "selected_candidate_index": profile["selected_candidate_index"],
-        "selection_reason": profile["selection_reason"],
-        "planning_contract": LOW_PRECISION_RESOURCE_PLANNING_CONTRACT,
-        "legality_scope": WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_LEGALITY_SCOPE,
-        "source_dtype": "i8",
-        "source_sew": "8",
-        "source_lmul": "mf4",
-        "operand_form": profile["operand_form"],
-        "source_signedness": profile["source_signedness"],
-        "storage_element_width": profile["storage_element_width"],
-        "effective_element_width": profile["effective_element_width"],
-        "packing_layout": profile["packing_layout"],
-        "unpack_intent": profile["unpack_intent"],
-        "product_dtype": "i16",
-        "product_sew": "16",
-        "product_lmul": "mf2",
-        "product_emul": "mf2",
-        "accumulator_dtype": "i32",
-        "accumulator_sew": "32",
-        "accumulator_lmul": "m1",
-        "accumulator_emul": "m1",
-        "result_dtype": "f32",
-        "result_sew": "32",
-        "result_lmul": "m1",
-        "memory_form": profile["memory_form"],
-        "tail_policy": "agnostic",
-        "mask_policy": "agnostic",
-        "unroll_factor": profile["unroll_factor"],
-        "accumulator_count": profile["accumulator_count"],
-        "reduction_layout": (
-            WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_SCALAR_RESULT_BOUNDARY
-        ),
-        "vsetvl_region_count": profile["vsetvl_region_count"],
-        "peak_live_vector_groups": profile["peak_live_vector_groups"],
-        "vector_register_budget": "32",
-        "runtime_avl_source": "runtime_abi:n",
-        "runtime_abi_order": expectation.runtime_abi_order,
-        "route_family_plan": CONTRACTION_ROUTE_FAMILY_PLAN,
-        "provider_supported_mirror": CONTRACTION_PROVIDER_SUPPORTED_MIRROR,
-        "primitive_contract": LOW_PRECISION_RESOURCE_PRIMITIVE_CONTRACT,
-        "primitive_kind": (
-            LOW_PRECISION_RESOURCE_PRIMITIVE_DEQUANT_CLAMP_KIND
-            if expectation.is_widening_product_reduce_dequant_clamp_f32
-            else LOW_PRECISION_RESOURCE_PRIMITIVE_DEQUANT_KIND
-        ),
-        "primitive_chain_contract": LOW_PRECISION_RESOURCE_PRIMITIVE_CHAIN_CONTRACT,
-        "primitive_chain_kind": LOW_PRECISION_RESOURCE_PRIMITIVE_CHAIN_KIND,
-        "widening_product_multiplicand_roles": (
-            LOW_PRECISION_RESOURCE_WIDENING_PRODUCT_MULTIPLICAND_ROLES
-        ),
-        "widening_product_extension_policy": (
-            LOW_PRECISION_RESOURCE_WIDENING_PRODUCT_EXTENSION_POLICY
-        ),
-        "primitive_source_load": LOW_PRECISION_RESOURCE_PRIMITIVE_SOURCE_LOAD,
-        "primitive_source_extension": (
-            LOW_PRECISION_RESOURCE_PRIMITIVE_SOURCE_EXTENSION
-        ),
-        "primitive_widening_product_relation": WIDENING_PRODUCT_RELATION_I8_I16,
-        "primitive_product_reduction_chain_relation": WIDENING_PRODUCT_REDUCE_RELATION,
-        "primitive_widening_product_intrinsic": WIDENING_PRODUCT_REDUCE_INTRINSIC,
-        "primitive_reduction_intrinsic": (
-            WIDENING_PRODUCT_REDUCE_WIDENING_REDUCTION_INTRINSIC
-        ),
-        "primitive_scalar_seed_splat_intrinsic": (
-            WIDENING_PRODUCT_REDUCE_SCALAR_SEED_SPLAT_INTRINSIC
-        ),
-        "primitive_accumulator_layout": WIDENING_PRODUCT_REDUCE_ACCUMULATOR_LAYOUT,
-        "primitive_result_layout": WIDENING_PRODUCT_REDUCE_RESULT_LAYOUT,
-        "primitive_reduction_store_vl": WIDENING_PRODUCT_REDUCE_STORE_VL,
-        "realization_producer": profile["realization_producer"],
-        "realization_decision": profile["realization_decision"],
-        "realized_unroll_factor": profile["realized_unroll_factor"],
-        "realized_vsetvl_region_count": profile["realized_vsetvl_region_count"],
-        "realized_peak_live_vector_groups": (
-            profile["realized_peak_live_vector_groups"]
-        ),
-        "product_region_index": profile["producer_region_index"],
-        "dequant_region_index": profile["consumer_region_index"],
-        "product_phase": profile["producer_phase"],
-        "dequant_phase": profile["consumer_phase"],
-        "target_capability_provider_mirror": RVV_TARGET_CAPABILITY_PROVIDER_MIRROR,
-        "target_capability_legality_mirror": (
-            RVV_TARGET_CAPABILITY_LEGALITY_MIRROR
-        ),
-        "legality": "legal",
-        "rejection_reason": "none",
-    }
-    if packed_i4:
-        expected.update(
-            {
-                "performance_feedback": profile["performance_feedback"],
-                "performance_baseline": profile["performance_baseline"],
-                "performance_best_speedup_range": profile[
-                    "performance_best_speedup_range"
-                ],
-                "performance_action": profile["performance_action"],
-                "performance_maturity": profile["performance_maturity"],
-                "performance_maturity_evidence": profile[
-                    "performance_maturity_evidence"
-                ],
-                "performance_maturity_outcome": profile[
-                    "performance_maturity_outcome"
-                ],
-                "performance_selection_eligible": profile[
-                    "performance_selection_eligible"
-                ],
-                "dispatch_preference": profile["dispatch_preference"],
-                "remediation_handoff_contract": profile[
-                    "remediation_handoff_contract"
-                ],
-                "remediation_diagnosis": profile["remediation_diagnosis"],
-                "remediation_measurement_evidence": profile[
-                    "remediation_measurement_evidence"
-                ],
-                "remediation_decision": profile["remediation_decision"],
-                "remediation_action": profile["remediation_action"],
-                "remediation_dispatch_preference": profile[
-                    "remediation_dispatch_preference"
-                ],
-                "remediation_blocker": profile["remediation_blocker"],
-                "remediation_plan_contract": profile[
-                    "remediation_plan_contract"
-                ],
-                "remediation_plan": profile["remediation_plan"],
-                "remediation_statement_strategy": profile[
-                    "remediation_statement_strategy"
-                ],
-                "remediation_vector_budget": profile[
-                    "remediation_vector_budget"
-                ],
-                "remediation_schedule_contract": profile[
-                    "remediation_schedule_contract"
-                ],
-                "remediation_unpack_plan": profile["remediation_unpack_plan"],
-                "remediation_product_plan": profile["remediation_product_plan"],
-                "remediation_reduction_plan": profile[
-                    "remediation_reduction_plan"
-                ],
-                "remediation_vl_plan": profile["remediation_vl_plan"],
-                "schedule_decision_contract": profile[
-                    "schedule_decision_contract"
-                ],
-                "schedule_decision": profile["schedule_decision"],
-                "schedule_decision_reason": profile["schedule_decision_reason"],
-                "resource_cost_contract": profile["resource_cost_contract"],
-                "resource_cost_model": profile["resource_cost_model"],
-                "resource_cost_loop_body_steps": profile[
-                    "resource_cost_loop_body_steps"
-                ],
-                "resource_cost_blocker": profile["resource_cost_blocker"],
-                "performance_admission_decision": profile[
-                    "performance_admission_decision"
-                ],
-                "performance_admission_closure": profile[
-                    "performance_admission_closure"
-                ],
-                "performance_admission_reopen_requirement": profile[
-                    "performance_admission_reopen_requirement"
-                ],
-                "beyond_local_repair_admission_contract": profile[
-                    "beyond_local_repair_admission_contract"
-                ],
-                "beyond_local_repair_admission_decision": profile[
-                    "beyond_local_repair_admission_decision"
-                ],
-                "beyond_local_repair_admission_blocker": profile[
-                    "beyond_local_repair_admission_blocker"
-                ],
-                "beyond_local_repair_admission_reopen_requirement": profile[
-                    "beyond_local_repair_admission_reopen_requirement"
-                ],
-                "realization_admission_contract": profile[
-                    "realization_admission_contract"
-                ],
-                "realization_admission_decision": profile[
-                    "realization_admission_decision"
-                ],
-                "realization_admission_evidence": profile[
-                    "realization_admission_evidence"
-                ],
-                "realization_admission_dispatch_policy": profile[
-                    "realization_admission_dispatch_policy"
-                ],
-                "realization_admission_schedule_decision_contract": profile[
-                    "realization_admission_schedule_decision_contract"
-                ],
-                "realization_admission_schedule_decision": profile[
-                    "realization_admission_schedule_decision"
-                ],
-                "realization_admission_schedule_decision_reason": profile[
-                    "realization_admission_schedule_decision_reason"
-                ],
-            }
-        )
-    return {
-        f"weft_rvv.low_precision_resource.{suffix}": expected_value
-        for suffix, expected_value in expected.items()
-    }
-
-
-def validate_low_precision_resource_metadata(
-    metadata: dict[str, str],
-    expectation: OpExpectation,
-    context: str,
-    *,
-    packed_i4: bool,
-) -> None:
-    expected = expected_low_precision_resource_metadata(
-        expectation, packed_i4=packed_i4
-    )
-    for key, expected_value in expected.items():
-        require_equal(metadata.get(key), expected_value, f"{context} metadata {key}")
-
-
-# The deferred-wide (N3) product-reduce-dequant realization records the honest
-# wide-strip ladder (source i8m2, product i16m4) on the route-family/primitive
-# metadata, while the result config stays i32m1/f32m1 and the route identity/leaf
-# profile stay the narrow-named logical-route strings. It also emits NO
-# low_precision_resource.* selection block and NO gearbox producer/consumer scope
-# facts (those are the narrow grouped two-scope candidate artifacts). These keys
-# differ from the narrow expectation; detect the wide realization from the recorded
-# primitive source_lmul and override/skip accordingly. I5: every override mirrors
-# what the wide compiler actually emits (verified against the live PLAN/HEADER).
 DEFERRED_WIDE_METADATA_OVERRIDES = {
     "weft_rvv.source_lmul": "m2",
     "weft_rvv.product_lmul": "m4",
@@ -10040,6 +8986,15 @@ DEFERRED_WIDE_METADATA_OVERRIDES = {
     "weft_rvv.low_precision_primitive.product_lmul": "m4",
 }
 
+DEFERRED_DOT_METADATA_OVERRIDES = {
+    "weft_rvv.target_leaf_profile": (
+        "rvv-v1-i16m4-i32m1-contraction-leaf-profile.v1"
+    ),
+    "weft_rvv.c_type_mapping": (
+        "vl:size_t,source:signed-e16m4,result:signed-e32m1,mask:b32"
+    ),
+}
+
 
 def object_metadata_is_deferred_wide(object_metadata: dict[str, str]) -> bool:
     """True when the recorded bundle metadata is the deferred-wide realization."""
@@ -10048,18 +9003,25 @@ def object_metadata_is_deferred_wide(object_metadata: dict[str, str]) -> bool:
     )
 
 
+def object_metadata_is_deferred_dot(object_metadata: dict[str, str]) -> bool:
+    return "weft_rvv.deferred_accumulate" in object_metadata.get(
+        "rvv_selected_body_typed_compute_op", ""
+    )
+
+
 def deferred_wide_expected_metadata(
     key: str, expected: str, object_metadata: dict[str, str]
 ) -> "str | None":
     """Wide-aware expected metadata: returns the wide override, None to SKIP the
     key (the wide path legitimately does not emit it), or the narrow expected."""
+    if object_metadata_is_deferred_dot(object_metadata):
+        if key in DEFERRED_DOT_METADATA_OVERRIDES:
+            return DEFERRED_DOT_METADATA_OVERRIDES[key]
+        if key not in object_metadata:
+            return None
+        return expected
     if not object_metadata_is_deferred_wide(object_metadata):
         return expected
-    if (
-        key in LOW_PRECISION_RESOURCE_METADATA_KEYS
-        or key in GEARBOX_SCOPE_METADATA_KEYS
-    ):
-        return None
     return DEFERRED_WIDE_METADATA_OVERRIDES.get(key, expected)
 
 
@@ -11516,71 +10478,7 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 "weft_rvv.c_type_mapping": (
                     RUNTIME_SCALAR_CMP_MASKED_INDEXED_GATHER_MACC_SCATTER_C_TYPE_MAPPING
                 ),
-                "weft_rvv.composite_resource.candidate_set": (
-                    COMPOSITE_GATHER_MACC_SCATTER_RESOURCE_CANDIDATE_SET
-                ),
-                "weft_rvv.composite_resource.selected_candidate": (
-                    COMPOSITE_GATHER_MACC_SCATTER_RESOURCE_SELECTED_CANDIDATE
-                ),
-                "weft_rvv.composite_resource.selection_reason": (
-                    COMPOSITE_GATHER_MACC_SCATTER_RESOURCE_SELECTION_REASON
-                ),
-                "weft_rvv.composite_resource.legality_scope": (
-                    COMPOSITE_GATHER_MACC_SCATTER_RESOURCE_LEGALITY_SCOPE
-                ),
-                "weft_rvv.composite_resource.operation": (
-                    COMPOSITE_GATHER_MACC_SCATTER_RESOURCE_OPERATION
-                ),
-                "weft_rvv.composite_resource.memory_form": (
-                    COMPOSITE_GATHER_MACC_SCATTER_RESOURCE_MEMORY_FORM
-                ),
-                "weft_rvv.composite_resource.sew": "32",
-                "weft_rvv.composite_resource.lmul": "m1",
-                "weft_rvv.composite_resource.tail_policy": "agnostic",
-                "weft_rvv.composite_resource.mask_policy": "agnostic",
-                "weft_rvv.composite_resource.vl_policy": (
-                    COMPOSITE_GATHER_MACC_SCATTER_RESOURCE_VL_POLICY
-                ),
-                "weft_rvv.composite_resource.accumulator_layout": (
-                    COMPOSITE_GATHER_MACC_SCATTER_RESOURCE_ACCUMULATOR_LAYOUT
-                ),
-                "weft_rvv.composite_resource.unroll_factor": (
-                    COMPOSITE_GATHER_MACC_SCATTER_RESOURCE_UNROLL_FACTOR
-                ),
-                "weft_rvv.composite_resource.pipeline_intent": (
-                    COMPOSITE_GATHER_MACC_SCATTER_RESOURCE_PIPELINE_INTENT
-                ),
-                "weft_rvv.composite_resource.prefetch_intent": (
-                    COMPOSITE_GATHER_MACC_SCATTER_RESOURCE_PREFETCH_INTENT
-                ),
-                "weft_rvv.composite_resource.vsetvl_region_count": (
-                    COMPOSITE_GATHER_MACC_SCATTER_RESOURCE_VSETVL_REGION_COUNT
-                ),
-                "weft_rvv.composite_resource.peak_live_vector_groups": (
-                    COMPOSITE_GATHER_MACC_SCATTER_RESOURCE_PEAK_LIVE_VECTOR_GROUPS
-                ),
-                "weft_rvv.composite_resource.vector_register_budget": (
-                    COMPOSITE_GATHER_MACC_SCATTER_RESOURCE_VECTOR_REGISTER_BUDGET
-                ),
-                "weft_rvv.composite_resource.runtime_avl_source": (
-                    "runtime_abi:n"
-                ),
-                "weft_rvv.composite_resource.runtime_abi_order": (
-                    expectation.runtime_abi_order
-                ),
-                "weft_rvv.composite_resource.target_capability_provider_mirror": (
-                    RVV_TARGET_CAPABILITY_PROVIDER_MIRROR
-                ),
-                "weft_rvv.composite_resource.target_capability_legality_mirror": (
-                    RVV_TARGET_CAPABILITY_LEGALITY_MIRROR
-                ),
-                "weft_rvv.composite_resource.legality": (
-                    COMPOSITE_GATHER_MACC_SCATTER_RESOURCE_LEGALITY
-                ),
-                "weft_rvv.composite_resource.rejection_reason": (
-                    COMPOSITE_GATHER_MACC_SCATTER_RESOURCE_REJECTION_REASON
-                ),
-            }
+           }
         )
     if (
         expectation.is_computed_masked_segment2_load_unit_store
@@ -12028,49 +10926,7 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 "weft_rvv.dequant_scale_role": "dequant-scale-value",
                 "weft_rvv.dequant_scale_c_type": "float",
                 "weft_rvv.dequant_scale_name": "scale",
-                "weft_rvv.gearbox.candidate_set": (
-                    DEQUANTIZE_I32_TO_F32_GEARBOX_CANDIDATE_SET
-                ),
-                "weft_rvv.gearbox.selected_candidate": (
-                    DEQUANTIZE_I32_TO_F32_GEARBOX_SELECTED_CANDIDATE
-                ),
-                "weft_rvv.gearbox.selection_reason": (
-                    DEQUANTIZE_I32_TO_F32_GEARBOX_SELECTION_REASON
-                ),
-                "weft_rvv.gearbox.legality_scope": (
-                    DEQUANTIZE_I32_TO_F32_GEARBOX_LEGALITY_SCOPE
-                ),
-                "weft_rvv.gearbox.schedule_id": (
-                    DEQUANTIZE_I32_TO_F32_GEARBOX_SELECTED_CANDIDATE
-                ),
-                "weft_rvv.gearbox.selector": (
-                    DEQUANTIZE_I32_TO_F32_GEARBOX_SELECTOR
-                ),
-                "weft_rvv.gearbox.source": DEQUANTIZE_I32_TO_F32_GEARBOX_SOURCE,
-                "weft_rvv.gearbox.operation": (
-                    DEQUANTIZE_I32_TO_F32_GEARBOX_OPERATION
-                ),
-                "weft_rvv.gearbox.unroll": (
-                    DEQUANTIZE_I32_TO_F32_GEARBOX_UNROLL
-                ),
-                "weft_rvv.gearbox.vl_policy": (
-                    DEQUANTIZE_I32_TO_F32_GEARBOX_VL_POLICY
-                ),
-                "weft_rvv.gearbox.source_sew": (
-                    DEQUANTIZE_I32_TO_F32_GEARBOX_SOURCE_SEW
-                ),
-                "weft_rvv.gearbox.source_lmul": (
-                    DEQUANTIZE_I32_TO_F32_GEARBOX_SOURCE_LMUL
-                ),
-                "weft_rvv.gearbox.dest_sew": (
-                    DEQUANTIZE_I32_TO_F32_GEARBOX_DEST_SEW
-                ),
-                "weft_rvv.gearbox.dest_lmul": (
-                    DEQUANTIZE_I32_TO_F32_GEARBOX_DEST_LMUL
-                ),
-                "weft_rvv.gearbox.runtime_avl_source": (
-                    DEQUANTIZE_I32_TO_F32_GEARBOX_RUNTIME_AVL_SOURCE
-                ),
+                "weft_rvv.unroll_factor": DEQUANTIZE_I32_TO_F32_FORMULA_UNROLL,
                 "weft_rvv.source_memory_form": "unit-stride-load",
                 "weft_rvv.destination_memory_form": "unit-stride-store",
                 "weft_rvv.route_operand_binding_plan": (
@@ -12399,216 +11255,6 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 ),
             }
         )
-    if (
-        expectation.is_widening_product_reduce_dequantize_f32
-        or expectation.is_widening_product_reduce_dequant_clamp_f32
-    ):
-        packed_i4 = False
-        resource_profile = product_dequant_low_precision_resource_profile(
-            expectation, packed_i4=packed_i4
-        )
-        per_op_metadata.update(
-            {
-                "weft_rvv.low_precision_resource.candidate_set": (
-                    WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_CANDIDATE_SET
-                ),
-                "weft_rvv.low_precision_resource.selected_candidate": (
-                    resource_profile["selected_candidate"]
-                ),
-                "weft_rvv.low_precision_resource.selection_reason": (
-                    resource_profile["selection_reason"]
-                ),
-                "weft_rvv.low_precision_resource.legality_scope": (
-                    WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_LEGALITY_SCOPE
-                ),
-                "weft_rvv.low_precision_resource.source_dtype": "i8",
-                "weft_rvv.low_precision_resource.source_sew": "8",
-                "weft_rvv.low_precision_resource.source_lmul": "mf4",
-                "weft_rvv.low_precision_resource.operand_form": (
-                    resource_profile["operand_form"]
-                ),
-                "weft_rvv.low_precision_resource.source_signedness": (
-                    resource_profile["source_signedness"]
-                ),
-                "weft_rvv.low_precision_resource.storage_element_width": (
-                    resource_profile["storage_element_width"]
-                ),
-                "weft_rvv.low_precision_resource.effective_element_width": (
-                    resource_profile["effective_element_width"]
-                ),
-                "weft_rvv.low_precision_resource.packing_layout": (
-                    resource_profile["packing_layout"]
-                ),
-                "weft_rvv.low_precision_resource.unpack_intent": (
-                    resource_profile["unpack_intent"]
-                ),
-                "weft_rvv.low_precision_resource.product_dtype": "i16",
-                "weft_rvv.low_precision_resource.product_sew": "16",
-                "weft_rvv.low_precision_resource.product_lmul": "mf2",
-                "weft_rvv.low_precision_resource.product_emul": "mf2",
-                "weft_rvv.low_precision_resource.accumulator_dtype": "i32",
-                "weft_rvv.low_precision_resource.accumulator_sew": "32",
-                "weft_rvv.low_precision_resource.accumulator_lmul": "m1",
-                "weft_rvv.low_precision_resource.accumulator_emul": "m1",
-                "weft_rvv.low_precision_resource.result_dtype": "f32",
-                "weft_rvv.low_precision_resource.result_sew": "32",
-                "weft_rvv.low_precision_resource.result_lmul": "m1",
-                "weft_rvv.low_precision_resource.memory_form": (
-                    resource_profile["memory_form"]
-                ),
-                "weft_rvv.low_precision_resource.tail_policy": "agnostic",
-                "weft_rvv.low_precision_resource.mask_policy": "agnostic",
-                "weft_rvv.low_precision_resource.unroll_factor": (
-                    resource_profile["unroll_factor"]
-                ),
-                "weft_rvv.low_precision_resource.accumulator_count": (
-                    resource_profile["accumulator_count"]
-                ),
-                "weft_rvv.low_precision_resource.reduction_layout": (
-                    WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_SCALAR_RESULT_BOUNDARY
-                ),
-                "weft_rvv.low_precision_resource.vsetvl_region_count": (
-                    resource_profile["vsetvl_region_count"]
-                ),
-                "weft_rvv.low_precision_resource.peak_live_vector_groups": (
-                    resource_profile["peak_live_vector_groups"]
-                ),
-                "weft_rvv.low_precision_resource.vector_register_budget": "32",
-                "weft_rvv.low_precision_resource.runtime_avl_source": (
-                    "runtime_abi:n"
-                ),
-                "weft_rvv.low_precision_resource.runtime_abi_order": (
-                    expectation.runtime_abi_order
-                ),
-                "weft_rvv.low_precision_resource.primitive_contract": (
-                    LOW_PRECISION_RESOURCE_PRIMITIVE_CONTRACT
-                ),
-                "weft_rvv.low_precision_resource.primitive_kind": (
-                    LOW_PRECISION_RESOURCE_PRIMITIVE_DEQUANT_CLAMP_KIND
-                    if expectation.is_widening_product_reduce_dequant_clamp_f32
-                    else LOW_PRECISION_RESOURCE_PRIMITIVE_DEQUANT_KIND
-                ),
-                "weft_rvv.low_precision_resource.primitive_chain_contract": (
-                    LOW_PRECISION_RESOURCE_PRIMITIVE_CHAIN_CONTRACT
-                ),
-                "weft_rvv.low_precision_resource.primitive_chain_kind": (
-                    LOW_PRECISION_RESOURCE_PRIMITIVE_CHAIN_KIND
-                ),
-                "weft_rvv.low_precision_resource.primitive_widening_product_relation": (
-                    WIDENING_PRODUCT_RELATION_I8_I16
-                ),
-                "weft_rvv.low_precision_resource.primitive_product_reduction_chain_relation": (
-                    WIDENING_PRODUCT_REDUCE_RELATION
-                ),
-                "weft_rvv.low_precision_resource.primitive_widening_product_intrinsic": (
-                    WIDENING_PRODUCT_REDUCE_INTRINSIC
-                ),
-                "weft_rvv.low_precision_resource.primitive_reduction_intrinsic": (
-                    WIDENING_PRODUCT_REDUCE_WIDENING_REDUCTION_INTRINSIC
-                ),
-                "weft_rvv.low_precision_resource.primitive_scalar_seed_splat_intrinsic": (
-                    WIDENING_PRODUCT_REDUCE_SCALAR_SEED_SPLAT_INTRINSIC
-                ),
-                "weft_rvv.low_precision_resource.primitive_accumulator_layout": (
-                    WIDENING_PRODUCT_REDUCE_ACCUMULATOR_LAYOUT
-                ),
-                "weft_rvv.low_precision_resource.primitive_result_layout": (
-                    WIDENING_PRODUCT_REDUCE_RESULT_LAYOUT
-                ),
-                "weft_rvv.low_precision_resource.primitive_reduction_store_vl": (
-                    WIDENING_PRODUCT_REDUCE_STORE_VL
-                ),
-                "weft_rvv.low_precision_resource.realization_producer": (
-                    resource_profile["realization_producer"]
-                ),
-                "weft_rvv.low_precision_resource.realization_decision": (
-                    resource_profile["realization_decision"]
-                ),
-                "weft_rvv.low_precision_resource.realized_unroll_factor": (
-                    resource_profile["realized_unroll_factor"]
-                ),
-                "weft_rvv.low_precision_resource.realized_vsetvl_region_count": (
-                    resource_profile["realized_vsetvl_region_count"]
-                ),
-                "weft_rvv.low_precision_resource.realized_peak_live_vector_groups": (
-                    resource_profile["realized_peak_live_vector_groups"]
-                ),
-                "weft_rvv.low_precision_resource.product_region_index": (
-                    resource_profile["producer_region_index"]
-                ),
-                "weft_rvv.low_precision_resource.dequant_region_index": (
-                    resource_profile["consumer_region_index"]
-                ),
-                "weft_rvv.low_precision_resource.product_phase": (
-                    resource_profile["producer_phase"]
-                ),
-                "weft_rvv.low_precision_resource.dequant_phase": (
-                    resource_profile["consumer_phase"]
-                ),
-                "weft_rvv.low_precision_resource.target_capability_provider_mirror": (
-                    RVV_TARGET_CAPABILITY_PROVIDER_MIRROR
-                ),
-                "weft_rvv.low_precision_resource.target_capability_legality_mirror": (
-                    RVV_TARGET_CAPABILITY_LEGALITY_MIRROR
-                ),
-                "weft_rvv.low_precision_resource.legality": "legal",
-                "weft_rvv.low_precision_resource.rejection_reason": "none",
-                "weft_rvv.gearbox.producer_scope": (
-                    WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_PRODUCER_SCOPE
-                ),
-                "weft_rvv.gearbox.consumer_scope": (
-                    WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_CONSUMER_SCOPE
-                ),
-            }
-        )
-        if packed_i4:
-            per_op_metadata.update(
-                {
-                    "weft_rvv.low_precision_resource.resource_cost_contract": (
-                        resource_profile["resource_cost_contract"]
-                    ),
-                    "weft_rvv.low_precision_resource.resource_cost_model": (
-                        resource_profile["resource_cost_model"]
-                    ),
-                    "weft_rvv.low_precision_resource.resource_cost_loop_body_steps": (
-                        resource_profile["resource_cost_loop_body_steps"]
-                    ),
-                    "weft_rvv.low_precision_resource.resource_cost_blocker": (
-                        resource_profile["resource_cost_blocker"]
-                    ),
-                    "weft_rvv.low_precision_resource.performance_admission_decision": (
-                        resource_profile["performance_admission_decision"]
-                    ),
-                    "weft_rvv.low_precision_resource.performance_admission_closure": (
-                        resource_profile["performance_admission_closure"]
-                    ),
-                    "weft_rvv.low_precision_resource.performance_admission_reopen_requirement": (
-                        resource_profile[
-                            "performance_admission_reopen_requirement"
-                        ]
-                    ),
-                    "weft_rvv.low_precision_resource.beyond_local_repair_admission_contract": (
-                        resource_profile[
-                            "beyond_local_repair_admission_contract"
-                        ]
-                    ),
-                    "weft_rvv.low_precision_resource.beyond_local_repair_admission_decision": (
-                        resource_profile[
-                            "beyond_local_repair_admission_decision"
-                        ]
-                    ),
-                    "weft_rvv.low_precision_resource.beyond_local_repair_admission_blocker": (
-                        resource_profile[
-                            "beyond_local_repair_admission_blocker"
-                        ]
-                    ),
-                    "weft_rvv.low_precision_resource.beyond_local_repair_admission_reopen_requirement": (
-                        resource_profile[
-                            "beyond_local_repair_admission_reopen_requirement"
-                        ]
-                    ),
-                }
-            )
     if expectation.is_widening_dot_reduce_add:
         per_op_metadata.update(
             {
@@ -12671,59 +11317,6 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 "weft_rvv.widening_dot_reduction_store_vl": (
                     WIDENING_DOT_REDUCTION_STORE_VL
                 ),
-                "weft_rvv.low_precision_resource.candidate_set": (
-                    STRIDED_INPUT_WIDENING_DOT_LOW_PRECISION_RESOURCE_CANDIDATE_SET
-                ),
-                "weft_rvv.low_precision_resource.selected_candidate": (
-                    STRIDED_INPUT_WIDENING_DOT_LOW_PRECISION_RESOURCE_SELECTED_CANDIDATE
-                ),
-                "weft_rvv.low_precision_resource.selection_reason": (
-                    STRIDED_INPUT_WIDENING_DOT_LOW_PRECISION_RESOURCE_SELECTION_REASON
-                ),
-                "weft_rvv.low_precision_resource.legality_scope": (
-                    STRIDED_INPUT_WIDENING_DOT_LOW_PRECISION_RESOURCE_LEGALITY_SCOPE
-                ),
-                "weft_rvv.low_precision_resource.source_dtype": "i16",
-                "weft_rvv.low_precision_resource.source_sew": "16",
-                "weft_rvv.low_precision_resource.source_lmul": "mf2",
-                "weft_rvv.low_precision_resource.product_dtype": "i32",
-                "weft_rvv.low_precision_resource.product_sew": "32",
-                "weft_rvv.low_precision_resource.product_lmul": "m1",
-                "weft_rvv.low_precision_resource.product_emul": "m1",
-                "weft_rvv.low_precision_resource.accumulator_dtype": "i32",
-                "weft_rvv.low_precision_resource.accumulator_sew": "32",
-                "weft_rvv.low_precision_resource.accumulator_lmul": "m1",
-                "weft_rvv.low_precision_resource.accumulator_emul": "m1",
-                "weft_rvv.low_precision_resource.result_dtype": "i32",
-                "weft_rvv.low_precision_resource.result_sew": "32",
-                "weft_rvv.low_precision_resource.result_lmul": "m1",
-                "weft_rvv.low_precision_resource.memory_form": (
-                    expectation.memory_form
-                ),
-                "weft_rvv.low_precision_resource.tail_policy": "agnostic",
-                "weft_rvv.low_precision_resource.mask_policy": "agnostic",
-                "weft_rvv.low_precision_resource.unroll_factor": "1",
-                "weft_rvv.low_precision_resource.accumulator_count": "1",
-                "weft_rvv.low_precision_resource.reduction_layout": (
-                    WIDENING_DOT_RESULT_LAYOUT
-                ),
-                "weft_rvv.low_precision_resource.vsetvl_region_count": "2",
-                "weft_rvv.low_precision_resource.peak_live_vector_groups": "4",
-                "weft_rvv.low_precision_resource.vector_register_budget": "32",
-                "weft_rvv.low_precision_resource.runtime_avl_source": (
-                    "runtime_abi:n"
-                ),
-                "weft_rvv.low_precision_resource.runtime_abi_order": (
-                    expectation.runtime_abi_order
-                ),
-                "weft_rvv.low_precision_resource.target_capability_provider_mirror": (
-                    RVV_TARGET_CAPABILITY_PROVIDER_MIRROR
-                ),
-                "weft_rvv.low_precision_resource.target_capability_legality_mirror": (
-                    RVV_TARGET_CAPABILITY_LEGALITY_MIRROR
-                ),
-                "weft_rvv.low_precision_resource.legality": "legal",
-                "weft_rvv.low_precision_resource.rejection_reason": "none",
                 "weft_rvv.route_operand_binding_plan": (
                     STRIDED_INPUT_WIDENING_DOT_ROUTE_OPERAND_BINDING_PLAN
                 ),
@@ -12821,59 +11414,6 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 "weft_rvv.widening_dot_reduction_store_vl": (
                     WIDENING_DOT_REDUCTION_STORE_VL
                 ),
-                "weft_rvv.low_precision_resource.candidate_set": (
-                    COMPUTED_MASK_STRIDED_INPUT_WIDENING_DOT_LOW_PRECISION_RESOURCE_CANDIDATE_SET
-                ),
-                "weft_rvv.low_precision_resource.selected_candidate": (
-                    COMPUTED_MASK_STRIDED_INPUT_WIDENING_DOT_LOW_PRECISION_RESOURCE_SELECTED_CANDIDATE
-                ),
-                "weft_rvv.low_precision_resource.selection_reason": (
-                    COMPUTED_MASK_STRIDED_INPUT_WIDENING_DOT_LOW_PRECISION_RESOURCE_SELECTION_REASON
-                ),
-                "weft_rvv.low_precision_resource.legality_scope": (
-                    COMPUTED_MASK_STRIDED_INPUT_WIDENING_DOT_LOW_PRECISION_RESOURCE_LEGALITY_SCOPE
-                ),
-                "weft_rvv.low_precision_resource.source_dtype": "i16",
-                "weft_rvv.low_precision_resource.source_sew": "16",
-                "weft_rvv.low_precision_resource.source_lmul": "mf2",
-                "weft_rvv.low_precision_resource.product_dtype": "i32",
-                "weft_rvv.low_precision_resource.product_sew": "32",
-                "weft_rvv.low_precision_resource.product_lmul": "m1",
-                "weft_rvv.low_precision_resource.product_emul": "m1",
-                "weft_rvv.low_precision_resource.accumulator_dtype": "i32",
-                "weft_rvv.low_precision_resource.accumulator_sew": "32",
-                "weft_rvv.low_precision_resource.accumulator_lmul": "m1",
-                "weft_rvv.low_precision_resource.accumulator_emul": "m1",
-                "weft_rvv.low_precision_resource.result_dtype": "i32",
-                "weft_rvv.low_precision_resource.result_sew": "32",
-                "weft_rvv.low_precision_resource.result_lmul": "m1",
-                "weft_rvv.low_precision_resource.memory_form": (
-                    expectation.memory_form
-                ),
-                "weft_rvv.low_precision_resource.tail_policy": "agnostic",
-                "weft_rvv.low_precision_resource.mask_policy": "agnostic",
-                "weft_rvv.low_precision_resource.unroll_factor": "1",
-                "weft_rvv.low_precision_resource.accumulator_count": "1",
-                "weft_rvv.low_precision_resource.reduction_layout": (
-                    WIDENING_DOT_RESULT_LAYOUT
-                ),
-                "weft_rvv.low_precision_resource.vsetvl_region_count": "2",
-                "weft_rvv.low_precision_resource.peak_live_vector_groups": "4",
-                "weft_rvv.low_precision_resource.vector_register_budget": "32",
-                "weft_rvv.low_precision_resource.runtime_avl_source": (
-                    "runtime_abi:n"
-                ),
-                "weft_rvv.low_precision_resource.runtime_abi_order": (
-                    expectation.runtime_abi_order
-                ),
-                "weft_rvv.low_precision_resource.target_capability_provider_mirror": (
-                    RVV_TARGET_CAPABILITY_PROVIDER_MIRROR
-                ),
-                "weft_rvv.low_precision_resource.target_capability_legality_mirror": (
-                    RVV_TARGET_CAPABILITY_LEGALITY_MIRROR
-                ),
-                "weft_rvv.low_precision_resource.legality": "legal",
-                "weft_rvv.low_precision_resource.rejection_reason": "none",
                 "weft_rvv.route_operand_binding_plan": (
                     COMPUTED_MASK_STRIDED_INPUT_WIDENING_DOT_ROUTE_OPERAND_BINDING_PLAN
                 ),
@@ -12889,32 +11429,48 @@ def verify_record_metadata(
     record: dict[str, Any], context: str, expectation: OpExpectation
 ) -> None:
     metadata = metadata_map(record)
-    uses_packed_i4_resource = product_dequant_uses_packed_i4_resource_metadata(
-        metadata, expectation
-    )
+    obsolete_authority_keys = [
+        key
+        for key in metadata
+        if key.startswith("weft_rvv.gearbox.")
+        or key.startswith("weft_rvv.low_precision_resource.")
+    ]
+    if obsolete_authority_keys:
+        raise EvidenceError(
+            f"{context} carries retired construction-authority metadata: "
+            + ", ".join(sorted(obsolete_authority_keys))
+        )
     for key, expected in expected_metadata_for(expectation).items():
-        if uses_packed_i4_resource and key in LOW_PRECISION_RESOURCE_METADATA_KEYS:
-            continue
         # Deferred-wide (N3): override the wide-strip config keys and skip the
         # resource-selection / gearbox-scope keys the wide body does not emit.
         expected = deferred_wide_expected_metadata(key, expected, metadata)
         if expected is None:
             continue
-        # The dequant(/clamp) typed-compute-op chain is candidate-aware: the
-        # single-scope packed-i4 flip uses a packed_i4_nibble_unpack_product head
-        # and has no gearbox_cross_region_handoff. Accept the realized chain
-        # recorded in the object/header metadata; correctness of the realized body
-        # is gated by the ssh-rvv numerical run.
         if (
             key == "rvv_selected_body_typed_compute_op"
-            and "weft_rvv.gearbox_cross_region_handoff" in expected
+            and expectation.is_widening_dot_reduce_add
+            and "weft_rvv.deferred_accumulate" in (metadata.get(key) or "")
+        ):
+            require_equal(
+                metadata.get(key),
+                "weft_rvv.widening_product+weft_rvv.deferred_accumulate+"
+                "weft_rvv.standalone_reduce",
+                f"{context} metadata {key}",
+            )
+            continue
+        # The formula-selected product head and optional deferred accumulator are
+        # part of the typed body. Validate that exact chain without consulting
+        # retired selection mirrors.
+        if (
+            key == "rvv_selected_body_typed_compute_op"
+            and (
+                expectation.is_widening_product_reduce_dequantize_f32
+                or expectation.is_widening_product_reduce_dequant_clamp_f32
+            )
         ):
             actual_chain = metadata.get(key) or ""
             nibble_head = (
                 "weft_rvv.packed_i4_nibble_unpack_product" in actual_chain
-            )
-            has_handoff = (
-                "weft_rvv.gearbox_cross_region_handoff" in actual_chain
             )
             # The deferred-wide (N3) realization inserts a weft_rvv.widening_accumulate
             # between the widening_product head and the trailing standalone_reduce
@@ -12932,16 +11488,10 @@ def verify_record_metadata(
             if has_deferred_wide_accumulate:
                 chain += "+weft_rvv.widening_accumulate"
             chain += "+weft_rvv.standalone_reduce"
-            if has_handoff:
-                chain += "+weft_rvv.gearbox_cross_region_handoff"
             chain += "+weft_rvv.dequantize" + tail
             require_equal(actual_chain, chain, f"{context} metadata {key}")
             continue
         require_equal(metadata.get(key), expected, f"{context} metadata {key}")
-    if uses_packed_i4_resource:
-        validate_low_precision_resource_metadata(
-            metadata, expectation, context, packed_i4=True
-        )
     for key, value in metadata.items():
         require_no_forbidden_public_residue(
             f"{key}={value}", f"{context} artifact metadata"
@@ -12972,6 +11522,12 @@ def verify_header(header_path: Path, expectation: OpExpectation) -> dict[str, An
         expected_value = expected_metadata.get(key)
         if expected_value is None:
             continue
+        if (
+            key == "weft_rvv.c_type_mapping"
+            and expectation.is_widening_dot_reduce_add
+            and "source:signed-e16m4" in text
+        ):
+            expected_value = DEFERRED_DOT_METADATA_OVERRIDES[key]
         comment_key = "weft.rvv." + key.removeprefix("weft_rvv.")
         require_contains(
             text,
@@ -12995,85 +11551,6 @@ def verify_header(header_path: Path, expectation: OpExpectation) -> dict[str, An
         )
     require_contains(text, "weft.rvv.runtime_avl_source: runtime_abi:n", "generated header")
     require_contains(text, "weft.rvv.multi_vl: supported", "generated header")
-    packed_i4_selected_candidate_comment = (
-        "weft.rvv.low_precision_resource.selected_candidate: "
-        f"{WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_RESOURCE_SELECTED_CANDIDATE}"
-    )
-    if expectation.is_widening_product_reduce_dequantize_f32 and (
-        packed_i4_selected_candidate_comment in text
-    ):
-        packed_feedback_metadata = expected_low_precision_resource_metadata(
-            expectation, packed_i4=True
-        )
-        direct_resource_keys = (
-            "weft_rvv.low_precision_resource.route_family_plan",
-            "weft_rvv.low_precision_resource.provider_supported_mirror",
-            "weft_rvv.low_precision_resource.resource_cost_contract",
-            "weft_rvv.low_precision_resource.resource_cost_model",
-            "weft_rvv.low_precision_resource.resource_cost_loop_body_steps",
-            "weft_rvv.low_precision_resource.resource_cost_blocker",
-        )
-        measurement_disposition_keys = (
-            "weft_rvv.low_precision_resource.performance_feedback",
-            "weft_rvv.low_precision_resource.performance_baseline",
-            "weft_rvv.low_precision_resource.performance_best_speedup_range",
-            "weft_rvv.low_precision_resource.performance_action",
-            "weft_rvv.low_precision_resource.performance_maturity",
-            "weft_rvv.low_precision_resource.performance_maturity_evidence",
-            "weft_rvv.low_precision_resource.performance_maturity_outcome",
-            "weft_rvv.low_precision_resource.performance_selection_eligible",
-            "weft_rvv.low_precision_resource.remediation_handoff_contract",
-            "weft_rvv.low_precision_resource.remediation_diagnosis",
-            "weft_rvv.low_precision_resource.remediation_measurement_evidence",
-            "weft_rvv.low_precision_resource.remediation_decision",
-            "weft_rvv.low_precision_resource.remediation_action",
-            "weft_rvv.low_precision_resource.remediation_dispatch_preference",
-            "weft_rvv.low_precision_resource.remediation_blocker",
-            "weft_rvv.low_precision_resource.remediation_plan_contract",
-            "weft_rvv.low_precision_resource.remediation_plan",
-            "weft_rvv.low_precision_resource.remediation_statement_strategy",
-            "weft_rvv.low_precision_resource.remediation_vector_budget",
-            "weft_rvv.low_precision_resource.remediation_schedule_contract",
-            "weft_rvv.low_precision_resource.remediation_unpack_plan",
-            "weft_rvv.low_precision_resource.remediation_product_plan",
-            "weft_rvv.low_precision_resource.remediation_reduction_plan",
-            "weft_rvv.low_precision_resource.remediation_vl_plan",
-            "weft_rvv.low_precision_resource.performance_admission_decision",
-            "weft_rvv.low_precision_resource.performance_admission_closure",
-            "weft_rvv.low_precision_resource.performance_admission_reopen_requirement",
-            "weft_rvv.low_precision_resource.beyond_local_repair_admission_contract",
-            "weft_rvv.low_precision_resource.beyond_local_repair_admission_decision",
-            "weft_rvv.low_precision_resource.beyond_local_repair_admission_blocker",
-            "weft_rvv.low_precision_resource.beyond_local_repair_admission_reopen_requirement",
-        )
-        for key in direct_resource_keys:
-            comment_key = "weft.rvv." + key.removeprefix("weft_rvv.")
-            require_contains(
-                text,
-                f"{comment_key}: {packed_feedback_metadata[key]}",
-                "generated header packed-i4 resource mirror",
-            )
-        for key in measurement_disposition_keys:
-            field = key.removeprefix("weft_rvv.low_precision_resource.")
-            comment_key = (
-                "weft.rvv.low_precision_resource."
-                f"measurement_disposition_evidence_mirror.{field}"
-            )
-            require_contains(
-                text,
-                f"{comment_key}: {packed_feedback_metadata[key]}",
-                "generated header packed-i4 measurement disposition mirror",
-            )
-        require_contains(
-            text,
-            (
-                "weft.rvv.low_precision_resource."
-                "selected_dispatch_policy_output_mirror."
-                "selected_dispatch_preference: "
-                f"{packed_feedback_metadata['weft_rvv.low_precision_resource.dispatch_preference']}"
-            ),
-            "generated header packed-i4 dispatch policy mirror",
-        )
     require_no_forbidden_public_residue(text, "generated declaration-only header")
     declaration_text = re.sub(r"/\*.*?\*/", "", text, flags=re.DOTALL)
     for token in ("__riscv_", "return;", "int main", "main("):
@@ -13708,22 +12185,37 @@ def verify_emitted_rvv_cpp(
         or expectation.is_strided_input_widening_dot_reduce_add
     ):
         vector_c_type = expectation.rvv_vector_c_type
+        emitted_c_deferred_dot = "__riscv_vadd_vv_i32m8" in text
         source_load_intrinsic = (
-            STRIDED_INPUT_WIDENING_DOT_STRIDED_LOAD_INTRINSIC
+            "__riscv_vle16_v_i16m4"
+            if emitted_c_deferred_dot
+            else STRIDED_INPUT_WIDENING_DOT_STRIDED_LOAD_INTRINSIC
             if expectation.is_strided_input_widening_dot_reduce_add
             else "__riscv_vle16_v_i16mf2"
         )
-        intrinsics = [
-            expectation.setvl_intrinsic,
-            source_load_intrinsic,
-            "__riscv_vmv_v_x_i32m1",
-            "__riscv_vwmul_vv_i32m1",
-            "__riscv_vredsum_vs_i32m1_i32m1",
-            "__riscv_vse32_v_i32m1",
-        ]
+        intrinsics = (
+            [
+                "__riscv_vsetvl_e16m4",
+                source_load_intrinsic,
+                "__riscv_vwmul_vv_i32m8",
+                "__riscv_vmv_v_x_i32m8",
+                "__riscv_vadd_vv_i32m8",
+                "__riscv_vredsum_vs_i32m8_i32m1",
+                "__riscv_vse32_v_i32m1",
+            ]
+            if emitted_c_deferred_dot
+            else [
+                expectation.setvl_intrinsic,
+                source_load_intrinsic,
+                "__riscv_vmv_v_x_i32m1",
+                "__riscv_vwmul_vv_i32m1",
+                "__riscv_vredsum_vs_i32m1_i32m1",
+                "__riscv_vse32_v_i32m1",
+            ]
+        )
         require_contains(
             text,
-            "vint16mf2_t",
+            "vint16m4_t" if emitted_c_deferred_dot else "vint16mf2_t",
             "emitted RVV C/C++ widening dot-reduce source vector type",
         )
         require_contains(
@@ -13745,13 +12237,28 @@ def verify_emitted_rvv_cpp(
             "store_uses_scalar_result_vl": True,
         }
         widening_dot_reduction_boundary = {
-            "typed_compute_op": "weft_rvv.widening_dot_reduce",
-            "source_vector_c_type": "vint16mf2_t",
+            "typed_compute_op": (
+                "weft_rvv.widening_product+weft_rvv.deferred_accumulate+"
+                "weft_rvv.standalone_reduce"
+                if emitted_c_deferred_dot
+                else "weft_rvv.widening_dot_reduce"
+            ),
+            "source_vector_c_type": (
+                "vint16m4_t" if emitted_c_deferred_dot else "vint16mf2_t"
+            ),
             "result_vector_c_type": vector_c_type,
             "source_load_intrinsic": source_load_intrinsic,
-            "product_intrinsic": "__riscv_vwmul_vv_i32m1",
+            "product_intrinsic": (
+                "__riscv_vwmul_vv_i32m8"
+                if emitted_c_deferred_dot
+                else "__riscv_vwmul_vv_i32m1"
+            ),
             "seed_splat_intrinsic": "__riscv_vmv_v_x_i32m1",
-            "reduction_intrinsic": "__riscv_vredsum_vs_i32m1_i32m1",
+            "reduction_intrinsic": (
+                "__riscv_vredsum_vs_i32m8_i32m1"
+                if emitted_c_deferred_dot
+                else "__riscv_vredsum_vs_i32m1_i32m1"
+            ),
             "store_intrinsic": "__riscv_vse32_v_i32m1",
             "runtime_avl_vl_control": runtime_avl_vl_boundary,
         }
@@ -13764,13 +12271,9 @@ def verify_emitted_rvv_cpp(
             WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_SHIFT_LEFT_INTRINSIC
             in text
         )
-        # Stage 3 single-scope packed-i4 flip: no handoff, and the dequant epilogue
-        # is the unified VECTOR form (splat-store; clamp via vector splat/compare/
-        # select) -- NOT the legacy two-scope packed-i4 scalar fmaxf/fminf epilogue.
-        single_scope_packed_i4 = (
-            uses_packed_i4_resource
-            and "weft_rvv.gearbox_cross_region_handoff" not in text
-        )
+        # Packed-i4 is a single typed body; its dequant epilogue uses the same
+        # vector form as the unpacked candidate.
+        single_scope_packed_i4 = uses_packed_i4_resource
         # The deferred-wide (N3) realization emits the wide-LMUL intrinsic ladder:
         # vsetvl_e8m2 strip, vle8_v_i8m2 loads, vwmul_vv_i16m4 product, an i32m8
         # zero-seed + vwadd_wv_i32m8 deferred accumulate, then ONE trailing
@@ -13829,24 +12332,14 @@ def verify_emitted_rvv_cpp(
                 ]
             )
         else:
-            # The Stage 3 single-scope conversion UNIFIES the dequant epilogue: both
+            # The typed construction unifies the dequant epilogue: both
             # the grouped/unpacked and the packed-i4 candidates emit the f32
             # splat-store (vfmv_v_f_f32m1 + vse32_v_f32m1 at VL=1) -- numerically a
-            # single-scalar write to out[0], identical to legacy packed-i4's scalar
-            # `out[0] = ...` store (retired: it was the other code path's form, not
-            # load-bearing; the ssh-rvv tolerance=1e-05 numerical gate is the
-            # correctness authority). When the legacy two-scope packed-i4 body is
-            # still realized (has handoff) it keeps the scalar store.
-            single_scope_packed_i4 = (
-                uses_packed_i4_resource
-                and "weft_rvv.gearbox_cross_region_handoff" not in text
-            )
+            # single-scalar write to out[0]. The ssh-rvv tolerance=1e-05
+            # numerical gate remains the correctness authority.
             if not uses_packed_i4_resource or single_scope_packed_i4:
                 intrinsics.append(DEQUANTIZE_I32_TO_F32_STORE_INTRINSIC)
-        single_scope_packed_i4_epilogue = (
-            uses_packed_i4_resource
-            and "weft_rvv.gearbox_cross_region_handoff" not in text
-        )
+        single_scope_packed_i4_epilogue = uses_packed_i4_resource
         # The deferred-wide (N3) realization emits the wide-LMUL ladder in C:
         # vint8m2_t source loads, vint16m4_t products, an i32m8 deferred vector
         # accumulate, then ONE trailing vredsum into i32m1. Detected from the wide
@@ -14521,14 +13014,8 @@ def extract_dequantization_emitc_boundary(
         "converted_vector": converted_vec,
         "scaled_vector": scaled_vec,
         "out_pointer": store.group("out_ptr"),
-        "gearbox_schedule": {
-            "candidate_set": DEQUANTIZE_I32_TO_F32_GEARBOX_CANDIDATE_SET,
-            "selected_candidate": (
-                DEQUANTIZE_I32_TO_F32_GEARBOX_SELECTED_CANDIDATE
-            ),
-            "schedule_id": DEQUANTIZE_I32_TO_F32_GEARBOX_SELECTED_CANDIDATE,
-            "unroll": 2,
-            "vl_policy": DEQUANTIZE_I32_TO_F32_GEARBOX_VL_POLICY,
+        "formula_schedule": {
+            "unroll_factor": 2,
             "loop_step_expression": f"{full_chunk_vl} * 2",
             "second_slice_statement_count": 5,
         },
@@ -14894,14 +13381,8 @@ def extract_widening_product_reduce_dequantize_emitc_boundary(
         WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_SHIFT_LEFT_INTRINSIC
         in loop_block
     )
-    # Stage 3 single-scope flip: a realized body with no
-    # gearbox_cross_region_handoff carrier emits the unified vector clamp epilogue
-    # (both splats up-front, then compare/select/compare/select/store) for BOTH the
-    # packed-i4 and the grouped candidate, unlike the legacy two-scope interleaved
-    # splat/compare/select epilogue.
-    single_scope_packed_i4_epilogue = (
-        "weft_rvv.gearbox_cross_region_handoff" not in text
-    )
+    # Both typed candidates use the same vector clamp epilogue.
+    single_scope_packed_i4_epilogue = True
     packed_i4_statement_payload: dict[str, Any] = {}
     if uses_packed_i4_resource:
         require_ordered_tokens(
@@ -16137,18 +14618,33 @@ def extract_computed_masked_widening_dot_reduce_emitc_boundary(
         load_intrinsic: str,
         role: str,
     ) -> tuple[str, str, str, str]:
-        loaded = require_regex(
-            text,
+        load_prefix = (
             rf"size_t (?P<element_offset>v[0-9]+) = {offset} \* "
             rf"{stride_parameter};\s*"
             rf"const {re.escape(element_c_type)}\* (?P<ptr>v[0-9]+) = "
             rf"{parameter} \+ (?P=element_offset);\s*"
-            rf"size_t (?P<byte_stride>v[0-9]+) = {stride_parameter} \* 2;\s*"
+        )
+        loaded = re.search(
+            load_prefix
+            + rf"size_t (?P<byte_stride>v[0-9]+) = {stride_parameter} \* 2;\s*"
+            + rf"{re.escape(vector_c_type)} (?P<vec>v[0-9]+) = "
+            + rf"{re.escape(load_intrinsic)}"
+            + rf"\((?P=ptr), (?P=byte_stride), {loop_vl}\);",
+            text,
+            re.MULTILINE | re.DOTALL,
+        )
+        if loaded is None:
+            loaded = require_regex(
+            text,
+            load_prefix
+            + rf"ptrdiff_t (?P<stride_cast>v[0-9]+) = \(ptrdiff_t\) {stride_parameter};\s*"
+            + rf"ptrdiff_t (?P<element_size>v[0-9]+) = \(ptrdiff_t\) 2;\s*"
+            + rf"ptrdiff_t (?P<byte_stride>v[0-9]+) = (?P=stride_cast) \* (?P=element_size);\s*"
             rf"{re.escape(vector_c_type)} (?P<vec>v[0-9]+) = "
             rf"{re.escape(load_intrinsic)}"
             rf"\((?P=ptr), (?P=byte_stride), {loop_vl}\);",
             f"emitted RVV C/C++ computed-mask strided widening dot-reduce {role} load",
-        )
+            )
         return (
             loaded.group("ptr"),
             loaded.group("vec"),
@@ -17851,16 +16347,14 @@ def require_materialized_typed_compute_chain(
     text: str, expectation: OpExpectation
 ) -> None:
     expected = expectation.typed_compute_op
-    # The low-precision dequant(/clamp) selected body is candidate-aware: the
-    # packed-i4 candidate (Stage 3 single-scope flip) uses a
-    # weft_rvv.packed_i4_nibble_unpack_product head and has NO
-    # gearbox_cross_region_handoff; the unpacked/grouped candidate keeps the
-    # legacy widening_product head + handoff. Derive the expected chain from the
-    # materialized IR structure so the mirror matches the realized body instead of
-    # asserting a phantom handoff or wrong head.
-    if "weft_rvv.gearbox_cross_region_handoff" in expected:
+    # The formula chooses the typed product head and optional deferred accumulator.
+    # Derive the exact chain from the realized typed body; no audit attribute or
+    # cross-region carrier participates in the decision.
+    if (
+        expectation.is_widening_product_reduce_dequantize_f32
+        or expectation.is_widening_product_reduce_dequant_clamp_f32
+    ):
         nibble_head = "weft_rvv.packed_i4_nibble_unpack_product" in text
-        has_handoff = "weft_rvv.gearbox_cross_region_handoff" in text
         # The deferred-wide (N3) realization inserts a weft_rvv.widening_accumulate
         # between the widening_product head and the trailing standalone_reduce (the
         # i32m8 deferred vector accumulate). Detected structurally from the
@@ -17876,10 +16370,16 @@ def require_materialized_typed_compute_chain(
         if has_deferred_wide_accumulate:
             chain += "+weft_rvv.widening_accumulate"
         chain += "+weft_rvv.standalone_reduce"
-        if has_handoff:
-            chain += "+weft_rvv.gearbox_cross_region_handoff"
         chain += "+weft_rvv.dequantize" + tail
         expected = chain
+    elif (
+        expectation.is_widening_dot_reduce_add
+        and "weft_rvv.deferred_accumulate" in text
+    ):
+        expected = (
+            "weft_rvv.widening_product+weft_rvv.deferred_accumulate+"
+            "weft_rvv.standalone_reduce"
+        )
     require_contains(
         text,
         expected,
@@ -17920,8 +16420,21 @@ def verify_materialized_selected_body(
     # i32m8 deferred accumulate), the body-level config check expects the strip
     # config; the route/header checks keep the result config (expectation.lmul/sew).
     body_has_deferred_wide_accumulate = "weft_rvv.widening_accumulate" in text
-    materialized_lmul = "m2" if body_has_deferred_wide_accumulate else expectation.lmul
-    materialized_sew = 8 if body_has_deferred_wide_accumulate else expectation.sew
+    body_has_deferred_dot_accumulate = "weft_rvv.deferred_accumulate" in text
+    materialized_lmul = (
+        "m4"
+        if body_has_deferred_dot_accumulate
+        else "m2"
+        if body_has_deferred_wide_accumulate
+        else expectation.lmul
+    )
+    materialized_sew = (
+        16
+        if body_has_deferred_dot_accumulate
+        else 8
+        if body_has_deferred_wide_accumulate
+        else expectation.sew
+    )
     require_contains(
         text,
         f'lmul = "{materialized_lmul}"',
@@ -18255,424 +16768,66 @@ def verify_materialized_selected_body(
             expectation.is_widening_product_reduce_dequantize_f32
             or expectation.is_widening_product_reduce_dequant_clamp_f32
         ):
-            uses_packed_i4_resource = product_dequant_uses_packed_i4_resource_text(
-                text, expectation
+            uses_packed_i4_resource = (
+                "weft_rvv.packed_i4_nibble_unpack_product" in text
             )
-            resource_profile = product_dequant_low_precision_resource_profile(
-                expectation, packed_i4=uses_packed_i4_resource
+            require_not_contains(
+                text,
+                "weft_rvv.gearbox_cross_region_handoff",
+                "formula-realized body has no retired cross-region authority carrier",
             )
-            # The packed-i4 candidate realizes as a single-scope typed body (Stage 3
-            # flip): no weft_rvv.gearbox_cross_region_handoff carrier, no
-            # producer/consumer scope split, no vsetvl_region_marker placeholders.
-            # The grouped/unpacked candidate keeps the legacy two-scope structure.
-            # Gate the handoff/marker/scope-structure assertions on the realized
-            # form; the low_precision_resource.* facts below survive on with_vl and
-            # are asserted in both forms.
-            body_has_handoff = (
-                "weft_rvv.gearbox_cross_region_handoff" in text
+            require_not_contains(
+                text,
+                "weft_rvv.low_precision_resource.",
+                "formula-realized body has no retired resource audit attributes",
             )
-            if body_has_handoff:
+            require_not_contains(
+                text,
+                "weft_rvv.vsetvl_region_marker",
+                "formula-realized body has no schedule placeholder markers",
+            )
+            if uses_packed_i4_resource:
+                resource_kind = "packed_i4_narrow"
+                operand_encoding = "packed_i4"
+                unroll_factor = 1
                 require_contains(
                     text,
-                    "weft_rvv.gearbox_cross_region_handoff",
-                    "materialized selected-body MLIR Gearbox cross-region handoff op",
+                    "weft_rvv.packed_i4_nibble_unpack_product",
+                    "formula-realized packed-i4 product head",
                 )
+            elif body_has_deferred_wide_accumulate:
+                resource_kind = "deferred_wide"
+                operand_encoding = "unpacked_i8"
+                unroll_factor = 1
                 require_contains(
                     text,
-                    f'producer_scope = "{WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_PRODUCER_SCOPE}"',
-                    "materialized selected-body MLIR Gearbox handoff producer scope",
-                )
-                require_contains(
-                    text,
-                    f'consumer_scope = "{WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_CONSUMER_SCOPE}"',
-                    "materialized selected-body MLIR Gearbox handoff consumer scope",
-                )
-                require_contains(
-                    text,
-                    f'contract = "{WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_HANDOFF_CONTRACT}"',
-                    "materialized selected-body MLIR Gearbox handoff contract",
-                )
-                require_contains(
-                    text,
-                    f'from_phase = "{resource_profile["producer_phase"]}"',
-                    "materialized selected-body MLIR Gearbox handoff producer phase",
-                )
-                require_contains(
-                    text,
-                    f'to_phase = "{WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_CONSUMER_PHASE}"',
-                    "materialized selected-body MLIR Gearbox handoff consumer phase",
-                )
-                require_contains(
-                    text,
-                    'runtime_avl_source = "runtime_abi:n"',
-                    "materialized selected-body MLIR Gearbox runtime AVL handoff",
-                )
-                require_contains(
-                    text,
-                    f'region_count = {resource_profile["vsetvl_region_count"]} : i64',
-                    "materialized selected-body MLIR Gearbox region count",
-                )
-                require_contains(
-                    text,
-                    "region_index = 1 : i64",
-                    "materialized selected-body MLIR Gearbox producer region marker",
-                )
-                if uses_packed_i4_resource:
-                    require_contains(
-                        text,
-                        'phase = "load-product-reduce"',
-                        "materialized selected-body MLIR packed-i4 producer phase marker",
-                    )
-                    require_contains(
-                        text,
-                        "region_index = 2 : i64",
-                        "materialized selected-body MLIR packed-i4 consumer region marker",
-                    )
-                    require_not_contains(
-                        text,
-                        'phase = "grouped-product-reduce-main"',
-                        "materialized selected-body MLIR packed-i4 two-region schedule",
-                    )
-                else:
-                    require_contains(
-                        text,
-                        'phase = "grouped-product-reduce-main"',
-                        "materialized selected-body MLIR Gearbox grouped main phase marker",
-                    )
-                    require_contains(
-                        text,
-                        "region_index = 2 : i64",
-                        "materialized selected-body MLIR Gearbox tail producer region marker",
-                    )
-                    require_contains(
-                        text,
-                        "region_index = 3 : i64",
-                        "materialized selected-body MLIR Gearbox consumer region marker",
-                    )
-                require_contains(
-                    text,
-                    f'phase = "{resource_profile["producer_phase"]}"',
-                    "materialized selected-body MLIR Gearbox producer phase marker",
-                )
-                require_contains(
-                    text,
-                    f'phase = "{WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_CONSUMER_PHASE}"',
-                    "materialized selected-body MLIR Gearbox consumer phase marker",
-                )
-                require_contains(
-                    text,
-                    f'resource_decision = "{resource_profile["resource_decision"]}"',
-                    "materialized selected-body MLIR Gearbox resource decision",
+                    "weft_rvv.widening_accumulate",
+                    "formula-realized deferred-wide accumulator",
                 )
             else:
-                # Single-scope flip (Stage 3): the two-scope carrier/scope split is
-                # gone for BOTH dequant candidates. Assert it is genuinely absent
-                # (fail-closed: a stray handoff or marker would mean an incomplete
-                # flip), and assert the typed product head + structural unroll_factor
-                # are present instead. packed-i4 -> nibble-unpack head + unroll=1;
-                # grouped -> plain widening head + unroll=2 (the conversion expands
-                # the ONE typed slice twice + adds the scalar tail loop).
-                require_not_contains(
-                    text,
-                    "weft_rvv.gearbox_cross_region_handoff",
-                    "single-scope body has no Gearbox handoff carrier",
-                )
-                require_not_contains(
-                    text,
-                    "weft_rvv.vsetvl_region_marker",
-                    "single-scope body has no vsetvl region markers",
-                )
-                if uses_packed_i4_resource:
-                    require_contains(
-                        text,
-                        "weft_rvv.packed_i4_nibble_unpack_product",
-                        "single-scope packed-i4 body typed nibble-unpack product head",
-                    )
-                    require_contains(
-                        text,
-                        "unroll_factor = 1 : i64",
-                        "single-scope packed-i4 body structural unroll factor",
-                    )
-                elif body_has_deferred_wide_accumulate:
-                    # The deferred-wide (N3) realization is a single-scope body with
-                    # a plain widening_product head + the i32m8 deferred accumulate +
-                    # ONE trailing reduce; unroll_factor = 1 (the conversion threads
-                    # the i32m8 accumulator across iterations, no slice duplication).
-                    require_contains(
-                        text,
-                        "weft_rvv.widening_product",
-                        "single-scope deferred-wide body typed widening product head",
-                    )
-                    require_contains(
-                        text,
-                        "weft_rvv.widening_accumulate",
-                        "single-scope deferred-wide body deferred accumulate op",
-                    )
-                    require_not_contains(
-                        text,
-                        "weft_rvv.packed_i4_nibble_unpack_product",
-                        "single-scope deferred-wide body has no packed-i4 nibble head",
-                    )
-                    require_contains(
-                        text,
-                        "unroll_factor = 1 : i64",
-                        "single-scope deferred-wide body structural unroll factor",
-                    )
-                else:
-                    require_contains(
-                        text,
-                        "weft_rvv.widening_product",
-                        "single-scope grouped body typed widening product head",
-                    )
-                    require_not_contains(
-                        text,
-                        "weft_rvv.packed_i4_nibble_unpack_product",
-                        "single-scope grouped body has no packed-i4 nibble head",
-                    )
-                    require_contains(
-                        text,
-                        "unroll_factor = 2 : i64",
-                        "single-scope grouped body structural unroll factor",
-                    )
-            # The deferred-wide (N3) realization carries NO low_precision_resource.*
-            # gearbox tuning-decision block (it is a non-grouped single-scope body
-            # with a deferred i32m8 accumulate); the resource-selection facts below
-            # are the narrow grouped/packed-i4 candidate artifacts and are asserted
-            # only for the narrow realizations. The wide body's honest facts (the
-            # deferred chain + the primitive wide ladder) are asserted above.
-            if not body_has_deferred_wide_accumulate:
+                resource_kind = "grouped_narrow"
+                operand_encoding = "unpacked_i8"
+                unroll_factor = 2
                 require_contains(
                     text,
-                    f'weft_rvv.low_precision_resource.candidate_set = "{WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_CANDIDATE_SET}"',
-                    "materialized selected-body MLIR low-precision resource candidate set",
+                    "weft_rvv.widening_product",
+                    "formula-realized grouped-narrow product head",
                 )
-                require_contains(
-                    text,
-                    f'weft_rvv.low_precision_resource.selected_candidate = "{resource_profile["selected_candidate"]}"',
-                    "materialized selected-body MLIR low-precision selected candidate",
-                )
-                require_contains(
-                    text,
-                    f'weft_rvv.low_precision_resource.selection_reason = "{resource_profile["selection_reason"]}"',
-                    "materialized selected-body MLIR low-precision selection reason",
-                )
-                require_contains(
-                    text,
-                    f'weft_rvv.low_precision_resource.legality_scope = "{WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_LEGALITY_SCOPE}"',
-                    "materialized selected-body MLIR low-precision legality scope",
-                )
-                require_contains(
-                    text,
-                    f'weft_rvv.low_precision_resource.memory_form = "{resource_profile["memory_form"]}"',
-                    "materialized selected-body MLIR low-precision memory form",
-                )
-                require_contains(
-                    text,
-                    f'weft_rvv.low_precision_resource.operand_form = "{resource_profile["operand_form"]}"',
-                    "materialized selected-body MLIR low-precision operand form",
-                )
-                require_contains(
-                    text,
-                    f'weft_rvv.low_precision_resource.source_signedness = "{resource_profile["source_signedness"]}"',
-                    "materialized selected-body MLIR low-precision source signedness",
-                )
-                require_contains(
-                    text,
-                    f'weft_rvv.low_precision_resource.storage_element_width = {resource_profile["storage_element_width"]} : i64',
-                    "materialized selected-body MLIR low-precision storage element width",
-                )
-                require_contains(
-                    text,
-                    f'weft_rvv.low_precision_resource.effective_element_width = {resource_profile["effective_element_width"]} : i64',
-                    "materialized selected-body MLIR low-precision effective element width",
-                )
-                require_contains(
-                    text,
-                    f'weft_rvv.low_precision_resource.packing_layout = "{resource_profile["packing_layout"]}"',
-                    "materialized selected-body MLIR low-precision packing layout",
-                )
-                require_contains(
-                    text,
-                    f'weft_rvv.low_precision_resource.unpack_intent = "{resource_profile["unpack_intent"]}"',
-                    "materialized selected-body MLIR low-precision unpack intent",
-                )
-                require_contains(
-                    text,
-                    f'weft_rvv.low_precision_resource.unroll_factor = {resource_profile["unroll_factor"]} : i64',
-                    "materialized selected-body MLIR low-precision unroll factor",
-                )
-                require_contains(
-                    text,
-                    f'weft_rvv.low_precision_resource.accumulator_count = {resource_profile["accumulator_count"]} : i64',
-                    "materialized selected-body MLIR low-precision accumulator count",
-                )
-                require_contains(
-                    text,
-                    f'weft_rvv.low_precision_resource.realized_vsetvl_region_count = {resource_profile["vsetvl_region_count"]} : i64',
-                    "materialized selected-body MLIR realized Gearbox vsetvl region count",
-                )
-                require_contains(
-                    text,
-                    f'weft_rvv.low_precision_resource.realized_peak_live_vector_groups = {resource_profile["peak_live_vector_groups"]} : i64',
-                    "materialized selected-body MLIR realized Gearbox resource budget",
-                )
-                if uses_packed_i4_resource:
-                    require_contains(
-                        text,
-                        f'weft_rvv.low_precision_resource.resource_cost_contract = "{resource_profile["resource_cost_contract"]}"',
-                        "materialized selected-body MLIR packed-i4 resource cost contract",
-                    )
-                    require_contains(
-                        text,
-                        f'weft_rvv.low_precision_resource.resource_cost_model = "{resource_profile["resource_cost_model"]}"',
-                        "materialized selected-body MLIR packed-i4 resource cost model",
-                    )
-                    require_contains(
-                        text,
-                        f'weft_rvv.low_precision_resource.resource_cost_loop_body_steps = {resource_profile["resource_cost_loop_body_steps"]} : i64',
-                        "materialized selected-body MLIR packed-i4 resource cost loop-body steps",
-                    )
-                    require_contains(
-                        text,
-                        f'weft_rvv.low_precision_resource.resource_cost_blocker = "{resource_profile["resource_cost_blocker"]}"',
-                        "materialized selected-body MLIR packed-i4 resource cost blocker",
-                    )
-                    require_contains(
-                        text,
-                        f'weft_rvv.low_precision_resource.performance_admission_decision = "{resource_profile["performance_admission_decision"]}"',
-                        "materialized selected-body MLIR packed-i4 performance admission decision",
-                    )
-                    require_contains(
-                        text,
-                        f'weft_rvv.low_precision_resource.performance_admission_closure = "{resource_profile["performance_admission_closure"]}"',
-                        "materialized selected-body MLIR packed-i4 performance admission closure",
-                    )
-                    require_contains(
-                        text,
-                        f'weft_rvv.low_precision_resource.performance_admission_reopen_requirement = "{resource_profile["performance_admission_reopen_requirement"]}"',
-                        "materialized selected-body MLIR packed-i4 performance admission reopen requirement",
-                    )
-                    require_contains(
-                        text,
-                        f'weft_rvv.low_precision_resource.beyond_local_repair_admission_contract = "{resource_profile["beyond_local_repair_admission_contract"]}"',
-                        "materialized selected-body MLIR packed-i4 beyond-local repair admission contract",
-                    )
-                    require_contains(
-                        text,
-                        f'weft_rvv.low_precision_resource.beyond_local_repair_admission_decision = "{resource_profile["beyond_local_repair_admission_decision"]}"',
-                        "materialized selected-body MLIR packed-i4 beyond-local repair admission decision",
-                    )
-                    require_contains(
-                        text,
-                        f'weft_rvv.low_precision_resource.beyond_local_repair_admission_blocker = "{resource_profile["beyond_local_repair_admission_blocker"]}"',
-                        "materialized selected-body MLIR packed-i4 beyond-local repair admission blocker",
-                    )
-                    require_contains(
-                        text,
-                        f'weft_rvv.low_precision_resource.beyond_local_repair_admission_reopen_requirement = "{resource_profile["beyond_local_repair_admission_reopen_requirement"]}"',
-                        "materialized selected-body MLIR packed-i4 beyond-local repair admission reopen requirement",
-                    )
-                widening_product_reduction_boundary["selected_source_abi"][
-                    "scale"
-                ] = "dequant-scale-value"
-                widening_product_reduction_boundary["gearbox_cross_region_handoff"] = {
-                    "op": "weft_rvv.gearbox_cross_region_handoff",
-                    "contract": (
-                        WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_HANDOFF_CONTRACT
-                    ),
-                    "producer_scope": (
-                        WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_PRODUCER_SCOPE
-                    ),
-                    "consumer_scope": (
-                        WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_CONSUMER_SCOPE
-                    ),
-                    "from_phase": (
-                        resource_profile["producer_phase"]
-                    ),
-                    "to_phase": (
-                        WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_CONSUMER_PHASE
-                    ),
-                    "runtime_avl_source": "runtime_abi:n",
-                    "region_count": int(resource_profile["vsetvl_region_count"]),
-                    "resource_decision": (
-                        resource_profile["resource_decision"]
-                    ),
-                }
-                widening_product_reduction_boundary["low_precision_resource"] = {
-                    "candidate_set": (
-                        WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_CANDIDATE_SET
-                    ),
-                    "selected_candidate": (
-                        resource_profile["selected_candidate"]
-                    ),
-                    "selection_reason": (
-                        resource_profile["selection_reason"]
-                    ),
-                    "legality_scope": (
-                        WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_LEGALITY_SCOPE
-                    ),
-                    "memory_form": (
-                        resource_profile["memory_form"]
-                    ),
-                    "operand_form": resource_profile["operand_form"],
-                    "source_signedness": resource_profile["source_signedness"],
-                    "storage_element_width": (
-                        resource_profile["storage_element_width"]
-                    ),
-                    "effective_element_width": (
-                        resource_profile["effective_element_width"]
-                    ),
-                    "packing_layout": resource_profile["packing_layout"],
-                    "unpack_intent": resource_profile["unpack_intent"],
-                    "vsetvl_region_count": int(resource_profile["vsetvl_region_count"]),
-                    "peak_live_vector_groups": int(
-                        resource_profile["peak_live_vector_groups"]
-                    ),
-                    "vector_register_budget": 32,
-                    "runtime_avl_source": "runtime_abi:n",
-                }
-                if uses_packed_i4_resource:
-                    packed_i4_cost_facts = {
-                        "resource_cost_contract": resource_profile[
-                            "resource_cost_contract"
-                        ],
-                        "resource_cost_model": resource_profile[
-                            "resource_cost_model"
-                        ],
-                        "resource_cost_loop_body_steps": int(
-                            resource_profile["resource_cost_loop_body_steps"]
-                        ),
-                        "resource_cost_blocker": resource_profile[
-                            "resource_cost_blocker"
-                        ],
-                        "performance_admission_decision": resource_profile[
-                            "performance_admission_decision"
-                        ],
-                        "performance_admission_closure": resource_profile[
-                            "performance_admission_closure"
-                        ],
-                        "performance_admission_reopen_requirement": resource_profile[
-                            "performance_admission_reopen_requirement"
-                        ],
-                        "beyond_local_repair_admission_contract": resource_profile[
-                            "beyond_local_repair_admission_contract"
-                        ],
-                        "beyond_local_repair_admission_decision": resource_profile[
-                            "beyond_local_repair_admission_decision"
-                        ],
-                        "beyond_local_repair_admission_blocker": resource_profile[
-                            "beyond_local_repair_admission_blocker"
-                        ],
-                        "beyond_local_repair_admission_reopen_requirement": resource_profile[
-                            "beyond_local_repair_admission_reopen_requirement"
-                        ],
-                    }
-                    widening_product_reduction_boundary[
-                        "gearbox_cross_region_handoff"
-                    ].update(packed_i4_cost_facts)
-                    widening_product_reduction_boundary[
-                        "low_precision_resource"
-                    ].update(packed_i4_cost_facts)
+            require_contains(
+                text,
+                f"unroll_factor = {unroll_factor} : i64",
+                "formula-realized structural unroll factor",
+            )
+            widening_product_reduction_boundary["selected_source_abi"][
+                "scale"
+            ] = "dequant-scale-value"
+            widening_product_reduction_boundary["formula_plan"] = {
+                "construction_authority": "RVVLowPrecisionResourceFormula",
+                "resource_kind": resource_kind,
+                "operand_encoding": operand_encoding,
+                "unroll_factor": unroll_factor,
+                "typed_body_is_compute_authority": True,
+            }
         if expectation.is_widening_product_reduce_dequant_clamp_f32:
             widening_product_reduction_boundary["selected_source_abi"][
                 "lower_bound"
@@ -18688,29 +16843,47 @@ def verify_materialized_selected_body(
         )
         require_contains(
             text,
-            '!weft_rvv.vector<i16, "mf2">',
-            "materialized selected-body MLIR widening dot source vector type",
-        )
-        require_contains(
-            text,
             '!weft_rvv.vector<i32, "m1">',
             "materialized selected-body MLIR widening dot result vector type",
         )
-        require_contains(
-            text,
-            "weft_rvv.widening_dot_reduce",
-            "materialized selected-body MLIR widening dot compute op",
-        )
-        require_contains(
-            text,
-            'kind = "signed_widening_dot_reduce_add"',
-            "materialized selected-body MLIR widening dot kind",
-        )
-        require_contains(
-            text,
-            f'dot_product_relation = "{WIDENING_DOT_RELATION}"',
-            "materialized selected-body MLIR widening dot relation",
-        )
+        if body_has_deferred_dot_accumulate:
+            for token, context in (
+                ('!weft_rvv.vector<i16, "m4">', "deferred source vector"),
+                ('!weft_rvv.vector<i32, "m8">', "deferred product vector"),
+                ("weft_rvv.widening_product", "deferred product op"),
+                ("weft_rvv.deferred_accumulate", "deferred accumulator op"),
+                ("weft_rvv.standalone_reduce", "trailing reduction op"),
+                (
+                    'product_relation = "signed-i16m4xi16m4-to-i32m8"',
+                    "deferred product relation",
+                ),
+                (
+                    'accumulate_relation = "signed-i32m8-into-i32m8-deferred-add"',
+                    "deferred accumulator relation",
+                ),
+            ):
+                require_contains(text, token, f"materialized {context}")
+        else:
+            require_contains(
+                text,
+                '!weft_rvv.vector<i16, "mf2">',
+                "materialized selected-body MLIR widening dot source vector type",
+            )
+            require_contains(
+                text,
+                "weft_rvv.widening_dot_reduce",
+                "materialized selected-body MLIR widening dot compute op",
+            )
+            require_contains(
+                text,
+                'kind = "signed_widening_dot_reduce_add"',
+                "materialized selected-body MLIR widening dot kind",
+            )
+            require_contains(
+                text,
+                f'dot_product_relation = "{WIDENING_DOT_RELATION}"',
+                "materialized selected-body MLIR widening dot relation",
+            )
     if expectation.is_strided_input_widening_dot_reduce_add:
         require_contains(
             text,
@@ -18746,20 +16919,49 @@ def verify_materialized_selected_body(
         expectation.is_widening_dot_reduce_add
         or expectation.is_strided_input_widening_dot_reduce_add
     ):
+        realized_dot_compute = (
+            "weft_rvv.widening_product+weft_rvv.deferred_accumulate+"
+            "weft_rvv.standalone_reduce"
+            if body_has_deferred_dot_accumulate
+            else "weft_rvv.widening_dot_reduce"
+        )
         widening_dot_reduction_boundary = {
-            "typed_compute_op": "weft_rvv.widening_dot_reduce",
-            "source_vector_type": '!weft_rvv.vector<i16, "mf2">',
+            "typed_compute_op": realized_dot_compute,
+            "source_vector_type": (
+                '!weft_rvv.vector<i16, "m4">'
+                if body_has_deferred_dot_accumulate
+                else '!weft_rvv.vector<i16, "mf2">'
+            ),
             "result_vector_type": '!weft_rvv.vector<i32, "m1">',
             "source_element_type": "i16",
             "source_sew": "16",
-            "source_lmul": "mf2",
+            "source_lmul": (
+                "m4" if body_has_deferred_dot_accumulate else "mf2"
+            ),
             "accumulator_element_type": "i32",
             "result_element_type": expectation.element_type,
             "result_sew": expectation.sew,
             "result_lmul": expectation.lmul,
-            "accumulator_layout": WIDENING_DOT_ACCUMULATOR_LAYOUT,
-            "result_layout": WIDENING_DOT_RESULT_LAYOUT,
+            "accumulator_layout": (
+                WIDENING_PRODUCT_REDUCE_ACCUMULATOR_LAYOUT
+                if body_has_deferred_dot_accumulate
+                else WIDENING_DOT_ACCUMULATOR_LAYOUT
+            ),
+            "result_layout": (
+                WIDENING_PRODUCT_REDUCE_RESULT_LAYOUT
+                if body_has_deferred_dot_accumulate
+                else WIDENING_DOT_RESULT_LAYOUT
+            ),
             "dot_product_relation": WIDENING_DOT_RELATION,
+            "formula_plan": {
+                "construction_authority": "RVVDotReduceScheduleFormula",
+                "reduction_structure": (
+                    "deferred_accumulate"
+                    if body_has_deferred_dot_accumulate
+                    else "per_iteration"
+                ),
+                "unroll_factor": 1,
+            },
             "selected_source_abi": {
                 "lhs": "lhs-input-buffer",
                 "rhs": "rhs-input-buffer",
@@ -20885,14 +19087,24 @@ def verify_materialized_selected_body(
             "materialized selected-body MLIR widening macc result layout",
         )
     if expectation.is_widening_dot_reduce_add:
+        expected_accumulator_layout = (
+            WIDENING_PRODUCT_REDUCE_ACCUMULATOR_LAYOUT
+            if body_has_deferred_dot_accumulate
+            else WIDENING_DOT_ACCUMULATOR_LAYOUT
+        )
+        expected_result_layout = (
+            WIDENING_PRODUCT_REDUCE_RESULT_LAYOUT
+            if body_has_deferred_dot_accumulate
+            else WIDENING_DOT_RESULT_LAYOUT
+        )
         require_contains(
             text,
-            f'accumulator_layout = "{WIDENING_DOT_ACCUMULATOR_LAYOUT}"',
+            f'accumulator_layout = "{expected_accumulator_layout}"',
             "materialized selected-body MLIR widening dot accumulator layout",
         )
         require_contains(
             text,
-            f'result_layout = "{WIDENING_DOT_RESULT_LAYOUT}"',
+            f'result_layout = "{expected_result_layout}"',
             "materialized selected-body MLIR widening dot result layout",
         )
     if (
@@ -22076,8 +20288,21 @@ def extract_runtime_avl_vl_materialized_boundary(
     # the route/header keep the i32m1/f32m1 result config. Derive the strip config
     # structurally when the body carries the i32m8 deferred accumulate.
     body_has_deferred_wide_accumulate = "weft_rvv.widening_accumulate" in text
-    setvl_lmul = "m2" if body_has_deferred_wide_accumulate else expectation.lmul
-    setvl_sew = 8 if body_has_deferred_wide_accumulate else expectation.sew
+    body_has_deferred_dot_accumulate = "weft_rvv.deferred_accumulate" in text
+    setvl_lmul = (
+        "m4"
+        if body_has_deferred_dot_accumulate
+        else "m2"
+        if body_has_deferred_wide_accumulate
+        else expectation.lmul
+    )
+    setvl_sew = (
+        16
+        if body_has_deferred_dot_accumulate
+        else 8
+        if body_has_deferred_wide_accumulate
+        else expectation.sew
+    )
     for token, context in (
         (f'lmul = "{setvl_lmul}"', "LMUL"),
         (f"sew = {setvl_sew} : i64", "SEW"),
@@ -30841,15 +29066,8 @@ def generate_bundle(
             materialize_command.append(
                 "--weft-rvv-materialize-vector-binary-source-front-door"
             )
-    if (
-        expectation.is_widening_product_reduce_dequantize_f32
-        or expectation.is_widening_product_reduce_dequant_clamp_f32
-    ):
-        materialize_command.append("--weft-rvv-materialize-gearbox-schedules")
     if expectation.requires_selected_lowering_boundary_materialization:
         materialize_command.append("--weft-materialize-selected-lowering-boundaries")
-    if expectation.is_dequantize_i32_to_f32:
-        materialize_command.append("--weft-rvv-materialize-gearbox-schedules")
     materialize_command.extend(
         ["--weft-materialize-emission-plans", "-o", str(materialized_path)]
     )
@@ -31419,8 +29637,6 @@ def mask_tail_policy_metadata_from_bundle(
     metadata: dict[str, str] = {}
     expected_metadata = expected_metadata_for(expectation)
     metadata_keys = MASK_TAIL_POLICY_METADATA_KEYS
-    if expectation.is_runtime_scalar_cmp_masked_indexed_gather_macc_scatter:
-        metadata_keys = (*metadata_keys, *COMPOSITE_RESOURCE_METADATA_KEYS)
     for key in metadata_keys:
         expected = expected_metadata.get(key)
         if expected is None:
@@ -31840,24 +30056,24 @@ def widening_product_reduction_metadata_from_bundle(
     object_metadata = metadata_map(records[0])
     header_metadata = metadata_map(records[1])
     metadata: dict[str, str] = {}
+    typed_compute_chain = object_metadata.get("rvv_selected_body_typed_compute_op")
+    require_equal(
+        header_metadata.get("rvv_selected_body_typed_compute_op"),
+        typed_compute_chain,
+        f"{expectation.kind} object/header typed compute chain agreement",
+    )
+    if typed_compute_chain is not None:
+        metadata["rvv_selected_body_typed_compute_op"] = typed_compute_chain
     expected_metadata = expected_metadata_for(expectation)
-    uses_packed_i4_resource = product_dequant_uses_packed_i4_resource_metadata(
+    uses_packed_i4_resource = product_dequant_uses_packed_i4_typed_body(
         object_metadata, expectation
     )
     require_equal(
-        product_dequant_uses_packed_i4_resource_metadata(header_metadata, expectation),
+        product_dequant_uses_packed_i4_typed_body(header_metadata, expectation),
         uses_packed_i4_resource,
         f"{expectation.kind} object/header packed-i4 resource selection agreement",
     )
     for key in WIDENING_PRODUCT_REDUCTION_METADATA_KEYS:
-        if uses_packed_i4_resource and key in LOW_PRECISION_RESOURCE_METADATA_KEYS:
-            require_equal(
-                object_metadata.get(key),
-                header_metadata.get(key),
-                f"{expectation.kind} object/header low-precision metadata {key}",
-            )
-            metadata[key] = object_metadata.get(key, "")
-            continue
         expected = expected_metadata.get(key)
         if expected is None:
             continue
@@ -31877,13 +30093,6 @@ def widening_product_reduction_metadata_from_bundle(
             f"{expectation.kind} header widening product-reduction metadata {key}",
         )
         metadata[key] = expected
-    if uses_packed_i4_resource:
-        validate_low_precision_resource_metadata(
-            object_metadata, expectation, "object", packed_i4=True
-        )
-        validate_low_precision_resource_metadata(
-            header_metadata, expectation, "header", packed_i4=True
-        )
     if (
         expectation.is_widening_product_reduce_dequantize_f32
         or expectation.is_widening_product_reduce_dequant_clamp_f32
@@ -32103,77 +30312,7 @@ def mask_tail_policy_boundary_summary(
                 "destination": "dst",
                 "runtime_n": "n",
             },
-            "composite_resource_selection": {
-                "candidate_set": route_metadata.get(
-                    "weft_rvv.composite_resource.candidate_set"
-                ),
-                "selected_candidate": route_metadata.get(
-                    "weft_rvv.composite_resource.selected_candidate"
-                ),
-                "selection_reason": route_metadata.get(
-                    "weft_rvv.composite_resource.selection_reason"
-                ),
-                "legality_scope": route_metadata.get(
-                    "weft_rvv.composite_resource.legality_scope"
-                ),
-                "operation": route_metadata.get(
-                    "weft_rvv.composite_resource.operation"
-                ),
-                "memory_form": route_metadata.get(
-                    "weft_rvv.composite_resource.memory_form"
-                ),
-                "sew": route_metadata.get("weft_rvv.composite_resource.sew"),
-                "lmul": route_metadata.get("weft_rvv.composite_resource.lmul"),
-                "tail_policy": route_metadata.get(
-                    "weft_rvv.composite_resource.tail_policy"
-                ),
-                "mask_policy": route_metadata.get(
-                    "weft_rvv.composite_resource.mask_policy"
-                ),
-                "vl_policy": route_metadata.get(
-                    "weft_rvv.composite_resource.vl_policy"
-                ),
-                "accumulator_layout": route_metadata.get(
-                    "weft_rvv.composite_resource.accumulator_layout"
-                ),
-                "unroll_factor": route_metadata.get(
-                    "weft_rvv.composite_resource.unroll_factor"
-                ),
-                "pipeline_intent": route_metadata.get(
-                    "weft_rvv.composite_resource.pipeline_intent"
-                ),
-                "prefetch_intent": route_metadata.get(
-                    "weft_rvv.composite_resource.prefetch_intent"
-                ),
-                "vsetvl_region_count": route_metadata.get(
-                    "weft_rvv.composite_resource.vsetvl_region_count"
-                ),
-                "peak_live_vector_groups": route_metadata.get(
-                    "weft_rvv.composite_resource.peak_live_vector_groups"
-                ),
-                "vector_register_budget": route_metadata.get(
-                    "weft_rvv.composite_resource.vector_register_budget"
-                ),
-                "runtime_avl_source": route_metadata.get(
-                    "weft_rvv.composite_resource.runtime_avl_source"
-                ),
-                "runtime_abi_order": route_metadata.get(
-                    "weft_rvv.composite_resource.runtime_abi_order"
-                ),
-                "target_capability_provider_mirror": route_metadata.get(
-                    "weft_rvv.composite_resource.target_capability_provider_mirror"
-                ),
-                "target_capability_legality_mirror": route_metadata.get(
-                    "weft_rvv.composite_resource.target_capability_legality_mirror"
-                ),
-                "legality": route_metadata.get(
-                    "weft_rvv.composite_resource.legality"
-                ),
-                "rejection_reason": route_metadata.get(
-                    "weft_rvv.composite_resource.rejection_reason"
-                ),
-            },
-            "materialized_body": {
+           "materialized_body": {
                 "typed_compute_op": materialized_checks.get("typed_compute_op"),
                 "memory_form": materialized_checks.get("memory_form"),
                 "contains_with_vl": materialized_checks.get("contains_with_vl"),
@@ -33684,14 +31823,8 @@ def dequantization_boundary_summary(
                 DEQUANTIZE_I32_TO_F32_SCALE_INTRINSIC,
                 DEQUANTIZE_I32_TO_F32_STORE_INTRINSIC,
             ],
-            "gearbox_selected_candidate": (
-                DEQUANTIZE_I32_TO_F32_GEARBOX_SELECTED_CANDIDATE
-            ),
-            "gearbox_schedule_id": (
-                DEQUANTIZE_I32_TO_F32_GEARBOX_SELECTED_CANDIDATE
-            ),
-            "gearbox_unroll": 2,
-            "gearbox_loop_step": "full_chunk_vl * 2",
+            "formula_unroll_factor": 2,
+            "formula_loop_step": "full_chunk_vl * 2",
             "loop_body_step_count": 10,
             "second_slice_statement_count": 5,
             "source_load_operand_order": "lhs + loop_induction, vl",
@@ -33699,18 +31832,11 @@ def dequantization_boundary_summary(
             "scale_operand_order": "converted_f32_vector, scale, vl",
             "store_operand_order": "out + loop_induction, scaled_f32_vector, vl",
             "second_remaining_avl_operand": "n - loop_induction - vl",
-            "second_source_load_operand_order": (
-                "lhs + loop_induction + vl, gearbox_loop_vl_u1"
-            ),
-            "second_conversion_operand_order": (
-                "lhs_vec_u1, gearbox_loop_vl_u1"
-            ),
-            "second_scale_operand_order": (
-                "converted_f32_vec_u1, scale, gearbox_loop_vl_u1"
-            ),
+            "second_source_load_operand_order": "lhs + loop_induction + vl, second_vl",
+            "second_conversion_operand_order": "second_lhs_vec, second_vl",
+            "second_scale_operand_order": "second_converted_f32_vec, scale, second_vl",
             "second_store_operand_order": (
-                "out + loop_induction + vl, dequantized_vec_u1, "
-                "gearbox_loop_vl_u1"
+                "out + loop_induction + vl, second_dequantized_vec, second_vl"
             ),
         }
     )
@@ -33845,34 +31971,12 @@ def dequantization_boundary_summary(
                 "weft_rvv.provider_supported_mirror"
             ),
             "c_type_mapping": route_metadata.get("weft_rvv.c_type_mapping"),
-            "gearbox_candidate_set": route_metadata.get(
-                "weft_rvv.gearbox.candidate_set"
-            ),
-            "gearbox_selected_candidate": route_metadata.get(
-                "weft_rvv.gearbox.selected_candidate"
-            ),
-            "gearbox_schedule_id": route_metadata.get(
-                "weft_rvv.gearbox.schedule_id"
-            ),
-            "gearbox_selection_reason": route_metadata.get(
-                "weft_rvv.gearbox.selection_reason"
-            ),
-            "gearbox_legality_scope": route_metadata.get(
-                "weft_rvv.gearbox.legality_scope"
-            ),
-            "gearbox_unroll": route_metadata.get("weft_rvv.gearbox.unroll"),
-            "gearbox_vl_policy": route_metadata.get(
-                "weft_rvv.gearbox.vl_policy"
+            "formula_unroll_factor": route_metadata.get(
+                "weft_rvv.unroll_factor"
             ),
         },
-        "gearbox_preflight": {
-            "candidate_set": route_metadata.get("weft_rvv.gearbox.candidate_set"),
-            "selected_candidate": route_metadata.get(
-                "weft_rvv.gearbox.selected_candidate"
-            ),
-            "schedule_id": route_metadata.get("weft_rvv.gearbox.schedule_id"),
-            "unroll": route_metadata.get("weft_rvv.gearbox.unroll"),
-            "vl_policy": route_metadata.get("weft_rvv.gearbox.vl_policy"),
+        "formula_schedule": {
+            "unroll_factor": route_metadata.get("weft_rvv.unroll_factor"),
             "emitted_cpp_loop_step": emitted_cpp_checks.get(
                 "dequantization_boundary", {}
             )
@@ -34971,10 +33075,18 @@ def widening_dot_reduction_boundary_summary(
     route_metadata = widening_dot_reduction_metadata_from_bundle(
         bundle_checks, expectation
     )
+    materialized_body = materialized_checks.get(
+        "widening_dot_reduction_boundary", {}
+    )
+    emitted_body = emitted_cpp_checks.get("widening_dot_reduction_boundary", {})
+    formula_plan = materialized_body.get("formula_plan", {})
+    is_deferred = formula_plan.get("reduction_structure") == "deferred_accumulate"
     source_load_intrinsic = (
-        STRIDED_INPUT_WIDENING_DOT_STRIDED_LOAD_INTRINSIC
+        emitted_body.get("source_load_intrinsic")
+        or STRIDED_INPUT_WIDENING_DOT_STRIDED_LOAD_INTRINSIC
         if is_strided
-        else "__riscv_vle16_v_i16mf2"
+        else emitted_body.get("source_load_intrinsic")
+        or "__riscv_vle16_v_i16mf2"
     )
     selected_source_abi = {
         "lhs": "lhs-input-buffer",
@@ -35002,27 +33114,37 @@ def widening_dot_reduction_boundary_summary(
     )
     provider_route_facts = {
         "provider_supported_mirror": CONTRACTION_PROVIDER_SUPPORTED_MIRROR,
-        "target_leaf_profile": CONTRACTION_TARGET_LEAF_PROFILE,
+        "target_leaf_profile": route_metadata.get("weft_rvv.target_leaf_profile"),
         "runtime_abi_order": expectation.runtime_abi_order,
         "route_operand_binding_plan": route_operand_binding_plan,
         "route_operand_binding_operands": route_operand_binding_operands,
         "contraction_route_family_plan": "rvv-contraction-route-family-plan.v1",
         "required_header_declarations": CONTRACTION_REQUIRED_HEADER_DECLARATIONS,
-        "c_type_mapping": CONTRACTION_C_TYPE_MAPPING,
-        "source_load_intrinsic": "__riscv_vle16_v_i16mf2",
+        "c_type_mapping": route_metadata.get("weft_rvv.c_type_mapping"),
+        "source_load_intrinsic": source_load_intrinsic,
         "effective_source_load_intrinsic": source_load_intrinsic,
-        "widening_product_intrinsic": "__riscv_vwmul_vv_i32m1",
+        "widening_product_intrinsic": (
+            emitted_body.get("product_intrinsic") or "__riscv_vwmul_vv_i32m1"
+        ),
         "scalar_seed_splat_intrinsic": "__riscv_vmv_v_x_i32m1",
-        "reduction_intrinsic": "__riscv_vredsum_vs_i32m1_i32m1",
+        "reduction_intrinsic": (
+            emitted_body.get("reduction_intrinsic")
+            or "__riscv_vredsum_vs_i32m1_i32m1"
+        ),
         "store_intrinsic": "__riscv_vse32_v_i32m1",
         "source_sew": "16",
-        "source_lmul": "mf2",
+        "source_lmul": materialized_body.get("source_lmul") or "mf2",
         "accumulator_sew": expectation.sew,
         "accumulator_lmul": expectation.lmul,
         "result_sew": expectation.sew,
         "result_lmul": expectation.lmul,
-        "accumulator_layout": WIDENING_DOT_ACCUMULATOR_LAYOUT,
-        "result_layout": WIDENING_DOT_RESULT_LAYOUT,
+        "accumulator_layout": (
+            materialized_body.get("accumulator_layout")
+            or WIDENING_DOT_ACCUMULATOR_LAYOUT
+        ),
+        "result_layout": (
+            materialized_body.get("result_layout") or WIDENING_DOT_RESULT_LAYOUT
+        ),
         "dot_product_relation": WIDENING_DOT_RELATION,
         "reduction_store_vl": WIDENING_DOT_REDUCTION_STORE_VL,
     }
@@ -35051,65 +33173,6 @@ def widening_dot_reduction_boundary_summary(
                 "data_pattern": "swapped stride signed large i16 products",
             },
         ]
-        provider_route_facts["low_precision_resource_selection"] = {
-            "candidate_set": route_metadata.get(
-                "weft_rvv.low_precision_resource.candidate_set"
-            ),
-            "selected_candidate": route_metadata.get(
-                "weft_rvv.low_precision_resource.selected_candidate"
-            ),
-            "selection_reason": route_metadata.get(
-                "weft_rvv.low_precision_resource.selection_reason"
-            ),
-            "legality_scope": route_metadata.get(
-                "weft_rvv.low_precision_resource.legality_scope"
-            ),
-            "source_dtype": route_metadata.get(
-                "weft_rvv.low_precision_resource.source_dtype"
-            ),
-            "product_dtype": route_metadata.get(
-                "weft_rvv.low_precision_resource.product_dtype"
-            ),
-            "product_emul": route_metadata.get(
-                "weft_rvv.low_precision_resource.product_emul"
-            ),
-            "accumulator_dtype": route_metadata.get(
-                "weft_rvv.low_precision_resource.accumulator_dtype"
-            ),
-            "accumulator_emul": route_metadata.get(
-                "weft_rvv.low_precision_resource.accumulator_emul"
-            ),
-            "result_dtype": route_metadata.get(
-                "weft_rvv.low_precision_resource.result_dtype"
-            ),
-            "memory_form": route_metadata.get(
-                "weft_rvv.low_precision_resource.memory_form"
-            ),
-            "reduction_layout": route_metadata.get(
-                "weft_rvv.low_precision_resource.reduction_layout"
-            ),
-            "runtime_avl_source": route_metadata.get(
-                "weft_rvv.low_precision_resource.runtime_avl_source"
-            ),
-            "runtime_abi_order": route_metadata.get(
-                "weft_rvv.low_precision_resource.runtime_abi_order"
-            ),
-            "vector_register_budget": route_metadata.get(
-                "weft_rvv.low_precision_resource.vector_register_budget"
-            ),
-            "target_capability_provider_mirror": route_metadata.get(
-                "weft_rvv.low_precision_resource.target_capability_provider_mirror"
-            ),
-            "target_capability_legality_mirror": route_metadata.get(
-                "weft_rvv.low_precision_resource.target_capability_legality_mirror"
-            ),
-            "legality": route_metadata.get(
-                "weft_rvv.low_precision_resource.legality"
-            ),
-            "rejection_reason": route_metadata.get(
-                "weft_rvv.low_precision_resource.rejection_reason"
-            ),
-        }
     else:
         provider_route_facts["strided_input_facts"] = "rejected-if-present"
     return {
@@ -35119,32 +33182,42 @@ def widening_dot_reduction_boundary_summary(
             "validator -> neutral EmitC materializer -> generated RVV C artifact"
         ),
         "authority": (
-            "provider-derived typed weft_rvv widening dot-reduction "
-            "body/config/runtime facts"
+            "formula-constructed typed weft_rvv widening dot-reduction body"
         ),
         "target_artifact_validator": (
             "RVVTargetArtifactRouteFamilyValidation.cpp:"
             "widening-dot-reduction target-owned consumer"
         ),
-        "artifact_metadata_role": "mirror-only-after-provider-route",
+        "artifact_metadata_role": "typed-plan-consistency-only",
         "direct_pre_realized_route_entry_supported": False,
         "contraction_kind": expectation.kind,
-        "typed_compute_op": "weft_rvv.widening_dot_reduce",
+        "typed_compute_op": (
+            materialized_body.get("typed_compute_op")
+            or "weft_rvv.widening_dot_reduce"
+        ),
         "memory_form": expectation.memory_form,
         "source_type_policy": {
             "element_type": "i16",
             "element_c_type": "int16_t",
             "sew": "16",
-            "lmul": "mf2",
-            "vector_type": '!weft_rvv.vector<i16, "mf2">',
-            "vector_c_type": "vint16mf2_t",
+            "lmul": materialized_body.get("source_lmul") or "mf2",
+            "vector_type": (
+                materialized_body.get("source_vector_type")
+                or '!weft_rvv.vector<i16, "mf2">'
+            ),
+            "vector_c_type": (
+                emitted_body.get("source_vector_c_type") or "vint16mf2_t"
+            ),
         },
         "accumulator_type_policy": {
             "element_type": expectation.element_type,
             "element_c_type": expectation.element_c_type,
             "sew": expectation.sew,
             "lmul": expectation.lmul,
-            "layout": WIDENING_DOT_ACCUMULATOR_LAYOUT,
+            "layout": (
+                materialized_body.get("accumulator_layout")
+                or WIDENING_DOT_ACCUMULATOR_LAYOUT
+            ),
             "abi_role": "accumulator-input-buffer",
             "seed_source": "acc[0]",
             "loop_carry_source": "out[0]",
@@ -35154,7 +33227,10 @@ def widening_dot_reduction_boundary_summary(
             "element_c_type": expectation.element_c_type,
             "sew": expectation.sew,
             "lmul": expectation.lmul,
-            "layout": WIDENING_DOT_RESULT_LAYOUT,
+            "layout": (
+                materialized_body.get("result_layout")
+                or WIDENING_DOT_RESULT_LAYOUT
+            ),
             "abi_role": "output-buffer",
             "scalar_store_vl": WIDENING_DOT_REDUCTION_STORE_VL,
         },
@@ -35163,17 +33239,19 @@ def widening_dot_reduction_boundary_summary(
         "statement_plan": {
             "family": "widening dot-reduction contraction",
             "pre_loop_callees": [
-                expectation.setvl_intrinsic,
+                "__riscv_vsetvl_e16m4" if is_deferred else expectation.setvl_intrinsic,
                 "__riscv_vmv_v_x_i32m1",
                 "__riscv_vse32_v_i32m1",
             ],
             "loop_callees": [
-                expectation.setvl_intrinsic,
+                "__riscv_vsetvl_e16m4" if is_deferred else expectation.setvl_intrinsic,
                 source_load_intrinsic,
                 source_load_intrinsic,
-                "__riscv_vwmul_vv_i32m1",
+                emitted_body.get("product_intrinsic")
+                or "__riscv_vwmul_vv_i32m1",
                 "__riscv_vmv_v_x_i32m1",
-                "__riscv_vredsum_vs_i32m1_i32m1",
+                emitted_body.get("reduction_intrinsic")
+                or "__riscv_vredsum_vs_i32m1_i32m1",
                 "__riscv_vse32_v_i32m1",
             ],
             "product_operand_order": "lhs,rhs,vl",
@@ -35191,18 +33269,13 @@ def widening_dot_reduction_boundary_summary(
             "source/result dtype relation",
             "source load form",
             "strided fact presence or absence",
-            "low-precision resource selection mirrors",
             "setvl/VL control and scalar store VL",
             "required headers and C type mapping",
-            "mirror-only candidate metadata",
             "stale non-family fact rejection",
         ],
-        "materialized_body": materialized_checks.get(
-            "widening_dot_reduction_boundary", {}
-        ),
-        "emitted_cpp": emitted_cpp_checks.get(
-            "widening_dot_reduction_boundary", {}
-        ),
+        "formula_plan": formula_plan,
+        "materialized_body": materialized_body,
+        "emitted_cpp": emitted_body,
         "route_metadata": route_metadata,
         "artifact_abi": {
             "prototype": bundle_checks["header"]["prototype"],
@@ -35324,425 +33397,14 @@ def widening_product_reduction_boundary_summary(
             "scale_c_type": "float",
             "scale_name": "scale",
         }
-    uses_packed_i4_resource = product_dequant_uses_packed_i4_resource_metadata(
-        route_metadata, expectation
-    )
-    resource_profile = product_dequant_low_precision_resource_profile(
-        expectation, packed_i4=uses_packed_i4_resource
+    materialized_formula_plan = materialized_checks.get(
+        "widening_product_reduction_boundary", {}
+    ).get("formula_plan", {})
+    uses_packed_i4_resource = (
+        materialized_formula_plan.get("operand_encoding") == "packed_i4"
     )
     if is_dequant or is_dequant_clamp:
-        provider_route_facts["gearbox_cross_region_handoff"] = {
-            "op": "weft_rvv.gearbox_cross_region_handoff",
-            "contract": (
-                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_HANDOFF_CONTRACT
-            ),
-            "producer_scope": route_metadata.get(
-                "weft_rvv.gearbox.producer_scope"
-            ),
-            "consumer_scope": route_metadata.get(
-                "weft_rvv.gearbox.consumer_scope"
-            ),
-            "from_phase": resource_profile["producer_phase"],
-            "to_phase": (
-                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_CONSUMER_PHASE
-            ),
-            "runtime_avl_source": route_metadata.get(
-                "weft_rvv.low_precision_resource.runtime_avl_source"
-            ),
-            "resource_decision": (
-                resource_profile["resource_decision"]
-            ),
-            "region_count": route_metadata.get(
-                "weft_rvv.low_precision_resource.vsetvl_region_count"
-            ),
-        }
-        provider_route_facts["low_precision_resource"] = {
-            "candidate_set": route_metadata.get(
-                "weft_rvv.low_precision_resource.candidate_set"
-            ),
-            "selected_candidate": route_metadata.get(
-                "weft_rvv.low_precision_resource.selected_candidate"
-            ),
-            "expected_selected_candidate": resource_profile["selected_candidate"],
-            "candidate_count": route_metadata.get(
-                "weft_rvv.low_precision_resource.candidate_count"
-            ),
-            "expected_candidate_count": resource_profile["candidate_count"],
-            "legal_candidate_count": route_metadata.get(
-                "weft_rvv.low_precision_resource.legal_candidate_count"
-            ),
-            "expected_legal_candidate_count": resource_profile[
-                "legal_candidate_count"
-            ],
-            "selected_candidate_index": route_metadata.get(
-                "weft_rvv.low_precision_resource.selected_candidate_index"
-            ),
-            "expected_selected_candidate_index": resource_profile[
-                "selected_candidate_index"
-            ],
-            "selection_reason": route_metadata.get(
-                "weft_rvv.low_precision_resource.selection_reason"
-            ),
-            "expected_selection_reason": resource_profile["selection_reason"],
-            "legality_scope": route_metadata.get(
-                "weft_rvv.low_precision_resource.legality_scope"
-            ),
-            "source_dtype": route_metadata.get(
-                "weft_rvv.low_precision_resource.source_dtype"
-            ),
-            "product_dtype": route_metadata.get(
-                "weft_rvv.low_precision_resource.product_dtype"
-            ),
-            "accumulator_dtype": route_metadata.get(
-                "weft_rvv.low_precision_resource.accumulator_dtype"
-            ),
-            "result_dtype": route_metadata.get(
-                "weft_rvv.low_precision_resource.result_dtype"
-            ),
-            "memory_form": route_metadata.get(
-                "weft_rvv.low_precision_resource.memory_form"
-            ),
-            "expected_memory_form": resource_profile["memory_form"],
-            "operand_form": route_metadata.get(
-                "weft_rvv.low_precision_resource.operand_form"
-            ),
-            "expected_operand_form": resource_profile["operand_form"],
-            "source_signedness": route_metadata.get(
-                "weft_rvv.low_precision_resource.source_signedness"
-            ),
-            "storage_element_width": route_metadata.get(
-                "weft_rvv.low_precision_resource.storage_element_width"
-            ),
-            "effective_element_width": route_metadata.get(
-                "weft_rvv.low_precision_resource.effective_element_width"
-            ),
-            "packing_layout": route_metadata.get(
-                "weft_rvv.low_precision_resource.packing_layout"
-            ),
-            "unpack_intent": route_metadata.get(
-                "weft_rvv.low_precision_resource.unpack_intent"
-            ),
-            "unroll_factor": route_metadata.get(
-                "weft_rvv.low_precision_resource.unroll_factor"
-            ),
-            "accumulator_count": route_metadata.get(
-                "weft_rvv.low_precision_resource.accumulator_count"
-            ),
-            "vsetvl_region_count": route_metadata.get(
-                "weft_rvv.low_precision_resource.vsetvl_region_count"
-            ),
-            "peak_live_vector_groups": route_metadata.get(
-                "weft_rvv.low_precision_resource.peak_live_vector_groups"
-            ),
-            "vector_register_budget": route_metadata.get(
-                "weft_rvv.low_precision_resource.vector_register_budget"
-            ),
-            "runtime_avl_source": route_metadata.get(
-                "weft_rvv.low_precision_resource.runtime_avl_source"
-            ),
-            "runtime_abi_order": route_metadata.get(
-                "weft_rvv.low_precision_resource.runtime_abi_order"
-            ),
-            "primitive_contract": route_metadata.get(
-                "weft_rvv.low_precision_resource.primitive_contract"
-            ),
-            "expected_primitive_contract": resource_profile["primitive_contract"],
-            "primitive_kind": route_metadata.get(
-                "weft_rvv.low_precision_resource.primitive_kind"
-            ),
-            "expected_primitive_kind": resource_profile["primitive_kind"],
-            "primitive_chain_contract": route_metadata.get(
-                "weft_rvv.low_precision_resource.primitive_chain_contract"
-            ),
-            "expected_primitive_chain_contract": resource_profile[
-                "primitive_chain_contract"
-            ],
-            "primitive_chain_kind": route_metadata.get(
-                "weft_rvv.low_precision_resource.primitive_chain_kind"
-            ),
-            "expected_primitive_chain_kind": resource_profile[
-                "primitive_chain_kind"
-            ],
-            "primitive_widening_product_relation": route_metadata.get(
-                "weft_rvv.low_precision_resource.primitive_widening_product_relation"
-            ),
-            "expected_primitive_widening_product_relation": resource_profile[
-                "primitive_widening_product_relation"
-            ],
-            "primitive_product_reduction_chain_relation": route_metadata.get(
-                "weft_rvv.low_precision_resource."
-                "primitive_product_reduction_chain_relation"
-            ),
-            "expected_primitive_product_reduction_chain_relation": resource_profile[
-                "primitive_product_reduction_chain_relation"
-            ],
-            "primitive_widening_product_intrinsic": route_metadata.get(
-                "weft_rvv.low_precision_resource.primitive_widening_product_intrinsic"
-            ),
-            "expected_primitive_widening_product_intrinsic": resource_profile[
-                "primitive_widening_product_intrinsic"
-            ],
-            "primitive_reduction_intrinsic": route_metadata.get(
-                "weft_rvv.low_precision_resource.primitive_reduction_intrinsic"
-            ),
-            "expected_primitive_reduction_intrinsic": resource_profile[
-                "primitive_reduction_intrinsic"
-            ],
-            "primitive_scalar_seed_splat_intrinsic": route_metadata.get(
-                "weft_rvv.low_precision_resource.primitive_scalar_seed_splat_intrinsic"
-            ),
-            "expected_primitive_scalar_seed_splat_intrinsic": resource_profile[
-                "primitive_scalar_seed_splat_intrinsic"
-            ],
-            "primitive_accumulator_layout": route_metadata.get(
-                "weft_rvv.low_precision_resource.primitive_accumulator_layout"
-            ),
-            "expected_primitive_accumulator_layout": resource_profile[
-                "primitive_accumulator_layout"
-            ],
-            "primitive_result_layout": route_metadata.get(
-                "weft_rvv.low_precision_resource.primitive_result_layout"
-            ),
-            "expected_primitive_result_layout": resource_profile[
-                "primitive_result_layout"
-            ],
-            "primitive_reduction_store_vl": route_metadata.get(
-                "weft_rvv.low_precision_resource.primitive_reduction_store_vl"
-            ),
-            "expected_primitive_reduction_store_vl": resource_profile[
-                "primitive_reduction_store_vl"
-            ],
-            "realization_producer": route_metadata.get(
-                "weft_rvv.low_precision_resource.realization_producer"
-            ),
-            "realization_decision": route_metadata.get(
-                "weft_rvv.low_precision_resource.realization_decision"
-            ),
-            "realized_unroll_factor": route_metadata.get(
-                "weft_rvv.low_precision_resource.realized_unroll_factor"
-            ),
-            "realized_vsetvl_region_count": route_metadata.get(
-                "weft_rvv.low_precision_resource.realized_vsetvl_region_count"
-            ),
-            "realized_peak_live_vector_groups": route_metadata.get(
-                "weft_rvv.low_precision_resource.realized_peak_live_vector_groups"
-            ),
-            "product_region_index": route_metadata.get(
-                "weft_rvv.low_precision_resource.product_region_index"
-            ),
-            "dequant_region_index": route_metadata.get(
-                "weft_rvv.low_precision_resource.dequant_region_index"
-            ),
-            "product_phase": route_metadata.get(
-                "weft_rvv.low_precision_resource.product_phase"
-            ),
-            "dequant_phase": route_metadata.get(
-                "weft_rvv.low_precision_resource.dequant_phase"
-            ),
-            "target_capability_provider_mirror": route_metadata.get(
-                "weft_rvv.low_precision_resource.target_capability_provider_mirror"
-            ),
-            "target_capability_legality_mirror": route_metadata.get(
-                "weft_rvv.low_precision_resource.target_capability_legality_mirror"
-            ),
-            "legality": route_metadata.get(
-                "weft_rvv.low_precision_resource.legality"
-            ),
-            "rejection_reason": route_metadata.get(
-                "weft_rvv.low_precision_resource.rejection_reason"
-            ),
-        }
-        if uses_packed_i4_resource:
-            provider_route_facts["low_precision_resource"].update(
-                {
-                    "performance_feedback": route_metadata.get(
-                        "weft_rvv.low_precision_resource.performance_feedback"
-                    ),
-                    "expected_performance_feedback": resource_profile[
-                        "performance_feedback"
-                    ],
-                    "performance_baseline": route_metadata.get(
-                        "weft_rvv.low_precision_resource.performance_baseline"
-                    ),
-                    "expected_performance_baseline": resource_profile[
-                        "performance_baseline"
-                    ],
-                    "performance_best_speedup_range": route_metadata.get(
-                        "weft_rvv.low_precision_resource.performance_best_speedup_range"
-                    ),
-                    "expected_performance_best_speedup_range": resource_profile[
-                        "performance_best_speedup_range"
-                    ],
-                    "performance_action": route_metadata.get(
-                        "weft_rvv.low_precision_resource.performance_action"
-                    ),
-                    "expected_performance_action": resource_profile[
-                        "performance_action"
-                    ],
-                    "performance_maturity": route_metadata.get(
-                        "weft_rvv.low_precision_resource.performance_maturity"
-                    ),
-                    "expected_performance_maturity": resource_profile[
-                        "performance_maturity"
-                    ],
-                    "performance_maturity_evidence": route_metadata.get(
-                        "weft_rvv.low_precision_resource.performance_maturity_evidence"
-                    ),
-                    "expected_performance_maturity_evidence": resource_profile[
-                        "performance_maturity_evidence"
-                    ],
-                    "performance_maturity_outcome": route_metadata.get(
-                        "weft_rvv.low_precision_resource.performance_maturity_outcome"
-                    ),
-                    "expected_performance_maturity_outcome": resource_profile[
-                        "performance_maturity_outcome"
-                    ],
-                    "performance_selection_eligible": route_metadata.get(
-                        "weft_rvv.low_precision_resource.performance_selection_eligible"
-                    ),
-                    "expected_performance_selection_eligible": resource_profile[
-                        "performance_selection_eligible"
-                    ],
-                    "dispatch_preference": route_metadata.get(
-                        "weft_rvv.low_precision_resource.dispatch_preference"
-                    ),
-                    "expected_dispatch_preference": resource_profile[
-                        "dispatch_preference"
-                    ],
-                    "resource_cost_contract": route_metadata.get(
-                        "weft_rvv.low_precision_resource.resource_cost_contract"
-                    ),
-                    "expected_resource_cost_contract": resource_profile[
-                        "resource_cost_contract"
-                    ],
-                    "resource_cost_model": route_metadata.get(
-                        "weft_rvv.low_precision_resource.resource_cost_model"
-                    ),
-                    "expected_resource_cost_model": resource_profile[
-                        "resource_cost_model"
-                    ],
-                    "resource_cost_loop_body_steps": route_metadata.get(
-                        "weft_rvv.low_precision_resource.resource_cost_loop_body_steps"
-                    ),
-                    "expected_resource_cost_loop_body_steps": resource_profile[
-                        "resource_cost_loop_body_steps"
-                    ],
-                    "resource_cost_blocker": route_metadata.get(
-                        "weft_rvv.low_precision_resource.resource_cost_blocker"
-                    ),
-                    "expected_resource_cost_blocker": resource_profile[
-                        "resource_cost_blocker"
-                    ],
-                    "performance_admission_decision": route_metadata.get(
-                        "weft_rvv.low_precision_resource.performance_admission_decision"
-                    ),
-                    "expected_performance_admission_decision": resource_profile[
-                        "performance_admission_decision"
-                    ],
-                    "performance_admission_closure": route_metadata.get(
-                        "weft_rvv.low_precision_resource.performance_admission_closure"
-                    ),
-                    "expected_performance_admission_closure": resource_profile[
-                        "performance_admission_closure"
-                    ],
-                    "performance_admission_reopen_requirement": route_metadata.get(
-                        "weft_rvv.low_precision_resource.performance_admission_reopen_requirement"
-                    ),
-                    "expected_performance_admission_reopen_requirement": resource_profile[
-                        "performance_admission_reopen_requirement"
-                    ],
-                    "beyond_local_repair_admission_contract": route_metadata.get(
-                        "weft_rvv.low_precision_resource.beyond_local_repair_admission_contract"
-                    ),
-                    "expected_beyond_local_repair_admission_contract": resource_profile[
-                        "beyond_local_repair_admission_contract"
-                    ],
-                    "beyond_local_repair_admission_decision": route_metadata.get(
-                        "weft_rvv.low_precision_resource.beyond_local_repair_admission_decision"
-                    ),
-                    "expected_beyond_local_repair_admission_decision": resource_profile[
-                        "beyond_local_repair_admission_decision"
-                    ],
-                    "beyond_local_repair_admission_blocker": route_metadata.get(
-                        "weft_rvv.low_precision_resource.beyond_local_repair_admission_blocker"
-                    ),
-                    "expected_beyond_local_repair_admission_blocker": resource_profile[
-                        "beyond_local_repair_admission_blocker"
-                    ],
-                    "beyond_local_repair_admission_reopen_requirement": route_metadata.get(
-                        "weft_rvv.low_precision_resource.beyond_local_repair_admission_reopen_requirement"
-                    ),
-                    "expected_beyond_local_repair_admission_reopen_requirement": resource_profile[
-                        "beyond_local_repair_admission_reopen_requirement"
-                    ],
-                    "remediation_handoff_contract": route_metadata.get(
-                        "weft_rvv.low_precision_resource.remediation_handoff_contract"
-                    ),
-                    "expected_remediation_handoff_contract": resource_profile[
-                        "remediation_handoff_contract"
-                    ],
-                    "remediation_diagnosis": route_metadata.get(
-                        "weft_rvv.low_precision_resource.remediation_diagnosis"
-                    ),
-                    "expected_remediation_diagnosis": resource_profile[
-                        "remediation_diagnosis"
-                    ],
-                    "remediation_measurement_evidence": route_metadata.get(
-                        "weft_rvv.low_precision_resource.remediation_measurement_evidence"
-                    ),
-                    "expected_remediation_measurement_evidence": (
-                        resource_profile["remediation_measurement_evidence"]
-                    ),
-                    "remediation_decision": route_metadata.get(
-                        "weft_rvv.low_precision_resource.remediation_decision"
-                    ),
-                    "expected_remediation_decision": resource_profile[
-                        "remediation_decision"
-                    ],
-                    "remediation_action": route_metadata.get(
-                        "weft_rvv.low_precision_resource.remediation_action"
-                    ),
-                    "expected_remediation_action": resource_profile[
-                        "remediation_action"
-                    ],
-                    "remediation_dispatch_preference": route_metadata.get(
-                        "weft_rvv.low_precision_resource.remediation_dispatch_preference"
-                    ),
-                    "expected_remediation_dispatch_preference": resource_profile[
-                        "remediation_dispatch_preference"
-                    ],
-                    "remediation_blocker": route_metadata.get(
-                        "weft_rvv.low_precision_resource.remediation_blocker"
-                    ),
-                    "expected_remediation_blocker": resource_profile[
-                        "remediation_blocker"
-                    ],
-                    "remediation_plan_contract": route_metadata.get(
-                        "weft_rvv.low_precision_resource.remediation_plan_contract"
-                    ),
-                    "expected_remediation_plan_contract": resource_profile[
-                        "remediation_plan_contract"
-                    ],
-                    "remediation_plan": route_metadata.get(
-                        "weft_rvv.low_precision_resource.remediation_plan"
-                    ),
-                    "expected_remediation_plan": resource_profile[
-                        "remediation_plan"
-                    ],
-                    "remediation_statement_strategy": route_metadata.get(
-                        "weft_rvv.low_precision_resource.remediation_statement_strategy"
-                    ),
-                    "expected_remediation_statement_strategy": resource_profile[
-                        "remediation_statement_strategy"
-                    ],
-                    "remediation_vector_budget": route_metadata.get(
-                        "weft_rvv.low_precision_resource.remediation_vector_budget"
-                    ),
-                    "expected_remediation_vector_budget": resource_profile[
-                        "remediation_vector_budget"
-                    ],
-                }
-            )
+        provider_route_facts["formula_plan"] = materialized_formula_plan
     if is_dequant_clamp:
         provider_route_facts["clamp_select"] = {
             "lower_bound_role": F32_CLAMP_SELECT_LOWER_BOUND_ROLE,
@@ -35950,508 +33612,40 @@ def widening_product_reduction_boundary_summary(
         "source/result memory form",
         "setvl/VL control and scalar store VL",
         "required headers and C type mapping",
-        "mirror-only candidate metadata",
-        "stale dot or non-family fact rejection",
+        "stale non-family fact rejection",
     ]
-    if is_dequant or is_dequant_clamp:
-        header_object_abi_fact = (
-            "generated header/object ABI agreement for "
-            "lhs,rhs,acc,scale,lower_bound,upper_bound,out,n"
-            if is_dequant_clamp
-            else "generated header/object ABI agreement for lhs,rhs,acc,scale,out,n"
-        )
-        target_validator_consumed_facts.extend(
-            [
-                "Gearbox producer and nested consumer with_vl scopes",
-                "Gearbox cross-region handoff contract and VL/AVL source",
-                "low-precision resource selection and two-vsetvl-region budget",
-                (
-                    "provider-owned realization decision, realized "
-                    "region/live-vector schedule, and product/dequant marker "
-                    "phases"
-                ),
-                "dequant-store consumer marker and post-loop f32 store ABI",
-                header_object_abi_fact,
-            ]
-        )
-        if uses_packed_i4_resource:
-            target_validator_consumed_facts.extend(
-                [
-                    "packed-i4 operand form, signedness, storage/effective width, layout, and unpack intent",
-                    "packed lhs/rhs source-vector loads",
-                    "low/high nibble sign-extension statement payload",
-                    "low/high widening product and reduction carry chain",
-                    "final carry assignment into dot_acc_vec",
-                ]
-            )
     generated_artifact_resource_schedule_evidence: dict[str, Any] = {}
     if is_dequant or is_dequant_clamp:
+        target_validator_consumed_facts.extend(
+            [
+                "formula-constructed typed resource plan",
+                "typed product head and final unroll factor",
+                "dequant-store epilogue and post-loop f32 store ABI",
+                (
+                    "generated header/object ABI agreement for "
+                    "lhs,rhs,acc,scale,lower_bound,upper_bound,out,n"
+                    if is_dequant_clamp
+                    else "generated header/object ABI agreement for lhs,rhs,acc,scale,out,n"
+                ),
+            ]
+        )
         generated_artifact_resource_schedule_evidence = {
-            "source": (
-                "generated object/header bundle metadata after RVV provider "
-                "route construction and target artifact validation"
-            ),
-            "authority": (
-                "RVV provider-owned low-precision realization schedule facts"
-            ),
-            "artifact_metadata_role": "mirror-only-after-provider-route",
+            "source": "formula-constructed typed selected body",
+            "authority": "RVV low-precision resource formula",
+            "artifact_metadata_role": "typed-plan-consistency-only",
             "object_header_agreement_checked": True,
-            "fields": {
-                "candidate_set": route_metadata.get(
-                    "weft_rvv.low_precision_resource.candidate_set"
-                ),
-                "selected_candidate": route_metadata.get(
-                    "weft_rvv.low_precision_resource.selected_candidate"
-                ),
-                "candidate_count": route_metadata.get(
-                    "weft_rvv.low_precision_resource.candidate_count"
-                ),
-                "legal_candidate_count": route_metadata.get(
-                    "weft_rvv.low_precision_resource.legal_candidate_count"
-                ),
-                "selected_candidate_index": route_metadata.get(
-                    "weft_rvv.low_precision_resource.selected_candidate_index"
-                ),
-                "selection_reason": route_metadata.get(
-                    "weft_rvv.low_precision_resource.selection_reason"
-                ),
-                "resource_decision_mirror": route_metadata.get(
-                    "weft_rvv.low_precision_resource.realization_decision"
-                ),
-                "operand_form": route_metadata.get(
-                    "weft_rvv.low_precision_resource.operand_form"
-                ),
-                "source_signedness": route_metadata.get(
-                    "weft_rvv.low_precision_resource.source_signedness"
-                ),
-                "storage_element_width": route_metadata.get(
-                    "weft_rvv.low_precision_resource.storage_element_width"
-                ),
-                "effective_element_width": route_metadata.get(
-                    "weft_rvv.low_precision_resource.effective_element_width"
-                ),
-                "packing_layout": route_metadata.get(
-                    "weft_rvv.low_precision_resource.packing_layout"
-                ),
-                "unpack_intent": route_metadata.get(
-                    "weft_rvv.low_precision_resource.unpack_intent"
-                ),
-                "vsetvl_region_count": route_metadata.get(
-                    "weft_rvv.low_precision_resource.vsetvl_region_count"
-                ),
-                "peak_live_vector_groups": route_metadata.get(
-                    "weft_rvv.low_precision_resource.peak_live_vector_groups"
-                ),
-                "vector_register_budget": route_metadata.get(
-                    "weft_rvv.low_precision_resource.vector_register_budget"
-                ),
-                "runtime_avl_source": route_metadata.get(
-                    "weft_rvv.low_precision_resource.runtime_avl_source"
-                ),
-                "realization_producer": route_metadata.get(
-                    "weft_rvv.low_precision_resource.realization_producer"
-                ),
-                "realization_decision": route_metadata.get(
-                    "weft_rvv.low_precision_resource.realization_decision"
-                ),
-                "realized_unroll_factor": route_metadata.get(
-                    "weft_rvv.low_precision_resource.realized_unroll_factor"
-                ),
-                "realized_vsetvl_region_count": route_metadata.get(
-                    "weft_rvv.low_precision_resource.realized_vsetvl_region_count"
-                ),
-                "realized_peak_live_vector_groups": route_metadata.get(
-                    "weft_rvv.low_precision_resource.realized_peak_live_vector_groups"
-                ),
-                "product_region_index": route_metadata.get(
-                    "weft_rvv.low_precision_resource.product_region_index"
-                ),
-                "dequant_region_index": route_metadata.get(
-                    "weft_rvv.low_precision_resource.dequant_region_index"
-                ),
-                "product_phase": route_metadata.get(
-                    "weft_rvv.low_precision_resource.product_phase"
-                ),
-                "dequant_phase": route_metadata.get(
-                    "weft_rvv.low_precision_resource.dequant_phase"
-                ),
-                "runtime_abi_order": route_metadata.get(
-                    "weft_rvv.low_precision_resource.runtime_abi_order"
-                ),
-                "target_capability_provider_mirror": route_metadata.get(
-                    "weft_rvv.low_precision_resource.target_capability_provider_mirror"
-                ),
-                "target_capability_legality_mirror": route_metadata.get(
-                    "weft_rvv.low_precision_resource.target_capability_legality_mirror"
-                ),
-                "primitive_chain_contract": route_metadata.get(
-                    "weft_rvv.low_precision_resource.primitive_chain_contract"
-                ),
-                "primitive_chain_kind": route_metadata.get(
-                    "weft_rvv.low_precision_resource.primitive_chain_kind"
-                ),
-                "primitive_widening_product_relation": route_metadata.get(
-                    "weft_rvv.low_precision_resource."
-                    "primitive_widening_product_relation"
-                ),
-                "primitive_product_reduction_chain_relation": route_metadata.get(
-                    "weft_rvv.low_precision_resource."
-                    "primitive_product_reduction_chain_relation"
-                ),
-                "primitive_widening_product_intrinsic": route_metadata.get(
-                    "weft_rvv.low_precision_resource."
-                    "primitive_widening_product_intrinsic"
-                ),
-                "primitive_reduction_intrinsic": route_metadata.get(
-                    "weft_rvv.low_precision_resource.primitive_reduction_intrinsic"
-                ),
-                "primitive_scalar_seed_splat_intrinsic": route_metadata.get(
-                    "weft_rvv.low_precision_resource."
-                    "primitive_scalar_seed_splat_intrinsic"
-                ),
-                "primitive_accumulator_layout": route_metadata.get(
-                    "weft_rvv.low_precision_resource.primitive_accumulator_layout"
-                ),
-                "primitive_result_layout": route_metadata.get(
-                    "weft_rvv.low_precision_resource.primitive_result_layout"
-                ),
-                "primitive_reduction_store_vl": route_metadata.get(
-                    "weft_rvv.low_precision_resource.primitive_reduction_store_vl"
-                ),
-            },
-            "expected_fields": {
-                "candidate_set": (
-                    WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_CANDIDATE_SET
-                ),
-                "selected_candidate": resource_profile["selected_candidate"],
-                "selection_reason": resource_profile["selection_reason"],
-                "resource_decision_mirror": resource_profile["resource_decision"],
-                "operand_form": resource_profile["operand_form"],
-                "source_signedness": resource_profile["source_signedness"],
-                "storage_element_width": resource_profile[
-                    "storage_element_width"
-                ],
-                "effective_element_width": resource_profile[
-                    "effective_element_width"
-                ],
-                "packing_layout": resource_profile["packing_layout"],
-                "unpack_intent": resource_profile["unpack_intent"],
-                "vsetvl_region_count": resource_profile["vsetvl_region_count"],
-                "peak_live_vector_groups": resource_profile[
-                    "peak_live_vector_groups"
-                ],
-                "vector_register_budget": "32",
-                "runtime_avl_source": "runtime_abi:n",
-                "realization_producer": resource_profile["realization_producer"],
-                "realization_decision": resource_profile["realization_decision"],
-                "realized_unroll_factor": resource_profile[
-                    "realized_unroll_factor"
-                ],
-                "realized_vsetvl_region_count": resource_profile[
-                    "realized_vsetvl_region_count"
-                ],
-                "realized_peak_live_vector_groups": resource_profile[
-                    "realized_peak_live_vector_groups"
-                ],
-                "product_region_index": resource_profile["producer_region_index"],
-                "dequant_region_index": resource_profile["consumer_region_index"],
-                "product_phase": resource_profile["producer_phase"],
-                "dequant_phase": resource_profile["consumer_phase"],
-                "runtime_abi_order": expectation.runtime_abi_order,
-                "target_capability_provider_mirror": (
-                    RVV_TARGET_CAPABILITY_PROVIDER_MIRROR
-                ),
-                "target_capability_legality_mirror": (
-                    RVV_TARGET_CAPABILITY_LEGALITY_MIRROR
-                ),
-                "primitive_chain_contract": resource_profile[
-                    "primitive_chain_contract"
-                ],
-                "primitive_chain_kind": resource_profile["primitive_chain_kind"],
-                "primitive_widening_product_relation": resource_profile[
-                    "primitive_widening_product_relation"
-                ],
-                "primitive_product_reduction_chain_relation": resource_profile[
-                    "primitive_product_reduction_chain_relation"
-                ],
-                "primitive_widening_product_intrinsic": resource_profile[
-                    "primitive_widening_product_intrinsic"
-                ],
-                "primitive_reduction_intrinsic": resource_profile[
-                    "primitive_reduction_intrinsic"
-                ],
-                "primitive_scalar_seed_splat_intrinsic": resource_profile[
-                    "primitive_scalar_seed_splat_intrinsic"
-                ],
-                "primitive_accumulator_layout": resource_profile[
-                    "primitive_accumulator_layout"
-                ],
-                "primitive_result_layout": resource_profile[
-                    "primitive_result_layout"
-                ],
-                "primitive_reduction_store_vl": resource_profile[
-                    "primitive_reduction_store_vl"
-                ],
-            },
+            "formula_plan": materialized_formula_plan,
         }
-        if uses_packed_i4_resource:
-            generated_artifact_resource_schedule_evidence[
-                "expected_fields"
-            ].update(
-                {
-                    "resource_cost_contract": resource_profile[
-                        "resource_cost_contract"
-                    ],
-                    "resource_cost_model": resource_profile[
-                        "resource_cost_model"
-                    ],
-                    "resource_cost_loop_body_steps": resource_profile[
-                        "resource_cost_loop_body_steps"
-                    ],
-                    "resource_cost_blocker": resource_profile[
-                        "resource_cost_blocker"
-                    ],
-                    "performance_admission_decision": resource_profile[
-                        "performance_admission_decision"
-                    ],
-                    "performance_admission_closure": resource_profile[
-                        "performance_admission_closure"
-                    ],
-                    "performance_admission_reopen_requirement": resource_profile[
-                        "performance_admission_reopen_requirement"
-                    ],
-                    "beyond_local_repair_admission_contract": resource_profile[
-                        "beyond_local_repair_admission_contract"
-                    ],
-                    "beyond_local_repair_admission_decision": resource_profile[
-                        "beyond_local_repair_admission_decision"
-                    ],
-                    "beyond_local_repair_admission_blocker": resource_profile[
-                        "beyond_local_repair_admission_blocker"
-                    ],
-                    "beyond_local_repair_admission_reopen_requirement": resource_profile[
-                        "beyond_local_repair_admission_reopen_requirement"
-                    ],
-                }
-            )
-            generated_artifact_resource_schedule_evidence[
-                "packed_i4_resource_remediation_evidence"
-            ] = {
-                "source": (
-                    "validated object/header low-precision resource mirrors "
-                    "for the provider-selected packed-i4 resource"
-                ),
-                "reference_oracle_source": (
-                    "provider-owned packed-i4 operand form and remediation "
-                    "metadata, not artifact path/name metadata"
-                ),
-                "fields": {
-                    "performance_feedback": route_metadata.get(
-                        "weft_rvv.low_precision_resource.performance_feedback"
-                    ),
-                    "performance_action": route_metadata.get(
-                        "weft_rvv.low_precision_resource.performance_action"
-                    ),
-                    "remediation_handoff_contract": route_metadata.get(
-                        "weft_rvv.low_precision_resource.remediation_handoff_contract"
-                    ),
-                    "remediation_diagnosis": route_metadata.get(
-                        "weft_rvv.low_precision_resource.remediation_diagnosis"
-                    ),
-                    "remediation_measurement_evidence": route_metadata.get(
-                        "weft_rvv.low_precision_resource.remediation_measurement_evidence"
-                    ),
-                    "remediation_decision": route_metadata.get(
-                        "weft_rvv.low_precision_resource.remediation_decision"
-                    ),
-                    "remediation_action": route_metadata.get(
-                        "weft_rvv.low_precision_resource.remediation_action"
-                    ),
-                    "remediation_dispatch_preference": route_metadata.get(
-                        "weft_rvv.low_precision_resource.remediation_dispatch_preference"
-                    ),
-                    "remediation_blocker": route_metadata.get(
-                        "weft_rvv.low_precision_resource.remediation_blocker"
-                    ),
-                    "remediation_plan_contract": route_metadata.get(
-                        "weft_rvv.low_precision_resource.remediation_plan_contract"
-                    ),
-                    "remediation_plan": route_metadata.get(
-                        "weft_rvv.low_precision_resource.remediation_plan"
-                    ),
-                    "remediation_statement_strategy": route_metadata.get(
-                        "weft_rvv.low_precision_resource.remediation_statement_strategy"
-                    ),
-                    "remediation_vector_budget": route_metadata.get(
-                        "weft_rvv.low_precision_resource.remediation_vector_budget"
-                    ),
-                    "remediation_schedule_contract": route_metadata.get(
-                        "weft_rvv.low_precision_resource.remediation_schedule_contract"
-                    ),
-                    "remediation_unpack_plan": route_metadata.get(
-                        "weft_rvv.low_precision_resource.remediation_unpack_plan"
-                    ),
-                    "remediation_product_plan": route_metadata.get(
-                        "weft_rvv.low_precision_resource.remediation_product_plan"
-                    ),
-                    "remediation_reduction_plan": route_metadata.get(
-                        "weft_rvv.low_precision_resource.remediation_reduction_plan"
-                    ),
-                    "remediation_vl_plan": route_metadata.get(
-                        "weft_rvv.low_precision_resource.remediation_vl_plan"
-                    ),
-                    "schedule_decision_contract": route_metadata.get(
-                        "weft_rvv.low_precision_resource.schedule_decision_contract"
-                    ),
-                    "schedule_decision": route_metadata.get(
-                        "weft_rvv.low_precision_resource.schedule_decision"
-                    ),
-                    "schedule_decision_reason": route_metadata.get(
-                        "weft_rvv.low_precision_resource.schedule_decision_reason"
-                    ),
-                    "resource_cost_contract": route_metadata.get(
-                        "weft_rvv.low_precision_resource.resource_cost_contract"
-                    ),
-                    "resource_cost_model": route_metadata.get(
-                        "weft_rvv.low_precision_resource.resource_cost_model"
-                    ),
-                    "resource_cost_loop_body_steps": route_metadata.get(
-                        "weft_rvv.low_precision_resource.resource_cost_loop_body_steps"
-                    ),
-                    "resource_cost_blocker": route_metadata.get(
-                        "weft_rvv.low_precision_resource.resource_cost_blocker"
-                    ),
-                    "performance_admission_decision": route_metadata.get(
-                        "weft_rvv.low_precision_resource.performance_admission_decision"
-                    ),
-                    "performance_admission_closure": route_metadata.get(
-                        "weft_rvv.low_precision_resource.performance_admission_closure"
-                    ),
-                    "performance_admission_reopen_requirement": route_metadata.get(
-                        "weft_rvv.low_precision_resource.performance_admission_reopen_requirement"
-                    ),
-                    "beyond_local_repair_admission_contract": route_metadata.get(
-                        "weft_rvv.low_precision_resource.beyond_local_repair_admission_contract"
-                    ),
-                    "beyond_local_repair_admission_decision": route_metadata.get(
-                        "weft_rvv.low_precision_resource.beyond_local_repair_admission_decision"
-                    ),
-                    "beyond_local_repair_admission_blocker": route_metadata.get(
-                        "weft_rvv.low_precision_resource.beyond_local_repair_admission_blocker"
-                    ),
-                    "beyond_local_repair_admission_reopen_requirement": route_metadata.get(
-                        "weft_rvv.low_precision_resource.beyond_local_repair_admission_reopen_requirement"
-                    ),
-                },
-                "expected_fields": {
-                    "performance_feedback": resource_profile[
-                        "performance_feedback"
-                    ],
-                    "performance_action": resource_profile[
-                        "performance_action"
-                    ],
-                    "remediation_handoff_contract": resource_profile[
-                        "remediation_handoff_contract"
-                    ],
-                    "remediation_diagnosis": resource_profile[
-                        "remediation_diagnosis"
-                    ],
-                    "remediation_measurement_evidence": resource_profile[
-                        "remediation_measurement_evidence"
-                    ],
-                    "remediation_decision": resource_profile[
-                        "remediation_decision"
-                    ],
-                    "remediation_action": resource_profile[
-                        "remediation_action"
-                    ],
-                    "remediation_dispatch_preference": resource_profile[
-                        "remediation_dispatch_preference"
-                    ],
-                    "remediation_blocker": resource_profile[
-                        "remediation_blocker"
-                    ],
-                    "remediation_plan_contract": resource_profile[
-                        "remediation_plan_contract"
-                    ],
-                    "remediation_plan": resource_profile["remediation_plan"],
-                    "remediation_statement_strategy": resource_profile[
-                        "remediation_statement_strategy"
-                    ],
-                    "remediation_vector_budget": resource_profile[
-                        "remediation_vector_budget"
-                    ],
-                    "remediation_schedule_contract": resource_profile[
-                        "remediation_schedule_contract"
-                    ],
-                    "remediation_unpack_plan": resource_profile[
-                        "remediation_unpack_plan"
-                    ],
-                    "remediation_product_plan": resource_profile[
-                        "remediation_product_plan"
-                    ],
-                    "remediation_reduction_plan": resource_profile[
-                        "remediation_reduction_plan"
-                    ],
-                    "remediation_vl_plan": resource_profile[
-                        "remediation_vl_plan"
-                    ],
-                    "schedule_decision_contract": resource_profile[
-                        "schedule_decision_contract"
-                    ],
-                    "schedule_decision": resource_profile["schedule_decision"],
-                    "schedule_decision_reason": resource_profile[
-                        "schedule_decision_reason"
-                    ],
-                    "resource_cost_contract": resource_profile[
-                        "resource_cost_contract"
-                    ],
-                    "resource_cost_model": resource_profile[
-                        "resource_cost_model"
-                    ],
-                    "resource_cost_loop_body_steps": resource_profile[
-                        "resource_cost_loop_body_steps"
-                    ],
-                    "resource_cost_blocker": resource_profile[
-                        "resource_cost_blocker"
-                    ],
-                    "performance_admission_decision": resource_profile[
-                        "performance_admission_decision"
-                    ],
-                    "performance_admission_closure": resource_profile[
-                        "performance_admission_closure"
-                    ],
-                    "performance_admission_reopen_requirement": resource_profile[
-                        "performance_admission_reopen_requirement"
-                    ],
-                    "beyond_local_repair_admission_contract": resource_profile[
-                        "beyond_local_repair_admission_contract"
-                    ],
-                    "beyond_local_repair_admission_decision": resource_profile[
-                        "beyond_local_repair_admission_decision"
-                    ],
-                    "beyond_local_repair_admission_blocker": resource_profile[
-                        "beyond_local_repair_admission_blocker"
-                    ],
-                    "beyond_local_repair_admission_reopen_requirement": resource_profile[
-                        "beyond_local_repair_admission_reopen_requirement"
-                    ],
-                },
-            }
     return {
         "source": (
-            "typed weft_rvv.widening_product + standalone_reduce + Gearbox "
-            "cross-region handoff + dequantize + compare/select body/config/"
-            "runtime-scale/runtime-bound facts -> contraction, dequantization, "
-            "resource, multi-with_vl handoff, and clamp route-family plans -> "
+            "formula-constructed typed weft_rvv product/reduction/dequantize/"
+            "compare/select body -> mechanical route-family plans -> "
             "target-owned product-reduction/dequant-clamp validator -> neutral "
             "EmitC materializer -> generated RVV C artifact"
             if is_dequant_clamp
             else
-            "typed weft_rvv.widening_product + standalone_reduce + Gearbox "
-            "cross-region handoff + dequantize body/config/runtime-scale "
-            "facts -> contraction, dequantization, resource, and multi-with_vl "
-            "handoff route-family plans -> target-owned product-reduction/"
+            "formula-constructed typed weft_rvv product/reduction/dequantize "
+            "body -> mechanical route-family plans -> target-owned product-reduction/"
             "dequant validator -> neutral EmitC materializer -> generated "
             "RVV C artifact"
             if is_dequant
@@ -36463,8 +33657,7 @@ def widening_product_reduction_boundary_summary(
             )
         ),
         "authority": (
-            "provider-derived typed weft_rvv low-precision product-reduction "
-            "body/config/runtime facts"
+            "RVV formulas construct the typed low-precision product-reduction body"
         ),
         "target_artifact_validator": (
             "RVVTargetArtifactRouteFamilyValidation.cpp:"
@@ -36625,49 +33818,6 @@ def computed_masked_widening_dot_reduce_boundary_summary(
                 STRIDED_INPUT_WIDENING_DOT_STRIDED_LOAD_INTRINSIC
             ),
         }
-        provider_route_facts["low_precision_resource_selection"] = {
-            "candidate_set": (
-                COMPUTED_MASK_STRIDED_INPUT_WIDENING_DOT_LOW_PRECISION_RESOURCE_CANDIDATE_SET
-            ),
-            "selected_candidate": (
-                COMPUTED_MASK_STRIDED_INPUT_WIDENING_DOT_LOW_PRECISION_RESOURCE_SELECTED_CANDIDATE
-            ),
-            "selection_reason": (
-                COMPUTED_MASK_STRIDED_INPUT_WIDENING_DOT_LOW_PRECISION_RESOURCE_SELECTION_REASON
-            ),
-            "legality_scope": (
-                COMPUTED_MASK_STRIDED_INPUT_WIDENING_DOT_LOW_PRECISION_RESOURCE_LEGALITY_SCOPE
-            ),
-            "source_dtype": "i16",
-            "source_sew": "16",
-            "source_lmul": "mf2",
-            "product_dtype": "i32",
-            "product_sew": expectation.sew,
-            "product_lmul": expectation.lmul,
-            "product_emul": "m1",
-            "accumulator_dtype": "i32",
-            "accumulator_sew": expectation.sew,
-            "accumulator_lmul": expectation.lmul,
-            "accumulator_emul": "m1",
-            "result_dtype": "i32",
-            "result_sew": expectation.sew,
-            "result_lmul": expectation.lmul,
-            "memory_form": expectation.memory_form,
-            "tail_policy": "agnostic",
-            "mask_policy": "agnostic",
-            "unroll_factor": "1",
-            "accumulator_count": "1",
-            "reduction_layout": WIDENING_DOT_RESULT_LAYOUT,
-            "vsetvl_region_count": "2",
-            "peak_live_vector_groups": "4",
-            "vector_register_budget": "32",
-            "runtime_avl_source": "runtime_abi:n",
-            "runtime_abi_order": expectation.runtime_abi_order,
-            "target_capability_provider_mirror": RVV_TARGET_CAPABILITY_PROVIDER_MIRROR,
-            "target_capability_legality_mirror": RVV_TARGET_CAPABILITY_LEGALITY_MIRROR,
-            "legality": "legal",
-            "rejection_reason": "none",
-        }
     else:
         provider_route_facts["strided_input_facts"] = "rejected-if-present"
     return {
@@ -36679,14 +33829,13 @@ def computed_masked_widening_dot_reduce_boundary_summary(
             "reduction, and scalar store"
         ),
         "authority": (
-            "provider-derived typed weft_rvv computed-mask widening "
-            "dot-reduce body/config/runtime facts"
+            "formula-constructed typed computed-mask widening dot-reduce body"
         ),
         "target_artifact_validator": (
             "RVVTargetArtifactRouteFamilyValidation.cpp:"
             "widening-dot-reduction target-owned consumer"
         ),
-        "artifact_metadata_role": "mirror-only-after-provider-route",
+        "artifact_metadata_role": "typed-plan-consistency-only",
         "direct_pre_realized_route_entry_supported": False,
         "contraction_kind": expectation.kind,
         "typed_compute_op": "weft_rvv.masked_widening_dot_reduce",
@@ -36775,10 +33924,8 @@ def computed_masked_widening_dot_reduce_boundary_summary(
             "source/result dtype relation",
             "source load form",
             "strided fact presence or absence",
-            "low-precision resource candidate mirrors",
             "setvl/VL control and scalar store VL",
             "required headers and C type mapping",
-            "mirror-only candidate metadata",
             "stale non-family fact rejection",
         ],
         "materialized_body": materialized_checks.get(
@@ -37202,7 +34349,7 @@ def run_one_op_e2e(
                 )
             )
             uses_packed_i4_harness = (
-                product_dequant_uses_packed_i4_resource_metadata(
+                product_dequant_uses_packed_i4_typed_body(
                     widening_product_metadata_for_harness, expectation
                 )
             )
@@ -37229,13 +34376,10 @@ def run_one_op_e2e(
             "boundary": "external C ABI consumer of generated header and object only",
         }
         if uses_packed_i4_harness:
-            packed_i4_profile = product_dequant_low_precision_resource_profile(
-                expectation, packed_i4=True
-            )
             evidence["harness"]["packed_i4_reference_oracle"] = {
                 "source": (
-                    "provider-owned low-precision resource metadata selected "
-                    "signed packed-i4 nibbles"
+                    "formula-constructed typed compute chain contains "
+                    "packed_i4_nibble_unpack_product"
                 ),
                 "operand_form": WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_OPERAND_FORM,
                 "packing_layout": WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PACKING_LAYOUT,
@@ -37257,42 +34401,18 @@ def run_one_op_e2e(
                 "generated": "generated RVV artifact callable through exported header",
                 "target": args.ssh_target if not args.dry_run else "ssh rvv required",
                 "timing": "not_measured",
-                "metadata_gate": {
-                    "metadata_source": (
-                        "validated object/header low_precision_resource mirrors"
-                    ),
-                    "selected_candidate": (
+                "typed_body_gate": {
+                    "typed_compute_chain": (
                         widening_product_metadata_for_harness.get(
-                            "weft_rvv.low_precision_resource.selected_candidate"
+                            "rvv_selected_body_typed_compute_op"
                         )
                     ),
-                    "expected_selected_candidate": packed_i4_profile[
-                        "selected_candidate"
-                    ],
-                    "operand_form": widening_product_metadata_for_harness.get(
-                        "weft_rvv.low_precision_resource.operand_form"
-                    ),
-                    "expected_operand_form": packed_i4_profile["operand_form"],
-                    "packing_layout": widening_product_metadata_for_harness.get(
-                        "weft_rvv.low_precision_resource.packing_layout"
-                    ),
-                    "expected_packing_layout": packed_i4_profile[
-                        "packing_layout"
-                    ],
-                    "unpack_intent": widening_product_metadata_for_harness.get(
-                        "weft_rvv.low_precision_resource.unpack_intent"
-                    ),
-                    "expected_unpack_intent": packed_i4_profile["unpack_intent"],
-                    "remediation_statement_strategy": (
-                        widening_product_metadata_for_harness.get(
-                            "weft_rvv.low_precision_resource."
-                            "remediation_statement_strategy"
-                        )
-                    ),
-                    "expected_remediation_statement_strategy": packed_i4_profile[
-                        "remediation_statement_strategy"
-                    ],
-                    "reference_oracle_selected_from_provider_metadata": True,
+                    "formula_plan": {
+                        key.removeprefix("weft_rvv.low_precision_primitive."): value
+                        for key, value in widening_product_metadata_for_harness.items()
+                        if key.startswith("weft_rvv.low_precision_primitive.")
+                    },
+                    "reference_oracle_selected_from_typed_body": True,
                 },
             }
         if (
@@ -38395,10 +35515,25 @@ def make_fake_bundle(
     expected_metadata = expected_metadata_for(expectation)
     if uses_packed_i4_resource:
         expected_metadata = dict(expected_metadata)
-        expected_metadata.update(
-            expected_low_precision_resource_metadata(
-                expectation, packed_i4=True
+        expected_metadata["rvv_selected_body_typed_compute_op"] = (
+            expectation.typed_compute_op.replace(
+                "weft_rvv.widening_product",
+                "weft_rvv.packed_i4_nibble_unpack_product",
+                1,
             )
+        )
+        expected_metadata.update(
+            {
+                "weft_rvv.low_precision_primitive.source_dtype": "i8",
+                "weft_rvv.low_precision_primitive.source_signedness": "signed",
+                "weft_rvv.low_precision_primitive.source_lmul": "mf4",
+                "weft_rvv.low_precision_primitive.product_dtype": "i16",
+                "weft_rvv.low_precision_primitive.product_lmul": "mf2",
+                "weft_rvv.low_precision_primitive.accumulator_dtype": "i32",
+                "weft_rvv.low_precision_primitive.accumulator_lmul": "m1",
+                "weft_rvv.low_precision_primitive.result_dtype": "f32",
+                "weft_rvv.low_precision_primitive.result_lmul": "m1",
+            }
         )
     header_required_metadata_keys = {
         "weft_rvv.config_contract",
@@ -38413,7 +35548,7 @@ def make_fake_bundle(
         "weft_rvv.multi_vl",
     }
     if uses_packed_i4_resource:
-        header_required_metadata_keys.update(LOW_PRECISION_RESOURCE_METADATA_KEYS)
+        header_required_metadata_keys.update(LOW_PRECISION_PRIMITIVE_METADATA_KEYS)
     header_metadata_comments = "\n".join(
         f"/* weft.rvv.{key.removeprefix('weft_rvv.')}: {value} */"
         for key, value in expected_metadata.items()
@@ -39101,7 +36236,7 @@ def run_self_test() -> int:
                     dequant_scale_values=[-0.125, 0.375],
                 )
                 provider_facts = dequant_boundary.get("provider_route_facts", {})
-                gearbox_preflight = dequant_boundary.get("gearbox_preflight", {})
+                formula_schedule = dequant_boundary.get("formula_schedule", {})
                 statement_plan = dequant_boundary.get("statement_plan", {})
                 selected_source_abi = dequant_boundary.get(
                     "selected_source_abi", {}
@@ -39127,27 +36262,19 @@ def run_self_test() -> int:
                     != DEQUANTIZE_I32_TO_F32_SCALE_INTRINSIC
                     or provider_facts.get("store_intrinsic")
                     != DEQUANTIZE_I32_TO_F32_STORE_INTRINSIC
-                    or provider_facts.get("gearbox_candidate_set")
-                    != DEQUANTIZE_I32_TO_F32_GEARBOX_CANDIDATE_SET
-                    or provider_facts.get("gearbox_selected_candidate")
-                    != DEQUANTIZE_I32_TO_F32_GEARBOX_SELECTED_CANDIDATE
-                    or provider_facts.get("gearbox_unroll")
-                    != DEQUANTIZE_I32_TO_F32_GEARBOX_UNROLL
-                    or gearbox_preflight.get("candidate_set")
-                    != DEQUANTIZE_I32_TO_F32_GEARBOX_CANDIDATE_SET
-                    or gearbox_preflight.get("selected_candidate")
-                    != DEQUANTIZE_I32_TO_F32_GEARBOX_SELECTED_CANDIDATE
-                    or gearbox_preflight.get("unroll")
-                    != DEQUANTIZE_I32_TO_F32_GEARBOX_UNROLL
-                    or gearbox_preflight.get("second_slice_statement_count") != 5
-                    or gearbox_preflight.get("checked_before_runtime") is not True
-                    or statement_plan.get("gearbox_loop_step")
+                    or provider_facts.get("formula_unroll_factor")
+                    != DEQUANTIZE_I32_TO_F32_FORMULA_UNROLL
+                    or formula_schedule.get("unroll_factor")
+                    != DEQUANTIZE_I32_TO_F32_FORMULA_UNROLL
+                    or formula_schedule.get("second_slice_statement_count") != 5
+                    or formula_schedule.get("checked_before_runtime") is not True
+                    or statement_plan.get("formula_loop_step")
                     != "full_chunk_vl * 2"
                     or statement_plan.get("loop_body_step_count") != 10
                     or statement_plan.get("scale_operand_order")
                     != "converted_f32_vector, scale, vl"
                     or statement_plan.get("second_scale_operand_order")
-                    != "converted_f32_vec_u1, scale, gearbox_loop_vl_u1"
+                    != "second_converted_f32_vec, scale, second_vl"
                     or dequant_boundary.get("runtime_counts")
                     != [0, 1, 16, 17, 257]
                     or dequant_boundary.get("dequant_scale_values")
@@ -39399,9 +36526,6 @@ def run_self_test() -> int:
                 strided_input_cases = provider_facts.get(
                     "runtime_strided_input_cases", []
                 )
-                low_precision_resource = provider_facts.get(
-                    "low_precision_resource_selection", {}
-                )
                 statement_plan = widening_dot_boundary.get("statement_plan", {})
                 if (
                     widening_dot_metadata.get("weft_rvv.widening_dot_relation")
@@ -39452,44 +36576,6 @@ def run_self_test() -> int:
                             },
                         ]
                     )
-                    or (
-                        expectation.is_strided_input_widening_dot_reduce_add
-                        and (
-                            widening_dot_metadata.get(
-                                "weft_rvv.low_precision_resource.selected_candidate"
-                            )
-                            != STRIDED_INPUT_WIDENING_DOT_LOW_PRECISION_RESOURCE_SELECTED_CANDIDATE
-                            or low_precision_resource.get("candidate_set")
-                            != STRIDED_INPUT_WIDENING_DOT_LOW_PRECISION_RESOURCE_CANDIDATE_SET
-                            or low_precision_resource.get("selected_candidate")
-                            != STRIDED_INPUT_WIDENING_DOT_LOW_PRECISION_RESOURCE_SELECTED_CANDIDATE
-                            or low_precision_resource.get("selection_reason")
-                            != STRIDED_INPUT_WIDENING_DOT_LOW_PRECISION_RESOURCE_SELECTION_REASON
-                            or low_precision_resource.get("legality_scope")
-                            != STRIDED_INPUT_WIDENING_DOT_LOW_PRECISION_RESOURCE_LEGALITY_SCOPE
-                            or low_precision_resource.get("source_dtype") != "i16"
-                            or low_precision_resource.get("product_dtype") != "i32"
-                            or low_precision_resource.get("product_emul") != "m1"
-                            or low_precision_resource.get("accumulator_dtype")
-                            != "i32"
-                            or low_precision_resource.get("accumulator_emul")
-                            != "m1"
-                            or low_precision_resource.get("result_dtype") != "i32"
-                            or low_precision_resource.get("memory_form")
-                            != expectation.memory_form
-                            or low_precision_resource.get("runtime_avl_source")
-                            != "runtime_abi:n"
-                            or low_precision_resource.get("runtime_abi_order")
-                            != expectation.runtime_abi_order
-                            or low_precision_resource.get(
-                                "vector_register_budget"
-                            )
-                            != "32"
-                            or low_precision_resource.get("legality") != "legal"
-                            or low_precision_resource.get("rejection_reason")
-                            != "none"
-                        )
-                    )
                     or provider_facts.get("widening_product_intrinsic")
                     != "__riscv_vwmul_vv_i32m1"
                     or provider_facts.get("scalar_seed_splat_intrinsic")
@@ -39539,26 +36625,6 @@ def run_self_test() -> int:
                     if is_product_dequant_clamp
                     else WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_C_TYPE_MAPPING
                 )
-                expected_resource_selected_candidate = (
-                    WIDENING_PRODUCT_REDUCE_DEQUANT_CLAMP_F32_RESOURCE_SELECTED_CANDIDATE
-                    if is_product_dequant_clamp
-                    else WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_SELECTED_CANDIDATE
-                )
-                expected_resource_selection_reason = (
-                    WIDENING_PRODUCT_REDUCE_DEQUANT_CLAMP_F32_RESOURCE_SELECTION_REASON
-                    if is_product_dequant_clamp
-                    else WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_SELECTION_REASON
-                )
-                expected_resource_memory_form = (
-                    WIDENING_PRODUCT_REDUCE_DEQUANT_CLAMP_F32_MEMORY_FORM
-                    if is_product_dequant_clamp
-                    else WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_MEMORY_FORM
-                )
-                expected_resource_profile = (
-                    product_dequant_low_precision_resource_profile(
-                        expectation, packed_i4=False
-                    )
-                )
                 expected_header_object_abi_fact = (
                     "generated header/object ABI agreement for "
                     "lhs,rhs,acc,scale,lower_bound,upper_bound,out,n"
@@ -39597,18 +36663,8 @@ def run_self_test() -> int:
                     "provider_route_facts", {}
                 )
                 product_dequant_facts = provider_facts.get("dequantization", {})
-                low_precision_resource = provider_facts.get(
-                    "low_precision_resource", {}
-                )
-                gearbox_handoff = provider_facts.get(
-                    "gearbox_cross_region_handoff", {}
-                )
                 schedule_evidence = product_dequant_boundary.get(
                     "generated_artifact_resource_schedule_evidence", {}
-                )
-                schedule_fields = schedule_evidence.get("fields", {})
-                expected_schedule_fields = schedule_evidence.get(
-                    "expected_fields", {}
                 )
                 target_consumed = product_dequant_boundary.get(
                     "target_validator_consumed_facts", []
@@ -39620,87 +36676,11 @@ def run_self_test() -> int:
                 result_policy = product_dequant_boundary.get(
                     "result_type_policy", {}
                 )
-                gearbox_boundary_lost = (
-                    product_dequant_metadata.get(
-                        "weft_rvv.low_precision_resource.selected_candidate"
-                    )
-                    != expected_resource_selected_candidate
-                    or product_dequant_metadata.get(
-                        "weft_rvv.gearbox.producer_scope"
-                    )
-                    != WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_PRODUCER_SCOPE
-                    or product_dequant_metadata.get(
-                        "weft_rvv.gearbox.consumer_scope"
-                    )
-                    != WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_CONSUMER_SCOPE
-                    or low_precision_resource.get("candidate_set")
-                    != WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_CANDIDATE_SET
-                    or low_precision_resource.get("selected_candidate")
-                    != expected_resource_selected_candidate
-                    or low_precision_resource.get("selection_reason")
-                    != expected_resource_selection_reason
-                    or low_precision_resource.get("legality_scope")
-                    != WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_LEGALITY_SCOPE
-                    or low_precision_resource.get("memory_form")
-                    != expected_resource_memory_form
-                    or low_precision_resource.get("vsetvl_region_count") != "3"
-                    or low_precision_resource.get("runtime_avl_source")
-                    != "runtime_abi:n"
-                    or low_precision_resource.get("runtime_abi_order")
-                    != expectation.runtime_abi_order
-                    or low_precision_resource.get("realization_producer")
-                    != expected_resource_profile["realization_producer"]
-                    or low_precision_resource.get("realization_decision")
-                    != expected_resource_profile["realization_decision"]
-                    or low_precision_resource.get("realized_unroll_factor")
-                    != expected_resource_profile["realized_unroll_factor"]
-                    or low_precision_resource.get("realized_vsetvl_region_count")
-                    != expected_resource_profile["realized_vsetvl_region_count"]
-                    or low_precision_resource.get(
-                        "realized_peak_live_vector_groups"
-                    )
-                    != expected_resource_profile["realized_peak_live_vector_groups"]
-                    or low_precision_resource.get("product_region_index")
-                    != expected_resource_profile["producer_region_index"]
-                    or low_precision_resource.get("dequant_region_index")
-                    != expected_resource_profile["consumer_region_index"]
-                    or low_precision_resource.get("product_phase")
-                    != expected_resource_profile["producer_phase"]
-                    or low_precision_resource.get("dequant_phase")
-                    != expected_resource_profile["consumer_phase"]
-                    or low_precision_resource.get(
-                        "target_capability_provider_mirror"
-                    )
-                    != RVV_TARGET_CAPABILITY_PROVIDER_MIRROR
-                    or low_precision_resource.get(
-                        "target_capability_legality_mirror"
-                    )
-                    != RVV_TARGET_CAPABILITY_LEGALITY_MIRROR
-                    or gearbox_handoff.get("contract")
-                    != WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_HANDOFF_CONTRACT
-                    or gearbox_handoff.get("producer_scope")
-                    != WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_PRODUCER_SCOPE
-                    or gearbox_handoff.get("consumer_scope")
-                    != WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_CONSUMER_SCOPE
-                    or gearbox_handoff.get("runtime_avl_source") != "runtime_abi:n"
-                    or gearbox_handoff.get("region_count") != "3"
-                    or schedule_evidence.get("artifact_metadata_role")
-                    != "mirror-only-after-provider-route"
+                retired_authority_present = (
+                    schedule_evidence.get("artifact_metadata_role")
+                    != "typed-plan-consistency-only"
                     or schedule_evidence.get("object_header_agreement_checked")
                     is not True
-                    or schedule_fields != expected_schedule_fields
-                    or schedule_fields.get("realization_decision")
-                    != expected_resource_profile["realization_decision"]
-                    or schedule_fields.get("realized_vsetvl_region_count")
-                    != expected_resource_profile["realized_vsetvl_region_count"]
-                    or schedule_fields.get("product_phase")
-                    != expected_resource_profile["producer_phase"]
-                    or schedule_fields.get("dequant_phase")
-                    != expected_resource_profile["consumer_phase"]
-                    or (
-                        "Gearbox producer and nested consumer with_vl scopes"
-                        not in target_consumed
-                    )
                     or expected_header_object_abi_fact not in target_consumed
                 )
                 if (
@@ -39716,7 +36696,7 @@ def run_self_test() -> int:
                         "weft_rvv.scalar_result_runtime_boundary"
                     )
                     != WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_SCALAR_RESULT_BOUNDARY
-                    or gearbox_boundary_lost
+                    or retired_authority_present
                     or product_dequant_metadata.get(
                         "weft_rvv.dequantization_relation"
                     )
@@ -39860,9 +36840,6 @@ def run_self_test() -> int:
                         "widening dot accumulator/result ABI boundary facts"
                     )
                 if expectation.is_computed_masked_strided_input_widening_dot_reduce_add:
-                    low_precision_resource = provider_facts.get(
-                        "low_precision_resource_selection", {}
-                    )
                     if (
                         computed_masked_widening_dot_metadata.get(
                             "weft_rvv.source_memory_form"
@@ -39876,42 +36853,10 @@ def run_self_test() -> int:
                             "weft_rvv.widening_dot_source_accumulator_result_contract"
                         )
                         != COMPUTED_MASK_STRIDED_INPUT_WIDENING_DOT_SOURCE_ACCUMULATOR_RESULT_CONTRACT
-                        or computed_masked_widening_dot_metadata.get(
-                            "weft_rvv.low_precision_resource.selected_candidate"
-                        )
-                        != COMPUTED_MASK_STRIDED_INPUT_WIDENING_DOT_LOW_PRECISION_RESOURCE_SELECTED_CANDIDATE
-                        or low_precision_resource.get("candidate_set")
-                        != COMPUTED_MASK_STRIDED_INPUT_WIDENING_DOT_LOW_PRECISION_RESOURCE_CANDIDATE_SET
-                        or low_precision_resource.get("selected_candidate")
-                        != COMPUTED_MASK_STRIDED_INPUT_WIDENING_DOT_LOW_PRECISION_RESOURCE_SELECTED_CANDIDATE
-                        or low_precision_resource.get("selection_reason")
-                        != COMPUTED_MASK_STRIDED_INPUT_WIDENING_DOT_LOW_PRECISION_RESOURCE_SELECTION_REASON
-                        or low_precision_resource.get("legality_scope")
-                        != COMPUTED_MASK_STRIDED_INPUT_WIDENING_DOT_LOW_PRECISION_RESOURCE_LEGALITY_SCOPE
-                        or low_precision_resource.get("source_dtype") != "i16"
-                        or low_precision_resource.get("product_dtype") != "i32"
-                        or low_precision_resource.get("product_emul") != "m1"
-                        or low_precision_resource.get("accumulator_dtype")
-                        != "i32"
-                        or low_precision_resource.get("accumulator_emul")
-                        != "m1"
-                        or low_precision_resource.get("result_dtype") != "i32"
-                        or low_precision_resource.get("memory_form")
-                        != expectation.memory_form
-                        or low_precision_resource.get("runtime_avl_source")
-                        != "runtime_abi:n"
-                        or low_precision_resource.get("runtime_abi_order")
-                        != expectation.runtime_abi_order
-                        or low_precision_resource.get("vector_register_budget")
-                        != "32"
-                        or low_precision_resource.get("legality") != "legal"
-                        or low_precision_resource.get("rejection_reason")
-                        != "none"
                     ):
                         raise AssertionError(
                             "self-test fake bundle generation lost computed-mask "
-                            "strided widening dot memory-form or "
-                            "low-precision resource metadata"
+                            "strided widening dot memory-form facts"
                         )
             if (
                 expectation.is_standalone_reduce
@@ -40497,9 +37442,6 @@ def run_self_test() -> int:
                 )
                 route_metadata = boundary.get("route_metadata", {})
                 indexed_memory = boundary.get("indexed_memory", {})
-                composite_resource = boundary.get(
-                    "composite_resource_selection", {}
-                )
                 if (
                     route_metadata.get("weft_rvv.route_operand_binding_plan")
                     != RUNTIME_SCALAR_CMP_MASKED_INDEXED_GATHER_MACC_SCATTER_ROUTE_OPERAND_BINDING_PLAN
@@ -40519,18 +37461,6 @@ def run_self_test() -> int:
                     != RUNTIME_SCALAR_CMP_MASKED_INDEXED_GATHER_MACC_SCATTER_INDEXED_DESTINATION_MEMORY_FORM
                     or boundary.get("artifact_abi", {}).get("runtime_abi_order")
                     != RUNTIME_SCALAR_CMP_MASKED_INDEXED_GATHER_MACC_SCATTER_RUNTIME_ABI_ORDER
-                    or composite_resource.get("selected_candidate")
-                    != COMPOSITE_GATHER_MACC_SCATTER_RESOURCE_SELECTED_CANDIDATE
-                    or composite_resource.get("vl_policy")
-                    != COMPOSITE_GATHER_MACC_SCATTER_RESOURCE_VL_POLICY
-                    or composite_resource.get("vector_register_budget")
-                    != COMPOSITE_GATHER_MACC_SCATTER_RESOURCE_VECTOR_REGISTER_BUDGET
-                    or composite_resource.get("runtime_abi_order")
-                    != RUNTIME_SCALAR_CMP_MASKED_INDEXED_GATHER_MACC_SCATTER_RUNTIME_ABI_ORDER
-                    or composite_resource.get("target_capability_provider_mirror")
-                    != RVV_TARGET_CAPABILITY_PROVIDER_MIRROR
-                    or composite_resource.get("legality")
-                    != COMPOSITE_GATHER_MACC_SCATTER_RESOURCE_LEGALITY
                     or dispatch_boundary.get("selected_dispatch_case_mirror")
                     != expectation.selected_dispatch_case_mirror
                     or dispatch_boundary.get("selected_dispatch_fallback_mirror")
@@ -40539,9 +37469,9 @@ def run_self_test() -> int:
                 ):
                     raise AssertionError(
                         "self-test fake bundle generation lost runtime-scalar "
-                        "indexed gather-MAcc-scatter provider-backed operand "
-                        "binding, mask producer, indexed memory, resource "
-                        "selection, ABI-order, or selected dispatch/fallback "
+                        "indexed gather-MAcc-scatter operand binding, mask "
+                        "producer, indexed memory, ABI-order, or selected "
+                        "dispatch/fallback "
                         "metadata"
                     )
             if (
@@ -40881,151 +37811,23 @@ def run_self_test() -> int:
         product_dequant_expectation = PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS[
             "widening_product_reduce_dequantize_f32"
         ]
-        missing_schedule_metadata = make_fake_bundle(
-            tmp / "missing-schedule-metadata", product_dequant_expectation
+        stale_formula_body = make_fake_bundle(
+            tmp / "stale-formula-body", product_dequant_expectation
         )
-        index_path = missing_schedule_metadata / INDEX_FILE_NAME
+        index_path = stale_formula_body / INDEX_FILE_NAME
         text = index_path.read_text(encoding="utf-8")
         text = text.replace(
-            'key: "weft_rvv.low_precision_resource.realization_decision"',
-            'key: "weft_rvv.low_precision_resource.realization_decision_missing"',
+            WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_TYPED_COMPUTE_OP,
+            "weft_rvv.dequantize",
             1,
         )
         index_path.write_text(text, encoding="utf-8")
         expect_self_test_failure(
-            "missing low-precision realization schedule metadata",
+            "stale formula-realized typed compute chain",
             lambda: verify_bundle(
-                missing_schedule_metadata, None, product_dequant_expectation
+                stale_formula_body, None, product_dequant_expectation
             ),
         )
-
-        stale_schedule_metadata = make_fake_bundle(
-            tmp / "stale-schedule-metadata", product_dequant_expectation
-        )
-        index_path = stale_schedule_metadata / INDEX_FILE_NAME
-        text = index_path.read_text(encoding="utf-8")
-        text = text.replace(
-            WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_DECISION,
-            "artifact-name-derived-resource-decision",
-            1,
-        )
-        index_path.write_text(text, encoding="utf-8")
-        expect_self_test_failure(
-            "stale low-precision realization schedule metadata",
-            lambda: verify_bundle(
-                stale_schedule_metadata, None, product_dequant_expectation
-            ),
-        )
-
-        missing_feedback_metadata = make_fake_bundle(
-            tmp / "missing-packed-i4-feedback-metadata",
-            product_dequant_expectation,
-            uses_packed_i4_resource=True,
-        )
-        index_path = missing_feedback_metadata / INDEX_FILE_NAME
-        text = index_path.read_text(encoding="utf-8")
-        text = text.replace(
-            'key: "weft_rvv.low_precision_resource.performance_feedback"',
-            'key: "weft_rvv.low_precision_resource.performance_feedback_missing"',
-            1,
-        )
-        index_path.write_text(text, encoding="utf-8")
-        expect_self_test_failure(
-            "missing packed-i4 performance feedback metadata",
-            lambda: verify_bundle(
-                missing_feedback_metadata, None, product_dequant_expectation
-            ),
-        )
-
-        stale_feedback_metadata = make_fake_bundle(
-            tmp / "stale-packed-i4-feedback-metadata",
-            product_dequant_expectation,
-            uses_packed_i4_resource=True,
-        )
-        index_path = stale_feedback_metadata / INDEX_FILE_NAME
-        text = index_path.read_text(encoding="utf-8")
-        text = text.replace(
-            WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_FEEDBACK,
-            "same-target-packed-i4-performance-win.v1",
-            1,
-        )
-        index_path.write_text(text, encoding="utf-8")
-        expect_self_test_failure(
-            "stale packed-i4 performance feedback metadata",
-            lambda: verify_bundle(
-                stale_feedback_metadata, None, product_dequant_expectation
-            ),
-        )
-
-        missing_remediation_plan_metadata = make_fake_bundle(
-            tmp / "missing-packed-i4-remediation-plan-metadata",
-            product_dequant_expectation,
-            uses_packed_i4_resource=True,
-        )
-        index_path = missing_remediation_plan_metadata / INDEX_FILE_NAME
-        text = index_path.read_text(encoding="utf-8")
-        text = text.replace(
-            'key: "weft_rvv.low_precision_resource.remediation_plan_contract"',
-            (
-                'key: "weft_rvv.low_precision_resource.'
-                'remediation_plan_contract_missing"'
-            ),
-            1,
-        )
-        index_path.write_text(text, encoding="utf-8")
-        expect_self_test_failure(
-            "missing packed-i4 remediation plan metadata",
-            lambda: verify_bundle(
-                missing_remediation_plan_metadata,
-                None,
-                product_dequant_expectation,
-            ),
-        )
-
-        stale_remediation_statement_metadata = make_fake_bundle(
-            tmp / "stale-packed-i4-remediation-statement-metadata",
-            product_dequant_expectation,
-            uses_packed_i4_resource=True,
-        )
-        index_path = stale_remediation_statement_metadata / INDEX_FILE_NAME
-        text = index_path.read_text(encoding="utf-8")
-        text = text.replace(
-            WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_STATEMENT_STRATEGY,
-            "metadata-only-packed-i4-unpack-plan",
-            1,
-        )
-        index_path.write_text(text, encoding="utf-8")
-        expect_self_test_failure(
-            "stale packed-i4 remediation statement metadata",
-            lambda: verify_bundle(
-                stale_remediation_statement_metadata,
-                None,
-                product_dequant_expectation,
-            ),
-        )
-
-        stale_remediation_product_metadata = make_fake_bundle(
-            tmp / "stale-packed-i4-remediation-product-metadata",
-            product_dequant_expectation,
-            uses_packed_i4_resource=True,
-        )
-        index_path = stale_remediation_product_metadata / INDEX_FILE_NAME
-        text = index_path.read_text(encoding="utf-8")
-        text = text.replace(
-            WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_PRODUCT_PLAN,
-            "metadata-only-packed-i4-product-plan",
-            1,
-        )
-        index_path.write_text(text, encoding="utf-8")
-        expect_self_test_failure(
-            "stale packed-i4 remediation product metadata",
-            lambda: verify_bundle(
-                stale_remediation_product_metadata,
-                None,
-                product_dequant_expectation,
-            ),
-        )
-
         sub_expectation = EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["sub"]
         stale_arithmetic = make_fake_bundle(tmp / "stale-arithmetic", sub_expectation)
         index_path = stale_arithmetic / INDEX_FILE_NAME

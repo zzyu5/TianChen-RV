@@ -1,4 +1,4 @@
-// RUN: weft-opt %s --weft-rvv-materialize-gearbox-schedules --weft-materialize-emission-plans --weft-rvv-lower-to-emitc | mlir-translate --mlir-to-cpp | FileCheck %s
+// RUN: weft-opt %s --weft-materialize-emission-plans --weft-rvv-lower-to-emitc | mlir-translate --mlir-to-cpp | FileCheck %s
 
 // Stage 3 换心 — STANDALONE i32->f32 runtime-scale dequant family conversion.
 // The standalone dequant body is the SIMPLEST dequant shape: a single with_vl

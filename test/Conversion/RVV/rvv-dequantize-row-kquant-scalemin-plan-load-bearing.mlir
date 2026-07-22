@@ -1,28 +1,17 @@
 // RUN: weft-opt %s --weft-rvv-lower-to-emitc | FileCheck %s
-// RUN: sed 's/scale_byte_offset = 80 : i64/scale_byte_offset = 90 : i64/' %s | weft-opt --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=MUTSCALE
+// RUN: sed -e 's/scale_byte_offset = 80 : i64/scale_byte_offset = 90 : i64/' -e 's/kquant_min_byte_offset = 82 : i64/kquant_min_byte_offset = 92 : i64/' %s | weft-opt --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=MUTSCALE
 // RUN: sed 's/quant_byte_offset = 16 : i64/quant_byte_offset = 20 : i64/' %s | weft-opt --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=MUTQS
 
 // JUDGMENT experiment for phase-4: the KQuantScaleMin MechanismPlan is LOAD-BEARING (the
 // K-quant emitter READS plan.*, it is not dead data the emitter re-derives around).
 //
-// Phase-4 introduced weft::KQuantScaleMinPlan (Support) + the FormulaProvider
-// kquantScaleMinPlanFromFacts (RVVGearboxSchedule.h) and rewired the K-quant super-block
-// emit (q2_K/q3_K/q4_K/q5_K/q6_K) so the ONLY path from the decode_core descriptor to the
-// emitted C is
-//   decode_core facts -> kquantScaleMinPlanFromFacts -> KQuantScaleMinPlan -> emit.
-// The per-format geometry re-derivation (stride = 84 / d @ 80 / dmin @ 82 / qs @ 16 off the
-// format name) is RETIRED; the dispatch tests plan.mechanism == KQuantScaleMin, NOT the
-// format string, and selects the per-super-block body by plan.scaleModel. This test proves
-// the plan is really consumed by mutating two DIFFERENT kinds of plan field on the q2_K
-// leaf and observing the emit change:
+// The family-local formula constructs a complete KQuantScaleMinPlan before this
+// final typed body exists. This test proves emission consumes its code-affecting
+// fields; formula derivation is covered separately by formula behavior tests.
 //
 //   (1 scale) the RE-PACKAGED scale-block offset AND a DERIVED offset in one shot:
 //             scale_byte_offset 80 -> 90. plan.scaleBlockByteOffset becomes "90" (the fp16
-//             d read pointer offset), AND plan.minByteOffset -- which the FormulaProvider
-//             DERIVES as scaleBlockByteOffset + 2, a field a raw descriptor read does NOT
-//             carry -- becomes "92" (the fp16 dmin read pointer offset). Only the provider's
-//             +2 derivation can produce "92", so this is the definitive witness that the
-//             emit consumes the PLAN, not a scattered descriptor read.
+//             d read pointer offset), while the final minByteOffset changes 82 -> 92.
 //   (2 qsoff) a RE-PACKAGED geometry field: quant_byte_offset 16 -> 20. The plan's
 //             quantByteOffset is the byte offset ADDED to the block base to form the qs
 //             (packed-2bit) load pointer for each sub-group -- it becomes "20", a literal
@@ -46,7 +35,7 @@ module {
       weft_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @dequant_q2_k, sew = 32 : i64, source_kernel = "dequant_q2_k_kernel", status = "selected-lowering-boundary"} {
         weft_rvv.typed_dequantize_row_loop_body %x, %y, %k attributes {decode_model = "q2_K", kind = "typed_dequantize_row_loop_body", qk = 256 : i64, weight_block_stride = 84 : i64} {
         ^bb0(%block_index: index):
-          weft_rvv.dequantize_row_decode_core %x, %y, %block_index {decode_model = "q2_K", qk = 256 : i64, quant_byte_offset = 16 : i64, scale_byte_offset = 80 : i64, weight_block_stride = 84 : i64} : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index
+          weft_rvv.dequantize_row_decode_core %x, %y, %block_index {decode_model = "q2_K", dequant_load_lmul = "m1", dequant_mechanism = "kquant-scale-min", dequant_strip_lanes = 16 : i64, kquant_has_high_bit_plane = false, kquant_has_min = true, kquant_high_bit_byte_offset = 0 : i64, kquant_min_byte_offset = 82 : i64, kquant_scale_model = "q2k", kquant_sub_scale_byte_offset = 0 : i64, qk = 256 : i64, quant_byte_offset = 16 : i64, scale_byte_offset = 80 : i64, weight_block_stride = 84 : i64} : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index
           weft_rvv.typed_dequantize_row_loop_yield
         } : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index
       } : !weft_rvv.vl
@@ -68,9 +57,7 @@ module {
 // CHECK: call_opaque "__riscv_vle8_v_u8m1"
 
 // MUTSCALE (scale_byte_offset 80 -> 90): the RE-PACKAGED scaleBlockByteOffset reaches emit
-// (d read offset "90"), AND the FormulaProvider-DERIVED minByteOffset = scaleBlockByteOffset
-// + 2 reaches emit (dmin read offset "92"). A raw descriptor read has no scale+2 field, so
-// "92" can ONLY come through the provider -- the definitive witness the emit consumes the PLAN.
+// (d read offset "90"), and the final minByteOffset 92 reaches the dmin read.
 // MUTSCALE: verbatim{{.*}}callee=q2_K_decode
 // MUTSCALE: %[[DOFF2:.*]] = literal "90" : !emitc.opaque<"size_t">
 // MUTSCALE-NEXT: add %{{.*}}, %[[DOFF2]]

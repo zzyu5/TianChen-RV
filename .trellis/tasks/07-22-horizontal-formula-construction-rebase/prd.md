@@ -6,19 +6,22 @@
 
 这不是按 dequant mechanism、format、backend 或“先做几个公式”的纵向迁移。任务只有在完整 current production domain 原子切换、旧 authority 为零、四类覆盖门都闭合后才能完成。
 
-## 已闭合的任务起始域
+## 当前横向范围
 
-任务起始 census 以注册与可达代码为准，而不是目录名或旧 ledger：
+范围由合入时的注册表、默认 pipeline、公开 direct route 与真实 production call graph
+共同给出，不冻结手填 census，也不把目录、formula id 或旧 ledger 当分母：
 
-- 8 个 builtin plugin 的 proposal、analytic cost、legality、selected construction 与 emission 路径；
-- 36 个 builtin source front door：RVV 34 个，Toy 与 TensorExtLite 各 1 个；
-- `weft-rvv-lower-quant-contraction` 公开 direct construction route；
-- RVV selected-body realization registry 的 13 类 owner 与 composite gather/MAcc/scatter case；
-- RVV dequant、repack、contraction、schedule、resource、tiling、loop-order、numerics 与 body-realization 中的全部解析决定；
-- 所有在 builder、materializer、verifier、planner、selector 或 emitter 中重放同一决定的 caller；
-- 当前 test-only/unregistered demo 只在结构上证明不可成为 production fallback，不伪装成 production 分母。
+- 全部 builtin plugin 的 proposal、analytic prior/cost、legality、selected
+  construction 与 emission 路径；
+- 全部已注册 source front door 与公开 direct construction route；
+- selected-body realization registry 及其 composite case；
+- dequant、quantize、repack、contraction、schedule、resource、tiling、loop-order、
+  numerics 与 body-realization 中的生产解析决定；
+- builder、materializer、verifier、planner、selector 或 emitter 中重放同一决定的
+  production caller；
+- test-only/unregistered demo 只需结构上不能成为 production fallback。
 
-入口数用于冻结本任务的起始可达域，不是公式贡献数量或科研进度。新增或删除注册会由 catalog/registry 测试动态改变分母，不能靠修改手填数字过门。
+Catalog/registry 测试可以打印当前枚举结果帮助定位，但数量不是贡献、进度或完成门。
 
 ## 横向设计
 
@@ -33,7 +36,7 @@ Descriptor 与 family-local typed evaluator/constructor declaration 同源，至
 - 每个 source front door 与 direct route 关联唯一 construction descriptor；
 - proposal/cost/analytic prior 明确关联其公式 owner；
 - deterministic single-candidate 路径也进入 typed construction，不以“没有选择”为由绕过；
-- formula result 必须进入实际 legality/selection/stamp/body realization，后层不得覆盖或重算；
+- formula result 必须进入实际 legality/selection/final-body construction，后层不得覆盖或重算；
 - `g` 不携带 capability、measurement winner 或完整 body id；`c` 来自 canonical capability projection；`ω` 不夹带 winner memory。
 
 ### 3. RVV 决策收口
@@ -59,18 +62,35 @@ Catalog 覆盖不等于强义 reconstruction。每条路径按当前事实标为
 
 历史实验与提交仍在 Git/归档中，不继续作为 active build 或架构 authority。
 
+## 完成事实（2026-07-22）
+
+- `ExtensionPlugin::constructFormulaPlans(ModuleOp)` 已成为 project-level construction
+  lifecycle；emission planning 先调用该 hook，direct RVV backend 复用同一个 RVV owner。
+- RVV 公式按 quantize、dequantize、generic schedule、repack schedule、low-precision/
+  dot-reduce resource 与 catalog 分模块；typed `g/c/ω` 只在 family-local formula 汇合。
+- quant/dequant typed body、standalone dequant `unroll_factor`、repack/generic final knobs 与
+  low-precision selected-body plan 均在 emitter 前构造；route derivation、verifier 与 emitter
+  不再缺失时补值或重新选择。
+- 旧 dequant/repack materializer、Gearbox pass、low-precision performance/resource-selection
+  policy、candidate/selected/audit attrs、handoff/marker 与 composite resource replay 已删除；
+  没有兼容 alias 或 fallback 世界。
+- 旧 active 8-row matrix/ledger 已归档，当前 catalog/behavior/authority tests 从代码验证
+  owner、entry、semantic case、依赖边与旧 symbol/attr 零回流。
+- 本任务闭合的是 authority convergence。逐点 leaf 的 strong delete-leaf reconstruction
+  仍是后续横向增强目标，不作为本任务已完成事实。
+
 ## 完成标准
 
-- [ ] 所有 current registered/direct construction entry 恰好关联一个 catalogued family-local typed owner；
-- [ ] 所有 proposal、analytic prior、legality 与 realization caller 都能追到该 owner，且无 result ignore/override/recompute；
-- [ ] catalog completeness、production-entry coverage、dependency-edge coverage、semantic-case coverage 由当前代码与测试计算为 100%；
-- [ ] unclassified analytic authority、legacy caller、compat adapter、emitter-side redecision、verifier formula replay、selector-created candidate、hidden target/global read 均为 0；
-- [ ] dequant 全 mechanism typed plan 在 emission 前完成，emitter 不再按 format/decode-model 选算法；
-- [ ] measurement 只在 legality 后的薄 selector 使用，不进入 formula candidate construction；
-- [ ] strong 与 constructed-weak 分类由测试和 descriptor 如实暴露，catalog coverage 不冒充 `C_construct`；
-- [ ] 删除旧 8-row matrix gate，并以 registry/catalog + behavior/mutation tests 直接保护新 authority；
-- [ ] focused tests、`check-weft`、`git diff --check` 通过；若存在任务前已有失败，须证明失败集合未扩大且与本任务无关；
-- [ ] 无后续“其余公式迁移”任务、无生产 dual path；本任务完成后工作树干净。
+- [x] 所有 current registered/direct construction entry 恰好关联一个 catalogued family-local typed owner；
+- [x] 所有 proposal、analytic prior、legality 与 realization caller 都能追到该 owner，且无 result ignore/override/recompute；
+- [x] catalog integrity、production-entry linkage、dependency-edge behavior 与 semantic-case behavior 由当前代码和测试直接检查，不依赖手填百分比；
+- [x] unclassified analytic authority、legacy caller、compat adapter、emitter-side redecision、verifier formula replay、selector-created candidate、hidden target/global read 均为 0；
+- [x] dequant 全 mechanism typed plan 在 emission 前完成，emitter 不再按 format/decode-model 选算法；
+- [x] measurement 只在 legality 后的薄 selector 使用，不进入 formula candidate construction；
+- [x] strong 与 constructed-weak 分类由测试和 descriptor 如实暴露，catalog coverage 不冒充 `C_construct`；
+- [x] 删除旧 8-row matrix gate，并以 registry/catalog + behavior/mutation tests 直接保护新 authority；
+- [x] focused tests、`check-weft`、script self-test 与 `git diff --check` 通过；
+- [x] 无后续“其余公式迁移”任务、无生产 dual path；提交后工作树干净。
 
 ## 不在本任务中改变的内容
 
@@ -85,8 +105,7 @@ Catalog 覆盖不等于强义 reconstruction。每条路径按当前事实标为
 - catalog/registry unit tests：唯一性、入口覆盖、caller linkage、semantic cases 与 construction strength；
 - 每个 decisive `g/c/ω` edge 的独立扰动，honest-null 的不变性；
 - missing/unknown/illegal/empty-legal-set 的 fail-closed 负例；
-- dequant mechanism 全表的 typed-plan stamping 与 emitter denylist；
+- dequant mechanism 全表的 typed-plan construction 与 emitter denylist；
 - selector 不创造 candidate、measurement 不进入 formula 的类型与行为测试；
 - 旧 symbol/include/caller 与 active matrix gate 的零残留检查；
 - clean incremental build、focused lit/unit、完整 `check-weft`。
-

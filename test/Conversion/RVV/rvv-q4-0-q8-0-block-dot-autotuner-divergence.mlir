@@ -61,8 +61,7 @@ module {
 // STAMP-FULLV-SAME: integer_core_lmul = "m1"
 // STAMP-FULLV-SAME: multi_block_factor = 4 : i64
 // STAMP-FULLV-SAME: strip_elision = "elided"
-// STAMP-FULLV-SAME: weft_rvv.q4_0_schedule.has_zvl128b = true
-// STAMP-FULLV-SAME: weft_rvv.q4_0_schedule.producer = "rvv-q4-0-autotuner"
+// STAMP-FULLV-NOT: weft_rvv.q4_0_schedule.
 //
 // rv64gc_zve32x (no Zvl128b): the SAME op gets (m1, factor=2, robust) -- the
 // elided shapes were pruned. The shape DIVERGES purely by the capability fact.
@@ -70,7 +69,7 @@ module {
 // STAMP-ZVE32X-SAME: integer_core_lmul = "m1"
 // STAMP-ZVE32X-SAME: multi_block_factor = 2 : i64
 // STAMP-ZVE32X-SAME: strip_elision = "robust"
-// STAMP-ZVE32X-SAME: weft_rvv.q4_0_schedule.has_zvl128b = false
+// STAMP-ZVE32X-NOT: weft_rvv.q4_0_schedule.
 
 // =============================== FULL-V (rv64gcv) ===========================
 // The compiler SELECTED (m1, factor=4, elided): the by-4 outer loop, FOUR

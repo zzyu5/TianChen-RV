@@ -40,19 +40,19 @@
 // block-dot body, the weft-source-artifact-front-door-pipeline materializes the
 // emission plan AND passes --weft-check-execution-plan-coherence (the super-block
 // monolithic route id is a registered target-artifact export route).
-// RUN: weft-opt %s --weft-rvv-materialize-tq2-0-q8-k-block-dot-source-front-door --weft-source-artifact-front-door-pipeline | FileCheck %s --check-prefix=PLAN
+// RUN: weft-opt %s --weft-rvv-materialize-tq2-0-q8-k-block-dot-source-front-door --weft-rvv-materialize-schedule=march=rv64gcv --weft-source-artifact-front-door-pipeline | FileCheck %s --check-prefix=PLAN
 
 // BYTE-EXACT: --weft-materialize-emission-plans only APPENDS the emission-plan
 // diagnostic mirror; the block-dot body is untouched, so the production-export
 // EmitC is byte-for-byte the CORE --weft-rvv-lower-to-emitc emit.
-// RUN: weft-opt %s --weft-rvv-materialize-tq2-0-q8-k-block-dot-source-front-door --weft-rvv-lower-to-emitc > %t.core.mlir
-// RUN: weft-opt %s --weft-rvv-materialize-tq2-0-q8-k-block-dot-source-front-door --weft-materialize-emission-plans --weft-rvv-lower-to-emitc > %t.prod.mlir
+// RUN: weft-opt %s --weft-rvv-materialize-tq2-0-q8-k-block-dot-source-front-door --weft-rvv-materialize-schedule=march=rv64gcv --weft-rvv-lower-to-emitc > %t.core.mlir
+// RUN: weft-opt %s --weft-rvv-materialize-tq2-0-q8-k-block-dot-source-front-door --weft-rvv-materialize-schedule=march=rv64gcv --weft-materialize-emission-plans --weft-rvv-lower-to-emitc > %t.prod.mlir
 // RUN: diff %t.core.mlir %t.prod.mlir
 
 // Target-artifact OBJECT export: the super-block monolithic emission plan exports
 // a real RISC-V RVV relocatable object through the registered peer object exporter.
 // RUN: rm -f %t.o
-// RUN: weft-opt %s --weft-rvv-materialize-tq2-0-q8-k-block-dot-source-front-door --weft-materialize-emission-plans | weft-translate --weft-export-target-artifact > %t.o
+// RUN: weft-opt %s --weft-rvv-materialize-tq2-0-q8-k-block-dot-source-front-door --weft-rvv-materialize-schedule=march=rv64gcv --weft-materialize-emission-plans | weft-translate --weft-export-target-artifact > %t.o
 // RUN: llvm-readobj -h %t.o | FileCheck %s --check-prefix=OBJECT
 // RUN: llvm-readobj --symbols %t.o | FileCheck %s --check-prefix=SYMBOL
 

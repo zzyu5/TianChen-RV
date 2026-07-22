@@ -14,11 +14,11 @@
 // CHECK-LABEL: weft.exec.variant @ggml_repack_gemm_q4_K_q8_K
 // CHECK: weft_rvv.typed_repack_gemm_loop_body
 // CHECK-SAME: fold_model = "kquant_dmin_bsums_min"
-// CHECK-SAME: weft_rvv.loop_order = "col_outer"
-// CHECK-SAME: weft_rvv.loop_order_selection_reason = "measured"
-// CHECK-SAME: weft_rvv.tiling_selection_reason = "only_feasible"
-// CHECK-SAME: weft_rvv.tiling_selection_record = "{{.*}}kernel{{.*}}q4_K{{.*}}reason{{.*}}only_feasible
-// CHECK-SAME: weft_rvv.tiling_variant = "s6_tiled"
+// CHECK-SAME: loop_order = "col_outer", main_term_form = "unrolled"
+
+
+
+
 module {
   weft.exec.kernel @ggml_repack_gemm_q4_K_q8_K_kernel {
     weft.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
@@ -42,9 +42,10 @@ module {
 // CHECK-LABEL: weft.exec.variant @ggml_repack_gemm_q2_K_q8_K
 // CHECK: weft_rvv.typed_repack_gemm_loop_body
 // CHECK-SAME: fold_model = "kquant_dmin_bsums_min"
-// CHECK-SAME: weft_rvv.tiling_selection_reason = "only_feasible"
-// CHECK-SAME: weft_rvv.tiling_selection_record = "{{.*}}kernel{{.*}}q2_K{{.*}}reason{{.*}}only_feasible
-// CHECK-SAME: weft_rvv.tiling_variant = "s6_tiled"
+// CHECK-SAME: loop_order = "col_outer", main_term_form = "unrolled"
+
+
+
 module {
   weft.exec.kernel @ggml_repack_gemm_q2_K_q8_K_kernel {
     weft.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
@@ -68,9 +69,10 @@ module {
 // CHECK-LABEL: weft.exec.variant @ggml_repack_gemm_q5_K_q8_K
 // CHECK: weft_rvv.typed_repack_gemm_loop_body
 // CHECK-SAME: fold_model = "kquant_dmin_bsums_min"
-// CHECK-SAME: weft_rvv.tiling_selection_reason = "only_feasible"
-// CHECK-SAME: weft_rvv.tiling_selection_record = "{{.*}}kernel{{.*}}q5_K{{.*}}reason{{.*}}only_feasible
-// CHECK-SAME: weft_rvv.tiling_variant = "s6_tiled"
+// CHECK-SAME: loop_order = "col_outer", main_term_form = "unrolled"
+
+
+
 module {
   weft.exec.kernel @ggml_repack_gemm_q5_K_q8_K_kernel {
     weft.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
@@ -94,9 +96,10 @@ module {
 // CHECK-LABEL: weft.exec.variant @ggml_repack_gemm_q6_K_q8_K
 // CHECK: weft_rvv.typed_repack_gemm_loop_body
 // CHECK-SAME: fold_model = "kquant_single_scale_no_min"
-// CHECK-SAME: weft_rvv.tiling_selection_reason = "only_feasible"
-// CHECK-SAME: weft_rvv.tiling_selection_record = "{{.*}}kernel{{.*}}q6_K{{.*}}reason{{.*}}only_feasible
-// CHECK-SAME: weft_rvv.tiling_variant = "plain"
+// CHECK-SAME: loop_order = "col_outer", main_term_form = "unrolled"
+
+
+
 module {
   weft.exec.kernel @ggml_repack_gemm_q6_K_q8_K_kernel {
     weft.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
@@ -122,9 +125,10 @@ module {
 // CHECK-LABEL: weft.exec.variant @ggml_repack_gemm_q3_K_q8_K
 // CHECK: weft_rvv.typed_repack_gemm_loop_body
 // CHECK-SAME: fold_model = "kquant_single_scale_no_min"
-// CHECK-SAME: weft_rvv.tiling_selection_reason = "only_feasible"
-// CHECK-SAME: weft_rvv.tiling_selection_record = "{{.*}}kernel{{.*}}q3_K{{.*}}reason{{.*}}only_feasible
-// CHECK-SAME: weft_rvv.tiling_variant = "plain"
+// CHECK-SAME: loop_order = "col_outer", main_term_form = "unrolled"
+
+
+
 module {
   weft.exec.kernel @ggml_repack_gemm_q3_K_q8_K_kernel {
     weft.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}

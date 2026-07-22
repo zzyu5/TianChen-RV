@@ -5,7 +5,6 @@
 // RUN: sed 's/mask_source = "compare-produced-mask-same-vl-scope"/mask_source = "runtime_abi:mask"/' %s | not weft-opt --weft-materialize-selected-lowering-boundaries 2>&1 | FileCheck %s --check-prefix=MISSING-MASK-PROVENANCE
 // RUN: weft-opt %s --weft-materialize-selected-lowering-boundaries --weft-materialize-emission-plans | sed '0,/weft_rvv.lhs_stride_source", value = "runtime_abi:lhs_stride/s//weft_rvv.lhs_stride_source", value = "metadata-derived-stride/' | not weft-translate --weft-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-STRIDE-SOURCE
 // RUN: weft-opt %s --weft-materialize-selected-lowering-boundaries --weft-materialize-emission-plans | sed '0,/weft_rvv.widening_dot_source_accumulator_result_contract", value = "computed-mask-strided-source-before-skipped-source-ignored;inactive-products-zero-before-reduction;accumulator-out0-seed-carry;scalar-output-only-tail-preserve.v1"/s//weft_rvv.widening_dot_source_accumulator_result_contract", value = "metadata-derived-source-accumulator-result-contract"/' | not weft-translate --weft-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-CONTRACT
-// RUN: weft-opt %s --weft-materialize-selected-lowering-boundaries --weft-materialize-emission-plans | sed '0,/weft_rvv.low_precision_resource.selected_candidate", value = "[^"]*"/s//weft_rvv.low_precision_resource.selected_candidate", value = "artifact-name-derived-resource-candidate"/' | not weft-translate --weft-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-RESOURCE
 
 // Pre-realized selected-body input for one bounded Stage 2 signed computed-mask
 // runtime-strided-input widening dot-product reduction slice. The RVV plugin
@@ -82,13 +81,6 @@ module {
 // PLAN-SAME: {key = "weft_rvv.required_header_declarations", value = "stddef.h,stdint.h,riscv_vector.h"}
 // PLAN-SAME: {key = "weft_rvv.c_type_mapping", value = "vl:size_t,source:signed-e16mf2,result:signed-e32m1,mask:b32"}
 // PLAN-SAME: {key = "weft_rvv.inactive_lane_zeroing_requirement", value = "masked-widening-products-zero-inactive-lanes-before-reduction"}
-// PLAN-SAME: {key = "weft_rvv.low_precision_resource.selected_candidate", value = "rvv-low-precision-direct-contraction-resource-candidate.v1[computed-mask-strided-input-widening-dot-reduce-add,i16mf2-i32m1,u1]"}
-// PLAN-SAME: {key = "weft_rvv.low_precision_resource.product_emul", value = "m1"}
-// PLAN-SAME: {key = "weft_rvv.low_precision_resource.accumulator_emul", value = "m1"}
-// PLAN-SAME: {key = "weft_rvv.low_precision_resource.memory_form", value = "computed-mask-strided-input-widening-dot-reduce"}
-// PLAN-SAME: {key = "weft_rvv.low_precision_resource.mask_policy", value = "agnostic"}
-// PLAN-SAME: {key = "weft_rvv.low_precision_resource.vector_register_budget", value = "32"}
-// PLAN-SAME: {key = "weft_rvv.low_precision_resource.runtime_abi_order", value = "cmp_lhs,cmp_rhs,lhs,rhs,acc,out,n,lhs_stride,rhs_stride"}
 // PLAN-SAME: {key = "weft_rvv.source_sew", value = "16"}
 // PLAN-SAME: {key = "weft_rvv.source_lmul", value = "mf2"}
 // PLAN-SAME: {key = "weft_rvv.accumulator_sew", value = "32"}
@@ -126,13 +118,6 @@ module {
 // HEADER: weft.rvv.source_memory_form: strided-load
 // HEADER: weft.rvv.destination_memory_form: unit-stride-store
 // HEADER: weft.rvv.mask_source: compare-produced-mask-same-vl-scope
-// HEADER: weft.rvv.low_precision_resource.selected_candidate: rvv-low-precision-direct-contraction-resource-candidate.v1[computed-mask-strided-input-widening-dot-reduce-add,i16mf2-i32m1,u1]
-// HEADER: weft.rvv.low_precision_resource.product_emul: m1
-// HEADER: weft.rvv.low_precision_resource.accumulator_emul: m1
-// HEADER: weft.rvv.low_precision_resource.memory_form: computed-mask-strided-input-widening-dot-reduce
-// HEADER: weft.rvv.low_precision_resource.mask_policy: agnostic
-// HEADER: weft.rvv.low_precision_resource.vector_register_budget: 32
-// HEADER: weft.rvv.low_precision_resource.runtime_abi_order: cmp_lhs,cmp_rhs,lhs,rhs,acc,out,n,lhs_stride,rhs_stride
 // HEADER: weft.rvv.widening_dot_relation: signed-i16mf2xi16mf2-reduce-plus-i32-scalar-to-i32
 // HEADER: weft.rvv.widening_dot_source_accumulator_result_contract: computed-mask-strided-source-before-skipped-source-ignored;inactive-products-zero-before-reduction;accumulator-out0-seed-carry;scalar-output-only-tail-preserve.v1
 // HEADER: weft.rvv.widening_dot_reduction_store_vl: 1
@@ -151,4 +136,3 @@ module {
 // MISSING-MASK-PROVENANCE: currently supports only mask_source "compare-produced-mask-same-vl-scope"
 // STALE-STRIDE-SOURCE: metadata key '{{.*}}lhs_stride_source'{{.*}}'runtime_abi:lhs_stride' but was 'metadata-derived-stride'
 // STALE-CONTRACT: metadata key '{{.*}}widening_dot_source_accumulator_result_contract'{{.*}}'computed-mask-strided-source-before-skipped-source-ignored;inactive-products-zero-before-reduction;accumulator-out0-seed-carry;scalar-output-only-tail-preserve.v1' but was 'metadata-derived-source-accumulator-result-contract'
-// STALE-RESOURCE: metadata key '{{.*}}low_precision_resource.selected_candidate'{{.*}}'rvv-low-precision-direct-contraction-resource-candidate.v1[computed-mask-strided-input-widening-dot-reduce-add,i16mf2-i32m1,u1]' but was 'artifact-name-derived-resource-candidate'

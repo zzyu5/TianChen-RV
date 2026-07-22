@@ -1,10 +1,10 @@
 //===- RVVFormulaDecision.h - Plugin-local typed formula decisions --------===//
 //
-// Three deliberately mechanism-specific vertical slices of the Weft-RV decision
-// contract.  This is not a generic Formula IR, descriptor bag, or cross-plugin
-// ABI.  Each decision owns typed g/c/omega projections, constructs a bounded
-// legal set (or one typed plan), applies an analytic prior, and returns the
-// selected typed result that existing RVV bodies consume.
+// Family-local typed formulas used by the horizontal RVV construction layer.
+// This is not a generic Formula IR, provider service, descriptor evaluator, or
+// cross-plugin ABI.  Each formula consumes only its typed g/c/bounded static
+// context and constructs a complete plan or finite legal candidate set.  Where
+// measurement exists, a separate thin selector may choose only from that set.
 //
 //===----------------------------------------------------------------------===//
 
@@ -357,7 +357,12 @@ struct RepackAccumulatorLMULQualifiedMeasurement {
       RepackAccumulatorLMULCandidate::MF2;
 };
 
-struct RepackAccumulatorLMULStaticContext {
+/// The formula has no runtime-independent regime axis beyond typed g/c.
+struct RepackAccumulatorLMULNoStaticContext {};
+
+/// Qualified winner memory is selection input, not formula omega.  It cannot
+/// add a candidate or change a legality verdict.
+struct RepackAccumulatorLMULSelectionInput {
   std::optional<RepackAccumulatorLMULQualifiedMeasurement> measurement;
 };
 
@@ -406,6 +411,22 @@ enum class RepackAccumulatorLMULFallback {
   Reject,
 };
 
+struct RepackAccumulatorLMULFormulaResult {
+  std::array<RepackAccumulatorLMULCandidateVerdict, 2> candidates{};
+  std::optional<RepackAccumulatorLMULCandidate> analyticPrior;
+  RepackAccumulatorLMULReason reason =
+      RepackAccumulatorLMULReason::RejectedMissingCapability;
+  RepackAccumulatorLMULFallback fallback =
+      RepackAccumulatorLMULFallback::Reject;
+  std::int64_t mf2HalfLanes = 0;
+  std::int64_t weightInterleave = 0;
+  RVVDecisionAxisUse geometryUse = RVVDecisionAxisUse::Decisive;
+  RVVDecisionAxisUse capabilityUse = RVVDecisionAxisUse::Decisive;
+  RVVDecisionAxisUse contextUse = RVVDecisionAxisUse::HonestNull;
+
+  bool hasLegalCandidate() const { return analyticPrior.has_value(); }
+};
+
 struct RepackAccumulatorLMULDecision {
   std::array<RepackAccumulatorLMULCandidateVerdict, 2> candidates{};
   std::optional<RepackAccumulatorLMULCandidate> selected;
@@ -419,6 +440,9 @@ struct RepackAccumulatorLMULDecision {
   std::int64_t selectedHalfLanes = 0;
   llvm::StringRef integerCoreLMUL;
   llvm::StringRef accumulatorLMUL;
+  RVVDecisionAxisUse geometryUse = RVVDecisionAxisUse::Decisive;
+  RVVDecisionAxisUse capabilityUse = RVVDecisionAxisUse::Decisive;
+  RVVDecisionAxisUse contextUse = RVVDecisionAxisUse::HonestNull;
 
   bool isLegal() const { return selected.has_value(); }
   bool usesM1() const {
@@ -428,11 +452,12 @@ struct RepackAccumulatorLMULDecision {
 
 namespace detail {
 
+template <typename Result>
 inline bool isCandidateLegal(
-    const RepackAccumulatorLMULDecision &decision,
+    const Result &result,
     RepackAccumulatorLMULCandidate candidate) {
   for (const RepackAccumulatorLMULCandidateVerdict &verdict :
-       decision.candidates)
+       result.candidates)
     if (verdict.candidate == candidate)
       return verdict.isLegal;
   return false;
@@ -459,31 +484,34 @@ inline void commitRepackAccumulatorLMULSelection(
 
 } // namespace detail
 
-/// Decide between the finite {mf2,m1} accumulator anchors.  g constructs the
-/// strip geometry, c defines candidate legality/resource bounds, and a qualified
-/// omega hit may select only a candidate that remains legal.  A miss or an
-/// infeasible hit returns the analytic mf2 prior; an empty legal set rejects.
-inline RepackAccumulatorLMULDecision decideRepackAccumulatorLMUL(
+/// Formula stage for the finite {mf2,m1} accumulator anchors.  It constructs
+/// geometry, resource verdicts, the legal set and analytic prior from g/c only.
+/// Winner memory is deliberately absent from this signature.
+inline RepackAccumulatorLMULFormulaResult
+constructRepackAccumulatorLMULFormula(
     const RepackAccumulatorLMULGeometryFacts &g,
     const RepackAccumulatorLMULCapabilityFacts &c,
-    const RepackAccumulatorLMULStaticContext &omega) {
-  RepackAccumulatorLMULDecision decision;
-  decision.candidates[0].candidate = RepackAccumulatorLMULCandidate::MF2;
-  decision.candidates[1].candidate = RepackAccumulatorLMULCandidate::M1;
+    RepackAccumulatorLMULNoStaticContext) {
+  RepackAccumulatorLMULFormulaResult formula;
+  formula.candidates[0].candidate = RepackAccumulatorLMULCandidate::MF2;
+  formula.candidates[1].candidate = RepackAccumulatorLMULCandidate::M1;
 
   if (!c.hasFractionalLMUL || !c.halfLanes ||
       !c.vectorRegisterBudget)
-    return decision;
+    return formula;
   if (g.weightInterleave <= 0 || *c.halfLanes <= 0 ||
       *c.halfLanes > g.weightInterleave ||
       (g.weightInterleave % *c.halfLanes) != 0) {
-    decision.reason = RepackAccumulatorLMULReason::RejectedInvalidGeometry;
-    return decision;
+    formula.reason = RepackAccumulatorLMULReason::RejectedInvalidGeometry;
+    return formula;
   }
   if (*c.vectorRegisterBudget <= 0) {
-    decision.reason = RepackAccumulatorLMULReason::RejectedEmptyLegalSet;
-    return decision;
+    formula.reason = RepackAccumulatorLMULReason::RejectedEmptyLegalSet;
+    return formula;
   }
+
+  formula.mf2HalfLanes = *c.halfLanes;
+  formula.weightInterleave = g.weightInterleave;
 
   const RVVRegisterPressureLevel mf2ChainLevels[] = {
       {/*lmul=*/"m1", /*liveVars=*/1},
@@ -492,59 +520,81 @@ inline RepackAccumulatorLMULDecision decideRepackAccumulatorLMUL(
       {/*lmul=*/"m2", /*liveVars=*/1},
       {/*lmul=*/"m4", /*liveVars=*/1}};
 
-  decision.candidates[0].peakRegisterCost =
+  formula.candidates[0].peakRegisterCost =
       rvvRegisterPressurePeakCost(mf2ChainLevels, /*unroll=*/1);
-  decision.candidates[0].isLegal =
+  formula.candidates[0].isLegal =
       *c.hasFractionalLMUL &&
       rvvRegisterPressureLegal(mf2ChainLevels, /*unroll=*/1,
                                *c.vectorRegisterBudget,
                                /*fixedOccupancy=*/0);
-  decision.candidates[1].peakRegisterCost =
+  formula.candidates[1].peakRegisterCost =
       rvvRegisterPressurePeakCost(m1ChainLevels, /*unroll=*/1);
-  decision.candidates[1].isLegal =
+  formula.candidates[1].isLegal =
       rvvRegisterPressureLegal(m1ChainLevels, /*unroll=*/1,
                                *c.vectorRegisterBudget,
                                /*fixedOccupancy=*/0);
 
   if (!*c.hasFractionalLMUL) {
-    if (decision.candidates[1].isLegal)
-      detail::commitRepackAccumulatorLMULSelection(
-          decision, RepackAccumulatorLMULCandidate::M1, *c.halfLanes,
-          g.weightInterleave,
-          RepackAccumulatorLMULReason::CorrectnessNoFractionalLMUL,
-          RepackAccumulatorLMULFallback::OnlyFeasible);
-    else
-      decision.reason = RepackAccumulatorLMULReason::RejectedEmptyLegalSet;
-    return decision;
+    if (formula.candidates[1].isLegal) {
+      formula.analyticPrior = RepackAccumulatorLMULCandidate::M1;
+      formula.reason =
+          RepackAccumulatorLMULReason::CorrectnessNoFractionalLMUL;
+      formula.fallback = RepackAccumulatorLMULFallback::OnlyFeasible;
+    } else {
+      formula.reason = RepackAccumulatorLMULReason::RejectedEmptyLegalSet;
+    }
+    return formula;
   }
 
-  if (omega.measurement && !omega.measurement->key.scaleModel.empty() &&
-      detail::isCandidateLegal(decision, omega.measurement->winner)) {
+  if (formula.candidates[0].isLegal) {
+    formula.analyticPrior = RepackAccumulatorLMULCandidate::MF2;
+    formula.reason = RepackAccumulatorLMULReason::AnalyticPrior;
+    formula.fallback = RepackAccumulatorLMULFallback::AnalyticPrior;
+    return formula;
+  }
+  if (formula.candidates[1].isLegal) {
+    formula.analyticPrior = RepackAccumulatorLMULCandidate::M1;
+    formula.reason = RepackAccumulatorLMULReason::OnlyFeasible;
+    formula.fallback = RepackAccumulatorLMULFallback::OnlyFeasible;
+    return formula;
+  }
+
+  formula.reason = RepackAccumulatorLMULReason::RejectedEmptyLegalSet;
+  return formula;
+}
+
+/// Thin selection stage.  A qualified winner may replace the analytic prior
+/// only when that exact candidate is already in the formula's legal set.
+inline RepackAccumulatorLMULDecision selectRepackAccumulatorLMUL(
+    const RepackAccumulatorLMULFormulaResult &formula,
+    const RepackAccumulatorLMULSelectionInput &selectionInput) {
+  RepackAccumulatorLMULDecision decision;
+  decision.candidates = formula.candidates;
+  decision.reason = formula.reason;
+  decision.fallback = formula.fallback;
+  decision.geometryUse = formula.geometryUse;
+  decision.capabilityUse = formula.capabilityUse;
+  decision.contextUse = formula.contextUse;
+  if (!formula.analyticPrior)
+    return decision;
+  decision.analyticPrior = *formula.analyticPrior;
+
+  if (selectionInput.measurement &&
+      !selectionInput.measurement->key.scaleModel.empty() &&
+      detail::isCandidateLegal(formula,
+                               selectionInput.measurement->winner)) {
     detail::commitRepackAccumulatorLMULSelection(
-        decision, omega.measurement->winner, *c.halfLanes,
-        g.weightInterleave,
+        decision, selectionInput.measurement->winner, formula.mf2HalfLanes,
+        formula.weightInterleave,
         RepackAccumulatorLMULReason::QualifiedMeasurement,
         RepackAccumulatorLMULFallback::NotUsed);
-    decision.measurementKey = omega.measurement->key;
+    decision.measurementKey = selectionInput.measurement->key;
     return decision;
   }
 
-  if (decision.candidates[0].isLegal) {
-    detail::commitRepackAccumulatorLMULSelection(
-        decision, RepackAccumulatorLMULCandidate::MF2, *c.halfLanes,
-        g.weightInterleave, RepackAccumulatorLMULReason::AnalyticPrior,
-        RepackAccumulatorLMULFallback::AnalyticPrior);
-    return decision;
-  }
-  if (decision.candidates[1].isLegal) {
-    detail::commitRepackAccumulatorLMULSelection(
-        decision, RepackAccumulatorLMULCandidate::M1, *c.halfLanes,
-        g.weightInterleave, RepackAccumulatorLMULReason::OnlyFeasible,
-        RepackAccumulatorLMULFallback::OnlyFeasible);
-    return decision;
-  }
-
-  decision.reason = RepackAccumulatorLMULReason::RejectedEmptyLegalSet;
+  detail::commitRepackAccumulatorLMULSelection(
+      decision, *formula.analyticPrior, formula.mf2HalfLanes,
+      formula.weightInterleave, formula.reason, formula.fallback);
   return decision;
 }
 

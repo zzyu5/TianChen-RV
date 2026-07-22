@@ -23,7 +23,6 @@
 
 #include "Weft/Plugin/RVV/RVVEmitCContractionRouteFamilyPlanOwners.h"
 #include "Weft/Plugin/RVV/RVVGearboxSchedule.h"
-#include "Weft/Plugin/RVV/RVVLowPrecisionPerformancePolicy.h"
 
 #include "mlir/IR/Types.h"
 #include "llvm/ADT/ArrayRef.h"
@@ -38,18 +37,6 @@
 namespace weft::plugin::rvv {
 
 // ===== CROSS-TU FORWARD DECLS (relocated from the monolith head) =====
-llvm::Error verifyRVVLowPrecisionContractionResourceSelection(
-    const RVVSelectedBodyContractionRouteFamilyPlan &plan,
-    llvm::StringRef context);
-
-llvm::Error verifyRVVLowPrecisionContractionMeasurementDispositionEvidence(
-    llvm::StringRef context,
-    const RVVLowPrecisionContractionResourceSelection &selection);
-
-bool areRVVLowPrecisionStableCompilerFactMirrorsEqual(
-    const RVVLowPrecisionStableResourceCompilerFacts &lhs,
-    const RVVLowPrecisionStableResourceCompilerFacts &rhs);
-
 llvm::Error verifyRVVLowPrecisionPrimitiveRoutePayloadFromPlan(
     const RVVLowPrecisionPrimitiveRoutePayload &payload,
     const RVVSelectedBodyContractionRouteFamilyPlan &plan,
@@ -551,21 +538,6 @@ llvm::Error requireRVVSelectedBodyContractionDerivedLeaf(
     const RVVSelectedBodyContractionRouteFamilyPlan &plan,
     llvm::StringRef field, llvm::StringRef actual,
     llvm::StringRef derivationInput);
-bool expectsRVVLowPrecisionContractionResourceSelection(
-    RVVSelectedBodyOperationKind operation);
-bool expectsRVVLowPrecisionContractionResourceSelection(
-    const RVVSelectedBodyContractionRouteFamilyPlan &plan);
-RVVLowPrecisionContractionResourceSelection
-deriveRVVLowPrecisionContractionResourceSelection(
-    const RVVSelectedBodyContractionRouteFamilyPlan &plan,
-    const RVVSelectedTargetCapabilityFacts &targetFacts);
-llvm::Expected<RVVLowPrecisionContractionResourceSelection>
-deriveRVVLowPrecisionContractionResourceSelectionFromPassFacts(
-    const RVVSelectedBodyContractionRouteFamilyPlan &plan,
-    RVVSelectedBodyRouteSlice &slice,
-    const RVVSelectedTargetCapabilityFacts &targetFacts, mlir::Operation *op,
-    const RVVLowPrecisionSelectedDispatchPolicyBoundary &dispatchBoundary,
-    llvm::StringRef context);
 llvm::StringRef getRVVLowPrecisionPrimitiveKind(
     const RVVSelectedBodyContractionRouteFamilyPlan &plan);
 llvm::StringRef getRVVLowPrecisionPrimitiveSourceSignedness(
@@ -585,9 +557,6 @@ void populateRVVLowPrecisionPrimitiveRoutePayload(
     const RVVSelectedBodyContractionRouteFamilyPlan &plan);
 void populateRVVLowPrecisionPrimitiveDescriptionMirrorsFromPayload(
     RVVSelectedBodyEmitCRouteDescription &description);
-llvm::Error verifyRVVLowPrecisionContractionResourceDescriptionSelection(
-    const RVVSelectedBodyEmitCRouteDescription &description,
-    llvm::StringRef context);
 // ===== PROMOTED-HELPER-DECLS-END =====
 
 } // namespace weft::plugin::rvv

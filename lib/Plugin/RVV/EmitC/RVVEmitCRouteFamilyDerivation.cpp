@@ -26,8 +26,6 @@
 #include "Weft/Plugin/RVV/RVVEmitCElementwiseRouteFamilyPlanOwners.h"
 #include "Weft/Plugin/RVV/RVVEmitCMAccRouteFamilyPlanOwners.h"
 #include "Weft/Plugin/RVV/RVVEmitCSegment2RouteFamilyPlanOwners.h"
-#include "Weft/Plugin/RVV/RVVGearboxSchedule.h"
-#include "Weft/Plugin/RVV/RVVLowPrecisionPerformancePolicy.h"
 #include "Weft/Plugin/RVV/RVVSelectedBodyRealization.h"
 
 #include "mlir/IR/Attributes.h"
@@ -2733,25 +2731,6 @@ buildRVVDequantizationRouteFacts(RVVSelectedBodyOperationKind operation) {
   facts.scaleRole = "dequant-scale-value";
   facts.scaleName = "scale";
   facts.resultName = "dequantized_vec";
-  facts.gearboxCandidateSet = kRVVGearboxDequantizeI32ToF32CandidateSet;
-  facts.gearboxSelectedCandidate =
-      kRVVGearboxDequantizeI32ToF32SelectedCandidate;
-  facts.gearboxSelectionReason =
-      kRVVGearboxDequantizeI32ToF32SelectionReason;
-  facts.gearboxLegalityScope = kRVVGearboxDequantizeI32ToF32LegalityScope;
-  facts.gearboxScheduleID = kRVVGearboxDequantizeI32ToF32ScheduleID;
-  facts.gearboxSelector = kRVVGearboxDequantizeI32ToF32Selector;
-  facts.gearboxSource = kRVVGearboxStaticPassSource;
-  facts.gearboxOperation = kRVVGearboxDequantizeI32ToF32Operation;
-  facts.gearboxUnroll = kRVVGearboxDequantizeI32ToF32Unroll;
-  facts.gearboxVLPolicy = kRVVGearboxDequantizeI32ToF32SelectedVLPolicy;
-  facts.gearboxSourceSEW = kRVVGearboxDequantizeI32ToF32SourceSEW;
-  facts.gearboxSourceLMUL = kRVVGearboxDequantizeI32ToF32SourceLMUL;
-  facts.gearboxDestSEW = kRVVGearboxDequantizeI32ToF32DestSEW;
-  facts.gearboxDestLMUL = kRVVGearboxDequantizeI32ToF32DestLMUL;
-  facts.gearboxRuntimeAVLSource = kRVVGearboxRuntimeAVLSourceN;
-  facts.gearboxProducerScope = kRVVGearboxProducerScope;
-  facts.gearboxConsumerScope = kRVVGearboxConsumerScope;
   facts.routeOperandBindingSummary =
       (llvm::Twine(kRVVDequantizeI32ToF32OperandBindingPlanID) +
        ";lhs=lhs-input-buffer:lhs:abi|src-load|dequant-src|src-i32m1|"
@@ -2789,170 +2768,6 @@ llvm::Error requireRVVSelectedBodyDequantizationPlanField(
       llvm::Twine("dequantization route-family plan validation for operation '") +
       stringifyRVVSelectedBodyOperationKind(plan.operation) + "' requires " +
       field + " '" + expected + "' but found '" + actual + "'");
-}
-
-llvm::Error requireRVVDequantizationGearboxStringAttr(
-    mlir::Operation *op, llvm::StringRef context, llvm::StringRef attrName,
-    llvm::StringRef expected) {
-  auto attr = op->getAttrOfType<mlir::StringAttr>(attrName);
-  if (!attr)
-    return makeRVVEmitCRouteProviderError(
-        llvm::Twine("dequantization route-family plan requires pass-produced "
-                    "RVV Gearbox schedule fact '") +
-        attrName + "' on " + context + " before provider route construction");
-  if (attr.getValue() == expected)
-    return llvm::Error::success();
-  return makeRVVEmitCRouteProviderError(
-      llvm::Twine("dequantization route-family plan requires RVV Gearbox "
-                  "schedule fact '") +
-      attrName + "' on " + context + " to mirror provider-derived '" +
-      expected + "' but found '" + attr.getValue() + "'");
-}
-
-llvm::Error requireRVVDequantizationGearboxIntegerAttr(
-    mlir::Operation *op, llvm::StringRef context, llvm::StringRef attrName,
-    std::int64_t expected) {
-  auto attr = op->getAttrOfType<mlir::IntegerAttr>(attrName);
-  if (!attr)
-    return makeRVVEmitCRouteProviderError(
-        llvm::Twine("dequantization route-family plan requires pass-produced "
-                    "RVV Gearbox schedule fact '") +
-        attrName + "' on " + context + " before provider route construction");
-  if (attr.getInt() == expected)
-    return llvm::Error::success();
-  return makeRVVEmitCRouteProviderError(
-      llvm::Twine("dequantization route-family plan requires RVV Gearbox "
-                  "schedule fact '") +
-      attrName + "' on " + context + " to mirror provider-derived '" +
-      llvm::Twine(expected) + "' but found '" + llvm::Twine(attr.getInt()) +
-      "'");
-}
-
-bool rvvGearboxCandidateSetContains(llvm::StringRef candidateSet,
-                                    llvm::StringRef selectedCandidate) {
-  constexpr llvm::StringLiteral kPrefix("rvv-gearbox-candidate-set.v1[");
-  if (!candidateSet.consume_front(kPrefix))
-    return false;
-  if (!candidateSet.consume_back("]"))
-    return false;
-
-  llvm::SmallVector<llvm::StringRef, 4> candidates;
-  llvm::SplitString(candidateSet, candidates, ",");
-  for (llvm::StringRef candidate : candidates)
-    if (candidate.trim() == selectedCandidate)
-      return true;
-  return false;
-}
-
-llvm::Error requireRVVDequantizationGearboxCandidateMembership(
-    mlir::Operation *op, llvm::StringRef context) {
-  auto candidateSet = op->getAttrOfType<mlir::StringAttr>(
-      kRVVGearboxCandidateSetAttrName);
-  if (!candidateSet)
-    return makeRVVEmitCRouteProviderError(
-        llvm::Twine("dequantization route-family plan requires pass-produced "
-                    "RVV Gearbox candidate-selection fact '") +
-        kRVVGearboxCandidateSetAttrName + "' on " + context +
-        " before provider route construction");
-  auto selectedCandidate = op->getAttrOfType<mlir::StringAttr>(
-      kRVVGearboxSelectedCandidateAttrName);
-  if (!selectedCandidate)
-    return makeRVVEmitCRouteProviderError(
-        llvm::Twine("dequantization route-family plan requires pass-produced "
-                    "RVV Gearbox candidate-selection fact '") +
-        kRVVGearboxSelectedCandidateAttrName + "' on " + context +
-        " before provider route construction");
-
-  if (rvvGearboxCandidateSetContains(candidateSet.getValue(),
-                                     selectedCandidate.getValue()))
-    return llvm::Error::success();
-  return makeRVVEmitCRouteProviderError(
-      llvm::Twine("dequantization route-family plan requires selected RVV "
-                  "Gearbox candidate '") +
-      selectedCandidate.getValue() + "' on " + context +
-      " to belong to pass-produced legal candidate set '" +
-      candidateSet.getValue() + "'");
-}
-
-llvm::Error requireRVVDequantizationGearboxFactsOnOp(
-    mlir::Operation *op, llvm::StringRef context,
-    const RVVDequantizationRouteFacts &facts) {
-  if (llvm::Error error =
-          requireRVVDequantizationGearboxCandidateMembership(op, context))
-    return error;
-  if (llvm::Error error = requireRVVDequantizationGearboxStringAttr(
-          op, context, kRVVGearboxCandidateSetAttrName,
-          facts.gearboxCandidateSet))
-    return error;
-  if (llvm::Error error = requireRVVDequantizationGearboxStringAttr(
-          op, context, kRVVGearboxSelectedCandidateAttrName,
-          facts.gearboxSelectedCandidate))
-    return error;
-  if (llvm::Error error = requireRVVDequantizationGearboxStringAttr(
-          op, context, kRVVGearboxSelectionReasonAttrName,
-          facts.gearboxSelectionReason))
-    return error;
-  if (llvm::Error error = requireRVVDequantizationGearboxStringAttr(
-          op, context, kRVVGearboxLegalityScopeAttrName,
-          facts.gearboxLegalityScope))
-    return error;
-  if (llvm::Error error = requireRVVDequantizationGearboxStringAttr(
-          op, context, kRVVGearboxScheduleIDAttrName,
-          facts.gearboxScheduleID))
-    return error;
-  if (llvm::Error error = requireRVVDequantizationGearboxStringAttr(
-          op, context, kRVVGearboxSelectorAttrName, facts.gearboxSelector))
-    return error;
-  if (llvm::Error error = requireRVVDequantizationGearboxStringAttr(
-          op, context, kRVVGearboxSourceAttrName, facts.gearboxSource))
-    return error;
-  if (llvm::Error error = requireRVVDequantizationGearboxStringAttr(
-          op, context, kRVVGearboxOperationAttrName, facts.gearboxOperation))
-    return error;
-  if (llvm::Error error = requireRVVDequantizationGearboxIntegerAttr(
-          op, context, kRVVGearboxUnrollAttrName, facts.gearboxUnroll))
-    return error;
-  if (llvm::Error error = requireRVVDequantizationGearboxStringAttr(
-          op, context, kRVVGearboxVLPolicyAttrName, facts.gearboxVLPolicy))
-    return error;
-  if (llvm::Error error = requireRVVDequantizationGearboxIntegerAttr(
-          op, context, kRVVGearboxSourceSEWAttrName, facts.gearboxSourceSEW))
-    return error;
-  if (llvm::Error error = requireRVVDequantizationGearboxStringAttr(
-          op, context, kRVVGearboxSourceLMULAttrName,
-          facts.gearboxSourceLMUL))
-    return error;
-  if (llvm::Error error = requireRVVDequantizationGearboxIntegerAttr(
-          op, context, kRVVGearboxDestSEWAttrName, facts.gearboxDestSEW))
-    return error;
-  if (llvm::Error error = requireRVVDequantizationGearboxStringAttr(
-          op, context, kRVVGearboxDestLMULAttrName, facts.gearboxDestLMUL))
-    return error;
-  if (llvm::Error error = requireRVVDequantizationGearboxStringAttr(
-          op, context, kRVVGearboxRuntimeAVLSourceAttrName,
-          facts.gearboxRuntimeAVLSource))
-    return error;
-  if (llvm::Error error = requireRVVDequantizationGearboxStringAttr(
-          op, context, "weft_rvv.gearbox.producer_scope",
-          facts.gearboxProducerScope))
-    return error;
-  if (llvm::Error error = requireRVVDequantizationGearboxStringAttr(
-          op, context, "weft_rvv.gearbox.consumer_scope",
-          facts.gearboxConsumerScope))
-    return error;
-  return llvm::Error::success();
-}
-
-llvm::Error requireRVVDequantizationGearboxFacts(
-    weft::rvv::WithVLOp withVL, weft::rvv::DequantizeOp dequantize,
-    const RVVDequantizationRouteFacts &facts) {
-  if (llvm::Error error = requireRVVDequantizationGearboxFactsOnOp(
-          withVL.getOperation(), "weft_rvv.with_vl", facts))
-    return error;
-  if (llvm::Error error = requireRVVDequantizationGearboxFactsOnOp(
-          dequantize.getOperation(), "weft_rvv.dequantize", facts))
-    return error;
-  return llvm::Error::success();
 }
 
 llvm::Error validateRVVSelectedBodyDequantizationRouteFamilyPlan(
@@ -3114,82 +2929,10 @@ llvm::Error validateRVVSelectedBodyDequantizationRouteFamilyPlan(
                                        plan.destinationMemoryForm,
                                        expectedFacts->destinationMemoryForm))
     return error;
-  if (llvm::Error error = requireField("Gearbox candidate set",
-                                       plan.gearboxCandidateSet,
-                                       expectedFacts->gearboxCandidateSet))
-    return error;
-  if (llvm::Error error = requireField("Gearbox selected candidate",
-                                       plan.gearboxSelectedCandidate,
-                                       expectedFacts->gearboxSelectedCandidate))
-    return error;
-  if (!rvvGearboxCandidateSetContains(plan.gearboxCandidateSet,
-                                      plan.gearboxSelectedCandidate))
+  if (plan.unrollFactor <= 0)
     return makeRVVEmitCRouteProviderError(
-        "dequantization route-family plan selected RVV Gearbox candidate "
-        "must belong to the provider-consumed legal candidate set");
-  if (llvm::Error error = requireField("Gearbox selection reason",
-                                       plan.gearboxSelectionReason,
-                                       expectedFacts->gearboxSelectionReason))
-    return error;
-  if (llvm::Error error = requireField("Gearbox legality scope",
-                                       plan.gearboxLegalityScope,
-                                       expectedFacts->gearboxLegalityScope))
-    return error;
-  if (llvm::Error error = requireField("Gearbox schedule id",
-                                       plan.gearboxScheduleID,
-                                       expectedFacts->gearboxScheduleID))
-    return error;
-  if (llvm::Error error = requireField("Gearbox selector",
-                                       plan.gearboxSelector,
-                                       expectedFacts->gearboxSelector))
-    return error;
-  if (llvm::Error error = requireField("Gearbox source", plan.gearboxSource,
-                                       expectedFacts->gearboxSource))
-    return error;
-  if (llvm::Error error = requireField("Gearbox operation",
-                                       plan.gearboxOperation,
-                                       expectedFacts->gearboxOperation))
-    return error;
-  if (plan.gearboxUnroll != expectedFacts->gearboxUnroll)
-    return makeRVVEmitCRouteProviderError(
-        "dequantization route-family plan Gearbox unroll must be derived from "
-        "provider-consumed Gearbox schedule facts");
-  if (llvm::Error error = requireField("Gearbox VL policy",
-                                       plan.gearboxVLPolicy,
-                                       expectedFacts->gearboxVLPolicy))
-    return error;
-  if (plan.gearboxSourceSEW != expectedFacts->gearboxSourceSEW)
-    return makeRVVEmitCRouteProviderError(
-        "dequantization route-family plan Gearbox source SEW must mirror the "
-        "typed source vector");
-  if (llvm::Error error = requireField("Gearbox source LMUL",
-                                       plan.gearboxSourceLMUL,
-                                       expectedFacts->gearboxSourceLMUL))
-    return error;
-  if (plan.gearboxDestSEW != expectedFacts->gearboxDestSEW)
-    return makeRVVEmitCRouteProviderError(
-        "dequantization route-family plan Gearbox destination SEW must mirror "
-        "the typed result vector");
-  if (llvm::Error error = requireField("Gearbox destination LMUL",
-                                       plan.gearboxDestLMUL,
-                                       expectedFacts->gearboxDestLMUL))
-    return error;
-  if (llvm::Error error = requireField("Gearbox runtime AVL source",
-                                       plan.gearboxRuntimeAVLSource,
-                                       expectedFacts->gearboxRuntimeAVLSource))
-    return error;
-  if (llvm::Error error = requireField("Gearbox producer scope",
-                                       plan.gearboxProducerScope,
-                                       expectedFacts->gearboxProducerScope))
-    return error;
-  if (llvm::Error error = requireField("Gearbox consumer scope",
-                                       plan.gearboxConsumerScope,
-                                       expectedFacts->gearboxConsumerScope))
-    return error;
-  if (plan.gearboxProducerScope == plan.gearboxConsumerScope)
-    return makeRVVEmitCRouteProviderError(
-        "dequantization route-family plan requires distinct RVV Gearbox "
-        "producer and consumer region scopes");
+        "dequantization route-family plan requires a positive "
+        "formula-constructed unroll_factor");
 
   if (llvm::Error error =
           verifyRVVSelectedBodyConstructionRuntimeABIParameters(
@@ -3262,9 +3005,12 @@ deriveRVVSelectedBodyDequantizationRouteFamilyPlan(
     return makeRVVEmitCRouteProviderError(
         "dequantization route-family plan requires SEW32/LMUL m1 runtime VL "
         "configuration for the typed f32 result vector");
-  if (llvm::Error error = requireRVVDequantizationGearboxFacts(
-          analysis.slice.withVL, analysis.slice.dequantizeOp, *routeFacts))
-    return std::move(error);
+  auto existingUnroll = analysis.slice.withVL->getAttrOfType<mlir::IntegerAttr>(
+      "unroll_factor");
+  if (!existingUnroll || existingUnroll.getInt() <= 0)
+    return makeRVVEmitCRouteProviderError(
+        "dequantization typed body requires a positive unroll_factor from the "
+        "formula-construction stage before route derivation");
 
   llvm::Expected<RVVRuntimeAVLVLControlPlan> runtimeControlPlan =
       deriveRVVRuntimeAVLVLControlPlanForRealizedBody(
@@ -3314,23 +3060,7 @@ deriveRVVSelectedBodyDequantizationRouteFamilyPlan(
   plan.resultName = routeFacts->resultName;
   plan.sourceMemoryForm = routeFacts->sourceMemoryForm;
   plan.destinationMemoryForm = routeFacts->destinationMemoryForm;
-  plan.gearboxCandidateSet = routeFacts->gearboxCandidateSet;
-  plan.gearboxSelectedCandidate = routeFacts->gearboxSelectedCandidate;
-  plan.gearboxSelectionReason = routeFacts->gearboxSelectionReason;
-  plan.gearboxLegalityScope = routeFacts->gearboxLegalityScope;
-  plan.gearboxScheduleID = routeFacts->gearboxScheduleID;
-  plan.gearboxSelector = routeFacts->gearboxSelector;
-  plan.gearboxSource = routeFacts->gearboxSource;
-  plan.gearboxOperation = routeFacts->gearboxOperation;
-  plan.gearboxUnroll = routeFacts->gearboxUnroll;
-  plan.gearboxVLPolicy = routeFacts->gearboxVLPolicy;
-  plan.gearboxSourceSEW = routeFacts->gearboxSourceSEW;
-  plan.gearboxSourceLMUL = routeFacts->gearboxSourceLMUL;
-  plan.gearboxDestSEW = routeFacts->gearboxDestSEW;
-  plan.gearboxDestLMUL = routeFacts->gearboxDestLMUL;
-  plan.gearboxRuntimeAVLSource = routeFacts->gearboxRuntimeAVLSource;
-  plan.gearboxProducerScope = routeFacts->gearboxProducerScope;
-  plan.gearboxConsumerScope = routeFacts->gearboxConsumerScope;
+  plan.unrollFactor = existingUnroll.getInt();
   plan.runtimeABIParameters.push_back(analysis.slice.lhsABI);
   plan.runtimeABIParameters.push_back(analysis.slice.dequantScaleABI);
   plan.runtimeABIParameters.push_back(analysis.slice.outABI);
@@ -3383,23 +3113,7 @@ void applyRVVSelectedBodyDequantizationRouteFamilyPlan(
   description.dequantScaleName = plan.scaleName;
   description.sourceMemoryForm = plan.sourceMemoryForm;
   description.destinationMemoryForm = plan.destinationMemoryForm;
-  description.gearboxCandidateSet = plan.gearboxCandidateSet;
-  description.gearboxSelectedCandidate = plan.gearboxSelectedCandidate;
-  description.gearboxSelectionReason = plan.gearboxSelectionReason;
-  description.gearboxLegalityScope = plan.gearboxLegalityScope;
-  description.gearboxScheduleID = plan.gearboxScheduleID;
-  description.gearboxSelector = plan.gearboxSelector;
-  description.gearboxSource = plan.gearboxSource;
-  description.gearboxOperation = plan.gearboxOperation;
-  description.gearboxUnroll = plan.gearboxUnroll;
-  description.gearboxVLPolicy = plan.gearboxVLPolicy;
-  description.gearboxSourceSEW = plan.gearboxSourceSEW;
-  description.gearboxSourceLMUL = plan.gearboxSourceLMUL;
-  description.gearboxDestSEW = plan.gearboxDestSEW;
-  description.gearboxDestLMUL = plan.gearboxDestLMUL;
-  description.gearboxRuntimeAVLSource = plan.gearboxRuntimeAVLSource;
-  description.gearboxProducerScope = plan.gearboxProducerScope;
-  description.gearboxConsumerScope = plan.gearboxConsumerScope;
+  description.standaloneDequantUnrollFactor = plan.unrollFactor;
   description.runtimeABIParameters.clear();
   description.runtimeABIParameters.append(plan.runtimeABIParameters.begin(),
                                           plan.runtimeABIParameters.end());

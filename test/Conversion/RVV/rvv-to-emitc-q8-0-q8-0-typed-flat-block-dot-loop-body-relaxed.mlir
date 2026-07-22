@@ -4,7 +4,7 @@
 // (vfmul x2 + per-batch ORDERED vfredosum.vs), with NO vfmacc / vfredusum / acc_vec
 // anywhere. This locks that numerics_tier is the knob that toggles the numeric
 // oracle and that the strict default is byte-unchanged (zero-regression).
-// RUN: sed 's/, numerics_tier = "relaxed"//' %s | weft-opt --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=STRICT --implicit-check-not=vfmacc --implicit-check-not=vfredusum --implicit-check-not=acc_vec
+// RUN: sed 's/numerics_tier = "relaxed"/numerics_tier = "strict"/' %s | weft-opt --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=STRICT --implicit-check-not=vfmacc --implicit-check-not=vfredusum --implicit-check-not=acc_vec
 // A garbage numerics_tier is rejected fail-closed by the op verifier (I7).
 // RUN: sed 's/numerics_tier = "relaxed"/numerics_tier = "reassoc"/' %s | not weft-opt --weft-rvv-lower-to-emitc 2>&1 | FileCheck %s --check-prefix=BADTIER
 

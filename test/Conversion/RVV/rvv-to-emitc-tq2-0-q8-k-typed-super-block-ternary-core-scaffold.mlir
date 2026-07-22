@@ -66,7 +66,7 @@ module {
           // wide i16 accumulator + ONE vwredsum per 32-byte chunk into the per-super-block
           // scalar sumi, producing ONE SCALAR i32 result. The `block %super_block_index`
           // operand makes the weight/activation bases per-super-block (vx + ib*66, vy + ib*292).
-          %sumi = weft_rvv.tq2_0_q8_k_ternary_core %vx, %vy, %n, %vl block %super_block_index : index {kind = "ggml_tq2_0_q8_k_ternary_core", scale_model = "ternary-2bit-fused-plane-single-fp16-scale-i32-domain", qk = 256 : i64, weight_block_stride = 66 : i64, activation_block_stride = 292 : i64, weight_qs_byte_offset = 0 : i64, weight_d_byte_offset = 64 : i64, activation_d_byte_offset = 0 : i64, activation_quant_byte_offset = 4 : i64} : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index, !weft_rvv.vl -> i32
+          %sumi = weft_rvv.tq2_0_q8_k_ternary_core %vx, %vy, %n, %vl block %super_block_index : index {kind = "ggml_tq2_0_q8_k_ternary_core", scale_model = "ternary-2bit-fused-plane-single-fp16-scale-i32-domain", qk = 256 : i64, weight_block_stride = 66 : i64, activation_block_stride = 292 : i64, weight_qs_byte_offset = 0 : i64, weight_d_byte_offset = 64 : i64, activation_d_byte_offset = 0 : i64, activation_quant_byte_offset = 4 : i64, integer_core_lmul = "m2", minimum_vlen = 128 : i64} : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index, !weft_rvv.vl -> i32
           // SINGLE carried-out SCALAR accumulator (sumf ONLY -- no 8-lane vector `sums`).
           // The byte-exact single-scale scalar fold sumf += (float)sumi * d (d = fp16(x.d @64)
           // * y.d @0) + the trailing *s = sumf (NO factor) are emitter-inlined.

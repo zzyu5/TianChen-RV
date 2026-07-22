@@ -42,9 +42,7 @@ module {
 // STAMP-VLEN128-SAME: minimum_vlen = 128 : i64
 // STAMP-VLEN128-SAME: multi_block_factor = 1 : i64
 // STAMP-VLEN128-SAME: strip_elision = "elided"
-// STAMP-VLEN128-SAME: weft_rvv.mxfp4_schedule.legal_candidate_count = 2 : i64
-// STAMP-VLEN128-SAME: weft_rvv.mxfp4_schedule.peak_live_vector_registers = 6 : i64
-// STAMP-VLEN128-SAME: weft_rvv.mxfp4_schedule.producer = "rvv-mxfp4-autotuner"
+// STAMP-VLEN128-NOT: weft_rvv.mxfp4_schedule.
 //
 // rv64gcv_zvl256b (VLEN256): the SAME op FLIPS to mf2 -- minimum_vlen = 256 makes
 // mf2's VLMAX reach 16 (legal, the ggml `_vl256` shape), so mf2 TIES m1 on cost and
@@ -55,8 +53,7 @@ module {
 // STAMP-VLEN256-SAME: minimum_vlen = 256 : i64
 // STAMP-VLEN256-SAME: multi_block_factor = 1 : i64
 // STAMP-VLEN256-SAME: strip_elision = "elided"
-// STAMP-VLEN256-SAME: weft_rvv.mxfp4_schedule.legal_candidate_count = 4 : i64
-// STAMP-VLEN256-SAME: weft_rvv.mxfp4_schedule.peak_live_vector_registers = 5 : i64
+// STAMP-VLEN256-NOT: weft_rvv.mxfp4_schedule.
 
 // ===================== EMISSION (VLEN128 — the m1 form) =====================
 // The factor is PINNED to 1 (the codebook factorCap), so the emit is the SINGLE-block

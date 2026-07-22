@@ -3,14 +3,14 @@
 // G7 [GAP-EMIT-KQUANT-GEVM-TILE-ROUNDTRIP] whole-K-nest S6 roll (q4_K family member):
 // the SAME q4_K x q8_K 16x1-REPACKED single-output-column GEVM (decode) front-door region
 // as rvv-to-emitc-repack-gemv-q4-K-q8-K.mlir, but the loop-body op carries the OPTIONAL
-// emit_loop_schedule = "rolled" SCHEDULE knob. Where the default (unrolled) emit fully
+// main_term_form = "rolled" SCHEDULE knob. Where the default (unrolled) emit fully
 // STATIC-unrolls the per-super-half / per-pair / per-k / per-16-element decode nest, the
 // ROLLED schedule emits the dominant per-16-element inner ii-loop as ONE runtime emitc.for
 // with the per-strip i16 partials carried as RESIDENT SSA-register VariableOps (seeded
 // above, load-accumulate-store inside, NEVER a materialized stack decode tile). This is the
 // q5_K whole-K-nest maturity lever MINUS the qh inject (kernel-axis C1, ZERO perf green --
 // roll is the I-cache / code-volume / vsetvli lever, NOT an instruction-density mover;
-// [CASE-MICRO-E2E] decode memory-wall). CAPABILITY-KEYED by the emit_loop_schedule stamp,
+// [CASE-MICRO-E2E] decode memory-wall). CAPABILITY-KEYED by the main_term_form stamp,
 // BYTE-EXACT to the unrolled emit by construction (identical integer vwmacc accumulation
 // order -- only the ii-loop is materialized instead of unrolled). This lit checks the ROLLED
 // STRUCTURE only; numeric correctness rides the SHARED q4_K board oracle (unchanged).
@@ -26,7 +26,7 @@ module {
       %nc = weft_rvv.runtime_abi_value {c_name = "nc", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "nc", role = "destination-byte-stride"} : index
       %vl = weft_rvv.setvl %n {lmul = "m1", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !weft_rvv.vl
       weft_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @ggml_repack_gemv_q4_K_q8_K, sew = 32 : i64, source_kernel = "ggml_repack_gemv_q4_K_q8_K_kernel", status = "selected-lowering-boundary"} {
-        weft_rvv.typed_repack_gemv_loop_body %vx, %vy, %s, %n, %nc attributes {kind = "typed_repack_gemv_loop_body", scale_model = "superblock-d.dmin-fp16-plus-bsums-min-8-subblocks", qk = 256 : i64, weight_block_stride = 2304 : i64, activation_block_stride = 292 : i64, weight_quant_byte_offset = 256 : i64, activation_quant_byte_offset = 4 : i64, weight_dmin_byte_offset = 32 : i64, weight_scales_byte_offset = 64 : i64, activation_bsums_byte_offset = 260 : i64, n_subblocks = 8 : i64, weight_interleave = 16 : i64, half_lanes = 8 : i64, integer_core_lmul = "mf2", fold_model = "kquant_dmin_bsums_min", emit_loop_schedule = "rolled"} {
+        weft_rvv.typed_repack_gemv_loop_body %vx, %vy, %s, %n, %nc attributes {kind = "typed_repack_gemv_loop_body", scale_model = "superblock-d.dmin-fp16-plus-bsums-min-8-subblocks", qk = 256 : i64, weight_block_stride = 2304 : i64, activation_block_stride = 292 : i64, weight_quant_byte_offset = 256 : i64, activation_quant_byte_offset = 4 : i64, weight_dmin_byte_offset = 32 : i64, weight_scales_byte_offset = 64 : i64, activation_bsums_byte_offset = 260 : i64, n_subblocks = 8 : i64, weight_interleave = 16 : i64, half_lanes = 8 : i64, integer_core_lmul = "mf2", fold_model = "kquant_dmin_bsums_min", main_term_form = "rolled"} {
         ^bb0(%block_index: index, %acc0: !weft_rvv.vector<f32, "m2">, %acc1: !weft_rvv.vector<f32, "m2">):
           // The block_index-tied K-quant integer-core BRICK: per-block lane-wise q4_K
           // dot -> the numHalves (2) per-strip i32 sumi. The rolled schedule re-emits the

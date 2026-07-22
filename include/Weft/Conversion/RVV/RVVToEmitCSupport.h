@@ -419,27 +419,21 @@ struct WideningChain {
 WideningChain deriveWideningChain(llvm::StringRef base);
 
 //===----------------------------------------------------------------------===//
-// Block-dot stamped-schedule fact read-handle (read-only; no decision logic).
+// Block-dot final-schedule fact read-handle (read-only; no decision logic).
 //===----------------------------------------------------------------------===//
 
-// The three stamped block-dot scheduling facts an integer-core emitter reads off
-// a scheduled GgmlBlockDot* op, plus the derived `stripElided` predicate:
-//   coreLmul         = the integer_core_lmul anchor, or the caller's per-kernel
-//                      `defaultCoreLmul` when the op carries no anchor attr,
-//   multiBlockFactor = the outer-loop unroll factor, default 1,
-//   stripElision     = "robust" | "elided", default "robust",
+// The three formula-constructed block-dot scheduling facts an integer-core
+// emitter reads off a scheduled GgmlBlockDot* op, plus the derived
+// `stripElided` predicate:
+//   coreLmul         = the required integer_core_lmul anchor,
+//   multiBlockFactor = the required outer-loop unroll factor,
+//   stripElision     = the required "robust" | "elided" choice,
 //   stripElided      = (stripElision == "elided").
 //
-// This is a pure READ-HANDLE: it consolidates the scattered per-kernel
-// `.value_or(...)` reads of the stamped attrs into one place and reproduces the
-// per-site defaults EXACTLY, so the emitted C is byte-identical. The LEGALITY
-// authority for these facts stays UPSTREAM in the gearbox / materialize-schedule
-// passes (the verifier bounds the factor, the elision to robust|elided, and the
-// anchor set per family); this handle adds NO decision / selection / cost logic.
-// The per-kernel `defaultCoreLmul` (mf4 / m2 / m1 ...) is the caller's, not a
-// choice made here. Templated on the op type because each block-dot family is a
-// distinct ODS op (GgmlBlockDotMXFP4Q80Op, GgmlBlockDotNVFP4Q80Op, ...) that
-// shares the same three stamped accessors.
+// This is a pure READ-HANDLE. Absence is invalid at the emission boundary: the
+// formula layer owns construction and legality, while the emitter only consumes
+// the complete final tuple. Templated on the op type because each block-dot
+// family is a distinct ODS op that shares these accessors.
 struct BlockDotFacts {
   llvm::StringRef coreLmul;
   int64_t multiBlockFactor;
@@ -447,17 +441,19 @@ struct BlockDotFacts {
   bool stripElided;
 };
 
+/// Read a complete formula-constructed schedule. This is the production source
+/// op path: absence is not a signal and the emitter supplies no default.
 template <typename BlockDotOpT>
-BlockDotFacts deriveBlockDotFacts(BlockDotOpT blockDot,
-                                  llvm::StringRef defaultCoreLmul) {
-  BlockDotFacts facts;
-  facts.coreLmul = defaultCoreLmul;
-  if (auto attrLmul = blockDot.getIntegerCoreLmul())
-    facts.coreLmul = *attrLmul;
-  facts.multiBlockFactor = blockDot.getMultiBlockFactor().value_or(1);
-  facts.stripElision = blockDot.getStripElision().value_or("robust");
-  facts.stripElided = facts.stripElision == "elided";
-  return facts;
+std::optional<BlockDotFacts> readFinalBlockDotFacts(BlockDotOpT blockDot) {
+  auto coreLmul = blockDot.getIntegerCoreLmul();
+  auto multiBlockFactor = blockDot.getMultiBlockFactor();
+  auto stripElision = blockDot.getStripElision();
+  if (!coreLmul || !multiBlockFactor || !stripElision)
+    return std::nullopt;
+  return BlockDotFacts{*coreLmul,
+                       static_cast<std::int64_t>(*multiBlockFactor),
+                       *stripElision,
+                       *stripElision == "elided"};
 }
 
 } // namespace detail

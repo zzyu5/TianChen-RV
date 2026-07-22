@@ -2207,19 +2207,17 @@ mlir::LogicalResult VariantToEmitCFunc::emitQ4_KScaledDot(
     int64_t subBlock = scaledDot.getSubBlock();      // 32
     int64_t numSubBlocks = qk / subBlock;            //  8
 
-    // The Region-C integer-MAC LMUL anchor, sourced from the optional
-    // integer_core_lmul (default "mf2" == today's byte-identical emit). l8/l16/l32
-    // are the three rungs of the i8 -> i16 -> i32 widening chain; the default
-    // (mf2 -> m1 -> m2) reproduces the legacy callee/type strings exactly. This
+    // The Region-C integer-MAC LMUL anchor is a final construction fact. l8/l16/l32
+    // are the three rungs of the i8 -> i16 -> i32 widening chain. The explicit
+    // mf2 construction result reproduces the legacy callee/type strings exactly. This
     // is the SAME single-source detail::deriveWideningChain the monolithic q4_K
     // core uses, so the auto-constructed Region C is byte-identical at every legal
     // anchor (the wide m1/m2 forms reach the q4_K capability flip: the fold-back).
-    // [A-line stage-3: NOT debakeable] this default is LIVE, not dead code: the
-    // q4_K DECODE front door leaves q4_k_scaled_dot's optional integer_core_lmul
-    // UNSTAMPED by design, so fail-closing here breaks byte-exact across the q4_K
-    // production e2e. A real debake must stamp it in the front door first (gated
-    // supervisor decision, out of this emitter-only relayer scope).
-    llvm::StringRef coreLmul = scaledDot.getIntegerCoreLmul().value_or("mf2");
+    if (!scaledDot.getIntegerCoreLmul())
+      return rewriter.notifyMatchFailure(
+          scaledDot, "q4_K scaled-dot reached emission without final "
+                     "integer_core_lmul");
+    llvm::StringRef coreLmul = *scaledDot.getIntegerCoreLmul();
     WideningChain wideningChain = deriveWideningChain(coreLmul);
     llvm::StringRef l8 = wideningChain.l8;
     llvm::StringRef l16 = wideningChain.l16;
@@ -2939,7 +2937,7 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedSuperBlockBlockDotLoopBody(
 
     // ---- The block-format structural facts. The strides + qk come off the LOOP
     // OP (the byte-exact schedule shape knobs, exactly like the flat loop body
-    // reads deriveBlockDotFacts off the loop op); the per-region byte offsets +
+    // reads its complete formula result); the per-region byte offsets +
     // the integer-core LMUL come off the BRICKS that own them (I4 mirror), so the
     // facts are sourced from the same typed surface the standalone bricks read --
     // byte-identity by construction. ----
@@ -2962,8 +2960,12 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedSuperBlockBlockDotLoopBody(
     int64_t qhOffset =
         static_cast<int64_t>(b1.getWeightQhByteOffset().value_or(0)); // 16 (q5_K)
     int64_t activationDOffset = 0;                              //   0
+    if (!b3.getActivationQuantByteOffset())
+      return rewriter.notifyMatchFailure(
+          b3, "q4_K/q5_K scaled-dot reached emission without the constructed "
+              "activation_quant_byte_offset");
     int64_t q8Offset =
-        static_cast<int64_t>(b3.getActivationQuantByteOffset().value_or(4)); // 4
+        static_cast<int64_t>(*b3.getActivationQuantByteOffset()); // 4
     int64_t bsumsOffset = b4.getBsumsByteOffset();              // 260
     int64_t numSubBlocks = qk / subBlock;                       //   8
     int64_t quarter = subBlock / 4;                             // 8-elem quarters (subBlock/4)
@@ -2979,9 +2981,12 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedSuperBlockBlockDotLoopBody(
 
     // The Region-C integer-MAC LMUL anchor is sourced from BRICK 3. The
     // verifier has already restricted it to the canonical {mf2,m1,m2} resource
-    // domain; an unstamped production body keeps the existing mf2 default until
-    // its front door is migrated under ISSUE-113/116.
-    llvm::StringRef coreLmul = b3.getIntegerCoreLmul().value_or("mf2");
+    // domain; emission does not construct a fallback anchor.
+    if (!b3.getIntegerCoreLmul())
+      return rewriter.notifyMatchFailure(
+          b3, "q4_K/q5_K scaled-dot reached emission without final "
+              "integer_core_lmul");
+    llvm::StringRef coreLmul = *b3.getIntegerCoreLmul();
     WideningChain wideningChain = deriveWideningChain(coreLmul);
     llvm::StringRef l8 = wideningChain.l8;
     llvm::StringRef l16 = wideningChain.l16;
@@ -5167,21 +5172,11 @@ VariantToEmitCFunc::emitTypedSuperBlockScalarDeltaGridLoopBodyIq2xxs(
           coreOp, "iq2_xxs grid core requires an explicit num_groups descriptor "
                   "fact (front door stamps it; no baked default)");
     int64_t numGroups = static_cast<int64_t>(*coreOp.getNumGroups());      // 4
-    // [A-line stage-3: NOT debakeable] unlike num_groups above (a format descriptor
-    // fact the front door DOES stamp, hence fail-closed), integer_core_lmul is the
-    // optional Win-A gearbox that the iq2_xxs DECODE front door leaves UNSTAMPED by
-    // design; fail-closing here breaks byte-exact across the iq2_xxs production e2e.
-    // The "m2" default is the VLEN128 anchor (the schedule autotuner stamps m1 with
-    // minimum_vlen=256 at VLEN>=256 -- see the autotuner-divergence lit). This default is
-    // NOT a same-VLEN measured performance gearbox and no measured-table row flips it:
-    // integer_core_lmul is a VLEN-CORRECTNESS selector. The pair-batched vget register-
-    // group geometry ties each anchor's i8-strip VLMAX to the 32-element sub-block, so m2
-    // is correct ONLY at VLEN128 and m1 ONLY at VLEN256 -- board-proven in BOTH directions
-    // (m2==oracle & m1!=oracle @rvv VLEN128; m1==oracle & m2!=oracle @k1 VLEN256, 3-arm
-    // scalar-oracle byte-exact; experiments/active/r51g-theta20-iq2xxs-measured/FINDING.md).
-    // Flipping this default to m1 would break VLEN128 legality (the verifier rejects m1 at
-    // minimum_vlen 128: e8m1 VLMAX 16 < 32) AND duplicate the schedule pass, so it stays m2.
-    llvm::StringRef coreLmul = coreOp.getIntegerCoreLmul().value_or("m2");
+    if (!coreOp.getIntegerCoreLmul())
+      return rewriter.notifyMatchFailure(
+          coreOp,
+          "iq2_xxs core reached emission without final integer_core_lmul");
+    llvm::StringRef coreLmul = *coreOp.getIntegerCoreLmul();
 
     auto sizeLit = [&](int64_t v) { return emitSizeLit(rewriter, loc, sizeType, v); };
 

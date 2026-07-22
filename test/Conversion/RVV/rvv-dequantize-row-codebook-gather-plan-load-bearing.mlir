@@ -1,14 +1,7 @@
 // RUN: weft-opt %s --weft-rvv-lower-to-emitc | FileCheck %s
-// RUN: sed 's/quant_byte_offset = 1 : i64/quant_byte_offset = 3 : i64/' %s | not weft-opt --weft-rvv-lower-to-emitc 2>&1 | FileCheck %s --check-prefix=BADG
-// RUN: sed 's/qk = 32 : i64/qk = 44 : i64/g' %s | not weft-opt --weft-rvv-lower-to-emitc 2>&1 | FileCheck %s --check-prefix=BADG
-// RUN: sed 's/weight_block_stride = 17 : i64/weight_block_stride = 19 : i64/g' %s | not weft-opt --weft-rvv-lower-to-emitc 2>&1 | FileCheck %s --check-prefix=BADG
-// RUN: sed 's/scale_byte_offset = 0 : i64/scale_byte_offset = 99 : i64/' %s | not weft-opt --weft-rvv-lower-to-emitc 2>&1 | FileCheck %s --check-prefix=BADG
-
-// A3 load-bearing boundary: construction owns canonical mechanism geometry g;
-// backend preparation runs the typed formula and writes a complete selected stamp;
-// emission only consumes that stamp. The four production layouts are exact, so qk,
-// stride, scale offset and quant offset are not mutation knobs. Any stale/forged g
-// must fail before emission rather than creating a new accidental format.
+// Final-body load-bearing boundary: the formula has already constructed the typed
+// codebook table, anchor and strip; emission only consumes these fields. Formula
+// legality/capability changes are covered by the companion capability tests.
 
 module {
   weft.exec.kernel @dequant_mxfp4_kernel {
@@ -21,7 +14,7 @@ module {
       weft_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @dequant_mxfp4, sew = 32 : i64, source_kernel = "dequant_mxfp4_kernel", status = "selected-lowering-boundary"} {
         weft_rvv.typed_dequantize_row_loop_body %x, %y, %k attributes {decode_model = "mxfp4", kind = "typed_dequantize_row_loop_body", qk = 32 : i64, weight_block_stride = 17 : i64} {
         ^bb0(%block_index: index):
-          weft_rvv.dequantize_row_decode_core %x, %y, %block_index {codebook_scale_model = "e8m0-shared-exp", decode_model = "mxfp4", dequant_mechanism = "codebook-gather", qk = 32 : i64, quant_byte_offset = 1 : i64, scale_byte_offset = 0 : i64, weight_block_stride = 17 : i64} : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index
+          weft_rvv.dequantize_row_decode_core %x, %y, %block_index {codebook_gather_entries = 16 : i64, codebook_gather_table = "fp4-e2m1", codebook_scale_model = "e8m0-shared-exp", decode_model = "mxfp4", dequant_load_lmul = "m1", dequant_mechanism = "codebook-gather", dequant_strip_lanes = 16 : i64, qk = 32 : i64, quant_byte_offset = 1 : i64, scale_byte_offset = 0 : i64, weight_block_stride = 17 : i64} : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index
           weft_rvv.typed_dequantize_row_loop_yield
         } : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index
       } : !weft_rvv.vl
@@ -44,5 +37,3 @@ module {
 // CHECK: %[[STRIP:.*]] = literal "16" : !emitc.opaque<"size_t">
 // CHECK-NEXT: verbatim{{.*}}callee=__riscv_vle8_v_u8m1
 // CHECK-NEXT: call_opaque "__riscv_vle8_v_u8m1"(%{{.*}}, %[[STRIP]])
-
-// BADG: codebook gather decision rejected domain 'rvv.dequant.small-codebook': rejected-invalid-geometry

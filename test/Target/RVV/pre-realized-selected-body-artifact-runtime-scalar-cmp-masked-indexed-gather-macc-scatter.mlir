@@ -5,7 +5,6 @@
 // RUN: weft-opt %s --weft-materialize-selected-lowering-boundaries --weft-materialize-emission-plans | sed '0,/cmp_lhs,rhs_scalar,gather_src,payload,acc,index,dst,n/s//cmp_lhs,rhs_scalar,payload,gather_src,acc,index,dst,n/' | not weft-translate --weft-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-ABI
 // RUN: weft-opt %s --weft-materialize-selected-lowering-boundaries --weft-materialize-emission-plans | sed '0,/payload=dot-rhs-input-buffer->@abi_dot_rhs_input_buffer;/s//payload=dot-rhs-input-buffer->@stale_dot_rhs_input_buffer;/' | not weft-translate --weft-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-EXEC-BINDING
 // RUN: weft-opt %s --weft-materialize-selected-lowering-boundaries --weft-materialize-emission-plans | sed '0,/dst=output-buffer:dst:abi|olddst|gpass|scatter|hdr/s//dst=output-buffer:dst:abi|olddst|gpass|stale-scatter|hdr/' | not weft-translate --weft-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-OPERAND-BINDING
-// RUN: weft-opt %s --weft-materialize-selected-lowering-boundaries --weft-materialize-emission-plans | sed '0,/weft_rvv.composite_resource.vector_register_budget\", value = \"32\"/s//weft_rvv.composite_resource.vector_register_budget\", value = \"4\"/' | not weft-translate --weft-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-COMPOSITE-RESOURCE
 // RUN: sed '0,/^      %index = weft_rvv.runtime_abi_value/{s/exec_binding = @abi_index_input_buffer, //}' %s | not weft-opt --weft-materialize-selected-lowering-boundaries --weft-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=MISSING-EXEC-BINDING
 
 // Pre-realized family bodies for runtime scalar masked indexed gather, masked
@@ -55,13 +54,6 @@ module {
 // REALIZED: %[[VL:.*]] = weft_rvv.setvl %{{.*}} {lmul = "m1", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64}
 // REALIZED: weft_rvv.with_vl %[[VL]] attributes
 // REALIZED-SAME: selected_variant = @rvv_pre_composite
-// REALIZED-DAG: weft_rvv.composite_resource.selected_candidate = "rvv-composite-gather-macc-scatter-resource-candidate.v1[rt-scmp-indexed-gather-macc-scatter,e32m1,u1]"
-// REALIZED-DAG: weft_rvv.composite_resource.vl_policy = "runtime-avl-single-setvl"
-// REALIZED-DAG: weft_rvv.composite_resource.peak_live_vector_groups = 8 : i64
-// REALIZED-DAG: weft_rvv.composite_resource.vector_register_budget = 32 : i64
-// REALIZED-DAG: weft_rvv.composite_resource.runtime_abi_order = "cmp_lhs,rhs_scalar,gather_src,payload,acc,index,dst,n"
-// REALIZED-DAG: weft_rvv.composite_resource.target_capability_provider_mirror = "selected_capability_provider_mirror:@rvv;id=rvv;kind=isa-vector;rvv=exact"
-// REALIZED-DAG: weft_rvv.composite_resource.target_capability_legality_mirror = "selected_target_capability_legality_mirror:@rvv;id=rvv;kind=isa-vector;rvv=exact;sew=32;lmul=m1;tail=agnostic;mask=agnostic"
 // REALIZED: %[[CMP_LHS:.*]] = weft_rvv.load
 // REALIZED: %[[THRESHOLD:.*]] = weft_rvv.splat
 // REALIZED: %[[PAYLOAD:.*]] = weft_rvv.load
@@ -103,13 +95,6 @@ module {
 // PLAN-SAME: {key = "weft_rvv.destination_memory_form", value = "masked-indexed-store"}
 // PLAN-SAME: {key = "weft_rvv.composite_route_family_plan", value = "rvv-composite-gather-macc-scatter-route-family-plan.v1"}
 // PLAN-SAME: {key = "weft_rvv.composite_typed_compute_chain", value = "weft_rvv.masked_indexed_load+weft_rvv.masked_macc+weft_rvv.masked_indexed_store"}
-// PLAN-SAME: {key = "weft_rvv.composite_resource.selected_candidate", value = "rvv-composite-gather-macc-scatter-resource-candidate.v1[rt-scmp-indexed-gather-macc-scatter,e32m1,u1]"}
-// PLAN-SAME: {key = "weft_rvv.composite_resource.vl_policy", value = "runtime-avl-single-setvl"}
-// PLAN-SAME: {key = "weft_rvv.composite_resource.peak_live_vector_groups", value = "8"}
-// PLAN-SAME: {key = "weft_rvv.composite_resource.vector_register_budget", value = "32"}
-// PLAN-SAME: {key = "weft_rvv.composite_resource.runtime_abi_order", value = "cmp_lhs,rhs_scalar,gather_src,payload,acc,index,dst,n"}
-// PLAN-SAME: {key = "weft_rvv.composite_resource.target_capability_provider_mirror", value = "selected_capability_provider_mirror:@rvv;id=rvv;kind=isa-vector;rvv=exact"}
-// PLAN-SAME: {key = "weft_rvv.composite_resource.target_capability_legality_mirror", value = "selected_target_capability_legality_mirror:@rvv;id=rvv;kind=isa-vector;rvv=exact;sew=32;lmul=m1;tail=agnostic;mask=agnostic"}
 // PLAN-SAME: {key = "weft_rvv.indexed_memory_layout", value = "unit-stride-lhs-runtime-scalar-threshold-indexed-masked-gather-payload-accumulator-macc-indexed-masked-scatter-runtime-abi"}
 // PLAN-SAME: {key = "weft_rvv.indexed_write_side_contract", value = "gather-payload-acc-before-active-indexed-write;destination-before-inactive-tail-preserve"}
 // PLAN-SAME: {key = "weft_rvv.index_source", value = "runtime_abi:index"}
@@ -128,10 +113,6 @@ module {
 // HEADER-DAG: weft.rvv.provider_supported_mirror: provider_supported_mirror:rvv-runtime-scalar-cmp-masked-indexed-gather-macc-scatter-plan-validated
 // HEADER-DAG: weft.rvv.composite_route_family_plan: rvv-composite-gather-macc-scatter-route-family-plan.v1
 // HEADER-DAG: weft.rvv.composite_typed_compute_chain: weft_rvv.masked_indexed_load+weft_rvv.masked_macc+weft_rvv.masked_indexed_store
-// HEADER-DAG: weft.rvv.composite_resource.selected_candidate: rvv-composite-gather-macc-scatter-resource-candidate.v1[rt-scmp-indexed-gather-macc-scatter,e32m1,u1]
-// HEADER-DAG: weft.rvv.composite_resource.vector_register_budget: 32
-// HEADER-DAG: weft.rvv.composite_resource.runtime_abi_order: cmp_lhs,rhs_scalar,gather_src,payload,acc,index,dst,n
-// HEADER-DAG: weft.rvv.composite_resource.target_capability_provider_mirror: selected_capability_provider_mirror:@rvv;id=rvv;kind=isa-vector;rvv=exact
 // HEADER-DAG: weft.rvv.route_operand_binding_plan: rvv-route-operand-binding:rt_scmp_gather_macc_scatter.v1
 // HEADER-DAG: weft.rvv.exec_abi_bindings: cmp_lhs=lhs-input-buffer->@abi_cmp_lhs_input_buffer;rhs_scalar=rhs-scalar-value->@abi_rhs_scalar_value;gather_src=source-input-buffer->@abi_source_input_buffer;payload=dot-rhs-input-buffer->@abi_dot_rhs_input_buffer;acc=accumulator-input-buffer->@abi_accumulator_input_buffer;index=index-input-buffer->@abi_index_input_buffer;dst=output-buffer->@abi_output_buffer;n=runtime-element-count->@abi_runtime_element_count
 // HEADER-DAG: weft.rvv.computed_mask_memory_mask_producer_source: runtime-scalar-splat-compare-rhs
@@ -143,7 +124,7 @@ module {
 // STALE-PROVIDER: candidate weft_rvv.provider_supported_mirror provenance must mirror selected typed RVV body provider support
 // STALE-PROVIDER-SAME: provider_supported_mirror:rvv-script-derived-pre-composite-gather-macc-scatter
 
-// STALE-ABI: composite resource runtime ABI order must mirror realized/provider-derived fact
+// STALE-ABI: candidate weft_rvv selected-body metadata key 'weft_rvv.runtime_abi_order' must mirror provider route description value
 // STALE-ABI-SAME: cmp_lhs,rhs_scalar,payload,gather_src,acc,index,dst,n
 
 // STALE-EXEC-BINDING: candidate weft_rvv.exec_abi_bindings provenance must mirror selected weft.exec ABI binding summary
@@ -152,6 +133,5 @@ module {
 // STALE-OPERAND-BINDING: candidate weft_rvv.route_operand_binding_operands provenance must mirror selected typed RVV body binding summary
 // STALE-OPERAND-BINDING-SAME: stale-scatter
 
-// STALE-COMPOSITE-RESOURCE: metadata key '{{.*}}composite_resource.vector_register_budget'{{.*}}'32' but was '4'
 
 // MISSING-EXEC-BINDING: requires weft_rvv.runtime_abi_value 'index' with role 'index-input-buffer' to carry exec_binding to a weft.exec ABI declaration

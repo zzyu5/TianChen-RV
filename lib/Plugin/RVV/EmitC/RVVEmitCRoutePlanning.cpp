@@ -13,7 +13,6 @@
 #include "Weft/Plugin/RVV/RVVEmitCMAccRouteFamilyPlanOwners.h"
 #include "Weft/Plugin/RVV/RVVEmitCSegment2RouteFamilyPlanOwners.h"
 #include "Weft/Plugin/RVV/RVVGearboxSchedule.h"
-#include "Weft/Plugin/RVV/RVVLowPrecisionPerformancePolicy.h"
 #include "Weft/Plugin/RVV/RVVSelectedBodyRealization.h"
 
 #include "mlir/IR/Attributes.h"
@@ -4165,15 +4164,6 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
         kRVVCompositeGatherMAccScatterRouteFamilyPlanID;
     analysis.description.compositeGatherMAccScatterTypedComputeChain =
         kRVVCompositeGatherMAccScatterTypedComputeChain;
-    llvm::Expected<RVVCompositeGatherMAccScatterResourceSelection> selection =
-        deriveRVVCompositeGatherMAccScatterResourceSelectionFromRealizedFacts(
-            analysis.description, analysis.selectedTargetCapabilityFacts,
-            analysis.slice.withVL.getOperation(),
-            "selected RVV route analysis composite resource gate");
-    if (!selection)
-      return selection.takeError();
-    analysis.description.compositeGatherMAccScatterResourceSelection =
-        std::move(*selection);
   }
 
   llvm::Expected<RVVSelectedDispatchEnvelopeFacts> dispatchEnvelopeFacts =
@@ -4763,20 +4753,6 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
     analysis.contractionRouteFamilyPlan = std::move(*contractionPlan);
     applyRVVSelectedBodyContractionRouteFamilyPlan(
         *analysis.contractionRouteFamilyPlan, analysis.description);
-    if (analysis.description.lowPrecisionResourceSelection.hasSelection &&
-        isRVVLowPrecisionResourcePackedI4CandidateID(
-            analysis.description.lowPrecisionResourceSelection
-                .selectedCandidateID) &&
-        analysis.description.lowPrecisionSelectedDispatchPolicyBoundary
-            .hasFacts()) {
-      if (llvm::Error error =
-              populateRVVLowPrecisionSelectedDispatchPolicyOutput(
-                  analysis.description.lowPrecisionResourceSelection,
-                  analysis.description.lowPrecisionSelectedDispatchPolicyBoundary,
-                  "selected RVV route analysis packed-i4 selected-dispatch "
-                  "policy-output boundary"))
-        return std::move(error);
-    }
   }
   if (routeProfile->operation.isMemoryMovement) {
     const bool isUnitLoadStridedStore =

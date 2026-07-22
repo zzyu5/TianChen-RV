@@ -15,7 +15,6 @@
 
 #include "Weft/Plugin/RVV/RVVContractionRouteIdentity.h"
 #include "Weft/Plugin/RVV/RVVGearboxSchedule.h"
-#include "Weft/Plugin/RVV/RVVLowPrecisionPerformancePolicy.h"
 
 #include "mlir/IR/Attributes.h"
 #include "llvm/ADT/SmallVector.h"
@@ -1013,16 +1012,6 @@ llvm::Error validateRVVSelectedBodyContractionRouteFamilyPlan(
       return error;
   }
 
-  if (llvm::Error error =
-          verifyRVVLowPrecisionContractionResourceSelection(
-              plan, "contraction route-family target-leaf/profile validation"))
-    return error;
-  if (llvm::Error error =
-          verifyRVVLowPrecisionContractionMeasurementDispositionEvidence(
-              "contraction route-family target-leaf/profile validation "
-              "low-precision measurement-disposition policy boundary",
-              plan.lowPrecisionResourceSelection))
-    return error;
   return llvm::Error::success();
 }
 
@@ -1178,35 +1167,13 @@ deriveRVVSelectedBodyContractionRouteFamilyPlan(
       return makeRVVEmitCRouteProviderError(
           "product-reduction dequantization contraction route-family plan "
           "requires weft_rvv.dequantize in the selected RVV body");
-    // Two carriers of the i32 product-reduction result feed the dequant:
-    //   - legacy two-scope body: the gearbox_cross_region_handoff output;
-    //   - single-scope typed body (Stage 3 flip): the standalone_reduce result
-    //     directly, with no handoff op present.
     if (isProductReductionDequantization &&
-        analysis.slice.gearboxCrossRegionHandoffOp &&
-        (analysis.slice.gearboxCrossRegionHandoffOp.getInput() !=
-             analysis.slice.standaloneReduceOp.getResult() ||
-         analysis.slice.gearboxCrossRegionHandoffOp.getOutput() !=
-             analysis.slice.dequantizeOp.getSource() ||
-         analysis.slice.gearboxCrossRegionHandoffOp.getVl() !=
-             analysis.slice.withVL.getVl() ||
-         analysis.slice.gearboxCrossRegionHandoffOp.getRuntimeAvl() !=
-             analysis.slice.setvl.getAvl()))
-      return makeRVVEmitCRouteProviderError(
-          "product-reduction dequantization contraction route-family plan "
-          "requires weft_rvv.gearbox_cross_region_handoff to structurally "
-          "forward the selected standalone_reduce result, bind the selected "
-          "with_vl token, and consume the selected runtime n/AVL SSA value "
-          "before weft_rvv.dequantize");
-    if (isProductReductionDequantization &&
-        !analysis.slice.gearboxCrossRegionHandoffOp &&
         analysis.slice.dequantizeOp.getSource() !=
             analysis.slice.standaloneReduceOp.getResult())
       return makeRVVEmitCRouteProviderError(
           "product-reduction dequantization contraction route-family plan "
           "requires weft_rvv.dequantize to consume the selected "
-          "weft_rvv.standalone_reduce i32 result in the single-scope typed "
-          "body");
+          "weft_rvv.standalone_reduce i32 result in the typed body");
     if (isProductReductionDequantization &&
         analysis.slice.dequantScaleABI.role !=
             support::RuntimeABIParameterRole::DequantScaleValue)
@@ -1711,30 +1678,6 @@ deriveRVVSelectedBodyContractionRouteFamilyPlan(
 
   populateRVVLowPrecisionPrimitiveFacts(plan);
 
-  if (expectsRVVLowPrecisionContractionResourceSelection(plan)) {
-    if (plan.usesProductReductionDequantization) {
-      llvm::Expected<RVVLowPrecisionContractionResourceSelection> selection =
-          deriveRVVLowPrecisionContractionResourceSelectionFromPassFacts(
-              plan, analysis.slice, analysis.selectedTargetCapabilityFacts,
-              analysis.slice.withVL.getOperation(),
-              analysis.description.lowPrecisionSelectedDispatchPolicyBoundary,
-              "contraction route-family plan derivation");
-      if (!selection)
-        return selection.takeError();
-      plan.lowPrecisionResourceSelection = std::move(*selection);
-    } else {
-      plan.lowPrecisionResourceSelection =
-          deriveRVVLowPrecisionContractionResourceSelection(
-              plan, analysis.selectedTargetCapabilityFacts);
-    }
-    if (llvm::Error error =
-            populateRVVLowPrecisionSelectedBodyRealizationAdmissionProof(
-                plan.lowPrecisionResourceSelection,
-                analysis.description.lowPrecisionSelectedDispatchPolicyBoundary,
-                "contraction route-family plan realization admission proof"))
-      return std::move(error);
-  }
-
   if (llvm::Error error =
           validateRVVSelectedBodyContractionRouteFamilyPlan(plan))
     return std::move(error);
@@ -1812,8 +1755,6 @@ void applyRVVSelectedBodyContractionRouteFamilyPlan(
   populateRVVLowPrecisionPrimitiveRoutePayload(
       description.lowPrecisionPrimitiveRoutePayload, plan);
   populateRVVLowPrecisionPrimitiveDescriptionMirrorsFromPayload(description);
-  description.lowPrecisionResourceSelection =
-      plan.lowPrecisionResourceSelection;
   description.runtimeABIParameters.clear();
   description.runtimeABIParameters.append(plan.runtimeABIParameters.begin(),
                                           plan.runtimeABIParameters.end());
@@ -2156,10 +2097,6 @@ llvm::Error verifyRVVSelectedBodyContractionRouteDescriptionMirrors(
                                                   description.sourceLMUL,
                                                   description.sew,
                                                   description.lmul)))
-    return error;
-  if (llvm::Error error =
-          verifyRVVLowPrecisionContractionResourceDescriptionSelection(
-              description, context))
     return error;
   const RVVLowPrecisionWideningReductionPrimitiveFacts *primitiveFacts =
       usesProductReductionChain

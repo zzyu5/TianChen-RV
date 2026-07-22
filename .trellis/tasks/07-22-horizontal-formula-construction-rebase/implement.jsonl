@@ -1,14 +1,16 @@
-{"file":".trellis/spec/architecture/公式层与覆盖.md","reason":"横向 scope、formula 定义、g/c/ω 与四类覆盖的稳定契约"}
-{"file":"include/Weft/Plugin/ExtensionPlugin.h","reason":"薄 descriptor/catalog 与 source/proposal/cost owner 关联"}
-{"file":"lib/Plugin/ExtensionPlugin.cpp","reason":"registry 收集、唯一性和 production linkage"}
-{"file":"lib/Plugin/Builtin/BuiltinExtensionPlugins.cpp","reason":"所有 builtin plugin 的 catalog 枚举入口"}
-{"file":"include/Weft/Plugin/RVV/RVVFormulaDecision.h","reason":"RVV family-local typed formulas 与 formula/selector 分离"}
-{"file":"include/Weft/Dialect/RVV/IR/RVVDequantizeRowConstruction.h","reason":"dequant 全 mechanism 的 typed construction facts/plan"}
-{"file":"lib/Dialect/RVV/IR/RVVDequantizeRowConstruction.cpp","reason":"从 g/c/ω 构造完整 mechanism/leaf facts"}
-{"file":"lib/Conversion/RVV/RVVCodebookGatherPlanMaterialization.cpp","reason":"推广为全 dequant emission 前 plan materialization"}
-{"file":"lib/Conversion/RVV/RVVToEmitCForwardElementwise.cpp","reason":"删除 emitter-side formula/redecision，只消费 typed selected plan"}
-{"file":"lib/Plugin/RVV/RVVLowerQuantContraction.cpp","reason":"direct route、contraction 与 repack formula/measurement selector 分离"}
-{"file":"include/Weft/Plugin/RVV/RVVGearboxSchedule.h","reason":"登记并收口 schedule/resource/tiling/numerics authority"}
-{"file":"lib/Plugin/RVV/RVVSelectedBodyRealization.cpp","reason":"selected typed body 的唯一 realization consumer"}
-{"file":"experiments/active/formula-layer-migration/","reason":"退役不完整的 8-row active authority matrix"}
-
+{"file":".trellis/spec/architecture/公式层与覆盖.md","reason":"横向 scope、formula 定义、g/c/ω、authority 与 reconstruction 的稳定契约"}
+{"file":"include/Weft/Plugin/FormulaCatalog.h","reason":"只读 descriptor，不承载 evaluator 或动态 compute"}
+{"file":"include/Weft/Plugin/ExtensionPlugin.h","reason":"formula catalog、production owner 关联与 project-level construction hook"}
+{"file":"lib/Plugin/ExtensionPlugin.cpp","reason":"registry catalog uniqueness、entry linkage 与 plugin construction 编排"}
+{"file":"lib/Transforms/EmissionReadiness.cpp","reason":"在 route/emission planning 前执行 plugin formula construction"}
+{"file":"include/Weft/Plugin/RVV/RVVFormulaCatalog.h","reason":"RVV 公式集合与 production entry identity"}
+{"file":"lib/Plugin/RVV/Construction/RVVFormulaConstruction.cpp","reason":"RVV quant/dequant 与 standalone schedule 的唯一统一 construction cut"}
+{"file":"include/Weft/Plugin/RVV/RVVDequantFormula.h","reason":"dequant mechanism 的 typed g/c 到 construction 公式"}
+{"file":"include/Weft/Plugin/RVV/RVVQuantizeFormula.h","reason":"quantize typed leaf/layout construction"}
+{"file":"include/Weft/Plugin/RVV/RVVScheduleFormula.h","reason":"通用 schedule candidate、legality、prior 与 bounded winner"}
+{"file":"include/Weft/Plugin/RVV/RVVRepackScheduleFormula.h","reason":"repack loop-order/main-term 的 final typed schedule"}
+{"file":"include/Weft/Plugin/RVV/RVVLowPrecisionResourceFormula.h","reason":"low-precision 与 dot-reduce resource/schedule formula"}
+{"file":"lib/Plugin/RVV/BodyRealization/RVVContractionSelectedBodyRealizationOwner.cpp","reason":"formula plan 到 single-scope typed body 的直接消费"}
+{"file":"lib/Conversion/RVV/","reason":"删除 emitter-side redecision/default，机械消费 final typed plan/body"}
+{"file":"lib/Plugin/RVV/EmitC/","reason":"删除 resource-selection replay，只保留 final route/ABI/artifact consistency"}
+{"file":"experiments/archive/formula-layer-migration-2026-07-22/","reason":"旧 8-row matrix/ledger 只作历史调查，不再是 active authority"}

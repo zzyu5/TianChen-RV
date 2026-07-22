@@ -721,12 +721,15 @@ mlir::LogicalResult VariantToEmitCFunc::emitMXFP4Q8_0BlockDot(
     if (!descriptor)
       return rewriter.notifyMatchFailure(blockDot,
                                          "block-dot kind not flat-codebook");
-    BlockDotFacts facts =
-        deriveBlockDotFacts(blockDot, descriptor->defaultCoreLmul);
+    std::optional<BlockDotFacts> facts = readFinalBlockDotFacts(blockDot);
+    if (!facts)
+      return rewriter.notifyMatchFailure(
+          blockDot, "codebook block-dot reached emission without a complete "
+                    "final schedule");
     return emitFlatBlockDot(rewriter, loc, weightBase, activationBase, output,
                             blockDot.getResult(), avlArg, sizeType, valueMap,
                             blockDot.getWEFTEmitCLowerableSourceOpName(),
-                            blockDot.getWEFTEmitCLowerableSourceRole(), facts,
+                            blockDot.getWEFTEmitCLowerableSourceRole(), *facts,
                             *descriptor);
   }
 

@@ -7,17 +7,20 @@
 #include "Weft/Plugin/RVV/RVVCapabilityProfile.h"
 #include "Weft/Plugin/RVV/RVVConstructionProtocol.h"
 #include "Weft/Plugin/RVV/RVVEmitCRouteProvider.h"
+#include "Weft/Plugin/RVV/RVVFormulaCatalog.h"
+#include "Weft/Plugin/RVV/RVVFormulaConstruction.h"
 #include "Weft/Plugin/RVV/RVVDequantDotSourceFrontDoor.h"
 #include "Weft/Plugin/RVV/RVVDequantizeRowStreamFrontDoor.h"
 #include "Weft/Plugin/RVV/RVVElementwiseStreamFrontDoor.h"
 #include "Weft/Plugin/RVV/RVVQuantizeRowStreamFrontDoor.h"
+#include "Weft/Plugin/RVV/RVVQuantizeFormula.h"
 #include "Weft/Plugin/RVV/RVVEmitCRoutePlanning.h"
-#include "Weft/Plugin/RVV/RVVGearboxSchedule.h"
 #include "Weft/Plugin/RVV/RVVCodebookDotSourceFrontDoor.h"
 #include "Weft/Plugin/RVV/RVVMonolithicBlockDotFamily.h"
 #include "Weft/Plugin/RVV/RVVMonolithicBlockDotSourceFrontDoor.h"
 #include "Weft/Plugin/RVV/RVVPackedI4DotSourceFrontDoor.h"
 #include "Weft/Plugin/RVV/RVVReductionSourceFrontDoor.h"
+#include "Weft/Plugin/RVV/RVVScheduleFormula.h"
 #include "Weft/Plugin/RVV/RVVSelectedBodyRealization.h"
 #include "Weft/Plugin/RVV/RVVVectorSourceFrontDoor.h"
 #include "Weft/Support/RuntimeABI.h"
@@ -31,14 +34,15 @@
 #include "mlir/IR/OperationSupport.h"
 #include "mlir/Pass/Pass.h"
 #include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Errc.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include <initializer_list>
 #include <optional>
 #include <string>
+#include <utility>
 
 namespace weft::plugin {
 namespace {
@@ -52,6 +56,8 @@ constexpr llvm::StringLiteral kRVVCapabilityKind("isa-vector");
 constexpr llvm::StringLiteral kRVVPreferredCapabilitySymbol("rvv");
 constexpr llvm::StringLiteral kRVVPolicyAttrName("weft_rvv.policy");
 constexpr llvm::StringLiteral kOriginAttrName("origin");
+
+namespace formula = weft::plugin::rvv::formula_catalog;
 
 // Capability-DERIVED vector-paradigm ranking cost (SEL-1 exec-level capability
 // prior). Emitted only when an available RVV isa-vector capability fact backs the
@@ -108,137 +114,6 @@ llvm::Error requireRVVSelectedVariant(weft::exec::VariantOp variant) {
   return requireExplicitTypedRVVBody(variant);
 }
 
-bool isRVVGearboxProductReduceDequantConsumerScope(
-    weft::rvv::WithVLOp producerWithVL, weft::rvv::WithVLOp candidate) {
-  if (!producerWithVL || !candidate || producerWithVL == candidate ||
-      candidate.getVl() != producerWithVL.getVl() ||
-      !producerWithVL->isProperAncestor(candidate.getOperation()))
-    return false;
-
-  auto isHandoffConsumingDequantize = [&](weft::rvv::DequantizeOp dequantize) {
-    auto handoff = dequantize.getSource()
-                       .getDefiningOp<weft::rvv::GearboxCrossRegionHandoffOp>();
-    return handoff && handoff->getParentOp() == producerWithVL.getOperation() &&
-           dequantize->getParentOp() == candidate.getOperation() &&
-           dequantize.getVl() == producerWithVL.getVl();
-  };
-
-  auto valueUsesHandoffDequantize = [&](mlir::Value value) {
-    llvm::SmallVector<mlir::Value, 4> worklist{value};
-    llvm::SmallPtrSet<mlir::Value, 4> seen;
-    while (!worklist.empty()) {
-      mlir::Value current = worklist.pop_back_val();
-      if (!seen.insert(current).second)
-        continue;
-      if (auto dequantize = current.getDefiningOp<weft::rvv::DequantizeOp>()) {
-        if (isHandoffConsumingDequantize(dequantize))
-          return true;
-        continue;
-      }
-      auto select = current.getDefiningOp<weft::rvv::SelectOp>();
-      if (!select || select->getParentOp() != candidate.getOperation() ||
-          select.getVl() != producerWithVL.getVl())
-        continue;
-      worklist.push_back(select.getTrueValue());
-      worklist.push_back(select.getFalseValue());
-    }
-    return false;
-  };
-
-  bool hasRegionMarker = false;
-  bool hasHandoffDequantize = false;
-  bool hasStore = false;
-  for (mlir::Operation &op : candidate.getBody().front()) {
-    if (auto marker = llvm::dyn_cast<weft::rvv::VSetVLRegionMarkerOp>(op)) {
-      const bool usesGroupedLowPrecisionDecision =
-          marker.getResourceDecision() ==
-          rvv::kRVVLowPrecisionResourceGroupedRealizationDecision;
-      const bool usesPackedI4LowPrecisionDecision =
-          marker.getResourceDecision() ==
-          rvv::kRVVLowPrecisionResourcePackedI4RealizationDecision;
-      hasRegionMarker =
-          marker.getPhase() == "dequant-store" &&
-          static_cast<std::int64_t>(marker.getRegionIndex()) ==
-              (usesGroupedLowPrecisionDecision ? 3 : 2) &&
-          static_cast<std::int64_t>(marker.getRegionCount()) ==
-              (usesGroupedLowPrecisionDecision
-                   ? rvv::kRVVLowPrecisionResourceGroupedVSetVLRegions
-                   : rvv::kRVVLowPrecisionResourceVSetVLRegions) &&
-          (marker.getResourceDecision() ==
-               rvv::kRVVLowPrecisionResourceRealizationDecision ||
-           usesGroupedLowPrecisionDecision ||
-           usesPackedI4LowPrecisionDecision) &&
-          marker.getVl() == producerWithVL.getVl();
-      continue;
-    }
-    if (auto dequantize = llvm::dyn_cast<weft::rvv::DequantizeOp>(op)) {
-      if (isHandoffConsumingDequantize(dequantize))
-        hasHandoffDequantize = true;
-      continue;
-    }
-    if (auto store = llvm::dyn_cast<weft::rvv::StoreOp>(op)) {
-      if (store.getVl() == producerWithVL.getVl() &&
-          valueUsesHandoffDequantize(store.getValue()))
-        hasStore = true;
-      continue;
-    }
-  }
-  return hasRegionMarker && hasHandoffDequantize && hasStore;
-}
-
-bool hasDirectRVVGearboxCrossRegionHandoff(weft::rvv::WithVLOp withVL) {
-  bool found = false;
-  for (mlir::Operation &op : withVL.getBody().front()) {
-    if (llvm::isa<weft::rvv::GearboxCrossRegionHandoffOp>(op)) {
-      if (found)
-        return false;
-      found = true;
-    }
-  }
-  return found;
-}
-
-llvm::Expected<weft::rvv::WithVLOp> findSelectedRVVGearboxProducerBoundary(
-    llvm::ArrayRef<weft::rvv::WithVLOp> withVLs) {
-  if (withVLs.size() != 2)
-    return makeRVVPluginError(
-        "selected RVV typed lowering boundary requires exactly one "
-        "weft_rvv.with_vl op, or a bounded Gearbox producer/consumer "
-        "two-with_vl body");
-
-  weft::rvv::WithVLOp producerWithVL;
-  for (weft::rvv::WithVLOp withVL : withVLs) {
-    if (!hasDirectRVVGearboxCrossRegionHandoff(withVL))
-      continue;
-    if (producerWithVL)
-      return makeRVVPluginError(
-          "selected RVV Gearbox typed lowering boundary requires a unique "
-          "producer weft_rvv.with_vl with a direct "
-          "weft_rvv.gearbox_cross_region_handoff");
-    producerWithVL = withVL;
-  }
-  if (!producerWithVL)
-    return makeRVVPluginError(
-        "selected RVV Gearbox typed lowering boundary requires a producer "
-        "weft_rvv.with_vl with a direct "
-        "weft_rvv.gearbox_cross_region_handoff");
-
-  weft::rvv::WithVLOp consumerWithVL;
-  for (weft::rvv::WithVLOp withVL : withVLs) {
-    if (withVL == producerWithVL)
-      continue;
-    if (isRVVGearboxProductReduceDequantConsumerScope(producerWithVL, withVL))
-      consumerWithVL = withVL;
-  }
-  if (!consumerWithVL)
-    return makeRVVPluginError(
-        "selected RVV Gearbox typed lowering boundary requires a nested "
-        "consumer weft_rvv.with_vl with matching VL, dequant-store marker, "
-        "handoff-consuming dequantize, and store facts");
-
-  return producerWithVL;
-}
-
 llvm::Expected<weft::rvv::WithVLOp>
 findSelectedRVVSelectedBodyBoundary(weft::exec::VariantOp variant) {
   if (!variant)
@@ -259,16 +134,11 @@ findSelectedRVVSelectedBodyBoundary(weft::exec::VariantOp variant) {
     return makeRVVPluginError(
         "selected RVV typed lowering boundary requires exactly one "
         "weft_rvv.setvl op");
-  weft::rvv::WithVLOp selectedWithVL;
-  if (withVLs.size() == 1) {
-    selectedWithVL = withVLs.front();
-  } else {
-    llvm::Expected<weft::rvv::WithVLOp> gearboxProducer =
-        findSelectedRVVGearboxProducerBoundary(withVLs);
-    if (!gearboxProducer)
-      return gearboxProducer.takeError();
-    selectedWithVL = *gearboxProducer;
-  }
+  if (withVLs.size() != 1)
+    return makeRVVPluginError(
+        "selected RVV typed lowering boundary requires exactly one "
+        "weft_rvv.with_vl op");
+  weft::rvv::WithVLOp selectedWithVL = withVLs.front();
 
   weft::rvv::RVVConfigContractDiagnostic configDiagnostic =
       weft::rvv::validateRVVSelectedBodyConfigVLStructure(setvls.front(),
@@ -598,6 +468,367 @@ void RVVExtensionPlugin::registerDialects(
 }
 
 llvm::Error
+RVVExtensionPlugin::constructFormulaPlans(mlir::ModuleOp module) const {
+  if (mlir::succeeded(constructRVVFormulaBodies(module)))
+    return llvm::Error::success();
+  return llvm::createStringError(
+      llvm::inconvertibleErrorCode(),
+      "RVV formula-construction cut rejected the module");
+}
+
+void RVVExtensionPlugin::collectFormulaDescriptors(
+    llvm::SmallVectorImpl<FormulaDescriptor> &out) const {
+  auto addDecisiveFields = [](FormulaAxisDescriptor &axis,
+                              std::initializer_list<llvm::StringRef> fields) {
+    for (llvm::StringRef field : fields)
+      axis.addConsumedField(field);
+  };
+  auto makeDescriptor = [&](llvm::StringRef id, llvm::StringRef domain,
+                            FormulaResultKind resultKind,
+                            FormulaConstructionStrength strength,
+                            llvm::StringRef geometryType,
+                            std::initializer_list<llvm::StringRef> gFields,
+                            FormulaAxisUse capabilityUse,
+                            llvm::StringRef capabilityType,
+                            std::initializer_list<llvm::StringRef> cFields,
+                            FormulaAxisUse staticContextUse,
+                            llvm::StringRef staticContextType) {
+    FormulaDescriptor descriptor(id, kRVVPluginName, domain, resultKind,
+                                 strength);
+    descriptor.getGeometryAxis().set(FormulaAxisUse::Decisive, geometryType);
+    addDecisiveFields(descriptor.getGeometryAxis(), gFields);
+    descriptor.getCapabilityAxis().set(capabilityUse, capabilityType);
+    addDecisiveFields(descriptor.getCapabilityAxis(), cFields);
+    descriptor.getStaticContextAxis().set(staticContextUse,
+                                          staticContextType);
+    return descriptor;
+  };
+
+  FormulaDescriptor variant = makeDescriptor(
+      formula::kVariantConstruction, "operator/rvv-variant",
+      FormulaResultKind::CandidateSet,
+      FormulaConstructionStrength::ConstructedWeak,
+      "RVVVariantProposalGeometry", {"high-level-op", "kernel-semantics"},
+      FormulaAxisUse::Decisive, "RVVCapabilityProjection", {"rvv-available"},
+      FormulaAxisUse::HonestNull, "RVVVariantNoStaticContext");
+  variant.addSemanticCase("rvv-capability-applicable");
+  variant.addSemanticCase("rvv-capability-unavailable");
+  variant.addProductionEntry("plugin:variant-proposal");
+  out.push_back(std::move(variant));
+
+  FormulaDescriptor cost = makeDescriptor(
+      formula::kVariantAnalyticPrior, "operator/rvv-variant",
+      FormulaResultKind::AnalyticPrior,
+      FormulaConstructionStrength::ConstructedWeak,
+      "RVVSelectedVariantFacts", {"typed-body-kind"},
+      FormulaAxisUse::Decisive, "RVVCapabilityProjection", {"rvv-available"},
+      FormulaAxisUse::HonestNull, "RVVCostNoStaticContext");
+  cost.addSemanticCase("vector-paradigm-prior");
+  cost.addProductionEntry("plugin:analytic-cost");
+  out.push_back(std::move(cost));
+
+  FormulaDescriptor vector = makeDescriptor(
+      formula::kVectorSourceConstruction, "operator/vector-elementwise",
+      FormulaResultKind::TypedPlan, FormulaConstructionStrength::Strong,
+      "RVVVectorSourceGeometryFacts", {"opcode", "element-type", "predicate"},
+      FormulaAxisUse::Decisive, "RVVCapabilityProjection",
+      {"minimum-vlen", "supported-lmul"}, FormulaAxisUse::HonestNull,
+      "RVVVectorNoStaticContext");
+  vector.addSemanticCase("binary");
+  vector.addSemanticCase("compare-select");
+  vector.addSemanticCase("runtime-scalar-compare-select");
+  addRVVVectorSourceFormulaProductionEntries(vector);
+  out.push_back(std::move(vector));
+
+  auto addSingleSource = [&](llvm::StringRef id, llvm::StringRef domain,
+                             llvm::StringRef gType,
+                             std::initializer_list<llvm::StringRef> gFields,
+                             FormulaAxisUse capabilityUse,
+                             llvm::StringRef cType,
+                             std::initializer_list<llvm::StringRef> cFields,
+                             llvm::StringRef semanticCase,
+                             llvm::StringRef productionEntry,
+                             FormulaConstructionStrength strength) {
+    FormulaDescriptor descriptor = makeDescriptor(
+        id, domain, FormulaResultKind::TypedPlan, strength, gType, gFields,
+        capabilityUse, cType, cFields, FormulaAxisUse::HonestNull,
+        "RVVNoStaticContext");
+    descriptor.addSemanticCase(semanticCase);
+    descriptor.addSemanticCase("unsupported-or-illegal");
+    descriptor.addProductionEntry(productionEntry);
+    out.push_back(std::move(descriptor));
+  };
+
+  addSingleSource(formula::kReductionSourceConstruction,
+                  "operator/reduction", "RVVReductionGeometryFacts",
+                  {"element-type", "reduction-kind", "shape"},
+                  FormulaAxisUse::Decisive, "RVVCapabilityProjection",
+                  {"supported-lmul", "vector-register-budget"},
+                  "widening-dot-reduce", formula::kReductionSourceEntry,
+                  FormulaConstructionStrength::Strong);
+  addSingleSource(formula::kDequantDotSourceConstruction,
+                  "operator/dequant-dot", "RVVDequantDotGeometryFacts",
+                  {"scale-kind", "element-type", "shape"},
+                  FormulaAxisUse::Decisive, "RVVCapabilityProjection",
+                  {"supported-lmul", "vector-register-budget"},
+                  "widening-dot-reduce-with-scale",
+                  formula::kDequantDotSourceEntry,
+                  FormulaConstructionStrength::Strong);
+  addSingleSource(formula::kDequantizeRowConstruction,
+                  "operator/dequantize-row", "DequantizeRowStreamFacts",
+                  {"format", "qk", "layout", "decode-mechanism"},
+                  FormulaAxisUse::HonestNull,
+                  "DequantizeRowConstructionNoCapabilityInput", {},
+                  "typed-streaming-dequantize-row",
+                  formula::kDequantizeRowSourceEntry,
+                  FormulaConstructionStrength::ConstructedWeak);
+  FormulaDescriptor quantize = makeDescriptor(
+      formula::kQuantizeRowConstruction, "operator/quantize-row",
+      FormulaResultKind::TypedPlan,
+      FormulaConstructionStrength::ConstructedWeak,
+      "QuantizeRowGeometryFacts", {"source-leaf"},
+      FormulaAxisUse::HonestNull, "QuantizeRowNoCapabilityInput", {},
+      FormulaAxisUse::HonestNull, "QuantizeRowNoStaticContext");
+  quantize.addSemanticCase("q8-0");
+  quantize.addSemanticCase("q8-1");
+  quantize.addSemanticCase("q8-k");
+  quantize.addSemanticCase("unsupported-or-illegal");
+  quantize.addProductionEntry(formula::kQuantizeRowSourceEntry);
+  out.push_back(std::move(quantize));
+  addSingleSource(formula::kElementwiseConstruction,
+                  "operator/elementwise", "ElementwiseStreamFacts",
+                  {"operation", "shape", "element-type"},
+                  FormulaAxisUse::HonestNull,
+                  "ElementwiseNoCapabilityInput", {},
+                  "typed-streaming-elementwise", formula::kElementwiseSourceEntry,
+                  FormulaConstructionStrength::ConstructedWeak);
+  addSingleSource(formula::kPackedI4DotConstruction,
+                  "operator/packed-i4-dot", "PackedI4DotGeometryFacts",
+                  {"qk", "carrier", "offset-binary-bias"},
+                  FormulaAxisUse::Decisive, "RVVCapabilityProjection",
+                  {"minimum-vlen", "supported-lmul"},
+                  "packed-i4-offset-binary-dot",
+                  formula::kPackedI4DotSourceEntry,
+                  FormulaConstructionStrength::Strong);
+  addSingleSource(formula::kCodebookDotConstruction,
+                  "operator/codebook-dot", "CodebookDotGeometryFacts",
+                  {"qk", "codebook-entries", "layout"},
+                  FormulaAxisUse::Decisive, "RVVCapabilityProjection",
+                  {"minimum-vlen", "supported-lmul"},
+                  "codebook-gather-dot", formula::kCodebookDotSourceEntry,
+                  FormulaConstructionStrength::Strong);
+
+  FormulaDescriptor monolithic = makeDescriptor(
+      formula::kMonolithicBlockDotConstruction, "operator/block-dot",
+      FormulaResultKind::TypedPlan,
+      FormulaConstructionStrength::ConstructedWeak,
+      "MonolithicBlockDotGeometryFacts",
+      {"format", "scale-model", "qk", "block-layout", "runtime-abi"},
+      FormulaAxisUse::Decisive, "RVVCapabilityProjection",
+      {"minimum-vlen", "supported-lmul", "vector-register-budget"},
+      FormulaAxisUse::Decisive, "RVVBlockDotStaticContext");
+  monolithic.getStaticContextAxis().addConsumedField("gemv-or-gemm-regime");
+  for (const MonolithicBlockDotOpEntry &entry : monolithicBlockDotOpTable()) {
+    monolithic.addSemanticCase(entry.kind);
+    monolithic.addProductionEntry(entry.passArgument);
+  }
+  out.push_back(std::move(monolithic));
+
+  FormulaDescriptor direct = makeDescriptor(
+      formula::kLowerQuantContractionConstruction, "operator/contraction",
+      FormulaResultKind::CandidateSet,
+      FormulaConstructionStrength::ConstructedWeak,
+      "LowerQuantContractionGeometryFacts",
+      {"weight-format", "activation-format", "shape", "layout"},
+      FormulaAxisUse::Decisive, "RVVCapabilityProjection",
+      {"minimum-vlen", "supported-lmul", "vector-register-budget"},
+      FormulaAxisUse::Decisive, "ContractionStaticRegime");
+  direct.getStaticContextAxis().addConsumedField("gemv-or-gemm");
+  direct.addSemanticCase("direct");
+  direct.addSemanticCase("dequantize-first");
+  direct.addSemanticCase("repack-gemv");
+  direct.addSemanticCase("repack-gemm");
+  direct.addSemanticCase("unsupported-reject");
+  direct.addProductionEntry(formula::kLowerQuantContractionDirectEntry);
+  out.push_back(std::move(direct));
+
+  auto addInternal = [&](llvm::StringRef id, llvm::StringRef domain,
+                         FormulaResultKind kind, llvm::StringRef gType,
+                         std::initializer_list<llvm::StringRef> gFields,
+                         FormulaAxisUse cUse, llvm::StringRef cType,
+                         std::initializer_list<llvm::StringRef> cFields,
+                         FormulaAxisUse omegaUse, llvm::StringRef omegaType,
+                         std::initializer_list<llvm::StringRef> omegaFields,
+                         std::initializer_list<llvm::StringRef> cases,
+                         llvm::StringRef entry,
+                         FormulaConstructionStrength strength) {
+    FormulaDescriptor descriptor = makeDescriptor(
+        id, domain, kind, strength, gType, gFields, cUse, cType, cFields,
+        omegaUse, omegaType);
+    addDecisiveFields(descriptor.getStaticContextAxis(), omegaFields);
+    for (llvm::StringRef semanticCase : cases)
+      descriptor.addSemanticCase(semanticCase);
+    descriptor.addProductionEntry(entry);
+    out.push_back(std::move(descriptor));
+  };
+  auto addDequantPlan =
+      [&](llvm::StringRef id, llvm::StringRef gType,
+          std::initializer_list<llvm::StringRef> gFields,
+          FormulaAxisUse cUse, llvm::StringRef cType,
+          std::initializer_list<llvm::StringRef> cFields,
+          std::initializer_list<llvm::StringRef> cases,
+          llvm::StringRef entry) {
+        addInternal(id, "operator/dequantize-row",
+                    FormulaResultKind::TypedPlan, gType, gFields, cUse,
+                    cType, cFields, FormulaAxisUse::HonestNull,
+                    "DequantNoStaticContext", {}, cases, entry,
+                    FormulaConstructionStrength::ConstructedWeak);
+      };
+  addDequantPlan(formula::kDequantInt8ScalePlan,
+                 "Int8ScaleGeometryFacts",
+                 {"qk", "block-stride", "scale-offset", "quant-offset"},
+                 FormulaAxisUse::HonestNull,
+                 "DequantNoCapabilityInput", {}, {"q8_0"},
+                 "internal:dequant-int8-scale-plan");
+  addDequantPlan(formula::kDequantNibblePlan,
+                 "NibbleDecodeGeometryFacts",
+                 {"qk", "block-stride", "scale-offset", "quant-offset",
+                  "nibble-bias", "min-offset", "high-bit-offset"},
+                 FormulaAxisUse::HonestNull,
+                 "NibbleDecodeNoCapabilityInput", {},
+                 {"q4_0", "q4_1", "q5_0", "q5_1", "q4_synth"},
+                 "internal:dequant-nibble-plan");
+  addDequantPlan(formula::kDequantBinarySignPlan,
+                 "BinarySignGeometryFacts",
+                 {"qk", "block-stride", "scale-offset", "quant-offset"},
+                 FormulaAxisUse::HonestNull,
+                 "DequantNoCapabilityInput", {}, {"q1_0"},
+                 "internal:dequant-binary-sign-plan");
+  addDequantPlan(formula::kDequantKQuantPlan,
+                 "KQuantScaleMinGeometryFacts",
+                 {"scale-model", "qk", "block-stride", "scale-offset",
+                  "quant-offset"},
+                 FormulaAxisUse::HonestNull,
+                 "DequantNoCapabilityInput", {},
+                 {"q2_K", "q3_K", "q4_K", "q5_K", "q6_K"},
+                 "internal:dequant-kquant-plan");
+  addDequantPlan(formula::kDequantCodebookPlan,
+                 "CodebookGatherGeometryFacts",
+                 {"scale-model", "qk", "block-stride", "scale-offset",
+                  "quant-offset"},
+                 FormulaAxisUse::Decisive,
+                 "CodebookGatherCapabilityFacts",
+                 {"minimum-vlen", "supported-sew", "supported-lmul"},
+                 {"iq4_nl", "iq4_xs", "mxfp4", "nvfp4"},
+                 "internal:dequant-codebook-plan");
+  addDequantPlan(formula::kDequantGridPlan,
+                 "GridLookupGeometryFacts",
+                 {"grid-leaf", "entry-lanes"},
+                 FormulaAxisUse::HonestNull,
+                 "DequantNoCapabilityInput", {},
+                 {"iq2_xxs", "iq2_xs", "iq2_s", "iq3_xxs", "iq3_s"},
+                 "internal:dequant-grid-plan");
+  addDequantPlan(formula::kDequantTernaryPlan,
+                 "TernaryDecodeGeometryFacts",
+                 {"ternary-leaf", "entry-lanes"},
+                 FormulaAxisUse::HonestNull,
+                 "DequantNoCapabilityInput", {},
+                 {"iq1_s", "iq1_m", "tq1_0", "tq2_0"},
+                 "internal:dequant-ternary-plan");
+  {
+    FormulaDescriptor schedule = makeDescriptor(
+        formula::kScheduleFormula, "operator/block-dot",
+        FormulaResultKind::ResourceSchedule,
+        FormulaConstructionStrength::Strong, "RVVScheduleGeometryFacts",
+        {"kernel-key"}, FormulaAxisUse::Decisive,
+        "RVVScheduleCapabilityFacts",
+        {"minimum-vlen", "vector-register-budget"},
+        FormulaAxisUse::HonestNull, "RVVScheduleNoStaticContext");
+    for (llvm::StringRef kernelKey : getRVVScheduleFormulaKernelKeys())
+      schedule.addSemanticCase(kernelKey);
+    schedule.addProductionEntry("internal:schedule-formula-registry");
+    out.push_back(std::move(schedule));
+  }
+  addInternal(formula::kLowPrecisionResourceSchedule,
+              "operator/low-precision-resource",
+              FormulaResultKind::ResourceSchedule,
+              "RVVLowPrecisionResourceGeometryFacts",
+              {"operation", "operand-encoding", "typed-widths", "policy"},
+              FormulaAxisUse::Decisive, "RVVCapabilityProjection",
+              {"vector-register-budget"}, FormulaAxisUse::HonestNull,
+              "RVVLowPrecisionResourceNoStaticContext", {},
+              {"deferred-wide", "grouped-narrow", "packed-i4-narrow"},
+              "internal:selected-body-low-precision-formula",
+              FormulaConstructionStrength::Strong);
+  addInternal(formula::kDotReduceResourceSchedule,
+              "operator/widening-dot-reduce",
+              FormulaResultKind::ResourceSchedule,
+              "RVVDotReduceScheduleGeometryFacts",
+              {"source-width", "result-width"}, FormulaAxisUse::Decisive,
+              "RVVCapabilityProjection", {"vector-register-budget"},
+              FormulaAxisUse::Decisive, "RVVDotReduceScheduleContext",
+              {"explicit-structure"},
+              {"per-iteration", "deferred-accumulate"},
+              "internal:selected-body-dot-reduce-formula",
+              FormulaConstructionStrength::Strong);
+  addInternal(formula::kStandaloneDequantSchedule,
+              "operator/standalone-dequantize",
+              FormulaResultKind::ResourceSchedule,
+              "RVVStandaloneDequantGeometryFacts",
+              {"source-width", "result-width", "dequant-relation"},
+              FormulaAxisUse::HonestNull,
+              "RVVStandaloneDequantNoCapabilityInput", {},
+              FormulaAxisUse::HonestNull,
+              "RVVStandaloneDequantNoStaticContext", {}, {"unroll-2"},
+              "direct:selected-body-standalone-dequant",
+              FormulaConstructionStrength::Strong);
+  addInternal(formula::kRepackSchedule, "operator/repack",
+              FormulaResultKind::ResourceSchedule, "RepackScheduleGeometry",
+              {"fold-model", "strides", "qk", "interleave", "half-lanes",
+               "integer-core-lmul"}, FormulaAxisUse::Decisive,
+              "RVVCapabilityProjection",
+              {"minimum-vlen", "vector-register-budget"},
+              FormulaAxisUse::Decisive, "RepackScheduleStaticContext",
+              {"operation-regime"}, {"loop-order", "main-term-form"},
+              "internal:repack-schedule-formula",
+              FormulaConstructionStrength::Strong);
+  addInternal(formula::kRepackAccumulatorLMUL, "operator/repack",
+              FormulaResultKind::CandidateSet,
+              "RepackAccumulatorGeometryFacts", {"weight-interleave"},
+              FormulaAxisUse::Decisive, "RepackAccumulatorCapabilityFacts",
+              {"fractional-lmul", "half-lanes", "vector-register-budget"},
+              FormulaAxisUse::HonestNull, "RepackFormulaNoStaticContext", {},
+              {"mf2-legal", "m1-only", "empty-legal-set"},
+              "internal:repack-accumulator-lmul",
+              FormulaConstructionStrength::Strong);
+  addInternal(formula::kContractionAlgorithm, "operator/contraction",
+              FormulaResultKind::CandidateSet,
+              "ContractionOpponentGeometryFacts",
+              {"weight-format", "activation-format", "shape"},
+              FormulaAxisUse::Decisive, "RVVCapabilityProjection",
+              {"minimum-vlen", "supported-lmul"}, FormulaAxisUse::Decisive,
+              "ContractionStaticRegime", {"gemv-or-gemm"},
+              {"direct", "dequantize-first", "repack"},
+              "internal:contraction-algorithm",
+              FormulaConstructionStrength::Strong);
+  FormulaDescriptor realization = makeDescriptor(
+      formula::kSelectedBodyRealization, "operator/selected-body",
+      FormulaResultKind::DeterministicConstruction,
+      FormulaConstructionStrength::Strong, "SelectedRVVBodyFacts",
+      {"selected-body-kind", "typed-plan"}, FormulaAxisUse::Decisive,
+      "RVVCapabilityProjection", {"supported-lmul", "isa-features"},
+      FormulaAxisUse::HonestNull, "RealizationNoStaticContext");
+  for (const RVVSelectedBodyRealizationOwner &owner :
+       getRVVSelectedBodyRealizationOwners())
+    realization.addSemanticCase(owner.familyName);
+  // This composite is a construction case inside the contraction owner rather
+  // than a fourteenth registry owner; keep that distinction visible.
+  realization.addSemanticCase("contraction/composite-gather-macc-scatter");
+  realization.addProductionEntry("internal:selected-body-realization");
+  out.push_back(std::move(realization));
+}
+
+llvm::Error
 RVVExtensionPlugin::verifyExecutableConstructionConformance() const {
   return rvv::verifyRVVConstructionProtocolReady();
 }
@@ -712,6 +943,7 @@ RVVExtensionPlugin::estimateVariantCost(const VariantCostRequest &request,
   out.setScore(kRVVVectorBaseCost);
   out.setExplicitPreference(true);
   out.setOriginPlugin(kRVVPluginName);
+  out.setFormulaID(formula::kVariantAnalyticPrior);
   out.setVariantSymbol(request.getVariant().getSymName());
   out.setExplanation("explicit typed RVV variant body; vector-paradigm base cost "
                      "DERIVED from the available RVV isa-vector capability fact; "

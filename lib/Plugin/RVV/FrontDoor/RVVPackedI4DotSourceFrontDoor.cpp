@@ -41,6 +41,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "Weft/Plugin/RVV/RVVPackedI4DotSourceFrontDoor.h"
+#include "Weft/Plugin/RVV/RVVFormulaCatalog.h"
 
 #include "Weft/Dialect/Exec/IR/ExecOps.h"
 #include "Weft/Dialect/RVV/IR/RVVDialect.h"
@@ -815,12 +816,12 @@ llvm::Error registerRVVPackedI4DotSourceFrontDoorPasses(
     llvm::SmallVectorImpl<SourceFrontDoorPassRegistration> &out) {
   const ExtensionPluginRegistry *registryPtr = &registry;
   out.push_back(SourceFrontDoorPassRegistration(
-      ownerPlugin,
-      "weft-rvv-materialize-packed-i4-offset-binary-dot-source-front-door",
+      ownerPlugin, formula_catalog::kPackedI4DotSourceEntry,
       "Auto-construct the weft_rvv q4_0 nibble integer-CORE body (load x3 + "
       "packed_i4_offset_binary_x_i8_product + standalone_reduce + store) from a "
       "marked generic nibble-core source (BOUNDED Track B G1: the nibble integer "
       "core only, capability-gated)",
+      formula_catalog::kPackedI4DotConstruction,
       [registryPtr] {
         return createMaterializeRVVPackedI4DotSourceFrontDoorPass(*registryPtr);
       },

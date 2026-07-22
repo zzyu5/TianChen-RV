@@ -27,16 +27,12 @@ namespace weft::plugin::rvv {
 // in place of each abstract per-format weft_rvv.quantize_row_q8_{0,1,K}, and
 // STOPS -- BEFORE --weft-rvv-lower-to-emitc.
 //
-// WHY it exists: constructQuantizeRowRegionAndLower builds the SAME typed region
-// ATOMICALLY inside the emitc lowering (construct-then-erase-then-emit), so a
-// pre-emitc IR dump shows only the abstract op and the certification walker
-// (e5_strong_readout.py) cannot walk the realized typed region. This pass exposes the
-// construction as an explicit pre-emitc step so the walker can walk (and hence
-// machine-CERTIFY) the constructed region. The construction is the SHARED byte-exact
-// weft::rvv::constructTypedQuantizeRowLoopBody, so the emitted C is byte-identical
-// whether the region is built here (pre-emitc) or in emitc (the fallback). The 3
-// constructed activation quantizers are q8_0/q8_1/q8_K. Numerical semantics: zero
-// change.
+// WHY it exists: this optional source front door exposes the same family-local
+// formula construction used by the mandatory project-wide pre-emission cut, so a
+// pipeline can inspect the realized region before lower-to-emitc. The emitter has
+// no abstract-op construction fallback. The 3 constructed-weak activation
+// quantizers are q8_0/q8_1/q8_K; the typed formula result carries the compute leaf
+// and layout while encode_model remains provenance only.
 std::unique_ptr<::mlir::Pass>
 createMaterializeRVVQuantizeRowStreamFrontDoorPass();
 

@@ -101,102 +101,7 @@ bool isAllowedWithVLAttr(llvm::StringRef name) {
          name == kSelectedPathRoleAttrName || name == kStatusAttrName ||
          name == kRequiredCapabilitiesAttrName ||
          name == kRVVConstructionProtocolAttrName ||
-         name == kRVVEmitCRouteMappingAttrName ||
-         name == weft::plugin::rvv::kRVVGearboxCandidateSetAttrName ||
-         name ==
-             weft::plugin::rvv::kRVVGearboxSelectedCandidateAttrName ||
-         name == weft::plugin::rvv::kRVVGearboxSelectionReasonAttrName ||
-         name == weft::plugin::rvv::kRVVGearboxLegalityScopeAttrName ||
-         name == weft::plugin::rvv::kRVVGearboxScheduleIDAttrName ||
-         name == weft::plugin::rvv::kRVVGearboxSelectorAttrName ||
-         name == weft::plugin::rvv::kRVVGearboxSourceAttrName ||
-         name == weft::plugin::rvv::kRVVGearboxOperationAttrName ||
-         name == weft::plugin::rvv::kRVVGearboxUnrollAttrName ||
-         name == weft::plugin::rvv::kRVVGearboxVLPolicyAttrName ||
-         name == weft::plugin::rvv::kRVVGearboxSourceSEWAttrName ||
-         name == weft::plugin::rvv::kRVVGearboxSourceLMULAttrName ||
-         name == weft::plugin::rvv::kRVVGearboxDestSEWAttrName ||
-         name == weft::plugin::rvv::kRVVGearboxDestLMULAttrName ||
-         name ==
-             weft::plugin::rvv::kRVVGearboxRuntimeAVLSourceAttrName ||
-         name == weft::plugin::rvv::kRVVGearboxProducerScopeAttrName ||
-         name == weft::plugin::rvv::kRVVGearboxConsumerScopeAttrName ||
-         weft::plugin::rvv::isRVVLowPrecisionResourceAttrName(name) ||
-         weft::plugin::rvv::isRVVCompositeResourceAttrName(name);
-}
-
-bool isAllowedVSetVLRegionMarkerAttr(llvm::StringRef name) {
-  return name == "phase" || name == "region_index" ||
-         name == "region_count" || name == "resource_decision" ||
-         name == kPlanningContractAttrName;
-}
-
-bool isAllowedGearboxCrossRegionHandoffAttr(llvm::StringRef name) {
-  return name == kContractAttrName || name == kFromPhaseAttrName ||
-         name == kToPhaseAttrName || name == kRegionCountAttrName ||
-         name == kRuntimeAVLSourceAttrName ||
-         name == kResourceDecisionAttrName ||
-         name == kPlanningContractAttrName ||
-         name == kResourceCandidateSetAttrName ||
-         name == kResourceSelectedCandidateAttrName ||
-         name == kResourceCandidateCountAttrName ||
-         name == kResourceLegalCandidateCountAttrName ||
-         name == kResourceSelectedCandidateIndexAttrName ||
-         name == kOperandFormAttrName || name == kPackingLayoutAttrName ||
-         name == kUnpackIntentAttrName ||
-         name == kPackedLoadUnpackContractAttrName ||
-         name == kPackedStorageLoadAttrName ||
-         name == kPackedUnpackPlanAttrName ||
-         name == kPackedUnpackedSourceAttrName ||
-         name == kPeakLiveVectorGroupsAttrName ||
-         name == kVectorRegisterBudgetAttrName ||
-         name == kResourceCostContractAttrName ||
-         name == kResourceCostModelAttrName ||
-         name == kResourceCostLoopBodyStepsAttrName ||
-         name == kResourceCostBlockerAttrName ||
-         name == kPerformanceAdmissionDecisionAttrName ||
-         name == kPerformanceAdmissionClosureAttrName ||
-         name == kPerformanceAdmissionReopenRequirementAttrName ||
-         name == kBeyondLocalRepairAdmissionContractAttrName ||
-         name == kBeyondLocalRepairAdmissionDecisionAttrName ||
-         name == kBeyondLocalRepairAdmissionBlockerAttrName ||
-         name == kBeyondLocalRepairAdmissionReopenRequirementAttrName ||
-         name == kProductRegionIndexAttrName ||
-         name == kDequantRegionIndexAttrName ||
-         name == kClampRegionIndexAttrName ||
-         name == kClampPhaseAttrName ||
-         name == kClampCompareSelectPhaseAttrName ||
-         name == kClampSelectLayoutAttrName ||
-         name == kRemediationPlanContractAttrName ||
-         name == kRemediationPlanAttrName ||
-         name == kRemediationStatementStrategyAttrName ||
-         name == kRemediationVectorBudgetAttrName ||
-         name == kRemediationScheduleContractAttrName ||
-         name == kRemediationUnpackPlanAttrName ||
-         name == kRemediationProductPlanAttrName ||
-         name == kRemediationReductionPlanAttrName ||
-         name == kRemediationVLPlanAttrName ||
-         name == kScheduleDecisionContractAttrName ||
-         name == kScheduleDecisionAttrName ||
-         name == kScheduleDecisionReasonAttrName ||
-         name == kProducerScopeAttrName || name == kConsumerScopeAttrName ||
-         name == kPrimitiveChainContractAttrName ||
-         name == kPrimitiveChainKindAttrName ||
-         name == kPrimitiveSourceSignednessAttrName ||
-         name == kPrimitiveSourceLoadAttrName ||
-         name == kPrimitiveSourceExtensionAttrName ||
-         name == kWideningProductMultiplicandRolesAttrName ||
-         name == kWideningProductExtensionPolicyAttrName ||
-         name == kWideningProductCandidateFactAttrName ||
-         name == kReductionCandidateFactAttrName ||
-         name == kPrimitiveWideningProductRelationAttrName ||
-         name == kPrimitiveProductReductionChainRelationAttrName ||
-         name == kPrimitiveWideningProductIntrinsicAttrName ||
-         name == kPrimitiveReductionIntrinsicAttrName ||
-         name == kPrimitiveScalarSeedSplatIntrinsicAttrName ||
-         name == kPrimitiveAccumulatorLayoutAttrName ||
-         name == kPrimitiveResultLayoutAttrName ||
-         name == kPrimitiveReductionStoreVLAttrName;
+         name == kRVVEmitCRouteMappingAttrName;
 }
 
 bool isAllowedI32LoadAttr(llvm::StringRef) {
@@ -297,10 +202,8 @@ bool isAllowedTypedWideningProductReduceDequantClampF32BodyAttr(
          name == kLowerPredicateKindAttrName ||
          name == kUpperPredicateKindAttrName || name == kBoundOrderAttrName ||
          name == kSelectLayoutAttrName ||
-         name == kDequantStoreBoundaryAttrName || name == kPolicyAttrName ||
-         weft::plugin::rvv::isRVVLowPrecisionResourceAttrName(name) ||
-         name == weft::plugin::rvv::kRVVGearboxProducerScopeAttrName ||
-         name == weft::plugin::rvv::kRVVGearboxConsumerScopeAttrName;
+         name == kDequantStoreBoundaryAttrName ||
+         name == kOperandEncodingAttrName || name == kPolicyAttrName;
 }
 
 bool isAllowedTypedRuntimeScalarComputedMaskStorePreRealizedBodyAttr(
@@ -383,24 +286,8 @@ bool isAllowedTypedWideningDotReducePreRealizedBodyAttr(
          name == kSourceSEWAttrName || name == kSourceLMULAttrName ||
          name == kAccumulatorSEWAttrName || name == kAccumulatorLMULAttrName ||
          name == kResultSEWAttrName || name == kResultLMULAttrName ||
-         name == kDotProductRelationAttrName || name == kPolicyAttrName ||
-         // The deferred-wide dot-reduce autotuner (P-B8) stamps ONLY the
-         // architectural vreg-file budget resource fact on this body -- the
-         // resource-aware selector consumes it to choose narrow-vs-wide
-         // accumulator LMUL. Minimal by design: the body carries no other
-         // low-precision mirror facts (unlike the dequant body), so the
-         // narrow dot-reduce route's header/withVL never inherit them.
-         name ==
-             weft::plugin::rvv::
-                 kRVVLowPrecisionResourceVectorRegisterBudgetAttrName ||
-         // N3 Win-C: the orthogonal reduction-STRUCTURE fact (deferred-accumulate
-         // vs per-iteration reduce). Like the budget, it is a pre-realization
-         // resource fact the selector consumes and the realizer erases with the
-         // body; it is never a low_precision_resource MIRROR copied onto a
-         // realized op (held off isRVVLowPrecisionResourceAttrName on purpose).
-         name ==
-             weft::plugin::rvv::
-                 kRVVLowPrecisionResourceReductionStructureAttrName;
+         name == kDotProductRelationAttrName ||
+         name == kReductionStructureAttrName || name == kPolicyAttrName;
 }
 
 bool isAllowedTypedStridedInputWideningDotReducePreRealizedBodyAttr(
@@ -468,10 +355,8 @@ bool isAllowedTypedWideningProductReduceDequantizePreRealizedBodyAttr(
          name == kProductRelationAttrName ||
          name == kProductReductionChainRelationAttrName ||
          name == kDequantRelationAttrName || name == kScaleRoleAttrName ||
-         name == kDequantStoreBoundaryAttrName || name == kPolicyAttrName ||
-         weft::plugin::rvv::isRVVLowPrecisionResourceAttrName(name) ||
-         name == weft::plugin::rvv::kRVVGearboxProducerScopeAttrName ||
-         name == weft::plugin::rvv::kRVVGearboxConsumerScopeAttrName;
+         name == kDequantStoreBoundaryAttrName ||
+         name == kOperandEncodingAttrName || name == kPolicyAttrName;
 }
 
 bool isAllowedTypedWideningConversionPreRealizedBodyAttr(
@@ -783,25 +668,7 @@ bool isAllowedWideningConvertAttr(llvm::StringRef name) {
 }
 
 bool isAllowedDequantizeAttr(llvm::StringRef name) {
-  return name == "kind" || name == kDequantRelationAttrName ||
-         name == weft::plugin::rvv::kRVVGearboxCandidateSetAttrName ||
-         name ==
-             weft::plugin::rvv::kRVVGearboxSelectedCandidateAttrName ||
-         name == weft::plugin::rvv::kRVVGearboxSelectionReasonAttrName ||
-         name == weft::plugin::rvv::kRVVGearboxLegalityScopeAttrName ||
-         name == weft::plugin::rvv::kRVVGearboxScheduleIDAttrName ||
-         name == weft::plugin::rvv::kRVVGearboxSelectorAttrName ||
-         name == weft::plugin::rvv::kRVVGearboxSourceAttrName ||
-         name == weft::plugin::rvv::kRVVGearboxOperationAttrName ||
-         name == weft::plugin::rvv::kRVVGearboxUnrollAttrName ||
-         name == weft::plugin::rvv::kRVVGearboxVLPolicyAttrName ||
-         name == weft::plugin::rvv::kRVVGearboxSourceSEWAttrName ||
-         name == weft::plugin::rvv::kRVVGearboxSourceLMULAttrName ||
-         name == weft::plugin::rvv::kRVVGearboxDestSEWAttrName ||
-         name == weft::plugin::rvv::kRVVGearboxDestLMULAttrName ||
-         name == weft::plugin::rvv::kRVVGearboxRuntimeAVLSourceAttrName ||
-         name == weft::plugin::rvv::kRVVGearboxProducerScopeAttrName ||
-         name == weft::plugin::rvv::kRVVGearboxConsumerScopeAttrName;
+  return name == "kind" || name == kDequantRelationAttrName;
 }
 
 bool isAllowedMoveAttr(llvm::StringRef name) { return name == "kind"; }

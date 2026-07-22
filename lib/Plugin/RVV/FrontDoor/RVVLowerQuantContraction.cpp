@@ -62,7 +62,7 @@
 #include "Weft/Plugin/RVV/RVVContractionPathSelection.h"
 #include "Weft/Plugin/RVV/RVVFormulaDecision.h"
 #include "Weft/Plugin/RVV/RVVGearboxSchedule.h"
-#include "Weft/Plugin/RVV/RVVRepackTilingSelection.h"
+#include "Weft/Plugin/RVV/RVVRepackScheduleFormula.h"
 #include "Weft/Support/CapabilityModel.h"
 #include "Weft/Support/DeclaredInstanceHash.h"
 
@@ -110,32 +110,6 @@ constexpr llvm::StringLiteral kMaterializationAttr =
 // (RVVDialectWideningOps.cpp GgmlRepackGemvQ40Q80Op::verify isAllowedAttr).
 constexpr llvm::StringLiteral kWeightLayoutContractAttr =
     "weft_rvv.weight_layout_contract";
-
-// [G3 主线C / SEL-1] the SP4 output-tiling selection stamped on the constructed
-// GEMM loop body. `tiling_variant` is code-affecting authority; its reason is
-// validated attribution and never gates realization. The pre-emission verifier
-// rejects absence or a value with no real body. `tiling_selection_record` is only
-// an inert diagnostic mirror: emission never reads it, and A5 owns its lineage,
-// freshness, and evidence qualification.
-constexpr llvm::StringLiteral kTilingVariantAttr = "weft_rvv.tiling_variant";
-constexpr llvm::StringLiteral kTilingReasonAttr =
-    "weft_rvv.tiling_selection_reason";
-constexpr llvm::StringLiteral kTilingRecordAttr =
-    "weft_rvv.tiling_selection_record";
-
-// [M1c / SEL-1] the SECOND SP schedule axis the selection step stamps on the same
-// constructed prefill-GEMM loop-body op: the OUTER group-loop ORDER (col_outer /
-// row_outer). Parallel to the SP4 tiling attrs. weft_rvv.loop_order = the
-// capability-keyed order; loop_order_selection_reason the discrete lit-CHECKable
-// reason; loop_order_selection_record the full [D-4] JSONL line (SAME
-// declared_instance_hash). The EmitC emitter REALIZES weft_rvv.loop_order in the
-// q4_K min-fold GEMM two-arm body (the M1b interchange). Absence is invalid; the
-// emitter never recomputes the stride prior.
-constexpr llvm::StringLiteral kLoopOrderAttr = "weft_rvv.loop_order";
-constexpr llvm::StringLiteral kLoopOrderReasonAttr =
-    "weft_rvv.loop_order_selection_reason";
-constexpr llvm::StringLiteral kLoopOrderRecordAttr =
-    "weft_rvv.loop_order_selection_record";
 
 // [档 C#9 / full-LMUL[B]] the repack accumulator-LMUL (m1 whole-LMUL vs mf2 fractional
 // core) selection PROVENANCE the front-door stamps on every constructed repack loop
@@ -1358,24 +1332,29 @@ inline pluginrvv::RepackAccumulatorLMULDecision
 buildRepackAccumulatorLMULDecision(weftrvv::GgmlQuantContractionOp op,
                                    std::optional<bool> hasFractionalLMUL,
                                    std::int64_t capabilityHalfLanes) {
-  pluginrvv::RepackAccumulatorLMULStaticContext omega;
+  pluginrvv::RepackAccumulatorLMULFormulaResult formula =
+      pluginrvv::constructRepackAccumulatorLMULFormula(
+          /*g=*/{/*weightInterleave=*/kWeightInterleave},
+          /*c=*/{/*hasFractionalLMUL=*/hasFractionalLMUL,
+                 /*halfLanes=*/capabilityHalfLanes,
+                 /*vectorRegisterBudget=*/
+                     pluginrvv::resolveRVVVectorRegisterBudget(
+                         op->getParentOfType<mlir::ModuleOp>())},
+          pluginrvv::RepackAccumulatorLMULNoStaticContext{});
+
+  // Winner memory is consulted only after the formula has constructed the
+  // complete legal set and analytic prior.  It cannot alter either one.
+  pluginrvv::RepackAccumulatorLMULSelectionInput selectionInput;
   if (std::optional<bool> measuredM1Faster =
           lookupRepackMeasuredM1Faster(op.getScaleModel())) {
-    omega.measurement = pluginrvv::RepackAccumulatorLMULQualifiedMeasurement{
+    selectionInput.measurement =
+        pluginrvv::RepackAccumulatorLMULQualifiedMeasurement{
         /*key=*/{op.getScaleModel()},
         /*winner=*/*measuredM1Faster
             ? pluginrvv::RepackAccumulatorLMULCandidate::M1
             : pluginrvv::RepackAccumulatorLMULCandidate::MF2};
   }
-
-  return pluginrvv::decideRepackAccumulatorLMUL(
-      /*g=*/{/*weightInterleave=*/kWeightInterleave},
-      /*c=*/{/*hasFractionalLMUL=*/hasFractionalLMUL,
-             /*halfLanes=*/capabilityHalfLanes,
-             /*vectorRegisterBudget=*/
-                 pluginrvv::resolveRVVVectorRegisterBudget(
-                     op->getParentOfType<mlir::ModuleOp>())},
-      omega);
+  return pluginrvv::selectRepackAccumulatorLMUL(formula, selectionInput);
 }
 
 template <typename LoopOp>
@@ -1426,16 +1405,6 @@ private:
       facts.ggmlVlenNativeKernelFloor = floor.getInt();
     facts.blockDotComputeHeavy = op.getBlockDotComputeHeavy().value_or(false);
     facts.blockDotMemoryBound = op.getBlockDotMemoryBound().value_or(false);
-    // [G8 六.3] Fact 3-MEASURED: consult the board-seeded per-format VLEN256-decode
-    // repack registry keyed on the committed decode-family scale_model WHAT (the SAME key
-    // the CONSTRUCTION dispatch uses; NOT the optional `quant` label -- deleting `quant`
-    // and keeping the facts still routes identically). An UNMEASURED scale_model leaves the
-    // fact nullopt => the selector's conservative VLEN256-decode decline. The selector reads
-    // ONLY this fact (it never sees the registry key), so it stays blind to the format label.
-    if (std::optional<Vlen256DecodeRepackDisposition> disp =
-            lookupRepackVlen256Decode(op.getScaleModel()))
-      facts.vlen256DecodeRepackBeneficial =
-          (*disp == Vlen256DecodeRepackDisposition::Beneficial);
     return facts;
   }
 
@@ -1451,33 +1420,44 @@ private:
                        << op.getMRegime() << "\"");
   }
 
-  // [G3 主线C / SEL-1] T3: the SHARED SP4 output-tiling SELECTION + stamp, invoked at
-  // EVERY repack GEMM loop-body construction point (q4_0 flat, K-quant min-fold +
-  // no-min, codebook). The tiled-vs-plain choice that was a COMPILE-TIME per-format
-  // hardcode inside emitTypedRepackGemmLoopBody (the gate (7) gap) is a TARGET-
-  // CAPABILITY-KEYED selection keyed on the BOTTLENECK SHAPE derived from fold_model (a
-  // structure / capability fact), NEVER the format name -- so a pattern migrates
-  // "换键不改条目" and format-name dispatch mechanically cannot recur. Two-stage
-  // (RVVRepackTilingSelection.h): legality keeps only variants with a real body for
-  // the fold-derived shape. Min-fold therefore has only S6Tiled; dual-plane/already-
-  // lean have only Plain. Historical SP4 measurements remain evidence, not a winner
-  // lookup over a fake alternative. For an empty feasible set (no capability fact),
-  // the caller receives no choice and fails closed. The chosen variant + reason are
-  // stamped for the EmitC emitter's PURE REALIZE (absence fails before emission); the
-  // full [D-4] JSONL diagnostic mirror
-  // (reusing the SAME support::computeDeclaredInstanceHash the exec/schedule sinks use)
-  // rides an inert in-IR attr. A fold_model with NO output-tiling axis (ternary,
-  // non-repack) classifies to std::nullopt and is a NO-OP (no stamp).
-  mlir::LogicalResult
-  stampScheduleSelections(mlir::OpBuilder &builder,
-                          weftrvv::TypedRepackGemmLoopBodyOp loop,
-                          llvm::StringRef foldModel, llvm::StringRef kernel,
-                          weftrvv::GgmlQuantContractionOp op) {
-    // The declared-instance hash: the SAME [D-4](1)/[D-2a] hash the exec / schedule
-    // sinks compute (support::computeDeclaredInstanceHash of the enclosing kernel's
-    // expanded capability instance). Best-effort: an unbuildable / non-conforming
-    // instance leaves it empty (the measurement key then simply MISSES => cold start).
-    // Shared by BOTH schedule axes below, so it is derived BEFORE either.
+  /// Construct the complete repack schedule before the typed loop operation is
+  /// created.  OperationState receives only final code-affecting fields; candidate
+  /// sets, priors, winner lookup and diagnostics remain transient C++ values.
+  mlir::LogicalResult addRepackScheduleFormula(
+      mlir::OpBuilder &builder, mlir::OperationState &loopState,
+      llvm::StringRef kernel, pluginrvv::RVVRepackScheduleRegime regime,
+      weftrvv::GgmlQuantContractionOp op) {
+    auto getI64 = [&](llvm::StringRef name) -> std::optional<std::int64_t> {
+      auto attr = llvm::dyn_cast_or_null<mlir::IntegerAttr>(
+          loopState.attributes.get(name));
+      if (!attr)
+        return std::nullopt;
+      return attr.getInt();
+    };
+    auto getString = [&](llvm::StringRef name) -> llvm::StringRef {
+      auto attr = llvm::dyn_cast_or_null<mlir::StringAttr>(
+          loopState.attributes.get(name));
+      return attr ? attr.getValue() : llvm::StringRef();
+    };
+
+    const std::optional<std::int64_t> weightStride =
+        getI64("weight_block_stride");
+    const std::optional<std::int64_t> activationStride =
+        getI64("activation_block_stride");
+    const std::optional<std::int64_t> qk = getI64("qk");
+    const std::optional<std::int64_t> weightInterleave =
+        getI64("weight_interleave");
+    std::optional<std::int64_t> activationInterleave =
+        getI64("activation_interleave");
+    if (!activationInterleave &&
+        regime == pluginrvv::RVVRepackScheduleRegime::Gemv)
+      activationInterleave = 1;
+    const std::optional<std::int64_t> halfLanes = getI64("half_lanes");
+    if (!weightStride || !activationStride || !qk || !weightInterleave ||
+        !activationInterleave || !halfLanes)
+      return op.emitOpError(
+          "cannot construct repack schedule without complete typed geometry");
+
     std::string declaredInstanceHash;
     if (auto kernelOp = op->getParentOfType<weft::exec::KernelOp>()) {
       if (llvm::Expected<support::TargetCapabilitySet> capabilities =
@@ -1488,99 +1468,51 @@ private:
         llvm::consumeError(capabilities.takeError());
     }
 
-    // The DERIVED capability facts: the guaranteed minimum VLEN of the configured
-    // target + the HARD 32-vector-register ISA fact. Shared by both axes. PULLED to
-    // the in-IR provider fact (resolveRVVMinimumVLEN reads the typed minimum_vlen off
-    // the RVV capability provider op; -march is only the un-probed fallback) -- so a
-    // decisive-experiment provider minimum_vlen wins over -march.
-    std::int64_t minVLEN = pluginrvv::resolveRVVMinimumVLEN(
+    const std::int64_t minimumVLEN = pluginrvv::resolveRVVMinimumVLEN(
         op->getParentOfType<mlir::ModuleOp>(), march, isaVectorHints);
 
-    // Construct the complete two-axis plan in local values before mutating the op.
-    // Stamping then has one mutation phase: no loop-order-only prefix is written if
-    // SP4 construction or an invariant fails. This is not a rollback transaction.
-    const bool isPrefillGemm = op.getMRegime() == "prefill";
-    const std::int64_t weightStride =
-        static_cast<std::int64_t>(loop.getWeightBlockStride());
-    const std::int64_t activationStride =
-        static_cast<std::int64_t>(loop.getActivationBlockStride());
-    std::optional<pluginrvv::RVVLoopOrderMeasurementHit> loopMeasurement =
-        pluginrvv::lookupLoopOrderMeasurement(declaredInstanceHash, kernel);
-    std::optional<pluginrvv::RVVRepackLoopOrderChoice> loopChoice =
-        pluginrvv::selectRepackLoopOrder(
-            weightStride, activationStride, isPrefillGemm, minVLEN,
-            kRVVArchVectorRegisterCount, loopMeasurement);
-    llvm::SmallVector<pluginrvv::RVVRepackLoopOrder, 2> loopCandidates =
-        pluginrvv::loopOrderFeasibleSet(isPrefillGemm, minVLEN,
-                                        kRVVArchVectorRegisterCount);
-    if (!loopChoice)
-      return loop.emitOpError(
-          "cannot construct a loop-order selection without a realizable "
-          "prefill schedule and target resource facts");
-    std::string loopRecord =
-        pluginrvv::buildLoopOrderSelectionAttributionRecord(
-            kernel, loopCandidates, loopChoice->order, loopChoice->reason,
-            declaredInstanceHash, /*noTimestamp=*/true);
+    pluginrvv::RVVRepackScheduleGeometryFacts g{
+        *weightStride, *activationStride, *qk, *weightInterleave,
+        *activationInterleave, *halfLanes, getString("integer_core_lmul"),
+        getString("fold_model")};
+    pluginrvv::RVVRepackScheduleCapabilityFacts c{
+        minimumVLEN, kRVVArchVectorRegisterCount};
+    pluginrvv::RVVRepackScheduleContext omega{regime};
+    std::optional<pluginrvv::RVVRepackScheduleFormulaResult> formula =
+        pluginrvv::constructRVVRepackScheduleFormula(g, c, omega);
+    if (!formula)
+      return op.emitOpError(
+          "cannot construct a legal repack schedule from typed g/c/omega");
 
-    // ---- AXIS 2: the SP4 output-tiling axis. A fold_model with NO output-tiling
-    // axis (ternary, non-repack) keeps the optional part honestly absent.
-    std::optional<pluginrvv::RVVTilingBottleneckShape> shape =
-        pluginrvv::classifyTilingBottleneckShape(foldModel);
-    std::optional<pluginrvv::RVVRepackTilingChoice> tilingChoice;
-    llvm::SmallVector<pluginrvv::RVVRepackTilingVariant, 2> tilingCandidates;
-    std::string tilingRecord;
-    if (shape) {
-      tilingCandidates = pluginrvv::tilingVariantFeasibleSet(
-          *shape, minVLEN, kRVVArchVectorRegisterCount);
-      tilingChoice = pluginrvv::selectRepackTilingVariant(
-          *shape, minVLEN, kRVVArchVectorRegisterCount);
-      if (!tilingChoice)
-        return loop.emitOpError(
-            "cannot construct an SP4 selection without a realizable body and "
-            "target resource facts");
-      tilingRecord = pluginrvv::buildTilingSelectionAttributionRecord(
-          kernel, tilingCandidates, tilingChoice->variant,
-          tilingChoice->reason, declaredInstanceHash, /*noTimestamp=*/true);
-    }
+    pluginrvv::RVVRepackScheduleSelectionInput selection;
+    selection.qualifiedLoopOrderWinner =
+        pluginrvv::lookupQualifiedRepackLoopOrderWinner(declaredInstanceHash,
+                                                        kernel);
+    selection.qualifiedMainTermWinner =
+        pluginrvv::lookupQualifiedRepackMainTermWinner(
+            formula->unrolledMainTermVwmacc, g.integerCoreLMUL);
+    pluginrvv::RVVRepackFinalSchedule finalSchedule =
+        pluginrvv::selectRVVRepackSchedule(*formula, selection);
+    if (regime == pluginrvv::RVVRepackScheduleRegime::GemmPrefill &&
+        !finalSchedule.loopOrder)
+      return op.emitOpError("repack GEMM formula produced no final loop order");
+    if (pluginrvv::isRepackKQuantMainTermFold(g.foldModel) &&
+        !finalSchedule.mainTermForm)
+      return op.emitOpError(
+          "K-quant repack formula produced no final main-term form");
 
-    // One mutation phase after the complete plan has been constructed.
-    loop->setAttr(kLoopOrderAttr,
-                  builder.getStringAttr(pluginrvv::stringifyRVVRepackLoopOrder(
-                      loopChoice->order)));
-    loop->setAttr(kLoopOrderReasonAttr,
-                  builder.getStringAttr(
-                      pluginrvv::stringifyRVVTilingSelectionReason(
-                          loopChoice->reason)));
-    loop->setAttr(kLoopOrderRecordAttr, builder.getStringAttr(loopRecord));
-    if (tilingChoice) {
-      loop->setAttr(
-          kTilingVariantAttr,
-          builder.getStringAttr(pluginrvv::stringifyRVVRepackTilingVariant(
-              tilingChoice->variant)));
-      loop->setAttr(
-          kTilingReasonAttr,
-          builder.getStringAttr(pluginrvv::stringifyRVVTilingSelectionReason(
-              tilingChoice->reason)));
-      loop->setAttr(kTilingRecordAttr, builder.getStringAttr(tilingRecord));
-    }
+    if (finalSchedule.loopOrder)
+      loopState.addAttribute(
+          "loop_order",
+          builder.getStringAttr(pluginrvv::stringifyRVVRepackLoopOrder(
+              *finalSchedule.loopOrder)));
+    if (finalSchedule.mainTermForm)
+      loopState.addAttribute(
+          "main_term_form",
+          builder.getStringAttr(pluginrvv::stringifyRVVRepackMainTermForm(
+              *finalSchedule.mainTermForm)));
     return mlir::success();
   }
-
-  // [M1c / SEL-1] the SECOND SP schedule axis: the repack prefill-GEMM OUTER
-  // group-loop ORDER (col-outer / row-outer), lifted from the M1b emitter-inlined
-  // `weightStride >= activationStride` to this first-class capability-keyed
-  // selector axis. Keyed on the e2e REGIME (only the two-group PREFILL GEMM affords
-  // the interchange; the decode GEVM has a single row group) + the repack LAYOUT
-  // STRIDE fact (which repacked panel is the larger DRAM stream), NEVER the format
-  // name. q4_K carries the M1b-board offline A/B seed (reason=measured, col-outer
-  // 2.47x schedule); every other leaf cold-starts the layout prior (reason=prior).
-  // The stride key uses the loop op's OWN declared block strides (the x16-repacked
-  // weight panel vs the x4-repacked activation panel) -- so the key MIGRATES across
-  // formats with zero per-format entries.
-  //
-  // Every live repack-GEMM body receives its loop-order selection as part of the
-  // single complete schedule stamp above. Emission consumes the bounded selected
-  // value directly; reason and attribution never gate realization.
 
   // The IN-COMPILER selection: resolve the target VLEN off the in-IR RVV capability
   // provider op (the pulled pipe -- resolveRVVMinimumVLEN; -march is the un-probed
@@ -1604,8 +1536,26 @@ private:
     std::int64_t minVLEN = pluginrvv::resolveRVVMinimumVLEN(
         op->getParentOfType<mlir::ModuleOp>(), march, isaVectorHints);
 
+    pluginrvv::ContractionAlgorithmFormulaResult formula =
+        pluginrvv::constructContractionAlgorithmFormula(
+            facts, {/*minimumVLEN=*/minVLEN},
+            {/*mRegime=*/*mRegime});
+
+    // The board-qualified residual correction is read only after g/c/omega have
+    // produced the complete legal set and analytic prior.  The selector can
+    // choose one of those candidates; it cannot create a contraction path.
+    pluginrvv::ContractionSelectionInput selectionInput;
+    if (std::optional<Vlen256DecodeRepackDisposition> disposition =
+            lookupRepackVlen256Decode(op.getScaleModel())) {
+      selectionInput.measurement = pluginrvv::ContractionQualifiedMeasurement{
+          /*key=*/{op.getScaleModel()},
+          /*winner=*/
+              *disposition == Vlen256DecodeRepackDisposition::Beneficial
+                  ? pluginrvv::ContractionAlgorithm::Repack
+                  : pluginrvv::ContractionAlgorithm::BlockDot};
+    }
     pluginrvv::ContractionSelection selection =
-        pluginrvv::selectContractionAlgorithm(facts, *mRegime, minVLEN);
+        pluginrvv::selectContractionAlgorithm(formula, selectionInput);
 
     // STAGE C1 (the in-IR BRIDGE): when the selection is Repack AND the target
     // capability supplies a valid e16m1 strip width (minVLEN >= 128 => half_lanes
@@ -2124,6 +2074,10 @@ private:
                            builder.getStringAttr("lane_wise_vector_scale"));
     if (integerCoreLmul)
       loopState.addAttribute("integer_core_lmul", integerCoreLmul);
+    if (mlir::failed(addRepackScheduleFormula(
+            builder, loopState, "q4_0",
+            pluginrvv::RVVRepackScheduleRegime::GemmPrefill, op)))
+      return mlir::failure();
     loopState.addRegion();
     auto loop = llvm::cast<weftrvv::TypedRepackGemmLoopBodyOp>(
         builder.create(loopState));
@@ -2135,15 +2089,6 @@ private:
     stampRepackAccumulatorLMULDecision(builder, loop, accLmulDecision);
     loop->setAttr(kMaterializationAttr, builder.getStringAttr("realized"));
     loop->setAttr(kWeightLayoutContractAttr, builder.getStringAttr("x16"));
-
-    // [SEL-1] T3: the flat q4_0 GEMM SP4 tiling selection. Its fold_model
-    // "lane_wise_vector_scale" classifies AlreadyLean (already <= the 32-vreg cliff,
-    // output tiling a structural no-op) => its sole realized Plain body, with
-    // reason=only_feasible. Historical SP4 measurements do not participate in this
-    // singleton decision.
-    if (mlir::failed(stampScheduleSelections(builder, loop, loop.getFoldModel(),
-                                             "q4_0", op)))
-      return mlir::failure();
 
     // Region entry args: block_index (index), strip_row_offset (index), FOLLOWED
     // by columnsPerPass loop-carried per-column f32 VECTOR accumulators.
@@ -2460,6 +2405,10 @@ private:
                            builder.getStringAttr("lane_wise_vector_scale_min"));
     if (integerCoreLmul)
       loopState.addAttribute("integer_core_lmul", integerCoreLmul);
+    if (mlir::failed(addRepackScheduleFormula(
+            builder, loopState, "q4_1",
+            pluginrvv::RVVRepackScheduleRegime::GemmPrefill, op)))
+      return mlir::failure();
     loopState.addRegion();
     auto loop = llvm::cast<weftrvv::TypedRepackGemmLoopBodyOp>(
         builder.create(loopState));
@@ -2469,12 +2418,6 @@ private:
     stampRepackAccumulatorLMULDecision(builder, loop, accLmulDecision);
     loop->setAttr(kMaterializationAttr, builder.getStringAttr("realized"));
     loop->setAttr(kWeightLayoutContractAttr, builder.getStringAttr("x16"));
-
-    // The q4_1 GEMM SP4 tiling selection classifies AlreadyLean => the sole
-    // realized Plain body, reason=only_feasible.
-    if (mlir::failed(stampScheduleSelections(builder, loop, loop.getFoldModel(),
-                                             "q4_1", op)))
-      return mlir::failure();
 
     mlir::Block &body = loop.getBody().emplaceBlock();
     mlir::Value blockIndex = body.addArgument(builder.getIndexType(), loc);
@@ -2781,6 +2724,10 @@ private:
                            builder.getStringAttr("lane_wise_vector_scale"));
     if (integerCoreLmul)
       loopState.addAttribute("integer_core_lmul", integerCoreLmul);
+    if (mlir::failed(addRepackScheduleFormula(
+            builder, loopState, "q5_0",
+            pluginrvv::RVVRepackScheduleRegime::GemmPrefill, op)))
+      return mlir::failure();
     loopState.addRegion();
     auto loop = llvm::cast<weftrvv::TypedRepackGemmLoopBodyOp>(
         builder.create(loopState));
@@ -2790,10 +2737,6 @@ private:
     stampRepackAccumulatorLMULDecision(builder, loop, accLmulDecision);
     loop->setAttr(kMaterializationAttr, builder.getStringAttr("realized"));
     loop->setAttr(kWeightLayoutContractAttr, builder.getStringAttr("x16"));
-
-    if (mlir::failed(stampScheduleSelections(builder, loop, loop.getFoldModel(),
-                                             "q5_0", op)))
-      return mlir::failure();
 
     mlir::Block &body = loop.getBody().emplaceBlock();
     mlir::Value blockIndex = body.addArgument(builder.getIndexType(), loc);
@@ -3112,6 +3055,10 @@ private:
                            builder.getStringAttr("lane_wise_vector_scale_min"));
     if (integerCoreLmul)
       loopState.addAttribute("integer_core_lmul", integerCoreLmul);
+    if (mlir::failed(addRepackScheduleFormula(
+            builder, loopState, "q5_1",
+            pluginrvv::RVVRepackScheduleRegime::GemmPrefill, op)))
+      return mlir::failure();
     loopState.addRegion();
     auto loop = llvm::cast<weftrvv::TypedRepackGemmLoopBodyOp>(
         builder.create(loopState));
@@ -3121,10 +3068,6 @@ private:
     stampRepackAccumulatorLMULDecision(builder, loop, accLmulDecision);
     loop->setAttr(kMaterializationAttr, builder.getStringAttr("realized"));
     loop->setAttr(kWeightLayoutContractAttr, builder.getStringAttr("x16"));
-
-    if (mlir::failed(stampScheduleSelections(builder, loop, loop.getFoldModel(),
-                                             "q5_1", op)))
-      return mlir::failure();
 
     mlir::Block &body = loop.getBody().emplaceBlock();
     mlir::Value blockIndex = body.addArgument(builder.getIndexType(), loc);
@@ -3423,6 +3366,10 @@ private:
                            builder.getStringAttr("lane_wise_vector_scale"));
     if (integerCoreLmul)
       loopState.addAttribute("integer_core_lmul", integerCoreLmul);
+    if (mlir::failed(addRepackScheduleFormula(
+            builder, loopState, "q8_0",
+            pluginrvv::RVVRepackScheduleRegime::GemmPrefill, op)))
+      return mlir::failure();
     loopState.addRegion();
     auto loop = llvm::cast<weftrvv::TypedRepackGemmLoopBodyOp>(
         builder.create(loopState));
@@ -3432,10 +3379,6 @@ private:
     stampRepackAccumulatorLMULDecision(builder, loop, accLmulDecision);
     loop->setAttr(kMaterializationAttr, builder.getStringAttr("realized"));
     loop->setAttr(kWeightLayoutContractAttr, builder.getStringAttr("x16"));
-
-    if (mlir::failed(stampScheduleSelections(builder, loop, loop.getFoldModel(),
-                                             "q8_0", op)))
-      return mlir::failure();
 
     mlir::Block &body = loop.getBody().emplaceBlock();
     mlir::Value blockIndex = body.addArgument(builder.getIndexType(), loc);
@@ -3756,6 +3699,10 @@ private:
                            builder.getStringAttr("ternary_single_fp16_scale"));
     if (integerCoreLmul)
       loopState.addAttribute("integer_core_lmul", integerCoreLmul);
+    if (mlir::failed(addRepackScheduleFormula(
+            builder, loopState, facts.decodeModel,
+            pluginrvv::RVVRepackScheduleRegime::GemmPrefill, op)))
+      return mlir::failure();
     loopState.addRegion();
     auto loop = llvm::cast<weftrvv::TypedRepackGemmLoopBodyOp>(
         builder.create(loopState));
@@ -3765,20 +3712,6 @@ private:
     stampRepackAccumulatorLMULDecision(builder, loop, accLmulDecision);
     loop->setAttr(kMaterializationAttr, builder.getStringAttr("realized"));
     loop->setAttr(kWeightLayoutContractAttr, builder.getStringAttr("x16"));
-
-    // The ternary GEMM schedule selections. This builder is the ONE typed repack-GEMM
-    // construction point that previously stamped NEITHER axis, so its leaves reached
-    // an emitter that DOES read weft_rvv.loop_order with the attr ABSENT (silently
-    // defaulting to row_outer). The SP4 tiling axis is a genuine no-op here
-    // (ternary_single_fp16_scale classifies to std::nullopt -- no output-tiling axis),
-    // but the loop-order axis IS afforded by the two-group nest and must be stamped.
-    // Emission-neutral today: both ternary leaves carry weightStride < activationStride
-    // (tq1_0 864, tq2_0 1056, vs the q8_K 1168 activation panel), so the layout prior
-    // resolves to row_outer -- the already-shipped nest -- with reason=prior.
-    if (mlir::failed(stampScheduleSelections(
-            builder, loop, "ternary_single_fp16_scale", facts.decodeModel,
-            op)))
-      return mlir::failure();
 
     // Region entry args: block_index (index), strip_row_offset (index), FOLLOWED
     // by columnsPerPass loop-carried per-column f32 VECTOR accumulators.
@@ -3931,6 +3864,10 @@ private:
     loopState.addAttribute("fold_model", builder.getStringAttr(facts.foldModel));
     if (integerCoreLmul)
       loopState.addAttribute("integer_core_lmul", integerCoreLmul);
+    if (mlir::failed(addRepackScheduleFormula(
+            builder, loopState, facts.decodeModel,
+            pluginrvv::RVVRepackScheduleRegime::Gemv, op)))
+      return mlir::failure();
     loopState.addRegion();
     auto loop = llvm::cast<weftrvv::TypedRepackGemvLoopBodyOp>(
         builder.create(loopState));
@@ -4111,6 +4048,10 @@ private:
     loopState.addAttribute("fold_model", builder.getStringAttr(facts.foldModel));
     if (integerCoreLmul)
       loopState.addAttribute("integer_core_lmul", integerCoreLmul);
+    if (mlir::failed(addRepackScheduleFormula(
+            builder, loopState, facts.decodeModel,
+            pluginrvv::RVVRepackScheduleRegime::GemmPrefill, op)))
+      return mlir::failure();
     loopState.addRegion();
     auto loop = llvm::cast<weftrvv::TypedRepackGemmLoopBodyOp>(
         builder.create(loopState));
@@ -4120,19 +4061,6 @@ private:
     stampRepackAccumulatorLMULDecision(builder, loop, accLmulDecision);
     loop->setAttr(kMaterializationAttr, builder.getStringAttr("realized"));
     loop->setAttr(kWeightLayoutContractAttr, builder.getStringAttr("x16"));
-
-    // [G3 主线C / SEL-1] T3: the K-quant GEMM SP4 output-tiling SELECTION (all 5
-    // leaves this round). The KEY is the BOTTLENECK SHAPE derived from facts.foldModel,
-    // NEVER the format name: the min-fold register-cliff shape (q4_K/q2_K/q5_K,
-    // "kquant_dmin_bsums_min") and the weight-reconstruction-bound no-min shape
-    // (q6_K/q3_K, "kquant_single_scale_no_min") route through the SAME selector. All 5
-    // have singleton legal sets: the min-fold family has only the realized S6Tiled
-    // body, while q6_K/q3_K have only Plain; reason is therefore only_feasible.
-    // Historical A/B rows remain evidence and no longer manufacture a second compiler
-    // candidate. The SP4 axis is GEMM-only, so the stamp lives here.
-    if (mlir::failed(stampScheduleSelections(
-            builder, loop, facts.foldModel, facts.decodeModel, op)))
-      return mlir::failure();
 
     mlir::Block &body = loop.getBody().emplaceBlock();
     mlir::Value blockIndex = body.addArgument(builder.getIndexType(), loc);
@@ -4438,6 +4366,10 @@ private:
                            builder.getStringAttr(facts.foldModel));
     if (integerCoreLmul)
       loopState.addAttribute("integer_core_lmul", integerCoreLmul);
+    if (mlir::failed(addRepackScheduleFormula(
+            builder, loopState, facts.decodeModel,
+            pluginrvv::RVVRepackScheduleRegime::GemmPrefill, op)))
+      return mlir::failure();
     loopState.addRegion();
     auto loop = llvm::cast<weftrvv::TypedRepackGemmLoopBodyOp>(
         builder.create(loopState));
@@ -4447,15 +4379,6 @@ private:
     stampRepackAccumulatorLMULDecision(builder, loop, accLmulDecision);
     loop->setAttr(kMaterializationAttr, builder.getStringAttr("realized"));
     loop->setAttr(kWeightLayoutContractAttr, builder.getStringAttr("x16"));
-
-    // [SEL-1] T3: the codebook GEMM SP4 tiling selection. The codebook fold_models
-    // (iq4_nl "codebook_flat_single_scale" / iq4_xs "codebook_superblock_signed6_no_min")
-    // classify AlreadyLean (a memory-gather decode already <= the 32-vreg cliff, output
-    // tiling a structural no-op) => the sole realized Plain body,
-    // reason=only_feasible.
-    if (mlir::failed(stampScheduleSelections(
-            builder, loop, facts.foldModel, facts.decodeModel, op)))
-      return mlir::failure();
 
     mlir::Block &body = loop.getBody().emplaceBlock();
     mlir::Value blockIndex = body.addArgument(builder.getIndexType(), loc);
@@ -4751,6 +4674,10 @@ private:
                            builder.getStringAttr(facts.foldModel));
     if (integerCoreLmul)
       loopState.addAttribute("integer_core_lmul", integerCoreLmul);
+    if (mlir::failed(addRepackScheduleFormula(
+            builder, loopState, facts.decodeModel,
+            pluginrvv::RVVRepackScheduleRegime::GemmPrefill, op)))
+      return mlir::failure();
     loopState.addRegion();
     auto loop = llvm::cast<weftrvv::TypedRepackGemmLoopBodyOp>(
         builder.create(loopState));
@@ -4760,20 +4687,6 @@ private:
     stampRepackAccumulatorLMULDecision(builder, loop, accLmulDecision);
     loop->setAttr(kMaterializationAttr, builder.getStringAttr("realized"));
     loop->setAttr(kWeightLayoutContractAttr, builder.getStringAttr("x16"));
-
-    // [SEL-1] the grid GEMM SP4 tiling selection. The iq2 grid fold_models
-    // ("grid_sign_single_scale_eighth" / "grid_sign_dualscale_eighth") classify
-    // AlreadyLean (a memory-gather grid decode already <= the 32-vreg cliff, output tiling
-    // a structural no-op) => the sole realized Plain body, reason=only_feasible. The
-    // iq1_s fold ("grid_ternary_delta_eighth") classifies to
-    // std::nullopt and is a NO-OP here: C4a-2 built only a PLAIN untiled iq1_s leaf, so
-    // there is no tiled variant to choose between, and asserting AlreadyLean would stamp
-    // an unmeasured shape claim on a line that makes NO performance claim. The shared
-    // schedule reader still validates the optional SP4 plan before the existing untiled
-    // Plain body is mechanically emitted.
-    if (mlir::failed(stampScheduleSelections(
-            builder, loop, facts.foldModel, facts.decodeModel, op)))
-      return mlir::failure();
 
     mlir::Block &body = loop.getBody().emplaceBlock();
     mlir::Value blockIndex = body.addArgument(builder.getIndexType(), loc);

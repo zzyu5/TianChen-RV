@@ -19,7 +19,6 @@
 #include "RVVEmitCContractionRouteFamilyInternal.h"
 
 #include "Weft/Plugin/RVV/RVVGearboxSchedule.h"
-#include "Weft/Plugin/RVV/RVVLowPrecisionPerformancePolicy.h"
 
 #include "mlir/IR/Attributes.h"
 #include "llvm/ADT/SmallVector.h"
@@ -837,9 +836,9 @@ llvm::Error validatePreRealizedRVVSelectedWideningProductReduceBody(
         "'store-standalone-reduction-lane0-to-output-scalar'");
   const bool isUnsignedProductReduction =
       body.getSourceSignedness() ==
-      kRVVLowPrecisionResourceSourceSignednessUnsigned;
+      kRVVLowPrecisionSourceSignednessUnsigned;
   if (body.getSourceSignedness() !=
-          kRVVLowPrecisionResourceSourceSignednessSigned &&
+          kRVVLowPrecisionSourceSignednessSigned &&
       !isUnsignedProductReduction)
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected widening product reduction body currently "
@@ -1076,7 +1075,6 @@ llvm::Error validatePreRealizedRVVSelectedWideningProductReduceDequantizeBody(
               weft::rvv::SetVLOp, weft::rvv::WithVLOp,
               weft::rvv::LoadOp, weft::rvv::WideningProductOp,
               weft::rvv::StandaloneReduceOp,
-              weft::rvv::GearboxCrossRegionHandoffOp,
               weft::rvv::DequantizeOp, weft::rvv::StoreOp>(
               variant, body.getOperation(),
               "widening product reduction dequantization"))

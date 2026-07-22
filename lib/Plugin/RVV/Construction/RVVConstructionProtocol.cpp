@@ -67,7 +67,7 @@ constexpr llvm::StringLiteral kTypedRoleRealizationSummary(
     "weft_rvv.widening_macc|weft_rvv.widening_product|"
     "weft_rvv.widening_dot_reduce|"
     "weft_rvv.masked_widening_dot_reduce|weft_rvv.widening_convert|"
-    "weft_rvv.gearbox_cross_region_handoff|weft_rvv.dequantize|"
+    "weft_rvv.dequantize|"
     "weft_rvv.move|weft_rvv.masked_move:"
     "WEFTComputeOpInterface:WEFTEmitCLowerableInterface;"
     "store:rvv.role.store.generic_store:weft_rvv.store|"
@@ -237,7 +237,7 @@ const RVVConstructionSemanticRole kSemanticRoles[] = {
      "weft_rvv.widening_macc|weft_rvv.widening_product|"
      "weft_rvv.widening_dot_reduce|"
      "weft_rvv.masked_widening_dot_reduce|weft_rvv.widening_convert|"
-     "weft_rvv.gearbox_cross_region_handoff|weft_rvv.dequantize|"
+     "weft_rvv.dequantize|"
      "weft_rvv.move|weft_rvv.masked_move",
      "WEFTExtensionOpInterface+WEFTComputeOpInterface+"
      "WEFTResourceOpInterface+WEFTEmitCLowerableInterface",
@@ -325,7 +325,7 @@ const RVVTypedRoleInterfaceRealization kTypedRoleRealizations[] = {
      "weft_rvv.widening_macc|weft_rvv.widening_product|"
      "weft_rvv.widening_dot_reduce|"
      "weft_rvv.masked_widening_dot_reduce|weft_rvv.widening_convert|"
-     "weft_rvv.gearbox_cross_region_handoff|weft_rvv.dequantize|"
+     "weft_rvv.dequantize|"
      "weft_rvv.move|weft_rvv.masked_move",
      "WEFTExtensionOpInterface+WEFTComputeOpInterface+"
      "WEFTResourceOpInterface+WEFTEmitCLowerableInterface",
@@ -549,14 +549,14 @@ const RVVSelectedBodyConstructionRoute kRetainedSelectedBodySpecializations[] = 
      "rvv-generic-widening-product-reduce-add-callable-c-abi"},
     {"widening_product_reduce_dequantize_f32",
      "weft_rvv.widening_product+weft_rvv.standalone_reduce+"
-     "weft_rvv.gearbox_cross_region_handoff+weft_rvv.dequantize",
+     "weft_rvv.dequantize",
      "rvv.role.compute.generic_vector",
      "rvv-generic-widening-product-reduce-dequantize-f32-emitc-route",
      "rvv-generic-widening-product-reduce-dequantize-f32-callable-c-abi.v1",
      "rvv-generic-widening-product-reduce-dequantize-f32-callable-c-abi"},
     {"widening_product_reduce_dequant_clamp_f32",
      "weft_rvv.widening_product+weft_rvv.standalone_reduce+"
-     "weft_rvv.gearbox_cross_region_handoff+weft_rvv.dequantize+"
+     "weft_rvv.dequantize+"
      "weft_rvv.compare+weft_rvv.select",
      "rvv.role.compute.generic_vector",
      "rvv-generic-widening-product-reduce-dequant-clamp-f32-emitc-route",
@@ -1954,16 +1954,10 @@ void appendWideningProductReduceDequantizeF32RoleSteps(
     const RVVSelectedBodyConstructionRoute *route,
     llvm::StringRef typedComputeOpName,
     llvm::StringRef rhsSourceOperationName) {
-    // The product head and the presence of the gearbox cross-region handoff /
-    // consumer with_vl scope are read from the candidate-aware typedComputeOpName
-    // chain (head+standalone_reduce[+gearbox_cross_region_handoff]+dequantize):
-    //   - legacy two-scope body: widening_product head + handoff + consumer scope;
-    //   - single-scope typed body (Stage 3 flip): widening_product OR
-    //     packed_i4_nibble_unpack_product head, NO handoff, NO consumer scope.
+    // The product head is read from the candidate-aware typedComputeOpName
+    // chain: widening_product or packed_i4_nibble_unpack_product.
     const bool nibbleHead = typedComputeOpName.starts_with(
         "weft_rvv.packed_i4_nibble_unpack_product");
-    const bool hasHandoff =
-        typedComputeOpName.contains("weft_rvv.gearbox_cross_region_handoff");
     // The deferred-wide (N3) chain carries a weft_rvv.widening_accumulate compute
     // step between the widening_product head and the trailing standalone_reduce
     // (the i32m8 deferred vector accumulate). Detected from the candidate-aware
@@ -2020,16 +2014,6 @@ void appendWideningProductReduceDequantizeF32RoleSteps(
                      route->typedRoleID, "WEFTComputeOpInterface",
                      "WEFTEmitCLowerableInterface",
                      "widening_product_reduce", order++});
-    if (hasHandoff) {
-      steps.push_back({"compute", "weft_rvv.gearbox_cross_region_handoff",
-                       route->typedRoleID, "WEFTComputeOpInterface",
-                       "WEFTEmitCLowerableInterface",
-                       "gearbox_cross_region_handoff", order++});
-      steps.push_back({"scope", "weft_rvv.with_vl",
-                       "rvv.role.scope.with_vl", "WEFTConfigOpInterface",
-                       "WEFTEmitCLowerableInterface", "consumer_with_vl",
-                       order++});
-    }
     steps.push_back({"compute", "weft_rvv.dequantize", route->typedRoleID,
                      "WEFTComputeOpInterface", "WEFTEmitCLowerableInterface",
                      route->operationMnemonic, order++});
@@ -2078,12 +2062,9 @@ void appendWideningProductReduceDequantClampF32RoleSteps(
     steps.push_back({"scope", "weft_rvv.with_vl",
                      "rvv.role.scope.with_vl", "WEFTConfigOpInterface",
                      "WEFTEmitCLowerableInterface", "with_vl", 9});
-    // Candidate-aware head + optional handoff/consumer-scope (see the dequantize
-    // block); single-scope typed bodies (Stage 3 flip) carry neither.
+    // Candidate-aware product head.
     const bool nibbleHead = typedComputeOpName.starts_with(
         "weft_rvv.packed_i4_nibble_unpack_product");
-    const bool hasHandoff =
-        typedComputeOpName.contains("weft_rvv.gearbox_cross_region_handoff");
     const llvm::StringRef headOp =
         nibbleHead ? llvm::StringRef("weft_rvv.packed_i4_nibble_unpack_product")
                    : llvm::StringRef("weft_rvv.widening_product");
@@ -2102,16 +2083,6 @@ void appendWideningProductReduceDequantClampF32RoleSteps(
                      route->typedRoleID, "WEFTComputeOpInterface",
                      "WEFTEmitCLowerableInterface",
                      "widening_product_reduce", order++});
-    if (hasHandoff) {
-      steps.push_back({"compute", "weft_rvv.gearbox_cross_region_handoff",
-                       route->typedRoleID, "WEFTComputeOpInterface",
-                       "WEFTEmitCLowerableInterface",
-                       "gearbox_cross_region_handoff", order++});
-      steps.push_back({"scope", "weft_rvv.with_vl",
-                       "rvv.role.scope.with_vl", "WEFTConfigOpInterface",
-                       "WEFTEmitCLowerableInterface", "consumer_with_vl",
-                       order++});
-    }
     steps.push_back({"compute", "weft_rvv.dequantize", route->typedRoleID,
                      "WEFTComputeOpInterface", "WEFTEmitCLowerableInterface",
                      "dequantize", order++});
@@ -3845,18 +3816,11 @@ buildRVVSelectedBodyExecutableRoleSteps(
         "generic weft_rvv.widening_product followed by "
         "weft_rvv.standalone_reduce");
   // The dequant(/clamp) chain is candidate-aware: widening_product or
-  // packed_i4_nibble_unpack_product head, and the gearbox_cross_region_handoff is
-  // present only in the legacy two-scope body. Accept exactly the bounded legal
-  // set (fail-closed: any other chain rejected).
+  // packed_i4_nibble_unpack_product head. Accept exactly the bounded legal set.
   auto isLegalDequantChain = [&](bool isClamp) -> bool {
     const llvm::StringRef tail =
         isClamp ? "+weft_rvv.dequantize+weft_rvv.compare+weft_rvv.select"
                 : "+weft_rvv.dequantize";
-    const std::string wideningHandoff =
-        ("weft_rvv.widening_product+weft_rvv.standalone_reduce+"
-         "weft_rvv.gearbox_cross_region_handoff" +
-         llvm::Twine(tail))
-            .str();
     const std::string widening =
         ("weft_rvv.widening_product+weft_rvv.standalone_reduce" +
          llvm::Twine(tail))
@@ -3873,8 +3837,7 @@ buildRVVSelectedBodyExecutableRoleSteps(
                 : std::string("weft_rvv.widening_product+"
                               "weft_rvv.widening_accumulate+"
                               "weft_rvv.standalone_reduce+weft_rvv.dequantize");
-    return typedComputeOpName == wideningHandoff ||
-           typedComputeOpName == widening || typedComputeOpName == nibble ||
+    return typedComputeOpName == widening || typedComputeOpName == nibble ||
            (!deferredWide.empty() && typedComputeOpName == deferredWide);
   };
   if (isWideningProductReduceDequantizeF32 && !isLegalDequantChain(false))
@@ -3882,15 +3845,13 @@ buildRVVSelectedBodyExecutableRoleSteps(
         "RVV low-precision widening product-reduction dequantization "
         "construction requires generic weft_rvv.widening_product or "
         "weft_rvv.packed_i4_nibble_unpack_product followed by "
-        "weft_rvv.standalone_reduce, an optional "
-        "weft_rvv.gearbox_cross_region_handoff, and weft_rvv.dequantize");
+        "weft_rvv.standalone_reduce and weft_rvv.dequantize");
   if (isWideningProductReduceDequantClampF32 && !isLegalDequantChain(true))
     return makeRVVConstructionError(
         "RVV low-precision widening product-reduction dequant-clamp "
         "construction requires generic weft_rvv.widening_product or "
         "weft_rvv.packed_i4_nibble_unpack_product followed by "
-        "weft_rvv.standalone_reduce, an optional "
-        "weft_rvv.gearbox_cross_region_handoff, weft_rvv.dequantize, "
+        "weft_rvv.standalone_reduce, weft_rvv.dequantize, "
         "weft_rvv.compare, and weft_rvv.select");
   // The widening_dot_reduce_add route has TWO bounded realizations: the narrow
   // single fused weft_rvv.widening_dot_reduce and the deferred-wide i16 chain
@@ -5748,9 +5709,8 @@ llvm::Error verifyRVVSelectedBodyConstructionMetadataFacts(
         llvm::Twine(context) +
         " segment2 interleave memory movement cannot use generic "
         "weft_rvv.binary");
-  // The low-precision dequant(/clamp) chain is candidate-aware (widening_product
-  // or packed_i4_nibble_unpack_product head; gearbox_cross_region_handoff only in
-  // the legacy two-scope body). Accept exactly the bounded legal set.
+  // The low-precision dequant(/clamp) chain is candidate-aware
+  // (widening_product or packed_i4_nibble_unpack_product head).
   const bool isDequantMetadataRoute =
       route->operationMnemonic == "widening_product_reduce_dequantize_f32" ||
       route->operationMnemonic == "widening_product_reduce_dequant_clamp_f32";
@@ -5760,11 +5720,6 @@ llvm::Error verifyRVVSelectedBodyConstructionMetadataFacts(
     const llvm::StringRef tail =
         isClampRoute ? "+weft_rvv.dequantize+weft_rvv.compare+weft_rvv.select"
                      : "+weft_rvv.dequantize";
-    const std::string wideningHandoff =
-        ("weft_rvv.widening_product+weft_rvv.standalone_reduce+"
-         "weft_rvv.gearbox_cross_region_handoff" +
-         llvm::Twine(tail))
-            .str();
     const std::string widening =
         ("weft_rvv.widening_product+weft_rvv.standalone_reduce" +
          llvm::Twine(tail))
@@ -5782,8 +5737,7 @@ llvm::Error verifyRVVSelectedBodyConstructionMetadataFacts(
          "weft_rvv.standalone_reduce" +
          llvm::Twine(tail))
             .str();
-    if (facts.typedComputeOpName != wideningHandoff &&
-        facts.typedComputeOpName != widening &&
+    if (facts.typedComputeOpName != widening &&
         facts.typedComputeOpName != nibble &&
         facts.typedComputeOpName != deferredWide)
       return makeRVVConstructionError(
@@ -5792,7 +5746,7 @@ llvm::Error verifyRVVSelectedBodyConstructionMetadataFacts(
           facts.operationMnemonic +
           "' must be one of the bounded low-precision product-reduction "
           "dequant chains (widening_product/packed_i4_nibble_unpack_product "
-          "head, optional widening_accumulate or gearbox_cross_region_handoff), "
+          "head, optional widening_accumulate), "
           "but was '" +
           facts.typedComputeOpName + "'");
     return llvm::Error::success();
@@ -6884,9 +6838,7 @@ llvm::Error verifyRVVSelectedBodyConstructionRouteMapping(
         "generic weft_rvv.binary");
   // The low-precision dequant(/clamp) routes have a candidate-aware typed-compute
   // chain: the head op is widening_product (unpacked-byte/grouped) or
-  // packed_i4_nibble_unpack_product (packed-i4), and the legacy two-scope body
-  // additionally carries the gearbox_cross_region_handoff. Accept exactly the
-  // bounded legal set (still fail-closed: any other chain is rejected).
+  // packed_i4_nibble_unpack_product (packed-i4).
   const bool isDequantTypedComputeRoute =
       expected.operationMnemonic == "widening_product_reduce_dequantize_f32" ||
       expected.operationMnemonic == "widening_product_reduce_dequant_clamp_f32";
@@ -6896,11 +6848,6 @@ llvm::Error verifyRVVSelectedBodyConstructionRouteMapping(
     const llvm::StringRef tail =
         isClampRoute ? "+weft_rvv.dequantize+weft_rvv.compare+weft_rvv.select"
                      : "+weft_rvv.dequantize";
-    const std::string wideningHandoffChain =
-        ("weft_rvv.widening_product+weft_rvv.standalone_reduce+"
-         "weft_rvv.gearbox_cross_region_handoff" +
-         llvm::Twine(tail))
-            .str();
     const std::string wideningChain =
         ("weft_rvv.widening_product+weft_rvv.standalone_reduce" +
          llvm::Twine(tail))
@@ -6916,8 +6863,7 @@ llvm::Error verifyRVVSelectedBodyConstructionRouteMapping(
          "weft_rvv.standalone_reduce" +
          llvm::Twine(tail))
             .str();
-    if (typedComputeOpName != wideningHandoffChain &&
-        typedComputeOpName != wideningChain &&
+    if (typedComputeOpName != wideningChain &&
         typedComputeOpName != nibbleChain &&
         typedComputeOpName != deferredWideChain)
       return makeRVVConstructionError(
@@ -6925,7 +6871,7 @@ llvm::Error verifyRVVSelectedBodyConstructionRouteMapping(
           operationMnemonic +
           "' must be one of the bounded low-precision product-reduction "
           "dequant chains (widening_product/packed_i4_nibble_unpack_product "
-          "head, optional gearbox_cross_region_handoff), but was '" +
+          "head), but was '" +
           typedComputeOpName + "'");
     return llvm::Error::success();
   }

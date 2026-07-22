@@ -53,20 +53,14 @@ module {
   }
 }
 
-// (A) The block-dot op was auto-discovered + stamped through the block-dot
-// descriptor: the LMUL/factor/elision triple + the "weft_rvv.q4_0_schedule.*"
-// provenance (vector_register_budget audit flavor).
+// (A) The block-dot op was auto-discovered and received one complete final plan.
 // CHECK: weft_rvv.q4_0_q8_0_block_dot
 // CHECK-SAME: integer_core_lmul = "m1"
 // CHECK-SAME: multi_block_factor = 4 : i64
 // CHECK-SAME: strip_elision = "elided"
-// CHECK-SAME: weft_rvv.q4_0_schedule.producer = "rvv-q4-0-autotuner"
-// CHECK-SAME: weft_rvv.q4_0_schedule.vector_register_budget = 32 : i64
+// CHECK-NOT: weft_rvv.q4_0_schedule.
 
-// (B) The GEMM op was auto-discovered + stamped through the GEMM descriptor IN
-// THE SAME PASS: the single activation_cols M knob + the
-// "weft_rvv.q4_0_gemm_schedule.*" provenance (vreg_ceiling audit flavor).
+// (B) The structurally different GEMM op was constructed in the same walk.
 // CHECK: weft_rvv.q4_0_q8_0_gemm
 // CHECK-SAME: activation_cols = 4 : i64
-// CHECK-SAME: weft_rvv.q4_0_gemm_schedule.producer = "rvv-gemm-m-autotuner"
-// CHECK-SAME: weft_rvv.q4_0_gemm_schedule.vreg_ceiling = 8 : i64
+// CHECK-NOT: weft_rvv.q4_0_gemm_schedule.

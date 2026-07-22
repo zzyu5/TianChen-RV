@@ -22,12 +22,11 @@
 #include "Weft/Plugin/RVV/RVVEmitCBaseMemoryRouteFamilyPlanOwners.h"
 #include "Weft/Plugin/RVV/RVVEmitCComputedMaskMemoryRouteFamilyPlanOwners.h"
 #include "Weft/Plugin/RVV/RVVEmitCContractionRouteFamilyPlanOwners.h"
+#include "Weft/Plugin/RVV/RVVGearboxSchedule.h"
 #include "Weft/Plugin/RVV/RVVEmitCControlPolicyPlanOwners.h"
 #include "Weft/Plugin/RVV/RVVEmitCElementwiseRouteFamilyPlanOwners.h"
 #include "Weft/Plugin/RVV/RVVEmitCMAccRouteFamilyPlanOwners.h"
 #include "Weft/Plugin/RVV/RVVEmitCSegment2RouteFamilyPlanOwners.h"
-#include "Weft/Plugin/RVV/RVVGearboxSchedule.h"
-#include "Weft/Plugin/RVV/RVVLowPrecisionPerformancePolicy.h"
 #include "Weft/Plugin/RVV/RVVSelectedBodyRealization.h"
 
 #include "mlir/IR/Attributes.h"
@@ -1105,362 +1104,6 @@ llvm::Error recordRVVSelectedBodyWideningConvert(
   return llvm::Error::success();
 }
 
-llvm::Error recordRVVSelectedBodyGearboxCrossRegionHandoff(
-    RVVSelectedBodyRouteSlice &slice,
-    weft::rvv::GearboxCrossRegionHandoffOp handoff,
-    const support::RuntimeABIParameter &runtimeElementCountABI) {
-  if (slice.gearboxCrossRegionHandoffOp)
-    return makeRVVEmitCRouteProviderError(
-        "bounded RVV EmitC route requires exactly one "
-        "weft_rvv.gearbox_cross_region_handoff op for the low-precision "
-        "product-reduction dequantization cross-region boundary");
-  if (slice.arithmeticKind !=
-          RVVSelectedBodyOperationKind::WideningProductReduceAdd ||
-      !slice.standaloneReduceOp || !hasProductHead(slice))
-    return makeRVVEmitCRouteProviderError(
-        "low-precision product-reduction dequantization RVV route requires "
-        "weft_rvv.gearbox_cross_region_handoff to follow the selected "
-        "weft_rvv.widening_product -> weft_rvv.standalone_reduce chain");
-  if (handoff.getInput() != slice.standaloneReduceOp.getResult())
-    return makeRVVEmitCRouteProviderError(
-        "low-precision product-reduction dequantization RVV route requires "
-        "weft_rvv.gearbox_cross_region_handoff input to consume the selected "
-        "weft_rvv.standalone_reduce i32 result");
-  if (handoff.getVl() != slice.setvl.getVl())
-    return makeRVVEmitCRouteProviderError(
-        "low-precision product-reduction dequantization RVV route requires "
-        "weft_rvv.gearbox_cross_region_handoff to consume the selected "
-        "!weft_rvv.vl token");
-  if (handoff.getRuntimeAvl() != slice.setvl.getAvl())
-    return makeRVVEmitCRouteProviderError(
-        "low-precision product-reduction dequantization RVV route requires "
-        "weft_rvv.gearbox_cross_region_handoff runtime AVL operand to be the "
-        "same runtime n/AVL SSA value consumed by weft_rvv.setvl");
-  if (runtimeElementCountABI.role !=
-      support::RuntimeABIParameterRole::RuntimeElementCount)
-    return makeRVVEmitCRouteProviderError(
-        "low-precision product-reduction dequantization RVV route requires "
-        "weft_rvv.gearbox_cross_region_handoff runtime AVL source to bind "
-        "runtime-element-count");
-  const std::int64_t expectedLowPrecisionRegionCount =
-      getRVVLowPrecisionResourceExpectedVSetVLRegionCountForRealizationDecision(
-          handoff.getResourceDecision());
-  const llvm::StringRef expectedLowPrecisionFromPhase =
-      getRVVLowPrecisionResourceProductPhaseForRealizationDecision(
-          handoff.getResourceDecision());
-  const bool hasSupportedLowPrecisionDecision =
-      isRVVLowPrecisionResourceSupportedRealizationDecision(
-          handoff.getResourceDecision());
-  if (handoff.getContract() !=
-          "gearbox-product-reduce-to-dequant-cross-region-handoff.v1" ||
-      handoff.getFromPhase() != expectedLowPrecisionFromPhase ||
-      handoff.getToPhase() != "dequant-store" ||
-      static_cast<std::int64_t>(handoff.getRegionCount()) !=
-          expectedLowPrecisionRegionCount ||
-      handoff.getRuntimeAvlSource() != "runtime_abi:n" ||
-      !hasSupportedLowPrecisionDecision ||
-      handoff.getProducerScope() != kRVVGearboxProducerScope ||
-      handoff.getConsumerScope() != kRVVGearboxConsumerScope ||
-      handoff.getProducerScope() == handoff.getConsumerScope())
-    return makeRVVEmitCRouteProviderError(
-        "low-precision product-reduction dequantization RVV route requires "
-        "weft_rvv.gearbox_cross_region_handoff contract/from_phase/to_phase/"
-        "region_count/runtime_avl_source/resource_decision/producer_scope/"
-        "consumer_scope to match the "
-        "RVV-owned Gearbox cross-region handoff contract");
-
-  if (!isRVVLowPrecisionResourceCandidateSetMember(
-          handoff.getResourceCandidateSet(),
-          handoff.getResourceSelectedCandidate()))
-    return makeRVVEmitCRouteProviderError(
-        "low-precision product-reduction dequantization RVV route requires "
-        "weft_rvv.gearbox_cross_region_handoff resource_selected_candidate "
-        "to belong to the provider-owned resource_candidate_set");
-  auto planningContract =
-      handoff->getAttrOfType<mlir::StringAttr>(
-          kGearboxHandoffPlanningContractAttrName);
-  if (!planningContract)
-    return makeRVVEmitCRouteProviderError(
-        "low-precision product-reduction dequantization RVV route requires "
-        "weft_rvv.gearbox_cross_region_handoff planning_contract from the "
-        "selected resource plan");
-  if (planningContract.getValue() != kRVVLowPrecisionResourcePlanningContract)
-    return makeRVVEmitCRouteProviderError(
-        llvm::Twine("low-precision product-reduction dequantization RVV "
-                    "route requires weft_rvv.gearbox_cross_region_handoff "
-                    "planning_contract to match provider-owned resource "
-                    "planning contract '") +
-        kRVVLowPrecisionResourcePlanningContract + "' but found '" +
-        planningContract.getValue() + "'");
-  const llvm::StringRef expectedDecisionFromCandidate =
-      getRVVLowPrecisionContractionResourceRealizationDecision(
-          handoff.getResourceSelectedCandidate());
-  if (expectedDecisionFromCandidate.empty() ||
-      expectedDecisionFromCandidate != handoff.getResourceDecision())
-    return makeRVVEmitCRouteProviderError(
-        "low-precision product-reduction dequantization RVV route requires "
-        "weft_rvv.gearbox_cross_region_handoff resource_decision to match "
-        "the selected resource candidate");
-  const bool isPackedI4Resource =
-      isRVVLowPrecisionResourcePackedI4CandidateID(
-          handoff.getResourceSelectedCandidate());
-  const llvm::StringRef expectedOperandForm =
-      isPackedI4Resource ? kRVVLowPrecisionResourceOperandFormPackedI4Nibbles
-                         : kRVVLowPrecisionResourceOperandFormUnpackedByte;
-  const llvm::StringRef expectedPackingLayout =
-      isPackedI4Resource
-          ? kRVVLowPrecisionResourcePackingLayoutPackedI4Nibbles
-          : kRVVLowPrecisionResourcePackingLayoutByte;
-  const llvm::StringRef expectedUnpackIntent =
-      isPackedI4Resource
-          ? kRVVLowPrecisionResourceUnpackIntentPackedI4Nibbles
-          : kRVVLowPrecisionResourceUnpackIntentNone;
-  if (handoff.getOperandForm() != expectedOperandForm ||
-      handoff.getPackingLayout() != expectedPackingLayout ||
-      handoff.getUnpackIntent() != expectedUnpackIntent)
-    return makeRVVEmitCRouteProviderError(
-        "low-precision product-reduction dequantization RVV route requires "
-        "weft_rvv.gearbox_cross_region_handoff operand form, packing layout, "
-        "and unpack intent to match the selected resource candidate");
-
-  auto requireOptionalPackedI4LoadUnpackFact =
-      [&](llvm::StringRef attrName, llvm::StringRef expected) -> llvm::Error {
-    auto attr = handoff->getAttrOfType<mlir::StringAttr>(attrName);
-    if (!isPackedI4Resource) {
-      if (attr)
-        return makeRVVEmitCRouteProviderError(
-            llvm::Twine("low-precision product-reduction dequantization RVV "
-                        "route requires packed-i4 load/unpack fact '") +
-            attrName + "' to be absent for unpacked-byte resource candidates");
-      return llvm::Error::success();
-    }
-    if (!attr)
-      return makeRVVEmitCRouteProviderError(
-          llvm::Twine("low-precision product-reduction dequantization RVV "
-                      "route requires weft_rvv.gearbox_cross_region_handoff "
-                      "packed-i4 load/unpack fact '") +
-          attrName + "' before route support");
-    if (attr.getValue() == expected)
-      return llvm::Error::success();
-    return makeRVVEmitCRouteProviderError(
-        llvm::Twine("low-precision product-reduction dequantization RVV "
-                    "route requires weft_rvv.gearbox_cross_region_handoff "
-                    "packed-i4 load/unpack fact '") +
-        attrName + "' to match provider-owned resource fact '" + expected +
-        "' but found '" + attr.getValue() + "'");
-  };
-  if (llvm::Error error = requireOptionalPackedI4LoadUnpackFact(
-          "packed_load_unpack_contract",
-          kRVVLowPrecisionResourcePackedI4LoadUnpackContract))
-    return error;
-  if (llvm::Error error = requireOptionalPackedI4LoadUnpackFact(
-          "packed_storage_load", kRVVLowPrecisionResourcePackedI4StorageLoad))
-    return error;
-  if (llvm::Error error = requireOptionalPackedI4LoadUnpackFact(
-          "packed_unpack_plan", kRVVLowPrecisionResourcePackedI4UnpackPlan))
-    return error;
-  if (llvm::Error error = requireOptionalPackedI4LoadUnpackFact(
-          "packed_unpacked_source",
-          kRVVLowPrecisionResourcePackedI4UnpackedSource))
-    return error;
-
-  if (static_cast<std::int64_t>(handoff.getPeakLiveVectorGroups()) !=
-      getRVVLowPrecisionResourceExpectedPeakLiveVectorGroups(
-          handoff.getResourceSelectedCandidate()))
-    return makeRVVEmitCRouteProviderError(
-        "low-precision product-reduction dequantization RVV route requires "
-        "weft_rvv.gearbox_cross_region_handoff peak_live_vector_groups to "
-        "match the selected resource candidate");
-  if (static_cast<std::int64_t>(handoff.getVectorRegisterBudget()) !=
-          kRVVLowPrecisionResourceVectorRegisterBudget ||
-      handoff.getPeakLiveVectorGroups() > handoff.getVectorRegisterBudget())
-    return makeRVVEmitCRouteProviderError(
-        "low-precision product-reduction dequantization RVV route requires "
-        "weft_rvv.gearbox_cross_region_handoff vector_register_budget to "
-        "contain the selected peak live vector-group estimate");
-  if (static_cast<std::int64_t>(handoff.getProductRegionIndex()) !=
-          getRVVLowPrecisionResourceProductRegionIndexForRealizationDecision(
-              handoff.getResourceDecision()) ||
-      static_cast<std::int64_t>(handoff.getDequantRegionIndex()) !=
-          getRVVLowPrecisionResourceDequantRegionIndexForRealizationDecision(
-              handoff.getResourceDecision()) ||
-      handoff.getProductRegionIndex() <= 0 ||
-      handoff.getProductRegionIndex() >= handoff.getDequantRegionIndex() ||
-      handoff.getDequantRegionIndex() > handoff.getRegionCount())
-    return makeRVVEmitCRouteProviderError(
-        "low-precision product-reduction dequantization RVV route requires "
-        "weft_rvv.gearbox_cross_region_handoff product/dequant region indexes "
-        "to match the selected resource decision and realized region count");
-
-  auto requireHandoffPrimitiveFact =
-      [&](llvm::StringRef field, llvm::StringRef actual,
-          llvm::StringRef expected) -> llvm::Error {
-    if (actual == expected)
-      return llvm::Error::success();
-    return makeRVVEmitCRouteProviderError(
-        llvm::Twine("low-precision product-reduction dequantization RVV "
-                    "route requires weft_rvv.gearbox_cross_region_handoff "
-                    "primitive-chain fact '") +
-        field + "' to match provider-owned resource fact '" + expected +
-        "' but found '" + actual + "'");
-  };
-  if (llvm::Error error = requireHandoffPrimitiveFact(
-          "primitive_chain_contract", handoff.getPrimitiveChainContract(),
-          kRVVLowPrecisionResourcePrimitiveChainContract))
-    return error;
-  if (llvm::Error error = requireHandoffPrimitiveFact(
-          "primitive_chain_kind", handoff.getPrimitiveChainKind(),
-          kRVVLowPrecisionResourcePrimitiveChainKind))
-    return error;
-  if (llvm::Error error = requireHandoffPrimitiveFact(
-          "primitive_source_signedness", handoff.getPrimitiveSourceSignedness(),
-          kRVVLowPrecisionResourceSourceSignednessSigned))
-    return error;
-  if (llvm::Error error = requireHandoffPrimitiveFact(
-          "primitive_source_load", handoff.getPrimitiveSourceLoad(),
-          kRVVLowPrecisionResourcePrimitiveSourceLoad))
-    return error;
-  if (llvm::Error error = requireHandoffPrimitiveFact(
-          "primitive_source_extension", handoff.getPrimitiveSourceExtension(),
-          kRVVLowPrecisionResourcePrimitiveSourceExtension))
-    return error;
-  if (llvm::Error error = requireHandoffPrimitiveFact(
-          "widening_product_multiplicand_roles",
-          handoff.getWideningProductMultiplicandRoles(),
-          kRVVLowPrecisionResourceWideningProductMultiplicandRoles))
-    return error;
-  if (llvm::Error error = requireHandoffPrimitiveFact(
-          "widening_product_extension_policy",
-          handoff.getWideningProductExtensionPolicy(),
-          kRVVLowPrecisionResourceWideningProductExtensionPolicy))
-    return error;
-  if (llvm::Error error = requireHandoffPrimitiveFact(
-          "widening_product_candidate_fact",
-          handoff.getWideningProductCandidateFact(),
-          kRVVLowPrecisionResourceWideningProductCandidateFact))
-    return error;
-  if (llvm::Error error = requireHandoffPrimitiveFact(
-          "reduction_candidate_fact", handoff.getReductionCandidateFact(),
-          kRVVLowPrecisionResourceReductionCandidateFact))
-    return error;
-  if (llvm::Error error = requireHandoffPrimitiveFact(
-          "primitive_widening_product_relation",
-          handoff.getPrimitiveWideningProductRelation(),
-          kRVVLowPrecisionResourcePrimitiveWideningProductRelation))
-    return error;
-  if (llvm::Error error = requireHandoffPrimitiveFact(
-          "primitive_product_reduction_chain_relation",
-          handoff.getPrimitiveProductReductionChainRelation(),
-          kRVVLowPrecisionResourcePrimitiveProductReductionChainRelation))
-    return error;
-  if (llvm::Error error = requireHandoffPrimitiveFact(
-          "primitive_widening_product_intrinsic",
-          handoff.getPrimitiveWideningProductIntrinsic(),
-          kRVVLowPrecisionResourcePrimitiveWideningProductIntrinsic))
-    return error;
-  if (llvm::Error error = requireHandoffPrimitiveFact(
-          "primitive_reduction_intrinsic",
-          handoff.getPrimitiveReductionIntrinsic(),
-          kRVVLowPrecisionResourcePrimitiveReductionIntrinsic))
-    return error;
-  if (llvm::Error error = requireHandoffPrimitiveFact(
-          "primitive_scalar_seed_splat_intrinsic",
-          handoff.getPrimitiveScalarSeedSplatIntrinsic(),
-          kRVVLowPrecisionResourcePrimitiveScalarSeedSplatIntrinsic))
-    return error;
-  if (llvm::Error error = requireHandoffPrimitiveFact(
-          "primitive_accumulator_layout",
-          handoff.getPrimitiveAccumulatorLayout(),
-          kRVVLowPrecisionResourcePrimitiveAccumulatorLayout))
-    return error;
-  if (llvm::Error error = requireHandoffPrimitiveFact(
-          "primitive_result_layout", handoff.getPrimitiveResultLayout(),
-          kRVVLowPrecisionResourcePrimitiveResultLayout))
-    return error;
-  if (llvm::Error error = requireHandoffPrimitiveFact(
-          "primitive_reduction_store_vl",
-          handoff.getPrimitiveReductionStoreVl(),
-          kRVVLowPrecisionResourcePrimitiveReductionStoreVL))
-    return error;
-
-  auto requireOptionalRemediationFact =
-      [&](llvm::StringRef attrName, llvm::StringRef expected) -> llvm::Error {
-    auto attr = handoff->getAttrOfType<mlir::StringAttr>(attrName);
-    if (!isPackedI4Resource) {
-      if (attr)
-        return makeRVVEmitCRouteProviderError(
-            llvm::Twine("low-precision product-reduction dequantization RVV "
-                        "route requires packed-i4 remediation fact '") +
-            attrName + "' to be absent for unpacked-byte resource candidates");
-      return llvm::Error::success();
-    }
-    if (!attr)
-      return makeRVVEmitCRouteProviderError(
-          llvm::Twine("low-precision product-reduction dequantization RVV "
-                      "route requires weft_rvv.gearbox_cross_region_handoff "
-                      "packed-i4 remediation fact '") +
-          attrName + "' before route support");
-    if (attr.getValue() == expected)
-      return llvm::Error::success();
-    return makeRVVEmitCRouteProviderError(
-        llvm::Twine("low-precision product-reduction dequantization RVV "
-                    "route requires weft_rvv.gearbox_cross_region_handoff "
-                    "packed-i4 remediation fact '") +
-        attrName + "' to match provider-owned resource fact '" + expected +
-        "' but found '" + attr.getValue() + "'");
-  };
-  if (llvm::Error error = requireOptionalRemediationFact(
-          "remediation_plan_contract",
-          kRVVLowPrecisionResourcePackedI4RemediationPlanContract))
-    return error;
-  if (llvm::Error error = requireOptionalRemediationFact(
-          "remediation_plan", kRVVLowPrecisionResourcePackedI4RemediationPlan))
-    return error;
-  if (llvm::Error error = requireOptionalRemediationFact(
-          "remediation_statement_strategy",
-          kRVVLowPrecisionResourcePackedI4RemediationStatementStrategy))
-    return error;
-  if (llvm::Error error = requireOptionalRemediationFact(
-          "remediation_vector_budget",
-          kRVVLowPrecisionResourcePackedI4RemediationVectorBudget))
-    return error;
-  if (llvm::Error error = requireOptionalRemediationFact(
-          "remediation_schedule_contract",
-          kRVVLowPrecisionResourcePackedI4RemediationScheduleContract))
-    return error;
-  if (llvm::Error error = requireOptionalRemediationFact(
-          "remediation_unpack_plan",
-          kRVVLowPrecisionResourcePackedI4RemediationUnpackPlan))
-    return error;
-  if (llvm::Error error = requireOptionalRemediationFact(
-          "remediation_product_plan",
-          kRVVLowPrecisionResourcePackedI4RemediationProductPlan))
-    return error;
-  if (llvm::Error error = requireOptionalRemediationFact(
-          "remediation_reduction_plan",
-          kRVVLowPrecisionResourcePackedI4RemediationReductionPlan))
-    return error;
-  if (llvm::Error error = requireOptionalRemediationFact(
-          "remediation_vl_plan",
-          kRVVLowPrecisionResourcePackedI4RemediationVLPlan))
-    return error;
-  if (llvm::Error error = requireOptionalRemediationFact(
-          "schedule_decision_contract",
-          kRVVLowPrecisionResourcePackedI4ScheduleDecisionContract))
-    return error;
-  if (llvm::Error error = requireOptionalRemediationFact(
-          "schedule_decision", kRVVLowPrecisionResourcePackedI4ScheduleDecision))
-    return error;
-  if (llvm::Error error = requireOptionalRemediationFact(
-          "schedule_decision_reason",
-          kRVVLowPrecisionResourcePackedI4ScheduleDecisionReason))
-    return error;
-
-  slice.gearboxCrossRegionHandoffOp = handoff;
-  slice.conversionSource = handoff.getOutput();
-  return llvm::Error::success();
-}
-
 llvm::Error recordRVVSelectedBodyDequantize(
     RVVSelectedBodyRouteSlice &slice, weft::rvv::DequantizeOp dequantize) {
   if (dequantize.getKind() != kRVVDequantizeI32ToF32Kind)
@@ -1494,19 +1137,7 @@ llvm::Error recordRVVSelectedBodyDequantize(
           "bounded RVV EmitC route requires exactly one selected compute op "
           "unless a low-precision product-reduction result feeds a "
           "weft_rvv.dequantize i32-to-f32 chain");
-    // Two carriers of the i32 product-reduction result feed the dequant:
-    //   - legacy two-scope: the gearbox_cross_region_handoff output (carrier);
-    //   - single-scope typed body (Stage 3 flip + the deferred-wide chain): the
-    //     standalone_reduce result directly (no handoff op is present).
-    if (slice.gearboxCrossRegionHandoffOp) {
-      if (dequantize.getSource() !=
-          slice.gearboxCrossRegionHandoffOp.getOutput())
-        return makeRVVEmitCRouteProviderError(
-            "low-precision product-reduction dequantization RVV route requires "
-            "weft_rvv.dequantize source to consume the selected "
-            "weft_rvv.gearbox_cross_region_handoff output");
-    } else if (dequantize.getSource() !=
-               slice.standaloneReduceOp.getResult()) {
+    if (dequantize.getSource() != slice.standaloneReduceOp.getResult()) {
       return makeRVVEmitCRouteProviderError(
           "low-precision product-reduction dequantization RVV route requires "
           "weft_rvv.dequantize source to consume the selected "
@@ -1567,345 +1198,6 @@ recordRVVSelectedBodyMaskedStridedStore(RVVSelectedBodyRouteSlice &slice,
                                         weft::rvv::MaskedStridedStoreOp store);
 llvm::Expected<RVVSelectedBodyOperationKind>
 parseRVVSelectedBodyBinaryKind(llvm::StringRef kind);
-
-bool isRVVGearboxProductReduceDequantConsumerScope(
-    weft::rvv::WithVLOp producerWithVL, weft::rvv::WithVLOp candidate) {
-  if (!producerWithVL || !candidate || producerWithVL == candidate ||
-      candidate.getVl() != producerWithVL.getVl() ||
-      !producerWithVL->isProperAncestor(candidate.getOperation()))
-    return false;
-
-  auto isHandoffConsumingDequantize = [&](weft::rvv::DequantizeOp dequantize) {
-    auto handoff = dequantize.getSource()
-                       .getDefiningOp<weft::rvv::GearboxCrossRegionHandoffOp>();
-    return handoff && handoff->getParentOp() == producerWithVL.getOperation() &&
-           dequantize->getParentOp() == candidate.getOperation() &&
-           dequantize.getVl() == producerWithVL.getVl();
-  };
-
-  auto valueUsesHandoffDequantize = [&](mlir::Value value) {
-    llvm::SmallVector<mlir::Value, 4> worklist{value};
-    llvm::SmallPtrSet<mlir::Value, 4> seen;
-    while (!worklist.empty()) {
-      mlir::Value current = worklist.pop_back_val();
-      if (!seen.insert(current).second)
-        continue;
-      if (auto dequantize = current.getDefiningOp<weft::rvv::DequantizeOp>()) {
-        if (isHandoffConsumingDequantize(dequantize))
-          return true;
-        continue;
-      }
-      auto select = current.getDefiningOp<weft::rvv::SelectOp>();
-      if (!select || select->getParentOp() != candidate.getOperation() ||
-          select.getVl() != producerWithVL.getVl())
-        continue;
-      worklist.push_back(select.getTrueValue());
-      worklist.push_back(select.getFalseValue());
-    }
-    return false;
-  };
-
-  bool hasRegionMarker = false;
-  bool hasHandoffDequantize = false;
-  bool hasStore = false;
-  for (mlir::Operation &op : candidate.getBody().front()) {
-    if (auto marker = llvm::dyn_cast<weft::rvv::VSetVLRegionMarkerOp>(op)) {
-      hasRegionMarker =
-          marker.getVl() == producerWithVL.getVl() &&
-          marker.getPhase() == "dequant-store" &&
-          marker->getAttrOfType<mlir::StringAttr>(
-              kGearboxHandoffPlanningContractAttrName) &&
-          marker->getAttrOfType<mlir::StringAttr>(
-              kGearboxHandoffPlanningContractAttrName)
-                  .getValue() == kRVVLowPrecisionResourcePlanningContract &&
-          static_cast<std::int64_t>(marker.getRegionIndex()) ==
-              getRVVLowPrecisionResourceDequantRegionIndexForRealizationDecision(
-                  marker.getResourceDecision()) &&
-          static_cast<std::int64_t>(marker.getRegionCount()) ==
-              getRVVLowPrecisionResourceExpectedVSetVLRegionCountForRealizationDecision(
-                  marker.getResourceDecision()) &&
-          isRVVLowPrecisionResourceSupportedRealizationDecision(
-              marker.getResourceDecision());
-      continue;
-    }
-    if (auto dequantize = llvm::dyn_cast<weft::rvv::DequantizeOp>(op)) {
-      if (isHandoffConsumingDequantize(dequantize))
-        hasHandoffDequantize = true;
-      continue;
-    }
-    if (auto store = llvm::dyn_cast<weft::rvv::StoreOp>(op)) {
-      if (store.getVl() == producerWithVL.getVl() &&
-          valueUsesHandoffDequantize(store.getValue()))
-        hasStore = true;
-      continue;
-    }
-  }
-  return hasRegionMarker && hasHandoffDequantize && hasStore;
-}
-
-weft::rvv::GearboxCrossRegionHandoffOp
-findDirectRVVGearboxCrossRegionHandoff(weft::rvv::WithVLOp withVL) {
-  weft::rvv::GearboxCrossRegionHandoffOp handoff;
-  if (!withVL)
-    return handoff;
-  for (mlir::Operation &op : withVL.getBody().front()) {
-    auto candidate =
-        llvm::dyn_cast<weft::rvv::GearboxCrossRegionHandoffOp>(op);
-    if (!candidate)
-      continue;
-    if (handoff)
-      return {};
-    handoff = candidate;
-  }
-  return handoff;
-}
-
-bool isRVVGearboxConsumerScopeOrderedAfterHandoff(
-    weft::rvv::WithVLOp producerWithVL, weft::rvv::WithVLOp consumerWithVL,
-    weft::rvv::GearboxCrossRegionHandoffOp handoff) {
-  if (!producerWithVL || !consumerWithVL || !handoff)
-    return false;
-  bool sawHandoff = false;
-  for (mlir::Operation &op : producerWithVL.getBody().front()) {
-    if (&op == handoff.getOperation()) {
-      sawHandoff = true;
-      continue;
-    }
-    if (&op == consumerWithVL.getOperation())
-      return sawHandoff;
-  }
-  return false;
-}
-
-llvm::Error recordRVVSelectedBodyScopedRouteOp(
-    RVVSelectedBodyRouteSlice &slice, mlir::Operation &op,
-    llvm::SmallVectorImpl<weft::rvv::LoadOp> &genericLoads,
-    llvm::SmallVectorImpl<weft::rvv::StridedLoadOp> &genericStridedLoads,
-    llvm::SmallVectorImpl<weft::rvv::IndexLoadOp> &genericIndexLoads,
-    llvm::SmallVectorImpl<weft::rvv::IndexedLoadOp> &genericIndexedLoads,
-    llvm::SmallVectorImpl<weft::rvv::IndexedStoreOp> &genericIndexedStores,
-    llvm::SmallVectorImpl<weft::rvv::MaskLoadOp> &genericMaskLoads,
-    llvm::SmallVectorImpl<weft::rvv::MaskedLoadOp> &genericMaskedLoads,
-    llvm::SmallVectorImpl<weft::rvv::MaskedStridedLoadOp>
-        &genericMaskedStridedLoads,
-    llvm::SmallVectorImpl<weft::rvv::MaskedIndexedLoadOp>
-        &genericMaskedIndexedLoads,
-    llvm::SmallVectorImpl<weft::rvv::MaskedIndexedStoreOp>
-        &genericMaskedIndexedStores,
-    llvm::SmallVectorImpl<weft::rvv::MaskedSegment2LoadOp>
-        &genericMaskedSegment2Loads,
-    llvm::SmallVectorImpl<weft::rvv::MaskedSegment2StoreOp>
-        &genericMaskedSegment2Stores,
-    llvm::SmallVectorImpl<weft::rvv::Segment2LoadOp> &genericSegment2Loads,
-    llvm::SmallVectorImpl<weft::rvv::Segment2StoreOp> &genericSegment2Stores,
-    llvm::SmallVectorImpl<weft::rvv::VSetVLRegionMarkerOp>
-        &vsetvlRegionMarkers,
-    llvm::SmallVectorImpl<weft::rvv::BroadcastLoadOp> &genericBroadcastLoads,
-    llvm::SmallVectorImpl<weft::rvv::SplatOp> &genericScalarSplats,
-    llvm::SmallVectorImpl<weft::rvv::StoreOp> &genericStores,
-    unsigned &storeCount, unsigned &stridedStoreCount,
-    const support::RuntimeABIParameter &runtimeElementCountABI) {
-  if (auto marker = llvm::dyn_cast<weft::rvv::VSetVLRegionMarkerOp>(op)) {
-    vsetvlRegionMarkers.push_back(marker);
-    return llvm::Error::success();
-  }
-  if (auto handoff =
-          llvm::dyn_cast<weft::rvv::GearboxCrossRegionHandoffOp>(op))
-    return recordRVVSelectedBodyGearboxCrossRegionHandoff(
-        slice, handoff, runtimeElementCountABI);
-  if (auto load = llvm::dyn_cast<weft::rvv::LoadOp>(op)) {
-    genericLoads.push_back(load);
-    return llvm::Error::success();
-  }
-  if (auto stridedLoad = llvm::dyn_cast<weft::rvv::StridedLoadOp>(op)) {
-    genericStridedLoads.push_back(stridedLoad);
-    return llvm::Error::success();
-  }
-  if (auto indexLoad = llvm::dyn_cast<weft::rvv::IndexLoadOp>(op)) {
-    genericIndexLoads.push_back(indexLoad);
-    return llvm::Error::success();
-  }
-  if (auto indexedLoad = llvm::dyn_cast<weft::rvv::IndexedLoadOp>(op)) {
-    genericIndexedLoads.push_back(indexedLoad);
-    return llvm::Error::success();
-  }
-  if (auto indexedStore = llvm::dyn_cast<weft::rvv::IndexedStoreOp>(op)) {
-    genericIndexedStores.push_back(indexedStore);
-    return llvm::Error::success();
-  }
-  if (auto maskLoad = llvm::dyn_cast<weft::rvv::MaskLoadOp>(op)) {
-    genericMaskLoads.push_back(maskLoad);
-    return llvm::Error::success();
-  }
-  if (auto maskedLoad = llvm::dyn_cast<weft::rvv::MaskedLoadOp>(op)) {
-    genericMaskedLoads.push_back(maskedLoad);
-    return recordRVVSelectedBodyMaskedLoad(slice, maskedLoad);
-  }
-  if (auto maskedStridedLoad =
-          llvm::dyn_cast<weft::rvv::MaskedStridedLoadOp>(op)) {
-    genericMaskedStridedLoads.push_back(maskedStridedLoad);
-    return recordRVVSelectedBodyMaskedStridedLoad(slice, maskedStridedLoad);
-  }
-  if (auto maskedIndexedLoad =
-          llvm::dyn_cast<weft::rvv::MaskedIndexedLoadOp>(op)) {
-    genericMaskedIndexedLoads.push_back(maskedIndexedLoad);
-    return recordRVVSelectedBodyMaskedIndexedLoad(slice, maskedIndexedLoad);
-  }
-  if (auto maskedIndexedStore =
-          llvm::dyn_cast<weft::rvv::MaskedIndexedStoreOp>(op)) {
-    genericMaskedIndexedStores.push_back(maskedIndexedStore);
-    return recordRVVSelectedBodyMaskedIndexedStore(slice, maskedIndexedStore);
-  }
-  if (auto maskedSegment2Load =
-          llvm::dyn_cast<weft::rvv::MaskedSegment2LoadOp>(op)) {
-    genericMaskedSegment2Loads.push_back(maskedSegment2Load);
-    return recordRVVSelectedBodyMaskedSegment2Load(slice, maskedSegment2Load);
-  }
-  if (auto maskedSegment2Store =
-          llvm::dyn_cast<weft::rvv::MaskedSegment2StoreOp>(op)) {
-    genericMaskedSegment2Stores.push_back(maskedSegment2Store);
-    return recordRVVSelectedBodyMaskedSegment2Store(slice, maskedSegment2Store);
-  }
-  if (auto segment2Load = llvm::dyn_cast<weft::rvv::Segment2LoadOp>(op)) {
-    genericSegment2Loads.push_back(segment2Load);
-    return llvm::Error::success();
-  }
-  if (auto segment2Store = llvm::dyn_cast<weft::rvv::Segment2StoreOp>(op)) {
-    genericSegment2Stores.push_back(segment2Store);
-    return llvm::Error::success();
-  }
-  if (auto broadcast = llvm::dyn_cast<weft::rvv::BroadcastLoadOp>(op)) {
-    genericBroadcastLoads.push_back(broadcast);
-    return llvm::Error::success();
-  }
-  if (auto splat = llvm::dyn_cast<weft::rvv::SplatOp>(op)) {
-    genericScalarSplats.push_back(splat);
-    return llvm::Error::success();
-  }
-  if (auto binary = llvm::dyn_cast<weft::rvv::BinaryOp>(op)) {
-    llvm::Expected<RVVSelectedBodyOperationKind> kind =
-        parseRVVSelectedBodyBinaryKind(binary.getKind());
-    if (!kind)
-      return kind.takeError();
-    return recordRVVSelectedBodyOperation(slice, binary.getOperation(), *kind,
-                                          binary.getLhs(), binary.getRhs(),
-                                          binary.getResult());
-  }
-  if (auto compare = llvm::dyn_cast<weft::rvv::CompareOp>(op))
-    return recordRVVSelectedBodyCompare(slice, compare);
-  if (auto maskAnd = llvm::dyn_cast<weft::rvv::MaskAndOp>(op))
-    return recordRVVSelectedBodyMaskAnd(slice, maskAnd);
-  if (auto maskedBinary = llvm::dyn_cast<weft::rvv::MaskedBinaryOp>(op))
-    return recordRVVSelectedBodyMaskedBinary(slice, maskedBinary);
-  if (auto select = llvm::dyn_cast<weft::rvv::SelectOp>(op))
-    return recordRVVSelectedBodySelect(slice, select);
-  if (auto reduce = llvm::dyn_cast<weft::rvv::ReduceOp>(op))
-    return recordRVVSelectedBodyReduction(slice, reduce);
-  if (auto standaloneReduce =
-          llvm::dyn_cast<weft::rvv::StandaloneReduceOp>(op))
-    return recordRVVSelectedBodyStandaloneReduction(slice, standaloneReduce);
-  if (auto maskedStandaloneReduce =
-          llvm::dyn_cast<weft::rvv::MaskedStandaloneReduceOp>(op))
-    return recordRVVSelectedBodyMaskedStandaloneReduction(slice,
-                                                          maskedStandaloneReduce);
-  if (auto macc = llvm::dyn_cast<weft::rvv::MAccOp>(op))
-    return recordRVVSelectedBodyMAcc(slice, macc);
-  if (auto maskedMAcc = llvm::dyn_cast<weft::rvv::MaskedMAccOp>(op))
-    return recordRVVSelectedBodyMaskedMAcc(slice, maskedMAcc);
-  if (auto wideningMAcc = llvm::dyn_cast<weft::rvv::WideningMAccOp>(op))
-    return recordRVVSelectedBodyWideningMAcc(slice, wideningMAcc);
-  if (auto product = llvm::dyn_cast<weft::rvv::WideningProductOp>(op))
-    return recordRVVSelectedBodyWideningProduct(slice, product);
-  if (auto accumulate = llvm::dyn_cast<weft::rvv::WideningAccumulateOp>(op))
-    return recordRVVSelectedBodyWideningAccumulate(slice, accumulate);
-  if (auto deferredAccumulate =
-          llvm::dyn_cast<weft::rvv::DeferredAccumulateOp>(op))
-    return recordRVVSelectedBodyDeferredAccumulate(slice, deferredAccumulate);
-  if (auto nibbleProduct =
-          llvm::dyn_cast<weft::rvv::PackedI4NibbleUnpackProductOp>(op))
-    return recordRVVSelectedBodyNibbleUnpackProduct(slice, nibbleProduct);
-  if (auto offsetBinaryProduct =
-          llvm::dyn_cast<weft::rvv::PackedI4OffsetBinaryXI8ProductOp>(op))
-    return recordRVVSelectedBodyPackedI4OffsetBinaryProduct(slice,
-                                                            offsetBinaryProduct);
-  if (auto codebookTable =
-          llvm::dyn_cast<weft::rvv::CodebookTableBroadcastOp>(op))
-    return recordRVVSelectedBodyCodebookTableBroadcast(slice, codebookTable);
-  if (auto codebookProduct =
-          llvm::dyn_cast<weft::rvv::CodebookGatherXI8ProductOp>(op))
-    return recordRVVSelectedBodyCodebookGatherProduct(slice, codebookProduct);
-  if (auto dotReduce = llvm::dyn_cast<weft::rvv::WideningDotReduceOp>(op))
-    return recordRVVSelectedBodyWideningDotReduce(slice, dotReduce);
-  if (auto maskedDotReduce =
-          llvm::dyn_cast<weft::rvv::MaskedWideningDotReduceOp>(op))
-    return recordRVVSelectedBodyMaskedWideningDotReduce(slice, maskedDotReduce);
-  if (auto conversion = llvm::dyn_cast<weft::rvv::WideningConvertOp>(op))
-    return recordRVVSelectedBodyWideningConvert(slice, conversion);
-  if (auto dequantize = llvm::dyn_cast<weft::rvv::DequantizeOp>(op))
-    return recordRVVSelectedBodyDequantize(slice, dequantize);
-  if (auto move = llvm::dyn_cast<weft::rvv::MoveOp>(op))
-    return recordRVVSelectedBodyMove(slice, move);
-  if (auto maskedMove = llvm::dyn_cast<weft::rvv::MaskedMoveOp>(op))
-    return recordRVVSelectedBodyMaskedMove(slice, maskedMove);
-  if (auto maskedStore = llvm::dyn_cast<weft::rvv::MaskedStoreOp>(op))
-    return recordRVVSelectedBodyMaskedStore(slice, maskedStore);
-  if (auto maskedStridedStore =
-          llvm::dyn_cast<weft::rvv::MaskedStridedStoreOp>(op))
-    return recordRVVSelectedBodyMaskedStridedStore(slice, maskedStridedStore);
-  if (auto store = llvm::dyn_cast<weft::rvv::StoreOp>(op)) {
-    slice.genericStore = store;
-    genericStores.push_back(store);
-    ++storeCount;
-    return llvm::Error::success();
-  }
-  if (auto stridedStore = llvm::dyn_cast<weft::rvv::StridedStoreOp>(op)) {
-    slice.stridedStore = stridedStore;
-    ++stridedStoreCount;
-    return llvm::Error::success();
-  }
-  if (op.getName().getStringRef().starts_with("weft_rvv.i32_"))
-    return makeRVVEmitCRouteProviderError(
-        llvm::Twine("legacy selected-body op '") + op.getName().getStringRef() +
-        "' is fail-closed during RVV Stage1; Stage2 routes must use generic "
-        "weft_rvv.load, weft_rvv.broadcast_load, "
-        "weft_rvv.splat, weft_rvv.strided_load, weft_rvv.binary, "
-        "weft_rvv.index_load, weft_rvv.indexed_load, weft_rvv.segment2_load, "
-        "weft_rvv.segment2_store, "
-        "weft_rvv.indexed_store, weft_rvv.mask_load, weft_rvv.compare, "
-        "weft_rvv.masked_binary, weft_rvv.select, weft_rvv.reduce, "
-        "weft_rvv.standalone_reduce, weft_rvv.masked_standalone_reduce, "
-        "weft_rvv.macc, weft_rvv.masked_macc, "
-        "weft_rvv.widening_product, weft_rvv.widening_accumulate, "
-        "weft_rvv.deferred_accumulate, "
-        "weft_rvv.widening_convert, "
-        "weft_rvv.gearbox_cross_region_handoff, "
-        "weft_rvv.move, "
-        "weft_rvv.widening_dot_reduce, "
-        "weft_rvv.masked_widening_dot_reduce, "
-        "weft_rvv.masked_move, weft_rvv.masked_load, "
-        "weft_rvv.masked_strided_load, weft_rvv.masked_indexed_load, "
-        "weft_rvv.masked_indexed_store, "
-        "weft_rvv.masked_segment2_load, weft_rvv.masked_store, "
-        "weft_rvv.masked_strided_store, "
-        "weft_rvv.store, and "
-        "weft_rvv.strided_store body structure");
-  return makeRVVEmitCRouteProviderError(
-      llvm::Twine("bounded RVV EmitC route does not support op '") +
-      op.getName().getStringRef() +
-      "' inside weft_rvv.with_vl; expected generic load, broadcast_load, "
-      "splat, strided_load, index_load, indexed_load, indexed_store, "
-      "mask_load, segment2_load, segment2_store, binary, compare, "
-      "masked_binary, select, reduce, standalone_reduce, "
-      "masked_standalone_reduce, macc, masked_macc, "
-      "widening_product, widening_accumulate, deferred_accumulate, "
-      "packed_i4_nibble_unpack_product, widening_convert, "
-      "gearbox_cross_region_handoff, "
-      "widening_dot_reduce, "
-      "masked_widening_dot_reduce, move, masked_move, masked_load, "
-      "masked_strided_load, masked_indexed_load, masked_indexed_store, "
-      "masked_segment2_load, "
-      "masked_store, masked_strided_store, store, and strided_store only");
-}
 
 llvm::Error recordRVVSelectedBodyMove(RVVSelectedBodyRouteSlice &slice,
                                       weft::rvv::MoveOp move) {
@@ -2818,77 +2110,23 @@ recordRVVSelectedBodyRuntimeScalarComputedMaskIndexedGatherMAccScatter(
   return llvm::Error::success();
 }
 
-// Resolve the single-with_vl vs. Gearbox producer/consumer multi-with_vl
-// structure into slice.withVL / slice.gearboxProducerWithVL /
-// slice.gearboxConsumerWithVL. Extracted verbatim from
-// collectRVVSelectedBodyRouteSlice (phase 2); reads withVLs, mutates slice.
-llvm::Error resolveGearboxProducerConsumerWithVL(
+// A realized route has one selected VL scope. Formula construction must have
+// already expressed every schedule choice inside that typed body.
+llvm::Error resolveSelectedWithVL(
     llvm::ArrayRef<weft::rvv::WithVLOp> withVLs,
     RVVSelectedBodyRouteSlice &slice) {
-  if (withVLs.size() == 1) {
-    slice.withVL = withVLs.front();
-  } else if (withVLs.size() == 2) {
-    weft::rvv::GearboxCrossRegionHandoffOp producerHandoff;
-    for (weft::rvv::WithVLOp withVL : withVLs) {
-      weft::rvv::GearboxCrossRegionHandoffOp handoff =
-          findDirectRVVGearboxCrossRegionHandoff(withVL);
-      if (!handoff)
-        continue;
-      if (producerHandoff)
-        return makeRVVEmitCRouteProviderError(
-            "bounded Gearbox multi-with_vl RVV route requires a unique "
-            "producer weft_rvv.with_vl with a direct "
-            "weft_rvv.gearbox_cross_region_handoff");
-      slice.gearboxProducerWithVL = withVL;
-      producerHandoff = handoff;
-    }
-    if (!slice.gearboxProducerWithVL)
-      return makeRVVEmitCRouteProviderError(
-          "bounded RVV EmitC route supports multiple weft_rvv.with_vl ops "
-          "only for Gearbox product-reduction/dequant producer-consumer "
-          "route collection with a direct "
-          "weft_rvv.gearbox_cross_region_handoff");
-
-    for (weft::rvv::WithVLOp withVL : withVLs) {
-      if (withVL == slice.gearboxProducerWithVL)
-        continue;
-      if (!isRVVGearboxProductReduceDequantConsumerScope(
-              slice.gearboxProducerWithVL, withVL))
-        continue;
-      if (slice.gearboxConsumerWithVL)
-        return makeRVVEmitCRouteProviderError(
-            "bounded Gearbox multi-with_vl RVV route requires a unique "
-            "consumer weft_rvv.with_vl carrying the dequant-store scope");
-      slice.gearboxConsumerWithVL = withVL;
-    }
-    if (!slice.gearboxConsumerWithVL)
-      return makeRVVEmitCRouteProviderError(
-          "bounded Gearbox multi-with_vl RVV route requires a nested consumer "
-          "weft_rvv.with_vl that consumes the same VL and carries "
-          "dequant-store marker/dequant/store facts");
-    if (!isRVVGearboxConsumerScopeOrderedAfterHandoff(
-            slice.gearboxProducerWithVL, slice.gearboxConsumerWithVL,
-            producerHandoff))
-      return makeRVVEmitCRouteProviderError(
-          "bounded Gearbox multi-with_vl RVV route requires the consumer "
-          "weft_rvv.with_vl to be structurally ordered after the producer "
-          "weft_rvv.gearbox_cross_region_handoff");
-    slice.withVL = slice.gearboxProducerWithVL;
-  } else {
+  if (withVLs.size() != 1)
     return makeRVVEmitCRouteProviderError(
-        "bounded RVV EmitC route requires exactly one weft_rvv.with_vl op, "
-        "or exactly two Gearbox producer/consumer weft_rvv.with_vl ops");
-  }
+        "bounded RVV EmitC route requires exactly one weft_rvv.with_vl op");
+  slice.withVL = withVLs.front();
   return llvm::Error::success();
 }
 
-// Walk the selected with_vl body (single-scope or Gearbox producer/consumer
-// two-scope) and gather every generic route op into the per-shape SmallVectors
+// Walk the selected with_vl body and gather every generic route op into the per-shape SmallVectors
 // + counts, recording masked/segmented/movement ops into slice as it goes.
 // Extracted verbatim from collectRVVSelectedBodyRouteSlice (phase 5).
 llvm::Error collectGenericRouteSliceOps(
     RVVSelectedBodyRouteSlice &slice,
-    const support::RuntimeABIParameter &runtimeElementCountABIValue,
     llvm::SmallVectorImpl<weft::rvv::LoadOp> &genericLoads,
     llvm::SmallVectorImpl<weft::rvv::StridedLoadOp> &genericStridedLoads,
     llvm::SmallVectorImpl<weft::rvv::IndexLoadOp> &genericIndexLoads,
@@ -2903,71 +2141,11 @@ llvm::Error collectGenericRouteSliceOps(
     llvm::SmallVectorImpl<weft::rvv::MaskedSegment2StoreOp> &genericMaskedSegment2Stores,
     llvm::SmallVectorImpl<weft::rvv::Segment2LoadOp> &genericSegment2Loads,
     llvm::SmallVectorImpl<weft::rvv::Segment2StoreOp> &genericSegment2Stores,
-    llvm::SmallVectorImpl<weft::rvv::VSetVLRegionMarkerOp> &vsetvlRegionMarkers,
     llvm::SmallVectorImpl<weft::rvv::BroadcastLoadOp> &genericBroadcastLoads,
     llvm::SmallVectorImpl<weft::rvv::SplatOp> &genericScalarSplats,
     llvm::SmallVectorImpl<weft::rvv::StoreOp> &genericStores, unsigned &storeCount,
     unsigned &stridedStoreCount) {
-  const support::RuntimeABIParameter *runtimeElementCountABI =
-      &runtimeElementCountABIValue;
-  auto recordScopedRouteOp = [&](mlir::Operation &op) -> llvm::Error {
-    return recordRVVSelectedBodyScopedRouteOp(
-        slice, op, genericLoads, genericStridedLoads, genericIndexLoads,
-        genericIndexedLoads, genericIndexedStores, genericMaskLoads,
-        genericMaskedLoads, genericMaskedStridedLoads,
-        genericMaskedIndexedLoads, genericMaskedIndexedStores,
-        genericMaskedSegment2Loads, genericMaskedSegment2Stores,
-        genericSegment2Loads, genericSegment2Stores, vsetvlRegionMarkers,
-        genericBroadcastLoads, genericScalarSplats, genericStores, storeCount,
-        stridedStoreCount, *runtimeElementCountABI);
-  };
-  if (slice.gearboxConsumerWithVL) {
-    bool sawHandoff = false;
-    bool sawConsumerScope = false;
-    for (mlir::Operation &op : slice.gearboxProducerWithVL.getBody().front()) {
-      if (auto nestedWithVL = llvm::dyn_cast<weft::rvv::WithVLOp>(op)) {
-        if (nestedWithVL != slice.gearboxConsumerWithVL)
-          return makeRVVEmitCRouteProviderError(
-              "bounded Gearbox multi-with_vl RVV route does not support "
-              "unrelated nested weft_rvv.with_vl scopes in the producer body");
-        if (!sawHandoff)
-          return makeRVVEmitCRouteProviderError(
-              "bounded Gearbox multi-with_vl RVV route requires the consumer "
-              "weft_rvv.with_vl to appear after the producer handoff");
-        sawConsumerScope = true;
-        continue;
-      }
-      if (llvm::Error error = recordScopedRouteOp(op))
-        return std::move(error);
-      if (llvm::isa<weft::rvv::GearboxCrossRegionHandoffOp>(op))
-        sawHandoff = true;
-    }
-    if (!sawHandoff || !sawConsumerScope)
-      return makeRVVEmitCRouteProviderError(
-          "bounded Gearbox multi-with_vl RVV route requires direct producer "
-          "handoff and nested consumer scope in structural order");
-    for (mlir::Operation &op : slice.gearboxConsumerWithVL.getBody().front()) {
-      if (llvm::isa<weft::rvv::WithVLOp>(op))
-        return makeRVVEmitCRouteProviderError(
-            "bounded Gearbox multi-with_vl RVV route does not support nested "
-            "weft_rvv.with_vl below the consumer dequant-store scope");
-      if (llvm::Error error = recordScopedRouteOp(op))
-        return std::move(error);
-    }
-  } else {
   for (mlir::Operation &op : slice.withVL.getBody().front()) {
-    if (auto marker = llvm::dyn_cast<weft::rvv::VSetVLRegionMarkerOp>(op)) {
-      vsetvlRegionMarkers.push_back(marker);
-      continue;
-    }
-    if (auto handoff =
-            llvm::dyn_cast<weft::rvv::GearboxCrossRegionHandoffOp>(op)) {
-      if (llvm::Error error =
-              recordRVVSelectedBodyGearboxCrossRegionHandoff(
-                  slice, handoff, *runtimeElementCountABI))
-        return std::move(error);
-      continue;
-    }
     if (auto load = llvm::dyn_cast<weft::rvv::LoadOp>(op)) {
       genericLoads.push_back(load);
       continue;
@@ -3251,7 +2429,6 @@ llvm::Error collectGenericRouteSliceOps(
           "weft_rvv.widening_product, weft_rvv.widening_accumulate, "
         "weft_rvv.deferred_accumulate, "
           "weft_rvv.widening_convert, "
-          "weft_rvv.gearbox_cross_region_handoff, "
           "weft_rvv.move, "
           "weft_rvv.widening_dot_reduce, "
           "weft_rvv.masked_widening_dot_reduce, "
@@ -3272,13 +2449,11 @@ llvm::Error collectGenericRouteSliceOps(
         "masked_standalone_reduce, macc, masked_macc, "
         "widening_product, widening_accumulate, deferred_accumulate, "
         "packed_i4_nibble_unpack_product, widening_convert, "
-      "gearbox_cross_region_handoff, "
         "widening_dot_reduce, "
         "masked_widening_dot_reduce, move, masked_move, masked_load, "
         "masked_strided_load, masked_indexed_load, masked_indexed_store, "
         "masked_segment2_load, "
         "masked_store, masked_strided_store, store, and strided_store only");
-  }
   }
   return llvm::Error::success();
 }
@@ -3947,9 +3122,6 @@ llvm::Error validateRVVSelectedBodyShapeDispatch(
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV low-precision product-reduction "
           "dequantization route requires a weft_rvv.dequantize consumer");
-    // Single-scope typed dequant bodies (Stage 3 flip) carry the i32 carry on
-    // the standalone_reduce result directly and have no handoff op; only the
-    // legacy two-scope body has the gearbox_cross_region_handoff carrier.
     if (hasProductReductionDequantization &&
         slice.dequantScaleABI.role !=
             support::RuntimeABIParameterRole::DequantScaleValue)
@@ -3971,12 +3143,8 @@ llvm::Error validateRVVSelectedBodyShapeDispatch(
         : isWideningProductReduceDequantize
             ? slice.dequantizeOp.getResult()
             : slice.standaloneReduceOp.getResult();
-    // The dequant consumer reads either the handoff carrier (legacy two-scope)
-    // or the standalone_reduce result directly (single-scope typed body).
     const mlir::Value dequantI32Carrier =
-        slice.gearboxCrossRegionHandoffOp
-            ? slice.gearboxCrossRegionHandoffOp.getOutput()
-            : slice.standaloneReduceOp.getResult();
+        slice.standaloneReduceOp.getResult();
     // In the deferred-wide chain the trailing standalone_reduce consumes the
     // i32m8 accumulate result; reduceInputSlotResult returns that wide carrier
     // when the accumulate is present, else the narrow product result (I5).
@@ -4034,17 +3202,13 @@ llvm::Error validateRVVSelectedBodyShapeDispatch(
         slice.arithmeticAccumulator != slice.accumulatorBuffer ||
         slice.storeValue != expectedProductReductionStoreValue ||
         (hasProductReductionDequantization &&
-         ((slice.gearboxCrossRegionHandoffOp &&
-           slice.gearboxCrossRegionHandoffOp.getInput() !=
-               slice.standaloneReduceOp.getResult()) ||
-          dequantI32Carrier != slice.dequantizeOp.getSource())))
+         dequantI32Carrier != slice.dequantizeOp.getSource()))
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV low-precision product-reduction route requires "
           "weft_rvv.widening_product to consume lhs/rhs i8 source loads, "
           "weft_rvv.standalone_reduce to consume the product and scalar "
-          "accumulator seed boundary, optional "
-          "weft_rvv.gearbox_cross_region_handoff to forward the i32 "
-          "reduction result into weft_rvv.dequantize, and weft_rvv.store to "
+          "accumulator seed boundary, weft_rvv.dequantize to consume the i32 "
+          "reduction result, and weft_rvv.store to "
           "store the final chain result");
     if (isWideningProductReduceDequantClamp) {
       if (slice.lowerBoundABI.role !=
@@ -4082,8 +3246,6 @@ llvm::Error validateRVVSelectedBodyShapeDispatch(
           "runtime ABI boundary");
     if (productSlotVL(slice) != slice.setvl.getVl() ||
         slice.standaloneReduceOp.getVl() != slice.setvl.getVl() ||
-        (slice.gearboxCrossRegionHandoffOp &&
-         slice.gearboxCrossRegionHandoffOp.getVl() != slice.setvl.getVl()) ||
         (hasProductReductionDequantization &&
          slice.dequantizeOp.getVl() != slice.setvl.getVl()) ||
         (isWideningProductReduceDequantClamp &&
@@ -4098,18 +3260,9 @@ llvm::Error validateRVVSelectedBodyShapeDispatch(
         slice.genericStore.getVl() != slice.setvl.getVl())
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV low-precision product-reduction route requires "
-          "source loads, widening_product, standalone_reduce, optional "
-          "gearbox_cross_region_handoff, dequantize, and store to consume "
+          "source loads, widening_product, standalone_reduce, dequantize, and "
+          "store to consume "
           "the selected !weft_rvv.vl token");
-    if (hasProductReductionDequantization &&
-        slice.gearboxCrossRegionHandoffOp &&
-        slice.gearboxCrossRegionHandoffOp.getRuntimeAvl() !=
-            slice.setvl.getAvl())
-      return makeRVVEmitCRouteProviderError(
-          "bounded generic RVV low-precision product-reduction "
-          "dequantization route requires weft_rvv.gearbox_cross_region_handoff "
-          "runtime AVL operand to match the selected weft_rvv.setvl AVL "
-          "runtime SSA value");
   } else if (isWideningDotReduceAdd || isStridedInputWideningDotReduceAdd) {
     if (slice.accumulatorABI.role !=
         support::RuntimeABIParameterRole::AccumulatorInputBuffer)
@@ -7185,7 +6338,7 @@ llvm::Error checkRVVSelectedBodyShapeGuards(
 }
 
 // Validate the total weft_rvv op count against the per-shape expected count
-// (plus handoff/marker/consumer-scope adjustments). Pure validation leaf
+// plus structural formula-plan adjustments. Pure validation leaf
 // extracted verbatim from collectRVVSelectedBodyRouteSlice (tail).
 llvm::Error checkRVVSelectedBodyExpectedOpCount(
     const RVVSelectedBodyRouteSlice &slice, unsigned rvvOpCount,
@@ -7220,7 +6373,6 @@ llvm::Error checkRVVSelectedBodyExpectedOpCount(
     bool isStridedLoadUnitStore, bool isUnitLoadStridedStore,
     bool isWideningConversion, bool isWideningDotReduceAdd,
     bool isWideningMAccAdd, bool isWideningProductReduceDequantClamp,
-    bool isWideningProductReduceDequantGearboxRoute,
     bool isWideningProductReduceDequantize,
     bool isWideningProductReductionChain) {
   // P1e (arity guard-flip): the plain product-reduction body carries a fixed
@@ -7259,9 +6411,9 @@ llvm::Error checkRVVSelectedBodyExpectedOpCount(
       : isWideningDotReduceAdd
           ? 11
       : isWideningProductReduceDequantClamp
-          ? 23
+          ? 22
       : isWideningProductReduceDequantize
-          ? 15
+          ? 14
       : isWideningProductReductionChain
           ? expectedProductReductionOps
       : isStridedInputWideningDotReduceAdd
@@ -7329,15 +6481,6 @@ llvm::Error checkRVVSelectedBodyExpectedOpCount(
           : (hasStridedMemory
                  ? 13
                  : ((isCompareSelect || isMaskedArithmetic) ? 11 : 10))));
-  // The isWideningProductReduceDequantize/Clamp base counts (15/23) include the
-  // legacy two-scope gearbox_cross_region_handoff op. A single-scope typed body
-  // (Stage 3 flip) drops the handoff (and its markers + consumer with_vl), so the
-  // expected op count is one fewer when no handoff op is present.
-  const unsigned expectedHandoffAdjust =
-      (isWideningProductReduceDequantGearboxRoute &&
-       !slice.gearboxCrossRegionHandoffOp)
-          ? 1u
-          : 0u;
   // The deferred-wide (N3) realization inserts one extra in-loop
   // weft_rvv.widening_accumulate op between the widening_product and the trailing
   // standalone_reduce; account for it structurally from the slice (I5).
@@ -7357,11 +6500,10 @@ llvm::Error checkRVVSelectedBodyExpectedOpCount(
   // for it structurally from the slice (I5). Zero for every non-codebook route.
   const unsigned expectedCodebookTableAdjust =
       slice.codebookTableBroadcastOp ? 1u : 0u;
-  const unsigned expectedRVVOpsWithMarkers =
-      expectedRVVOps - expectedHandoffAdjust + expectedDeferredWideAdjust +
-      expectedCodebookTableAdjust + slice.vsetvlRegionMarkers.size() +
-      (slice.gearboxConsumerWithVL ? 1 : 0);
-  if (rvvOpCount != expectedRVVOpsWithMarkers)
+  const unsigned expectedRVVOpsWithFormulaPlan =
+      expectedRVVOps + expectedDeferredWideAdjust +
+      expectedCodebookTableAdjust;
+  if (rvvOpCount != expectedRVVOpsWithFormulaPlan)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV EmitC route supports only runtime_abi_value/"
         "runtime_abi_value/runtime_abi_value plus optional runtime_abi_value "
@@ -7371,8 +6513,7 @@ llvm::Error checkRVVSelectedBodyExpectedOpCount(
         "index_load/indexed_load/mask_load/segment2_load/segment2_store/"
         "binary/compare/select/masked_binary/reduce/macc/masked_macc/"
         "standalone_reduce/masked_standalone_reduce/widening_product/"
-        "widening_dot_reduce/widening_convert/"
-        "gearbox_cross_region_handoff/dequantize/vsetvl_region_marker/move/"
+        "widening_dot_reduce/widening_convert/dequantize/move/"
         "masked_move/masked_load/masked_strided_load/"
         "masked_indexed_load/masked_indexed_store/masked_store/"
         "masked_segment2_store/masked_strided_store/store/strided_store body "
@@ -7403,7 +6544,7 @@ collectRVVSelectedBodyRouteSlice(weft::exec::VariantOp variant) {
 
   RVVSelectedBodyRouteSlice slice;
   slice.setvl = setvls.front();
-  if (llvm::Error error = resolveGearboxProducerConsumerWithVL(withVLs, slice))
+  if (llvm::Error error = resolveSelectedWithVL(withVLs, slice))
     return std::move(error);
 
   weft::rvv::RVVConfigContractDiagnostic configDiagnostic =
@@ -7411,13 +6552,6 @@ collectRVVSelectedBodyRouteSlice(weft::exec::VariantOp variant) {
                                                           slice.withVL);
   if (!configDiagnostic.ok)
     return makeRVVEmitCRouteProviderError(configDiagnostic.message);
-  if (slice.gearboxConsumerWithVL) {
-    weft::rvv::RVVConfigContractDiagnostic consumerConfigDiagnostic =
-        weft::rvv::validateRVVSelectedBodyConfigVLStructure(
-            slice.setvl, slice.gearboxConsumerWithVL);
-    if (!consumerConfigDiagnostic.ok)
-      return makeRVVEmitCRouteProviderError(consumerConfigDiagnostic.message);
-  }
 
   llvm::Expected<support::RuntimeABIParameter> runtimeElementCountABI =
       getRuntimeABIParameterBindingFromValue(
@@ -7426,8 +6560,7 @@ collectRVVSelectedBodyRouteSlice(weft::exec::VariantOp variant) {
   if (!runtimeElementCountABI)
     return runtimeElementCountABI.takeError();
 
-  if (!slice.gearboxConsumerWithVL &&
-      isRuntimeScalarComputedMaskIndexedGatherMAccScatterCompositeCandidate(
+  if (isRuntimeScalarComputedMaskIndexedGatherMAccScatterCompositeCandidate(
           slice.withVL)) {
     if (llvm::Error error =
             recordRVVSelectedBodyRuntimeScalarComputedMaskIndexedGatherMAccScatter(
@@ -7455,24 +6588,21 @@ collectRVVSelectedBodyRouteSlice(weft::exec::VariantOp variant) {
       genericMaskedSegment2Stores;
   llvm::SmallVector<weft::rvv::Segment2LoadOp, 1> genericSegment2Loads;
   llvm::SmallVector<weft::rvv::Segment2StoreOp, 1> genericSegment2Stores;
-  llvm::SmallVector<weft::rvv::VSetVLRegionMarkerOp, 4>
-      vsetvlRegionMarkers;
   llvm::SmallVector<weft::rvv::BroadcastLoadOp, 1> genericBroadcastLoads;
   llvm::SmallVector<weft::rvv::SplatOp, 2> genericScalarSplats;
   llvm::SmallVector<weft::rvv::StoreOp, 2> genericStores;
   unsigned storeCount = 0;
   unsigned stridedStoreCount = 0;
   if (llvm::Error error = collectGenericRouteSliceOps(
-          slice, *runtimeElementCountABI, genericLoads, genericStridedLoads,
+          slice, genericLoads, genericStridedLoads,
           genericIndexLoads, genericIndexedLoads, genericIndexedStores,
           genericMaskLoads, genericMaskedLoads, genericMaskedStridedLoads,
           genericMaskedIndexedLoads, genericMaskedIndexedStores,
           genericMaskedSegment2Loads, genericMaskedSegment2Stores,
-          genericSegment2Loads, genericSegment2Stores, vsetvlRegionMarkers,
+          genericSegment2Loads, genericSegment2Stores,
           genericBroadcastLoads, genericScalarSplats, genericStores, storeCount,
           stridedStoreCount))
     return std::move(error);
-  slice.vsetvlRegionMarkers = std::move(vsetvlRegionMarkers);
 
   const bool hasIndexedMemory =
       !genericIndexLoads.empty() || !genericIndexedLoads.empty() ||
@@ -7817,9 +6947,6 @@ collectRVVSelectedBodyRouteSlice(weft::exec::VariantOp variant) {
   const bool isWideningProductReductionChain =
       isWideningProductReduceAdd || isWideningProductReduceDequantize ||
       isWideningProductReduceDequantClamp;
-  const bool isWideningProductReduceDequantGearboxRoute =
-      isWideningProductReduceDequantize ||
-      isWideningProductReduceDequantClamp;
   // The deferred-wide i16 dot-reduce terminal kind (2nd kernel family, N3 winner)
   // shares the narrow widening_dot_reduce route IDENTITY (same leaf profile / ABI
   // / route id) but its realized body is the widening_product ->
@@ -7967,40 +7094,6 @@ collectRVVSelectedBodyRouteSlice(weft::exec::VariantOp variant) {
     slice.arithmeticOp = splat.getOperation();
     slice.arithmeticResult = splat.getBroadcast();
   }
-  if (!slice.vsetvlRegionMarkers.empty() &&
-      !isWideningProductReduceDequantGearboxRoute)
-    return makeRVVEmitCRouteProviderError(
-        "bounded RVV EmitC route accepts weft_rvv.vsetvl_region_marker only "
-        "for low-precision product-reduction dequantization/dequant-clamp "
-        "selected-body realization");
-  if (slice.gearboxCrossRegionHandoffOp &&
-      !isWideningProductReduceDequantGearboxRoute)
-    return makeRVVEmitCRouteProviderError(
-        "bounded RVV EmitC route accepts "
-        "weft_rvv.gearbox_cross_region_handoff only for low-precision "
-        "product-reduction dequantization/dequant-clamp selected-body "
-        "realization");
-  // The dequant/dequant-clamp selected body has two structurally legal forms:
-  //   - legacy two-scope: a gearbox_cross_region_handoff carrier + a nested
-  //     consumer with_vl (producer/consumer split). BOTH must be present.
-  //   - single-scope typed body (Stage 3 flip): no handoff, no consumer scope --
-  //     the i32 carry feeds weft_rvv.dequantize directly inside the one with_vl.
-  // A handoff present without a consumer scope (or vice versa) is a malformed
-  // partial two-scope body and stays fail-closed.
-  if (isWideningProductReduceDequantGearboxRoute &&
-      static_cast<bool>(slice.gearboxCrossRegionHandoffOp) !=
-          static_cast<bool>(slice.gearboxConsumerWithVL))
-    return makeRVVEmitCRouteProviderError(
-        "bounded Gearbox product-reduction dequantization/dequant-clamp RVV "
-        "route requires either a complete two-scope producer/consumer body "
-        "(both weft_rvv.gearbox_cross_region_handoff and the nested consumer "
-        "weft_rvv.with_vl) or a single-scope typed body with neither; a "
-        "partial two-scope body is not route authority");
-  if (slice.gearboxConsumerWithVL && !isWideningProductReduceDequantGearboxRoute)
-    return makeRVVEmitCRouteProviderError(
-        "bounded Gearbox multi-with_vl RVV route collection is currently "
-        "supported only for low-precision product-reduction dequantization/"
-        "dequant-clamp");
   if (hasIndexedMemory && isIndexedGatherUnitStore &&
       (!genericStridedLoads.empty() || stridedStoreCount != 0 ||
        !genericLoads.empty() || !genericBroadcastLoads.empty() ||
@@ -8109,7 +7202,6 @@ collectRVVSelectedBodyRouteSlice(weft::exec::VariantOp variant) {
           isStridedInputWideningDotReduceAdd, isStridedLoadUnitStore,
           isUnitLoadStridedStore, isWideningConversion, isWideningDotReduceAdd,
           isWideningMAccAdd, isWideningProductReduceDequantClamp,
-          isWideningProductReduceDequantGearboxRoute,
           isWideningProductReduceDequantize, isWideningProductReductionChain))
     return std::move(error);
 
@@ -8887,39 +7979,27 @@ unsigned getRVVCanonicalRoleOrder(RVVSelectedBodyRouteSlice &slice,
       return 12;
     if (op == slice.standaloneReduceOp.getOperation())
       return 13;
-    if (slice.gearboxCrossRegionHandoffOp &&
-        op == slice.gearboxCrossRegionHandoffOp.getOperation())
-      return 14;
-    if (slice.gearboxConsumerWithVL &&
-        op == slice.gearboxConsumerWithVL.getOperation())
-      return 15;
-    // Single-scope typed dequant-clamp body (Stage 3 flip): no handoff op and no
-    // consumer with_vl scope, so the post-reduce clamp role orders close the 14/15
-    // gap the deleted two-scope ops would have occupied (contiguous with the
-    // chain-driven expected step sequence).
-    const unsigned clampTwoScopeExtra =
-        slice.gearboxCrossRegionHandoffOp ? 2u : 0u;
     if (slice.dequantizeOp && op == slice.dequantizeOp.getOperation())
-      return 14u + clampTwoScopeExtra;
+      return 14;
     if (slice.lowerBoundScalarSplat &&
         op == slice.lowerBoundScalarSplat.getOperation())
-      return 15u + clampTwoScopeExtra;
+      return 15;
     if (slice.upperBoundScalarSplat &&
         op == slice.upperBoundScalarSplat.getOperation())
-      return 16u + clampTwoScopeExtra;
+      return 16;
     if (op == slice.compareOp.getOperation())
-      return 17u + clampTwoScopeExtra;
+      return 17;
     if (slice.selectOp && op == slice.selectOp.getOperation())
-      return 18u + clampTwoScopeExtra;
+      return 18;
     if (slice.secondaryCompareOp &&
         op == slice.secondaryCompareOp.getOperation())
-      return 19u + clampTwoScopeExtra;
+      return 19;
     if (slice.secondarySelectOp &&
         op == slice.secondarySelectOp.getOperation())
-      return 20u + clampTwoScopeExtra;
+      return 20;
     if (op == slice.storeOperation)
-      return 21u + clampTwoScopeExtra;
-    return 22u + clampTwoScopeExtra;
+      return 21;
+    return 22;
   }
   if (isWideningProductReduce) {
     // GENERIC N>=3 product-reduction canonical order (retires the former
@@ -9013,29 +8093,16 @@ unsigned getRVVCanonicalRoleOrder(RVVSelectedBodyRouteSlice &slice,
     if (isWideningProductReduceDequantize &&
         op == slice.standaloneReduceOp.getOperation())
       return 11u + dequantDeferredWideExtra;
-    if (isWideningProductReduceDequantize &&
-        slice.gearboxCrossRegionHandoffOp &&
-        op == slice.gearboxCrossRegionHandoffOp.getOperation())
-      return 12u + dequantDeferredWideExtra;
-    if (isWideningProductReduceDequantize && slice.gearboxConsumerWithVL &&
-        op == slice.gearboxConsumerWithVL.getOperation())
-      return 13u + dequantDeferredWideExtra;
-    // Single-scope typed dequant body (Stage 3 flip): no handoff op and no
-    // consumer with_vl scope, so the dequantize/store role orders close up the
-    // gap (12/13) the deleted two-scope ops would have occupied, staying
-    // contiguous with the chain-driven expected step sequence.
-    const unsigned dequantTwoScopeExtra =
-        slice.gearboxCrossRegionHandoffOp ? 2u : 0u;
     if (op == slice.arithmeticOp)
       return isWideningProductReduceDequantize
-                 ? (12u + dequantTwoScopeExtra + dequantDeferredWideExtra)
+                 ? (12u + dequantDeferredWideExtra)
                  : 10;
     if (op == slice.storeOperation)
       return isWideningProductReduceDequantize
-                 ? (13u + dequantTwoScopeExtra + dequantDeferredWideExtra)
+                 ? (13u + dequantDeferredWideExtra)
                  : 11;
     return isWideningProductReduceDequantize
-               ? (14u + dequantTwoScopeExtra + dequantDeferredWideExtra)
+               ? (14u + dequantDeferredWideExtra)
                : 12;
   }
   if (isComputedMaskStandaloneReduction) {
@@ -9665,8 +8732,6 @@ collectRVVRoleOperationsInBodyOrder(weft::exec::VariantOp variant,
   auto recordRoleOp = [&](mlir::Operation &op) {
     if (op.getName().getDialectNamespace() != "weft_rvv")
       return;
-    if (llvm::isa<weft::rvv::VSetVLRegionMarkerOp>(op))
-      return;
     // P1f C4: the codebook_table_broadcast is an inert ConstantTableLoad aux source
     // (accounted separately in the op-count frame; its table operand is structurally
     // validated against the codebook product). It is NOT a runtime_abi/load/compute/
@@ -9683,18 +8748,10 @@ collectRVVRoleOperationsInBodyOrder(weft::exec::VariantOp variant,
   for (mlir::Operation &op : variant.getBody().front()) {
     if (op.getName().getDialectNamespace() != "weft_rvv")
       continue;
-    if (llvm::isa<weft::rvv::VSetVLRegionMarkerOp>(op))
-      continue;
     recordRoleOp(op);
     if (auto withVL = llvm::dyn_cast<weft::rvv::WithVLOp>(op)) {
-      for (mlir::Operation &nested : withVL.getBody().front()) {
+      for (mlir::Operation &nested : withVL.getBody().front())
         recordRoleOp(nested);
-        if (slice.gearboxConsumerWithVL &&
-            &nested == slice.gearboxConsumerWithVL.getOperation())
-          for (mlir::Operation &consumerNested :
-               slice.gearboxConsumerWithVL.getBody().front())
-            recordRoleOp(consumerNested);
-      }
     }
   }
   return ordered;

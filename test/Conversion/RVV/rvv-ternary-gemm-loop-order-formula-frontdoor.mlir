@@ -1,37 +1,11 @@
 // RUN: weft-opt %s --weft-rvv-lower-quant-contraction=march=rv64gcv | FileCheck %s
 
-// [C1 loop-order 全格消费] FRONT-DOOR STAMP regression guard for the TERNARY GEMM leaf.
-//
-// The loop-order schedule axis and the SP4 output-tiling axis are ORTHOGONAL, but they
-// used to share one gate: the loop_order stamp sat INSIDE stampTilingSelection AFTER its
-// `classifyTilingBottleneckShape(foldModel)` fail-safe early return. "ternary_single_fp16_scale"
-// has no output-tiling axis => classifies to std::nullopt => the early return fired and
-// the loop-order stamp was silently skipped. The ternary GEMM builder ALSO never called
-// the stamp helper at all (the one typed repack-GEMM construction point that stamped
-// NEITHER axis). Net effect: the ternary leaves reached an emitter that DOES read
-// weft_rvv.loop_order with the attr ABSENT, defaulting to row_outer by accident rather
-// than by selection.
-//
-// This pins the DECOUPLING: the ternary prefill GEMM now carries a first-class,
-// capability-keyed loop-order selection. EMISSION-NEUTRAL by construction -- tq2_0's
-// repacked weight panel stride (1056) is < the q8_K activation panel stride (1168), so
-// repackColGroupOuterForLayout returns false and the layout prior resolves to row_outer:
-// the SAME nest that already shipped. Verified byte-exact on the emitted C for all 18
-// repack-GEMM formats across the fix.
-//
-// NEGATIVE CONTROL (this fixture is not hollow): re-coupling the two axes -- i.e. moving
-// the loop_order stamp back below the tiling classifier's early return, or dropping the
-// ternary builder's stampScheduleSelections call -- removes these attrs and turns the
-// three CHECK lines below RED.
-
-// The ternary GEMM leaf is stamped with a first-class loop-order SELECTION...
+// Formula-construction regression guard for the ternary GEMM leaf. Ternary has no
+// output-tiling choice, but it does have the same two realized loop nests as every
+// repack GEMM. The schedule formula therefore constructs loop_order independently:
+// 1056 < 1168 selects the row_outer analytic prior and writes it into the final op.
 // CHECK: weft_rvv.typed_repack_gemm_loop_body
-// ...the layout prior resolves to the already-shipped row_outer nest (weight 1056 < act 1168):
-// CHECK-SAME: weft_rvv.loop_order = "row_outer"
-// ...on an HONEST cold-start reason (no ternary board seed exists):
-// CHECK-SAME: weft_rvv.loop_order_selection_reason = "prior"
-// ...carrying the full [D-4] attribution record over the SAME declared-instance hash:
-// CHECK-SAME: weft_rvv.loop_order_selection_record = "{{.*}}\22chosen\22:\22row_outer\22{{.*}}\22kernel\22:\22tq2_0\22{{.*}}\22reason\22:\22prior\22
+// CHECK-SAME: loop_order = "row_outer"
 
 module {
   weft.exec.kernel @ggml_repack_gemm_tq2_0_q8_K_kernel {

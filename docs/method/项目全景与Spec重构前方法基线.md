@@ -230,11 +230,11 @@ Knowledge Factorization 只描述这座桥：它既不能吞掉整个 software s
 
 不能把这些资产压缩成“五个 Plan + 一个 emitter”。
 
-### 5.2 当前实现：主要生产入口已切换，公开 Gearbox 面与强重建须诚实区分
+### 5.2 当前实现：横向 authority 已切换，强重建仍须诚实区分
 
 截至 2026-07-22，当前登记的 production construction entry 已经接入公共 catalog，
-quantize/dequantize、repack schedule 与通用 tunable schedule 已完成
-compute-authority 切换：
+quantize/dequantize、repack、通用 tunable schedule、low-precision selected body 与
+composite direct route 已完成 compute-authority 切换：
 
 1. registry-derived catalog 把入口关联到唯一 family-local typed formula/construction
    owner，但 catalog 本身不执行 compute；
@@ -258,11 +258,13 @@ winner；SP4 伪单例轴、reason/record/replay 与 emitter default 已退出�
 illegal tuple fail-closed；production IR 不再保存 candidate/cost/reason 等 audit mirror。
 旧 repack strip-width materializer 也已退出。
 
-但当前复核发现公开 low-precision Gearbox/pre-realized-body surface 仍保留同类错误机制：
-公开 pass 写入 candidate、selected value、resource、remediation 与 audit mirrors，后续
-realizer 再解释。它虽已在 catalog 具名，却尚未形成单一 final-body authority。因此仍
-不能写成 project-wide authority 已完成；该公开面必须在本轮横向收口或退役，不能留作
-“后续某个纵向特性”，也不能因默认 front door 暂无 caller 而排除。
+low-precision Gearbox/pre-realized-body 的旧公开平行构造面也已关闭：旧 pass、candidate/
+selected/resource/remediation/audit mirrors、cross-region handoff、region marker 与
+performance-policy owner 已删除。`RVVLowPrecisionResourceFormula` 直接消费 typed geometry、
+policy 与 vreg capability，selected-body owner 在同一调用链中消费 final plan 并构造
+single-scope typed body；route/emitter 不从 metadata 重建 candidate。composite
+gather–MAcc–scatter 的旧 resource-selection stamp/replay 同时退出，只保留最终 route plan、
+typed compute chain 与 fail-only ABI/route consistency。
 
 | 层面 | 当前可信状态 | 不能推出 |
 |---|---|---|
@@ -271,14 +273,14 @@ realizer 再解释。它虽已在 catalog 具名，却尚未形成单一 final-b
 | dequantize construction | 七类机制进入统一 closed construction | 每类都可删 leaf 重建 |
 | repack/contraction | accumulator-LMUL、algorithm、loop-order、main-term 已分权并进入统一 formula/selection 链 | 全 family 已无逐格式 body |
 | generic tunable schedule | interface 发现；complete 校验、absent 构造、partial/illegal 拒绝 | 已完成强义 leaf reconstruction |
-| low-precision Gearbox | catalog 已具名，但公开 pass/realizer 仍有候选与审计镜像双阶段 | project-wide authority 已收敛 |
+| low-precision / dot-reduce | family-local resource/schedule formula 直接进入 selected-body construction；旧 Gearbox public authority 已退出 | 已通过逐点 leaf 删除重建 |
 | emitter | 受审 schedule 不重新决定公式或补默认 | emitter 中不存在机械 leaf implementation |
-| verifier | 已切换域只守结构/完整性；Gearbox realizer 仍待收口 | verifier 天然就是公式证明器或 compute owner |
+| verifier | 只守结构/完整性/ABI/ISA，缺 plan 时不补构造 | verifier 天然就是公式证明器或 compute owner |
 | IME / Scalar 等 family | 属于同一 plugin/compiler stack | 已达到 RVV 同等级 strong reconstruction 或性能成熟度 |
 
 因此，项目不是“只有 metadata”，也不是“已经完成 knowledge factorization”。准确状态是：
 
-> **复杂 compiler stack 与统一 construction authority 的公共结构已经存在；主要生产入口已切换，Gearbox 公开构造面仍在本轮收敛。即使 authority 切换全部完成，若干公式仍只构造完整手写 leaf，属于 `ConstructedWeak`，尚未普遍通过 delete-leaf reconstruction。**
+> **复杂 compiler stack 与统一 construction authority 的公共结构已经存在；当前 registered/direct production surface 已完成横向 authority 切换。若干公式仍只构造完整手写 leaf，属于 `ConstructedWeak`，尚未普遍通过 delete-leaf reconstruction。**
 
 ### 5.3 后续目标的因果定义
 
@@ -466,11 +468,11 @@ flat repack/q5_1、Codebook/KQuant、IME 等不再是分期迁移批次，而是
 
 ### 10.1 2026-07-22 落地状态
 
-上述第一轮已经落地的是 **authority convergence 的公共结构，以及
-quantize/dequantize、repack 与通用 tunable schedule 切换**：catalog、family-local
-formula evaluation 和 final typed-body construction 已形成可用路径。当前仍须在本轮
-退出的是公开 low-precision Gearbox/pre-realized-body 的 candidate/selection/audit mirror
-与 realizer 再解释；在此之前不报告 project-wide convergence。
+上述第一轮已经落地的是 **当前 production surface 的 authority convergence**：
+project-level plugin construction hook、catalog、family-local formula evaluation 与 final
+typed-body construction 已形成单向路径；quantize/dequantize、repack、通用 tunable
+schedule、low-precision selected body 与 composite direct route 均不再保留旧
+candidate/stamp/replay/emitter-default 世界。
 
 尚未落地的是 **strong reconstruction convergence**：若干 formula outcome 仍是
 `ConstructedWeak` leaf。后续不是继续迁“剩余几个 provider”，也不是再建一个纵向
@@ -484,13 +486,12 @@ Weft 的准确形状是：
 > **一个面向生态扩展的 MLIR operator compiler / execution-layer software stack。它以 typed owner 局部吸收 operator、format/layout、capability、mechanism 与 backend family 的变化，再由 `g/c/ω` 条件化的可执行专家知识构造专化 kernel。RISC-V 量化推理是当前旗舰实现和主要压力场，不是系统定义的上界。**
 
 当前已经存在的是复杂 compiler stack、通用 plugin/capability/typed-body 基础、统一
-formula construction 的公共结构、多个 backend family、部署与实验资产。当前先闭合
-Gearbox 这一仍公开的平行构造 authority；之后主要问题才是统一入口承载的知识是否足够强：每个现有 leaf 中
+formula construction 的公共结构、多个 backend family、部署与实验资产，以及已完成的
+当前公开 production authority 横向切换。现在的主要问题是统一入口承载的知识是否足够强：每个现有 leaf 中
 还有哪些 compute 决定尚未提升为 mechanism/parameter/formula；删除 leaf 后能否由
 `g/c/ω + mechanisms + formula` 重建同一 typed body 与合法域；这些参数变化是否真实
 改变产物；correctness、reconstruction 与 performance evidence 是否分别成立。
 
-在旧 authority 全部退出前，只能主张公共结构和已切换域；退出后也只能主张
-construction authority 统一，不能据此主张执行知识已经完成强因式分解。
+当前只能主张 construction authority 已统一，不能据此主张执行知识已经完成强因式分解。
 
 重构 spec 与代码的任务不是发明新的主线，也不是把项目缩成 factorization 或验证框架，而是让这个 operator compiler 的生态接口、formula ownership、`g/c/ω` consumption、typed construction、backend realization 和证据边界与其原始目标一致。

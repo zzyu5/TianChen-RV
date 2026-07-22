@@ -64,11 +64,6 @@ struct RVVProductSource {
 struct RVVSelectedBodyRouteSlice {
   weft::rvv::SetVLOp setvl;
   weft::rvv::WithVLOp withVL;
-  weft::rvv::WithVLOp gearboxProducerWithVL;
-  weft::rvv::WithVLOp gearboxConsumerWithVL;
-  llvm::SmallVector<weft::rvv::VSetVLRegionMarkerOp, 4>
-      vsetvlRegionMarkers;
-  weft::rvv::GearboxCrossRegionHandoffOp gearboxCrossRegionHandoffOp;
   weft::rvv::LoadOp lhsGenericLoad;
   weft::rvv::LoadOp rhsGenericLoad;
   weft::rvv::LoadOp secondaryCompareLhsGenericLoad;
@@ -521,27 +516,17 @@ reduceInputSlotResult(const RVVSelectedBodyRouteSlice &slice) {
 // product-reduction dequant(/clamp) selected body, derived from the ACTUAL
 // realized structure of the slice: the typed product head (widening_product for
 // the unpacked-byte candidate, packed_i4_nibble_unpack_product for the packed-i4
-// candidate) + standalone_reduce + (gearbox_cross_region_handoff ONLY if the
-// legacy two-scope carrier is present) + dequantize (+ compare + select for the
-// clamp family). The head op type and handoff presence are read from the typed
-// ops (I5-legal structural reads), so the chain never asserts a phantom handoff
-// or a wrong head op.
+// candidate) + standalone_reduce + dequantize (+ compare + select for the clamp
+// family). The head op type is read from the typed body, so the chain never
+// asserts a phantom carrier or a wrong head op.
 //
 // Returns a StringRef into a fixed set of static string constants (the chain is
-// one of a bounded set of {head}x{handoff?}x{clamp?} combinations), so the
+// one of a bounded set of {head}x{clamp?} combinations), so the
 // returned view is stable across the by-value copies of the route description.
 inline llvm::StringRef
 getRVVSelectedBodyDequantTypedComputeOpChain(
     const RVVSelectedBodyRouteSlice &slice, bool isClamp) {
   const bool nibble = static_cast<bool>(slice.nibbleProductOp);
-  const bool handoff = static_cast<bool>(slice.gearboxCrossRegionHandoffOp);
-  static constexpr llvm::StringLiteral kWideningHandoffDequant(
-      "weft_rvv.widening_product+weft_rvv.standalone_reduce+"
-      "weft_rvv.gearbox_cross_region_handoff+weft_rvv.dequantize");
-  static constexpr llvm::StringLiteral kWideningHandoffClamp(
-      "weft_rvv.widening_product+weft_rvv.standalone_reduce+"
-      "weft_rvv.gearbox_cross_region_handoff+weft_rvv.dequantize+"
-      "weft_rvv.compare+weft_rvv.select");
   static constexpr llvm::StringLiteral kWideningDequant(
       "weft_rvv.widening_product+weft_rvv.standalone_reduce+"
       "weft_rvv.dequantize");
@@ -557,8 +542,6 @@ getRVVSelectedBodyDequantTypedComputeOpChain(
   static constexpr llvm::StringLiteral kDeferredWideDequant(
       "weft_rvv.widening_product+weft_rvv.widening_accumulate+"
       "weft_rvv.standalone_reduce+weft_rvv.dequantize");
-  if (handoff)
-    return isClamp ? kWideningHandoffClamp : kWideningHandoffDequant;
   if (static_cast<bool>(slice.wideningAccumulateOp))
     return kDeferredWideDequant;
   if (nibble)
@@ -719,8 +702,6 @@ struct RVVSelectedBodyContractionRouteFamilyPlan {
   llvm::StringRef rhsStrideSource;
   llvm::StringRef sourceMemoryForm;
   llvm::StringRef destinationMemoryForm;
-  RVVLowPrecisionContractionResourceSelection
-      lowPrecisionResourceSelection;
   llvm::SmallVector<support::RuntimeABIParameter, 8> runtimeABIParameters;
 };
 
@@ -1010,23 +991,7 @@ struct RVVSelectedBodyDequantizationRouteFamilyPlan {
   llvm::StringRef scaleIntrinsic;
   llvm::StringRef storeIntrinsic;
   llvm::StringRef resultName;
-  llvm::StringRef gearboxCandidateSet;
-  llvm::StringRef gearboxSelectedCandidate;
-  llvm::StringRef gearboxSelectionReason;
-  llvm::StringRef gearboxLegalityScope;
-  llvm::StringRef gearboxScheduleID;
-  llvm::StringRef gearboxSelector;
-  llvm::StringRef gearboxSource;
-  llvm::StringRef gearboxOperation;
-  std::int64_t gearboxUnroll = 0;
-  llvm::StringRef gearboxVLPolicy;
-  std::int64_t gearboxSourceSEW = 0;
-  llvm::StringRef gearboxSourceLMUL;
-  std::int64_t gearboxDestSEW = 0;
-  llvm::StringRef gearboxDestLMUL;
-  llvm::StringRef gearboxRuntimeAVLSource;
-  llvm::StringRef gearboxProducerScope;
-  llvm::StringRef gearboxConsumerScope;
+  std::int64_t unrollFactor = 0;
   llvm::StringRef sourceMemoryForm;
   llvm::StringRef destinationMemoryForm;
   llvm::SmallVector<support::RuntimeABIParameter, 4> runtimeABIParameters;
@@ -1725,8 +1690,6 @@ struct RVVCompositeGatherMAccScatterRouteFamilyPlan {
   const RVVSelectedBodyTypedConfigFacts *typedConfigFacts = nullptr;
   const RVVSelectedTargetCapabilityFacts *selectedTargetCapabilityFacts =
       nullptr;
-  const RVVCompositeGatherMAccScatterResourceSelection *resourceSelection =
-      nullptr;
 
   bool plansCompositeGatherMAccScatter = false;
   bool consumesRuntimeScalarCompare = false;
@@ -1899,8 +1862,6 @@ struct RVVSelectedBodyDirectContractionRouteProviderPlan {
   llvm::StringRef scalarSeedSplatLeaf;
   llvm::StringRef compareLeaf;
   llvm::StringRef maskedMergeLeaf;
-  RVVLowPrecisionContractionResourceSelection
-      lowPrecisionResourceSelection;
 };
 
 // RVVSelectedBodyDirectContractionRouteStatementPlan retired (Stage 3 换心): the

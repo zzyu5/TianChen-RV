@@ -16,7 +16,6 @@ add_mlir_library(WeftRVVEmitCRouteProvider
   RVVEmitCContractionRouteFamilyValidation.cpp
   RVVEmitCControlPolicyPlanOwners.cpp
   RVVEmitCElementwiseRouteFamilyPlanOwners.cpp
-  RVVLowPrecisionPerformancePolicy.cpp
   RVVEmitCMAccRouteFamilyPlanOwners.cpp
   RVVEmitCSegment2RouteFamilyPlanOwners.cpp
 

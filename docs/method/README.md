@@ -5,14 +5,12 @@
 本文不是 Trellis task，不建立新流程，也不要求普通改动先创建计划、任务树、角色或工作流状态。`.trellis/spec/` 继续作为项目更新文档与历史参考库；`.trellis/tasks/` 只在用户要求或跨层工作确实需要恢复上下文时记录实施，不定义科研主线或架构。接手者读完本文后即可检查当前代码并直接行动。
 
 > **2026-07-22 状态说明**：本文保留此前对双重 authority、provider/materializer 和
-> 伪 formula 化的诊断。当前代码已经建立公共 formula catalog/construction cut，并完成
-> quantize/dequantize final body、repack schedule 与通用 tunable schedule 的 authority
-> 切换；complete tuple 只验证，absent tuple 才构造，partial/illegal tuple 拒绝，emitter
-> 不补 schedule default。仍须在本轮处理的是公开 low-precision
-> Gearbox/pre-realized-body surface，其 pass 仍写 candidate/selection/audit mirrors 并由
-> realizer 再解释。它收口前不能写成 project-wide cutover 完成。即使全部 authority
-> 收敛，也仍不等于 strong
-> reconstruction；`ConstructedWeak` leaf 与 delete-leaf 目标必须继续分开。
+> 伪 formula 化的诊断。当前代码已经建立 project-level plugin formula lifecycle，并完成
+> quantize/dequantize、repack、通用 tunable schedule、low-precision selected body 与
+> composite direct route 的横向 authority 切换；旧 Gearbox pass、candidate/resource/audit
+> mirrors、handoff/marker、planner/verifier 补构造和 emitter default 已退出。这里完成的是
+> 单一 construction authority，不是 strong reconstruction；`ConstructedWeak` leaf 与
+> delete-leaf 目标必须继续分开。
 
 ## 一、发生了什么
 
@@ -115,11 +113,11 @@ Weft-RV 的核心问题是：格式、机制、目标能力和性能知识怎样
 
 A 线仍然存在，但含义已经恢复为最初的架构主线，而不是 stamp 主线。
 
-统一 construction authority 的底座已经落地，quantize/dequantize、repack schedule 与
-通用 tunable schedule 已完成横向切换。A 线当前先把仍公开可执行的 Gearbox 构造面收回
-同一 authority 或退役，不增加新的迁移 slice；随后横向把现有 leaf 中仍手写的执行知识
-提升为 mechanism、typed parameter 和 formula，直至代表性实例能够通过 delete-leaf
-reconstruction。
+统一 construction authority 的底座和当前公开 production surface 的横向切换已经落地，
+包括 quantize/dequantize、repack、通用 tunable schedule、low-precision selected body 与
+composite direct route。A 线下一步不是迁移“剩余几个 provider”，而是横向审查现有 leaf
+中仍手写的执行知识，将其提升为 mechanism、typed parameter 和 formula，直至代表性
+实例能够通过 delete-leaf reconstruction。
 
 这里必须分开两种覆盖：production entry 是否链接唯一 owner、是否不存在第二计算路径，
 属于 **entry/authority coverage**；已有 mechanism 与 formula 是否足以在删除逐点 leaf 后
@@ -225,9 +223,8 @@ A4a implementation `09efd477c`、A3 implementation `33421d40f`、A2 implementati
 - production formula authority 必须横向唯一，但该覆盖不自动证明 strong reconstruction。
 
 两柱、六律和贡献组织仍由 canon/论文侧维护，本次工程收敛没有重新定义它们。当前实现
-与目标态必须分开：公共底座及 quantize/dequantize、repack、通用 schedule 切换已落地，
-Gearbox 公开构造面仍阻塞 project-wide authority cutover；delete-leaf reconstruction
-尚未完成。
+与目标态必须分开：registered/direct production surface 的横向 authority cutover 已落地；
+delete-leaf reconstruction 尚未完成。
 
 ## 七、旧 task 和 Trellis 的地位
 
@@ -264,10 +261,12 @@ Trellis 仍可用于查找：
 - `include/Weft/Plugin/FormulaCatalog.h` 与
   `include/Weft/Plugin/RVV/RVVFormulaCatalog.h`：只读 catalog 契约和 RVV 公式集合。
 - `include/Weft/Plugin/RVV/RVVQuantizeFormula.h`、`RVVDequantFormula.h`、
-  `RVVFormulaDecision.h` 与 `RVVGearboxSchedule.h`：family-local typed 公式与解析知识。
-- `include/Weft/Conversion/RVV/RVVFormulaConstruction.h` 与
-  `lib/Conversion/RVV/RVVFormulaConstruction.cpp`：emission 前一次创建 final typed body
-  的统一 construction cut。
+  `RVVLowPrecisionResourceFormula.h`、`RVVScheduleFormula.h`、`RVVRepackScheduleFormula.h`
+  与 `RVVFormulaDecision.h`：family-local typed 公式与解析知识；`RVVGearboxSchedule.h`
+  中仅保留可复用的 schedule/resource mechanisms，不能再作为旧 Gearbox authority。
+- `include/Weft/Plugin/RVV/RVVFormulaConstruction.h` 与
+  `lib/Plugin/RVV/Construction/RVVFormulaConstruction.cpp`：emission 前创建/校验 final
+  typed body 与 schedule plan 的统一 construction cut。
 - `test/Plugin/FormulaCatalogTest.cpp` 与
   `test/Scripts/formula-construction-authority.test`：catalog/entry 关联和旧 authority
   denylist。这些工件证明统一权威路径，不单独证明 strong reconstruction。
@@ -311,8 +310,8 @@ reconstruction strength：
    reconstruction coverage、semantic correctness 与 performance evidence；
 5. 稳定路径的性能仍由 B 线按相同输入、对手和真板做 paired regression。
 
-authority 公共基础已经具备，但剩余旧生产链必须先退出；公式因果只有部分证据；
-delete-leaf reconstruction 尚未完成；correctness 与性能必须由各自测试和实验独立证明。无需为这些工作恢复旧 task
+authority 公共基础与当前旧生产链退出已经完成；公式因果只有部分证据；delete-leaf
+reconstruction 尚未完成；correctness 与性能必须由各自测试和实验独立证明。无需为这些工作恢复旧 task
 队列或把本文拆成多个纵向迁移任务。
 
 ## 十、完成后的项目应是什么样
@@ -331,8 +330,7 @@ delete-leaf reconstruction 尚未完成；correctness 与性能必须由各自�
 
 这才是本轮“第一性原理重构”的含义。
 
-当前已经具备“单一 construction authority”的公共结构，quantize/dequantize、repack
-schedule 与通用 tunable schedule 已完成切换；剩余的是仍公开可执行的 Gearbox 构造面，
-不是“其余几个公式”纵向迁移。即使该面完成收口，项目仍未达到“删除逐点 leaf 仍可
-重建”的最终状态。不要把 catalog/entry authority coverage 重新解释成 mechanism/
-reconstruction coverage。
+当前已经具备“单一 construction authority”的公共结构，并完成当前公开 production
+surface 的横向切换；下一步不是“其余几个公式”的纵向迁移，而是提高已统一入口内的
+mechanism/reconstruction strength。项目尚未达到“删除逐点 leaf 仍可重建”的最终状态。
+不要把 catalog/entry authority coverage 重新解释成 mechanism/reconstruction coverage。

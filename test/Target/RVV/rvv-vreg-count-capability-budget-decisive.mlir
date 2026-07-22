@@ -1,9 +1,6 @@
-// JUDGMENT — the register-pressure feasible set is driven by the in-IR `vreg_count`
-// CAPABILITY fact, not a hardcoded 32. The gearbox budget stamp
-// (materializeDeferredWideBudgetForDotReduceBody) PULLS the architectural vector-
-// register count off the capability provider op (resolveRVVVectorRegisterBudget ->
-// readRVVProviderVregCount; the architectural 32 is only the absent-fallback) and
-// feeds it to the STEP ② register-pressure inequality
+// The register-pressure feasible set is driven directly by the in-IR
+// `vreg_count` capability fact, not a body stamp or a hardcoded 32. The formula
+// projects c from the capability and feeds it to the register-pressure inequality
 // (enumerateRVVDotReduceDeferredWideLMULRungs / ...MaxLegalLMULRung).
 //
 // The SAME pre-realized i16mf2 dot-reduce body realizes the WIDE deferred
@@ -22,12 +19,10 @@
 // (core-invariant I1). A deployed 32-register board (default == 32) emits the
 // WIDE body byte-for-byte (the fallback reproduces the historical constant).
 //
-// RUN: weft-opt %s --weft-rvv-materialize-gearbox-schedules=reduction-structure=deferred_accumulate \
-// RUN:   --weft-materialize-selected-lowering-boundaries \
+// RUN: weft-opt %s --weft-materialize-selected-lowering-boundaries \
 // RUN:   | FileCheck %s --check-prefix=WIDE
 // RUN: sed 's/vreg_count = 32 : i64/vreg_count = 9 : i64/' %s \
-// RUN:   | weft-opt --weft-rvv-materialize-gearbox-schedules=reduction-structure=deferred_accumulate \
-// RUN:   --weft-materialize-selected-lowering-boundaries \
+// RUN:   | weft-opt --weft-materialize-selected-lowering-boundaries \
 // RUN:   | FileCheck %s --check-prefix=NARROW
 
 module {

@@ -18,6 +18,7 @@
 
 #include <algorithm>
 #include <string>
+#include <utility>
 
 namespace weft::plugin {
 namespace {
@@ -26,6 +27,12 @@ namespace construction = weft::plugin::construction;
 
 constexpr llvm::StringLiteral kTensorExtLitePluginName("tensorext-lite-plugin");
 constexpr llvm::StringLiteral kTensorExtLitePluginVersion("0.1.0");
+constexpr llvm::StringLiteral kTensorExtLiteConstructionFormulaID(
+    "weft.tensorext-lite.fragment-mma.construct");
+constexpr llvm::StringLiteral kTensorExtLiteCostFormulaID(
+    "weft.tensorext-lite.fragment-mma.analytic-prior");
+constexpr llvm::StringLiteral kTensorExtLiteSourceFrontDoorArgument(
+    "weft-tensorext-lite-materialize-fragment-mma-source-front-door");
 constexpr llvm::StringLiteral kTensorExtLiteFragmentCapabilityID("tensorext_lite.tile_mma");
 constexpr llvm::StringLiteral kTensorExtLiteFragmentCapabilityKind(
     "fragment-mma-like");
@@ -234,6 +241,7 @@ buildTensorExtLiteFragmentProposal(const VariantProposalRequest &request) {
     return capabilityView.takeError();
 
   VariantProposal proposal(kTensorExtLiteFragmentFirstSliceVariantName, kTensorExtLitePluginName);
+  proposal.setFormulaID(kTensorExtLiteConstructionFormulaID);
   proposal.addRequiredCapabilityID(kTensorExtLiteFragmentCapabilityID);
   proposal.setCondition(kTensorExtLiteFragmentCondition);
   proposal.setGuard(kTensorExtLiteFragmentGuard);
@@ -601,6 +609,43 @@ TensorExtLiteExtensionPlugin::verifyExecutableConstructionConformance()
   return tensorext_lite::verifyTensorExtLiteConstructionProtocolReady();
 }
 
+void TensorExtLiteExtensionPlugin::collectFormulaDescriptors(
+    llvm::SmallVectorImpl<FormulaDescriptor> &out) const {
+  FormulaDescriptor construction(
+      kTensorExtLiteConstructionFormulaID, kTensorExtLitePluginName,
+      "operator/fragment-mma", FormulaResultKind::CandidateSet,
+      FormulaConstructionStrength::ConstructedWeak);
+  construction.getGeometryAxis().set(FormulaAxisUse::Decisive,
+                                     "TensorExtLiteFragmentGeometryFacts");
+  construction.getGeometryAxis().addConsumedField("fragment-role-sequence");
+  construction.getCapabilityAxis().set(FormulaAxisUse::Decisive,
+                                       "TensorExtLiteCapabilityView");
+  construction.getCapabilityAxis().addConsumedField("fragment-abi");
+  construction.getCapabilityAxis().addConsumedField("handoff-kind");
+  construction.getStaticContextAxis().set(FormulaAxisUse::HonestNull,
+                                          "TensorExtLiteNoStaticContext");
+  construction.addSemanticCase("fragment-mma-applicable");
+  construction.addSemanticCase("capability-decline");
+  construction.addProductionEntry("plugin:variant-proposal");
+  construction.addProductionEntry(kTensorExtLiteSourceFrontDoorArgument);
+  out.push_back(std::move(construction));
+
+  FormulaDescriptor cost(
+      kTensorExtLiteCostFormulaID, kTensorExtLitePluginName,
+      "operator/fragment-mma", FormulaResultKind::AnalyticPrior,
+      FormulaConstructionStrength::ConstructedWeak);
+  cost.getGeometryAxis().set(FormulaAxisUse::Decisive,
+                            "TensorExtLiteSelectedVariantFacts");
+  cost.getGeometryAxis().addConsumedField("fragment-role-sequence");
+  cost.getCapabilityAxis().set(FormulaAxisUse::HonestNull,
+                              "TensorExtLiteCostNoCapabilityProjection");
+  cost.getStaticContextAxis().set(FormulaAxisUse::HonestNull,
+                                 "TensorExtLiteCostNoStaticContext");
+  cost.addSemanticCase("fragment-integration-prior");
+  cost.addProductionEntry("plugin:analytic-cost");
+  out.push_back(std::move(cost));
+}
+
 bool TensorExtLiteExtensionPlugin::supportsOperation(
     const VariantProposalRequest &request) const {
   return request.getHighLevelOp() && hasAvailableTensorExtLiteFragmentCapability(request);
@@ -645,10 +690,10 @@ llvm::Error TensorExtLiteExtensionPlugin::registerSourceFrontDoorPasses(
     llvm::SmallVectorImpl<SourceFrontDoorPassRegistration> &out) const {
   (void)registry;
   out.push_back(SourceFrontDoorPassRegistration(
-      getName(),
-      "weft-tensorext-lite-materialize-fragment-mma-source-front-door",
+      getName(), kTensorExtLiteSourceFrontDoorArgument,
       "Materialize one bounded TensorExtLite fragment-MMA source marker into "
       "the selected TensorExtLite role-sequence front door",
+      kTensorExtLiteConstructionFormulaID,
       [] {
         return createMaterializeTensorExtLiteFragmentMmaSourceFrontDoorPass();
       },
@@ -678,6 +723,7 @@ llvm::Error TensorExtLiteExtensionPlugin::estimateVariantCost(
   out.setScore(50.0);
   out.setExplicitPreference(true);
   out.setOriginPlugin(kTensorExtLitePluginName);
+  out.setFormulaID(kTensorExtLiteCostFormulaID);
   out.setVariantSymbol(request.getVariant().getSymName());
   out.setExplanation(
       "TensorExtLite extension fragment first slice; route materializes an "

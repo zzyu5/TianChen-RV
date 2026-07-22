@@ -1293,14 +1293,6 @@ llvm::Error requireRouteDescriptionField(llvm::StringRef context,
                                          llvm::StringRef field,
                                          llvm::StringRef actual,
                                          llvm::StringRef expected);
-llvm::Expected<RVVCompositeGatherMAccScatterResourceSelection>
-deriveRVVCompositeGatherMAccScatterResourceSelectionFromRealizedFacts(
-    const RVVSelectedBodyEmitCRouteDescription &description,
-    const RVVSelectedTargetCapabilityFacts &targetFacts, mlir::Operation *op,
-    llvm::StringRef context);
-llvm::Error verifyRVVCompositeGatherMAccScatterResourceDescriptionSelection(
-    const RVVSelectedBodyEmitCRouteDescription &description,
-    llvm::StringRef context);
 llvm::StringRef stringifyRVVTailPolicy(weft::rvv::TailPolicy policy);
 llvm::StringRef stringifyRVVMaskPolicy(weft::rvv::MaskPolicy policy);
 llvm::Expected<llvm::StringRef>

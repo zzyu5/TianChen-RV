@@ -1,13 +1,11 @@
 //===- RVVQ40ScheduleMaterialization.cpp ----------------------------------===//
 //
-// The N3 capability/resource-aware autotuner for the ggml Q4_0 x Q8_0 block
-// dot-product. It is the prototype block-dot schedule autotuner; the shared
-// 7-step skeleton (derive Zvl128b -> enumerate -> dump|prune -> load record ->
-// measured-best|static-fallback -> no-clobber guard -> stamp) lives ONCE in
-// RVVScheduleMaterialization.h and is shared by all five block-dot kernels + the
-// GEMM M-block. This file supplies ONLY the q4_0 DATA (kernel key, attr prefix,
-// producer, the two provenance strings, the budget, the enumerate fn) via a
-// descriptor.
+// Compatibility entry for the q4_0 subset of the unified RVV schedule formula.
+// Candidate construction, capability legality, analytic prior and bounded
+// measurement selection live in RVVScheduleFormula; this wrapper merely limits
+// the interface walk to GgmlBlockDotQ40Q80Op. The formula constructs a complete
+// final tuple or validates one complete explicit tuple. It never writes audit
+// mirrors and never treats partial presence as a no-clobber signal.
 //
 // This is the COMPILER SELECTING the kernel shape, DERIVED from capability +
 // resource facts, NOT a lookup table: the only place capability enters is the
@@ -27,7 +25,7 @@
 
 #include "Weft/Dialect/RVV/IR/RVVDialect.h"
 #include "Weft/Plugin/RVV/RVVGearboxSchedule.h"
-#include "Weft/Plugin/RVV/RVVScheduleMaterialization.h"
+#include "Weft/Plugin/RVV/RVVScheduleFormula.h"
 
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/Pass/Pass.h"
@@ -51,9 +49,10 @@ public:
       MaterializeRVVQ40SchedulePass>::MaterializeRVVQ40ScheduleBase;
 
   void runOnOperation() override {
-    plugin::rvv::runRVVScheduleMaterializationViaInterface(
-        getOperation(), march, isaVectorHints, tuneRecord, dumpCandidates,
-        mlir::TypeID::get<weftrvv::GgmlBlockDotQ40Q80Op>());
+    if (mlir::failed(plugin::rvv::constructRVVSchedulesViaInterface(
+            getOperation(), march, isaVectorHints, tuneRecord, dumpCandidates,
+            mlir::TypeID::get<weftrvv::GgmlBlockDotQ40Q80Op>())))
+      signalPassFailure();
   }
 };
 

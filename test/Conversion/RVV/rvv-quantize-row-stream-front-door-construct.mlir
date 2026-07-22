@@ -3,23 +3,17 @@
 // RUN: weft-opt %S/rvv-to-emitc-ggml-dequantize-row-q8-0.mlir --weft-rvv-materialize-quantize-row-stream-front-door | FileCheck %s --check-prefix=DISPATCH
 
 // CERT-FD次族 (quant×3) -- the PRE-EMITC quant-stream FRONT DOOR (the f32->QUANT MIRROR
-// of the dequant-stream front door). It runs ONLY the CONSTRUCTION half of
-// constructQuantizeRowRegionAndLower (the shared byte-exact
-// weft::rvv::constructTypedQuantizeRowLoopBody): it rewrites each abstract per-format
+// of the dequant-stream front door). It runs the same family-local typed formula and
+// realization used by the mandatory project-wide pre-emission cut: it rewrites each
+// abstract per-format
 // weft_rvv.quantize_row_q8_{0,1,K} into the typed weft_rvv.typed_quantize_row_loop_body
 // region
 //   { quantize_row_encode_core; typed_quantize_row_loop_yield }
 // and STOPS -- BEFORE --weft-rvv-lower-to-emitc. This exposes the constructed region so
 // the certification walker (e5_strong_readout.py stamp-quant-stream) can WALK (and hence
 // machine-certify) the realized typed region, instead of it being built-and-erased
-// atomically inside the emitc lowering where no pre-emitc dump can see it.
-//
-// The construction is the SAME one the in-emitc fallback runs, so the emitted C is
-// byte-exact whether the region is built here (pre-emitc, REALIZE) or in emitc: the EMIT
-// run below (front door THEN --weft-rvv-lower-to-emitc) is byte-identical to the atomic
-// `--weft-rvv-lower-to-emitc`-only path locked by rvv-to-emitc-ggml-quantize-row-q8-0.mlir
-// (the 0-diff is verified format-by-format across all 3 constructed formats
-// q8_0/q8_1/q8_K out-of-band). The quant front door is SCOPED to the 3 quantize ops: a
+// inside a later emission step. The emitter has no abstract-op construction fallback.
+// The quant front door is SCOPED to the 3 quantize ops: a
 // weft_rvv.dequantize_row is NOT a quantize op, so the pass LEAVES it abstract (DISPATCH
 // run below, feeding the dequant fixture). NOTE q8_K here is the ROW quantizer
 // (quantize_row_q8_K, the scalar row-quant stream), NOT the mat-quant GEMM path.
@@ -44,14 +38,14 @@ module {
 // weft_rvv.quantize_row_q8_0 is GONE, replaced by the typed body carrying the encode core + yield.
 // REALIZE-NOT: weft_rvv.quantize_row_q8_0
 // REALIZE-NOT: emitc.
-// REALIZE: weft_rvv.typed_quantize_row_loop_body %{{.*}}, %{{.*}}, %{{.*}} attributes {block_stride = 34 : i64, encode_model = "q8_0", kind = "typed_quantize_row_loop_body", qk = 32 : i64}
+// REALIZE: weft_rvv.typed_quantize_row_loop_body %{{.*}}, %{{.*}}, %{{.*}} attributes {block_stride = 34 : i64, encode_model = "q8_0", kind = "typed_quantize_row_loop_body", qk = 32 : i64, quantize_leaf = #weft_rvv<quantize_row_leaf q8_0>}
 // REALIZE: ^bb0(%[[BI:.*]]: index):
-// REALIZE: weft_rvv.quantize_row_encode_core %{{.*}}, %{{.*}}, %[[BI]] {block_stride = 34 : i64, encode_model = "q8_0", qk = 32 : i64, quant_byte_offset = 2 : i64, scale_byte_offset = 0 : i64}
+// REALIZE: weft_rvv.quantize_row_encode_core %{{.*}}, %{{.*}}, %[[BI]] {block_stride = 34 : i64, encode_model = "q8_0", qk = 32 : i64, quant_byte_offset = 2 : i64, quantize_leaf = #weft_rvv<quantize_row_leaf q8_0>, scale_byte_offset = 0 : i64}
 // REALIZE: weft_rvv.typed_quantize_row_loop_yield
 
-// Front door THEN emitc == the atomic construct+emit path: the emit is DRIVEN by the typed
-// region (the provenance token proves the abstract op went THROUGH the typed region), and the
-// C is byte-identical to the atomic q8_0 path.
+// Front door THEN emitc: emission is driven by the typed leaf and consumes the
+// formula-produced layout; the provenance token proves the abstract op went through
+// the typed region.
 // EMIT-NOT: weft_rvv.
 // EMIT: emitc.func @weft_emitc_quantize_row_q8_0_kernel_quantize_row_q8_0(
 // EMIT: route_source_op=weft_rvv.typed_quantize_row_loop_body

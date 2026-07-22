@@ -25,7 +25,6 @@
 #include "Weft/Plugin/RVV/RVVEmitCMAccRouteFamilyPlanOwners.h"
 #include "Weft/Plugin/RVV/RVVEmitCSegment2RouteFamilyPlanOwners.h"
 #include "Weft/Plugin/RVV/RVVGearboxSchedule.h"
-#include "Weft/Plugin/RVV/RVVLowPrecisionPerformancePolicy.h"
 #include "Weft/Plugin/RVV/RVVSelectedBodyRealization.h"
 
 #include "mlir/IR/Attributes.h"
@@ -368,10 +367,6 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
           context, "runtime AVL source", description.runtimeAVLASource,
           configContract.runtimeAVLASource))
     return error;
-  if (llvm::Error error =
-          verifyRVVCompositeGatherMAccScatterResourceDescriptionSelection(
-              description, context))
-    return error;
   if (isContractionRoute) {
     if (llvm::Error error =
             verifyRVVSelectedBodyContractionRouteDescriptionMirrors(
@@ -517,90 +512,11 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
             context, "dequantization kind", description.conversionKind,
             routeFacts->dequantizationKind))
       return error;
-    if (!rvvGearboxCandidateSetContains(description.gearboxCandidateSet,
-                                        description.gearboxSelectedCandidate))
+    if (description.standaloneDequantUnrollFactor <= 0)
       return makeRVVEmitCRouteProviderError(
           llvm::Twine(context) +
-          " selected RVV Gearbox candidate must belong to the "
-          "provider-consumed legal candidate set");
-    if (llvm::Error error = requireRouteDescriptionField(
-            context, "Gearbox candidate set", description.gearboxCandidateSet,
-            routeFacts->gearboxCandidateSet))
-      return error;
-    if (llvm::Error error = requireRouteDescriptionField(
-            context, "Gearbox selected candidate",
-            description.gearboxSelectedCandidate,
-            routeFacts->gearboxSelectedCandidate))
-      return error;
-    if (llvm::Error error = requireRouteDescriptionField(
-            context, "Gearbox selection reason",
-            description.gearboxSelectionReason,
-            routeFacts->gearboxSelectionReason))
-      return error;
-    if (llvm::Error error = requireRouteDescriptionField(
-            context, "Gearbox legality scope", description.gearboxLegalityScope,
-            routeFacts->gearboxLegalityScope))
-      return error;
-    if (llvm::Error error = requireRouteDescriptionField(
-            context, "Gearbox schedule id", description.gearboxScheduleID,
-            routeFacts->gearboxScheduleID))
-      return error;
-    if (llvm::Error error = requireRouteDescriptionField(
-            context, "Gearbox selector", description.gearboxSelector,
-            routeFacts->gearboxSelector))
-      return error;
-    if (llvm::Error error = requireRouteDescriptionField(
-            context, "Gearbox source", description.gearboxSource,
-            routeFacts->gearboxSource))
-      return error;
-    if (llvm::Error error = requireRouteDescriptionField(
-            context, "Gearbox operation", description.gearboxOperation,
-            routeFacts->gearboxOperation))
-      return error;
-    if (description.gearboxUnroll != routeFacts->gearboxUnroll)
-      return makeRVVEmitCRouteProviderError(
-          llvm::Twine(context) +
-          " Gearbox unroll must mirror provider-consumed Gearbox facts");
-    if (llvm::Error error = requireRouteDescriptionField(
-            context, "Gearbox VL policy", description.gearboxVLPolicy,
-            routeFacts->gearboxVLPolicy))
-      return error;
-    if (description.gearboxSourceSEW != routeFacts->gearboxSourceSEW)
-      return makeRVVEmitCRouteProviderError(
-          llvm::Twine(context) +
-          " Gearbox source SEW must mirror provider-consumed Gearbox facts");
-    if (llvm::Error error = requireRouteDescriptionField(
-            context, "Gearbox source LMUL", description.gearboxSourceLMUL,
-            routeFacts->gearboxSourceLMUL))
-      return error;
-    if (description.gearboxDestSEW != routeFacts->gearboxDestSEW)
-      return makeRVVEmitCRouteProviderError(
-          llvm::Twine(context) +
-          " Gearbox destination SEW must mirror provider-consumed Gearbox facts");
-    if (llvm::Error error = requireRouteDescriptionField(
-            context, "Gearbox destination LMUL", description.gearboxDestLMUL,
-            routeFacts->gearboxDestLMUL))
-      return error;
-    if (llvm::Error error = requireRouteDescriptionField(
-            context, "Gearbox runtime AVL source",
-            description.gearboxRuntimeAVLSource,
-            routeFacts->gearboxRuntimeAVLSource))
-      return error;
-    if (llvm::Error error = requireRouteDescriptionField(
-            context, "Gearbox producer scope",
-            description.gearboxProducerScope,
-            routeFacts->gearboxProducerScope))
-      return error;
-    if (llvm::Error error = requireRouteDescriptionField(
-            context, "Gearbox consumer scope",
-            description.gearboxConsumerScope,
-            routeFacts->gearboxConsumerScope))
-      return error;
-    if (description.gearboxProducerScope == description.gearboxConsumerScope)
-      return makeRVVEmitCRouteProviderError(
-          llvm::Twine(context) +
-          " Gearbox producer and consumer scopes must be distinct provider "
-          "facts");
+          " standalone dequant requires a positive formula-constructed "
+          "unroll_factor");
   } else if (isRuntimeScalarComputedMaskSelectRoute) {
     if (llvm::Error error = requireRouteDescriptionField(
             context, "target leaf profile", description.targetLeafProfile,

@@ -2,9 +2,6 @@
 // RUN: weft-opt %s --weft-materialize-emission-plans | weft-translate --weft-export-target-header-artifact | FileCheck %s --check-prefix=HEADER
 // RUN: weft-opt %s --weft-materialize-emission-plans | sed '0,/__riscv_vwredsumu_vs_u16mf2_u32m1/s//__riscv_vwredsum_vs_i16mf2_i32m1/' | not weft-translate --weft-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-VWREDSUM
 // RUN: weft-opt %s --weft-materialize-emission-plans | sed '0,/weft_rvv.low_precision_primitive.source_signedness\", value = \"unsigned\"/s//weft_rvv.low_precision_primitive.source_signedness\", value = \"signed\"/' | not weft-translate --weft-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-SIGN
-// RUN: weft-opt %s --weft-materialize-emission-plans | sed '0,/weft_rvv.low_precision_resource.source_signedness\", value = \"unsigned\"/s//weft_rvv.low_precision_resource.source_signedness\", value = \"signed\"/' | not weft-translate --weft-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-RESOURCE-SIGN
-// RUN: weft-opt %s --weft-materialize-emission-plans | sed '0,/weft_rvv.low_precision_resource.primitive_product_reduction_chain_relation\", value = \"unsigned-u8mf4xu8mf4-to-u16mf2-reduce-plus-u32-scalar-to-u32\"/s//weft_rvv.low_precision_resource.primitive_product_reduction_chain_relation\", value = \"metadata-derived-product-reduction\"/' | not weft-translate --weft-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-RESOURCE-CHAIN
-// RUN: weft-opt %s --weft-materialize-emission-plans | sed '0,/weft_rvv.low_precision_resource.reduction_candidate_fact\", value = \"resource-candidate-widening-reduction:unsigned-u8mf4xu8mf4-to-u16mf2-reduce-plus-u32-scalar-to-u32:__riscv_vwredsumu_vs_u16mf2_u32m1:store-vl=1\"/s//weft_rvv.low_precision_resource.reduction_candidate_fact\", value = \"target-metadata-unsigned-reduction\"/' | not weft-translate --weft-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-RESOURCE-REDUCTION-CANDIDATE
 // RUN: weft-opt %s --weft-materialize-emission-plans | sed '0,/weft_rvv.low_precision_primitive.accumulator_dtype\", value = \"u32\"/s//weft_rvv.low_precision_primitive.accumulator_dtype\", value = \"i32\"/' | not weft-translate --weft-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-PRIM-ACC
 // RUN: weft-opt %s --weft-materialize-emission-plans | sed '0,/weft_rvv.low_precision_primitive.source_extension\", value = \"zero-extend-u8-to-u16-product\"/s//weft_rvv.low_precision_primitive.source_extension\", value = \"sign-extend-i8-to-i16-product\"/' | not weft-translate --weft-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-EXT
 // RUN: weft-opt %s --weft-materialize-emission-plans | sed '0,/weft_rvv.c_type_mapping\", value = \"vl:size_t,source:unsigned-e8mf4,product:unsigned-e16mf2,seed:unsigned-u32,result:unsigned-e32m1\"/s//weft_rvv.c_type_mapping\", value = \"vl:size_t,source:signed-e8mf4,product:signed-e16mf2,seed:signed-i32,result:signed-e32m1\"/' | not weft-translate --weft-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-CTYPE
@@ -94,19 +91,6 @@ module {
 // PLAN-SAME: {key = "weft_rvv.low_precision_primitive.mask_policy", value = "agnostic"}
 // PLAN-SAME: {key = "weft_rvv.low_precision_primitive.runtime_control_plan", value = "rvv-runtime-avl-vl-control-plan.v1"}
 // PLAN-SAME: {key = "weft_rvv.low_precision_primitive.runtime_avl_source", value = "runtime_abi:n"}
-// PLAN-SAME: {key = "weft_rvv.low_precision_resource.resource_owner_mirror_source", value = "provider-owned-low-precision-contraction-resource-selection.v1"}
-// PLAN-SAME: {key = "weft_rvv.low_precision_resource.candidate_set", value = "rvv-low-precision-product-reduction-resource-candidate-set.v1[signed-i8mf4-i16mf2-i32m1:u1-vector-carry,unsigned-u8mf4-u16mf2-u32m1:u1-vector-carry]"}
-// PLAN-SAME: {key = "weft_rvv.low_precision_resource.selected_candidate", value = "rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-add,unsigned-u8mf4-u16mf2-u32m1,u1]"}
-// PLAN-SAME: {key = "weft_rvv.low_precision_resource.source_dtype", value = "u8"}
-// PLAN-SAME: {key = "weft_rvv.low_precision_resource.source_signedness", value = "unsigned"}
-// PLAN-SAME: {key = "weft_rvv.low_precision_resource.accumulator_dtype", value = "u32"}
-// PLAN-SAME: {key = "weft_rvv.low_precision_resource.result_dtype", value = "u32"}
-// PLAN-SAME: {key = "weft_rvv.low_precision_resource.memory_form", value = "unit-stride-widening-product-reduce-add"}
-// PLAN-SAME: {key = "weft_rvv.low_precision_resource.primitive_chain_kind", value = "unsigned-u8mf4xu8mf4-to-u16mf2-product-u32m1-vwredsumu.v1"}
-// PLAN-SAME: {key = "weft_rvv.low_precision_resource.widening_product_candidate_fact", value = "resource-candidate-widening-product:unsigned-u8mf4xu8mf4-to-u16mf2:__riscv_vwmulu_vv_u16mf2"}
-// PLAN-SAME: {key = "weft_rvv.low_precision_resource.reduction_candidate_fact", value = "resource-candidate-widening-reduction:unsigned-u8mf4xu8mf4-to-u16mf2-reduce-plus-u32-scalar-to-u32:__riscv_vwredsumu_vs_u16mf2_u32m1:store-vl=1"}
-// PLAN-SAME: {key = "weft_rvv.low_precision_resource.primitive_reduction_intrinsic", value = "__riscv_vwredsumu_vs_u16mf2_u32m1"}
-// PLAN-SAME: {key = "weft_rvv.low_precision_resource.target_capability_provider_mirror", value = "selected_capability_provider_mirror:@rvv;id=rvv;kind=isa-vector;rvv=exact"}
 // PLAN-SAME: emission_kind = "materialized-emitc-cpp-rvv-intrinsic-object"
 // PLAN-SAME: lowering_boundary = "weft_rvv.with_vl"
 // PLAN-SAME: origin = "rvv-plugin"
@@ -125,13 +109,6 @@ module {
 // HEADER: weft.rvv.low_precision_primitive.payload_mirror.product_lmul: mf2
 // HEADER: weft.rvv.low_precision_primitive.payload_mirror.tail_policy: agnostic
 // HEADER: weft.rvv.low_precision_primitive.payload_mirror.runtime_avl_source: runtime_abi:n
-// HEADER: weft.rvv.low_precision_resource.resource_owner_mirror.source: provider-owned-low-precision-contraction-resource-selection.v1
-// HEADER: weft.rvv.low_precision_resource.selected_candidate: rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-add,unsigned-u8mf4-u16mf2-u32m1,u1]
-// HEADER: weft.rvv.low_precision_resource.source_signedness: unsigned
-// HEADER: weft.rvv.low_precision_resource.accumulator_dtype: u32
-// HEADER: weft.rvv.low_precision_resource.primitive_chain_kind: unsigned-u8mf4xu8mf4-to-u16mf2-product-u32m1-vwredsumu.v1
-// HEADER: weft.rvv.low_precision_resource.widening_product_candidate_fact: resource-candidate-widening-product:unsigned-u8mf4xu8mf4-to-u16mf2:__riscv_vwmulu_vv_u16mf2
-// HEADER: weft.rvv.low_precision_resource.reduction_candidate_fact: resource-candidate-widening-reduction:unsigned-u8mf4xu8mf4-to-u16mf2-reduce-plus-u32-scalar-to-u32:__riscv_vwredsumu_vs_u16mf2_u32m1:store-vl=1
 // HEADER: weft.rvv.target_leaf_profile: rvv-v1-u8mf4-u16mf2-u32m1-product-reduction-contraction-leaf-profile.v1
 // HEADER: weft.rvv.c_type_mapping: vl:size_t,source:unsigned-e8mf4,product:unsigned-e16mf2,seed:unsigned-u32,result:unsigned-e32m1
 // HEADER: void weft_emitc_explicit_selected_body_unsigned_product_reduce_kernel_explicit_selected_body_rvv_unsigned_product_reduce(const uint8_t *lhs, const uint8_t *rhs, const uint32_t *acc, uint32_t *out, size_t n);
@@ -140,11 +117,8 @@ module {
 
 // STALE-SIGN: metadata key '{{.*}}low_precision_primitive.source_signedness'{{.*}}'unsigned' but was 'signed'
 
-// STALE-RESOURCE-SIGN: metadata key '{{.*}}low_precision_resource.source_signedness'{{.*}}'unsigned' but was 'signed'
 
-// STALE-RESOURCE-CHAIN: metadata key '{{.*}}low_precision_resource.primitive_product_reduction_chain_relation'{{.*}}'unsigned-u8mf4xu8mf4-to-u16mf2-reduce-plus-u32-scalar-to-u32' but was 'metadata-derived-product-reduction'
 
-// STALE-RESOURCE-REDUCTION-CANDIDATE: metadata key '{{.*}}low_precision_resource.reduction_candidate_fact'{{.*}}'resource-candidate-widening-reduction:unsigned-u8mf4xu8mf4-to-u16mf2-reduce-plus-u32-scalar-to-u32:__riscv_vwredsumu_vs_u16mf2_u32m1:store-vl=1' but was 'target-metadata-unsigned-reduction'
 
 // STALE-PRIM-ACC: metadata key '{{.*}}low_precision_primitive.accumulator_dtype'{{.*}}'u32' but was 'i32'
 

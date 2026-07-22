@@ -43,7 +43,7 @@ module {
       weft_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @dequant_iq1_s, sew = 32 : i64, source_kernel = "dequant_iq1_s_kernel", status = "selected-lowering-boundary"} {
         weft_rvv.typed_dequantize_row_loop_body %x, %y, %k attributes {decode_model = "iq1_s", kind = "typed_dequantize_row_loop_body", qk = 256 : i64, weight_block_stride = 50 : i64} {
         ^bb0(%block_index: index):
-          weft_rvv.dequantize_row_decode_core %x, %y, %block_index {decode_model = "iq1_s", qk = 256 : i64, quant_byte_offset = 2 : i64, scale_byte_offset = 0 : i64, weight_block_stride = 50 : i64, codebook_entry_lanes = 8 : i64} : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index
+          weft_rvv.dequantize_row_decode_core %x, %y, %block_index {decode_model = "iq1_s", dequant_mechanism = "ternary-decode", ternary_decode_leaf = "iq1-s", qk = 256 : i64, quant_byte_offset = 2 : i64, scale_byte_offset = 0 : i64, weight_block_stride = 50 : i64, codebook_entry_lanes = 8 : i64} : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index
           weft_rvv.typed_dequantize_row_loop_yield
         } : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index
       } : !weft_rvv.vl
@@ -68,4 +68,4 @@ module {
 
 // NOENTRY (descriptor ABSENT): fail closed with a named diagnostic -- the g-axis geometry is
 // never value_or self-supplied (anti-decoration).
-// NOENTRY: is an owned grid-codebook dequant leaf and requires the codebook_entry_lanes descriptor
+// NOENTRY: selected ternary grid leaf requires construction-owned codebook_entry_lanes geometry

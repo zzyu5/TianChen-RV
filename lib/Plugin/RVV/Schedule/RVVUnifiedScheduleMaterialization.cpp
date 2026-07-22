@@ -1,18 +1,16 @@
 //===- RVVUnifiedScheduleMaterialization.cpp ------------------------------===//
 //
-// The ONE walk-all RVV schedule-materialize pass (weft-rvv-materialize-schedule).
-// It needs NO per-op code: it walks every op implementing
-// TunableScheduleOpInterface (auto-discovery via dyn_cast, NOT a hardcoded
-// op-type list) and runs the SAME shared select+stamp loop the six per-kernel
-// passes use, with onlyOpType=nullopt. A new tunable op is picked up the moment
-// it adopts the interface + registers a descriptor -- no new pass.
+// Compatibility pass entry for the walk-all RVV schedule formula.  It discovers
+// every TunableScheduleOpInterface and constructs a complete final schedule, or
+// validates an explicitly supplied complete schedule.  Partial/illegal plans
+// fail; no provenance stamp or no-clobber lifecycle exists here.
 //
 //===----------------------------------------------------------------------===//
 
 #include "Weft/Transforms/Passes.h"
 
 #include "Weft/Dialect/RVV/IR/RVVDialect.h"
-#include "Weft/Plugin/RVV/RVVScheduleMaterialization.h"
+#include "Weft/Plugin/RVV/RVVScheduleFormula.h"
 
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/Pass/Pass.h"
@@ -33,9 +31,10 @@ public:
       MaterializeRVVSchedulePass>::MaterializeRVVScheduleBase;
 
   void runOnOperation() override {
-    plugin::rvv::runRVVScheduleMaterializationViaInterface(
-        getOperation(), march, isaVectorHints, tuneRecord, dumpCandidates,
-        /*onlyOpType=*/std::nullopt);
+    if (mlir::failed(plugin::rvv::constructRVVSchedulesViaInterface(
+            getOperation(), march, isaVectorHints, tuneRecord, dumpCandidates,
+            /*onlyOpType=*/std::nullopt)))
+      signalPassFailure();
   }
 };
 

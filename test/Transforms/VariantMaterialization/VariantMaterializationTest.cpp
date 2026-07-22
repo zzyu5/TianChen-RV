@@ -50,6 +50,21 @@ public:
     (void)registry;
   }
 
+  void collectFormulaDescriptors(
+      llvm::SmallVectorImpl<weft::plugin::FormulaDescriptor> &out) const
+      override {
+    weft::plugin::FormulaDescriptor descriptor(
+        proposal.getFormulaID(), name, "test-variant-materialization",
+        weft::plugin::FormulaResultKind::CandidateSet,
+        weft::plugin::FormulaConstructionStrength::ConstructedWeak);
+    descriptor.getGeometryAxis().set(
+        weft::plugin::FormulaAxisUse::HonestNull,
+        "VariantMaterializationTestGeometry");
+    descriptor.addSemanticCase("test-proposal");
+    descriptor.addProductionEntry("plugin:variant-proposal");
+    out.push_back(std::move(descriptor));
+  }
+
   bool supportsOperation(const VariantProposalRequest &request) const override {
     return request.getHighLevelOp() && request.getKernel() &&
            request.getCapabilities().isCapabilityAvailableByID(supportID);
@@ -200,7 +215,10 @@ int expectStringAttr(VariantOp variant, llvm::StringRef attrName,
 }
 
 VariantProposal makeProposal(llvm::StringRef name, llvm::StringRef origin) {
-  return VariantProposal(name, origin);
+  VariantProposal proposal(name, origin);
+  proposal.setFormulaID(
+      (llvm::Twine("test.") + origin + ".variant-proposal").str());
+  return proposal;
 }
 
 int expectDirectMaterializationError(

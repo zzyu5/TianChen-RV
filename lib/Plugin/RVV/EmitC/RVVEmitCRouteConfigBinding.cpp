@@ -25,7 +25,6 @@
 #include "Weft/Plugin/RVV/RVVEmitCMAccRouteFamilyPlanOwners.h"
 #include "Weft/Plugin/RVV/RVVEmitCSegment2RouteFamilyPlanOwners.h"
 #include "Weft/Plugin/RVV/RVVGearboxSchedule.h"
-#include "Weft/Plugin/RVV/RVVLowPrecisionPerformancePolicy.h"
 #include "Weft/Plugin/RVV/RVVSelectedBodyRealization.h"
 
 #include "mlir/IR/Attributes.h"
@@ -51,6 +50,41 @@
 
 
 namespace weft::plugin::rvv {
+
+llvm::StringRef stringifyRVVTailPolicy(weft::rvv::TailPolicy policy) {
+  switch (policy) {
+  case weft::rvv::TailPolicy::Agnostic:
+    return "agnostic";
+  case weft::rvv::TailPolicy::Undisturbed:
+    return "undisturbed";
+  }
+  llvm_unreachable("unknown RVV tail policy");
+}
+
+llvm::StringRef stringifyRVVMaskPolicy(weft::rvv::MaskPolicy policy) {
+  switch (policy) {
+  case weft::rvv::MaskPolicy::Agnostic:
+    return "agnostic";
+  case weft::rvv::MaskPolicy::Undisturbed:
+    return "undisturbed";
+  }
+  llvm_unreachable("unknown RVV mask policy");
+}
+
+llvm::Expected<llvm::StringRef>
+getRVVSelectedBodyElementTypeNameForSEW(std::int64_t sew,
+                                        llvm::StringRef context) {
+  if (sew == weft::rvv::getRVVSEW16Bits())
+    return llvm::StringRef("i16");
+  if (sew == weft::rvv::getRVVFirstSliceSEWBits())
+    return llvm::StringRef("i32");
+  if (sew == weft::rvv::getRVVSEW64Bits())
+    return llvm::StringRef("i64");
+  return makeRVVEmitCRouteProviderError(
+      llvm::Twine(context) +
+      " typed config facts require a supported integer element type for SEW " +
+      llvm::Twine(sew));
+}
 
 llvm::Expected<RVVSelectedBodyTargetLeafProfile>
 deriveRVVSelectedBodyTargetLeafProfile(
@@ -788,362 +822,6 @@ llvm::Error requireRouteDescriptionField(llvm::StringRef context,
       llvm::Twine(context) + " " + field +
       " must mirror selected-body route profile fact '" + expected +
       "' but was '" + actual + "'");
-}
-
-llvm::Expected<std::string> requireRVVCompositeResourceStringFact(
-    mlir::Operation *op, llvm::StringRef context, llvm::StringRef attrName) {
-  if (!op)
-    return makeRVVEmitCRouteProviderError(
-        llvm::Twine(context) +
-        " requires realized composite resource facts on a concrete weft_rvv "
-        "operation");
-  mlir::StringAttr attr = op->getAttrOfType<mlir::StringAttr>(attrName);
-  if (!attr || attr.getValue().trim().empty())
-    return makeRVVEmitCRouteProviderError(
-        llvm::Twine(context) +
-        " requires realized composite resource string fact '" + attrName +
-        "' before provider route construction");
-  return attr.getValue().str();
-}
-
-llvm::Expected<std::int64_t> requireRVVCompositeResourceIntegerFact(
-    mlir::Operation *op, llvm::StringRef context, llvm::StringRef attrName) {
-  if (!op)
-    return makeRVVEmitCRouteProviderError(
-        llvm::Twine(context) +
-        " requires realized composite resource facts on a concrete weft_rvv "
-        "operation");
-  mlir::IntegerAttr attr = op->getAttrOfType<mlir::IntegerAttr>(attrName);
-  if (!attr)
-    return makeRVVEmitCRouteProviderError(
-        llvm::Twine(context) +
-        " requires realized composite resource integer fact '" + attrName +
-        "' before provider route construction");
-  return attr.getInt();
-}
-
-llvm::Error requireRVVCompositeResourceStringField(
-    llvm::StringRef context, llvm::StringRef field, llvm::StringRef actual,
-    llvm::StringRef expected) {
-  if (actual == expected)
-    return llvm::Error::success();
-  return makeRVVEmitCRouteProviderError(
-      llvm::Twine(context) + " composite resource " + field +
-      " must mirror realized/provider-derived fact '" + expected +
-      "' but was '" + actual + "'");
-}
-
-llvm::Error requireRVVCompositeResourceIntegerField(
-    llvm::StringRef context, llvm::StringRef field, std::int64_t actual,
-    std::int64_t expected) {
-  if (actual == expected)
-    return llvm::Error::success();
-  return makeRVVEmitCRouteProviderError(
-      llvm::Twine(context) + " composite resource " + field +
-      " must mirror realized/provider-derived fact " + llvm::Twine(expected) +
-      " but was " + llvm::Twine(actual));
-}
-
-RVVCompositeGatherMAccScatterResourceSelection
-deriveExpectedRVVCompositeGatherMAccScatterResourceSelection(
-    const RVVSelectedBodyEmitCRouteDescription &description,
-    const RVVSelectedTargetCapabilityFacts &targetFacts) {
-  RVVCompositeGatherMAccScatterResourceSelection selection;
-  selection.hasSelection = true;
-  selection.candidateSetID = kRVVCompositeResourceCandidateSet.str();
-  selection.selectedCandidateID =
-      kRVVCompositeResourceSelectedCandidate.str();
-  selection.selectionReason = kRVVCompositeResourceSelectionReason.str();
-  selection.legalityScope = kRVVCompositeResourceLegalityScope.str();
-  selection.operation = kRVVCompositeResourceOperation.str();
-  selection.memoryForm = kRVVCompositeResourceMemoryForm.str();
-  selection.sew = description.sew;
-  selection.lmul = description.lmul.str();
-  selection.tailPolicy = description.tailPolicy.str();
-  selection.maskPolicy = description.maskPolicy.str();
-  selection.vlPolicy = kRVVGearboxRuntimeAVLSingleSetVLPolicy.str();
-  selection.accumulatorLayout =
-      kRVVCompositeResourceAccumulatorLayout.str();
-  selection.unrollFactor = kRVVCompositeResourceStaticUnroll;
-  selection.pipelineIntent = kRVVCompositeResourcePipelineIntent.str();
-  selection.prefetchIntent = kRVVCompositeResourcePrefetchIntent.str();
-  selection.vsetvlRegionCount = kRVVCompositeResourceVSetVLRegions;
-  selection.peakLiveVectorGroups =
-      kRVVCompositeResourcePeakLiveVectorGroups;
-  selection.vectorRegisterBudget =
-      kRVVCompositeResourceVectorRegisterBudget;
-  selection.runtimeAVLSource = description.runtimeAVLASource.str();
-  selection.runtimeABIOrder = description.runtimeABIOrder.str();
-  selection.targetCapabilityProviderMirror = targetFacts.providerMirror;
-  selection.targetCapabilityLegalityMirror = targetFacts.legalityMirror;
-  selection.isLegal = true;
-  selection.rejectionReason =
-      kRVVCompositeResourceNoRejectionReason.str();
-  return selection;
-}
-
-llvm::Expected<RVVCompositeGatherMAccScatterResourceSelection>
-deriveRVVCompositeGatherMAccScatterResourceSelectionFromRealizedFacts(
-    const RVVSelectedBodyEmitCRouteDescription &description,
-    const RVVSelectedTargetCapabilityFacts &targetFacts, mlir::Operation *op,
-    llvm::StringRef context) {
-  RVVCompositeGatherMAccScatterResourceSelection expected =
-      deriveExpectedRVVCompositeGatherMAccScatterResourceSelection(
-          description, targetFacts);
-  RVVCompositeGatherMAccScatterResourceSelection selection;
-  selection.hasSelection = true;
-
-#define WEFT_READ_COMPOSITE_STRING(Field, AttrName)                           \
-  {                                                                           \
-    llvm::Expected<std::string> value =                                       \
-        requireRVVCompositeResourceStringFact(op, context, AttrName);         \
-    if (!value)                                                               \
-      return value.takeError();                                               \
-    selection.Field = std::move(*value);                                      \
-  }
-#define WEFT_READ_COMPOSITE_INTEGER(Field, AttrName)                          \
-  {                                                                           \
-    llvm::Expected<std::int64_t> value =                                      \
-        requireRVVCompositeResourceIntegerFact(op, context, AttrName);        \
-    if (!value)                                                               \
-      return value.takeError();                                               \
-    selection.Field = *value;                                                 \
-  }
-
-  WEFT_READ_COMPOSITE_STRING(candidateSetID,
-                             kRVVCompositeResourceCandidateSetAttrName);
-  WEFT_READ_COMPOSITE_STRING(selectedCandidateID,
-                             kRVVCompositeResourceSelectedCandidateAttrName);
-  WEFT_READ_COMPOSITE_STRING(selectionReason,
-                             kRVVCompositeResourceSelectionReasonAttrName);
-  WEFT_READ_COMPOSITE_STRING(legalityScope,
-                             kRVVCompositeResourceLegalityScopeAttrName);
-  WEFT_READ_COMPOSITE_STRING(operation,
-                             kRVVCompositeResourceOperationAttrName);
-  WEFT_READ_COMPOSITE_STRING(memoryForm,
-                             kRVVCompositeResourceMemoryFormAttrName);
-  WEFT_READ_COMPOSITE_INTEGER(sew, kRVVCompositeResourceSEWAttrName);
-  WEFT_READ_COMPOSITE_STRING(lmul, kRVVCompositeResourceLMULAttrName);
-  WEFT_READ_COMPOSITE_STRING(tailPolicy,
-                             kRVVCompositeResourceTailPolicyAttrName);
-  WEFT_READ_COMPOSITE_STRING(maskPolicy,
-                             kRVVCompositeResourceMaskPolicyAttrName);
-  WEFT_READ_COMPOSITE_STRING(vlPolicy,
-                             kRVVCompositeResourceVLPolicyAttrName);
-  WEFT_READ_COMPOSITE_STRING(
-      accumulatorLayout, kRVVCompositeResourceAccumulatorLayoutAttrName);
-  WEFT_READ_COMPOSITE_INTEGER(unrollFactor,
-                              kRVVCompositeResourceUnrollFactorAttrName);
-  WEFT_READ_COMPOSITE_STRING(pipelineIntent,
-                             kRVVCompositeResourcePipelineIntentAttrName);
-  WEFT_READ_COMPOSITE_STRING(prefetchIntent,
-                             kRVVCompositeResourcePrefetchIntentAttrName);
-  WEFT_READ_COMPOSITE_INTEGER(
-      vsetvlRegionCount, kRVVCompositeResourceVSetVLRegionCountAttrName);
-  WEFT_READ_COMPOSITE_INTEGER(
-      peakLiveVectorGroups,
-      kRVVCompositeResourcePeakLiveVectorGroupsAttrName);
-  WEFT_READ_COMPOSITE_INTEGER(
-      vectorRegisterBudget,
-      kRVVCompositeResourceVectorRegisterBudgetAttrName);
-  WEFT_READ_COMPOSITE_STRING(
-      runtimeAVLSource, kRVVCompositeResourceRuntimeAVLSourceAttrName);
-  WEFT_READ_COMPOSITE_STRING(
-      runtimeABIOrder, kRVVCompositeResourceRuntimeABIOrderAttrName);
-  WEFT_READ_COMPOSITE_STRING(
-      targetCapabilityProviderMirror,
-      kRVVCompositeResourceTargetCapabilityProviderMirrorAttrName);
-  WEFT_READ_COMPOSITE_STRING(
-      targetCapabilityLegalityMirror,
-      kRVVCompositeResourceTargetCapabilityLegalityMirrorAttrName);
-  std::string legality;
-  {
-    llvm::Expected<std::string> value = requireRVVCompositeResourceStringFact(
-        op, context, kRVVCompositeResourceLegalityAttrName);
-    if (!value)
-      return value.takeError();
-    legality = std::move(*value);
-  }
-  selection.isLegal = legality == kRVVCompositeResourceLegal;
-  WEFT_READ_COMPOSITE_STRING(
-      rejectionReason, kRVVCompositeResourceRejectionReasonAttrName);
-
-#undef WEFT_READ_COMPOSITE_STRING
-#undef WEFT_READ_COMPOSITE_INTEGER
-
-  if (llvm::Error error = requireRVVCompositeResourceStringField(
-          context, "candidate set", selection.candidateSetID,
-          expected.candidateSetID))
-    return std::move(error);
-  if (llvm::Error error = requireRVVCompositeResourceStringField(
-          context, "selected candidate", selection.selectedCandidateID,
-          expected.selectedCandidateID))
-    return std::move(error);
-  if (llvm::Error error = requireRVVCompositeResourceStringField(
-          context, "selection reason", selection.selectionReason,
-          expected.selectionReason))
-    return std::move(error);
-  if (llvm::Error error = requireRVVCompositeResourceStringField(
-          context, "legality scope", selection.legalityScope,
-          expected.legalityScope))
-    return std::move(error);
-  if (llvm::Error error = requireRVVCompositeResourceStringField(
-          context, "operation", selection.operation, expected.operation))
-    return std::move(error);
-  if (llvm::Error error = requireRVVCompositeResourceStringField(
-          context, "memory form", selection.memoryForm, expected.memoryForm))
-    return std::move(error);
-  if (llvm::Error error = requireRVVCompositeResourceIntegerField(
-          context, "SEW", selection.sew, expected.sew))
-    return std::move(error);
-  if (llvm::Error error = requireRVVCompositeResourceStringField(
-          context, "LMUL", selection.lmul, expected.lmul))
-    return std::move(error);
-  if (llvm::Error error = requireRVVCompositeResourceStringField(
-          context, "tail policy", selection.tailPolicy,
-          expected.tailPolicy))
-    return std::move(error);
-  if (llvm::Error error = requireRVVCompositeResourceStringField(
-          context, "mask policy", selection.maskPolicy,
-          expected.maskPolicy))
-    return std::move(error);
-  if (llvm::Error error = requireRVVCompositeResourceStringField(
-          context, "VL policy", selection.vlPolicy, expected.vlPolicy))
-    return std::move(error);
-  if (llvm::Error error = requireRVVCompositeResourceStringField(
-          context, "accumulator layout", selection.accumulatorLayout,
-          expected.accumulatorLayout))
-    return std::move(error);
-  if (llvm::Error error = requireRVVCompositeResourceIntegerField(
-          context, "unroll factor", selection.unrollFactor,
-          expected.unrollFactor))
-    return std::move(error);
-  if (llvm::Error error = requireRVVCompositeResourceStringField(
-          context, "pipeline intent", selection.pipelineIntent,
-          expected.pipelineIntent))
-    return std::move(error);
-  if (llvm::Error error = requireRVVCompositeResourceStringField(
-          context, "prefetch intent", selection.prefetchIntent,
-          expected.prefetchIntent))
-    return std::move(error);
-  if (llvm::Error error = requireRVVCompositeResourceIntegerField(
-          context, "vsetvl region count", selection.vsetvlRegionCount,
-          expected.vsetvlRegionCount))
-    return std::move(error);
-  if (llvm::Error error = requireRVVCompositeResourceIntegerField(
-          context, "peak live vector groups",
-          selection.peakLiveVectorGroups,
-          expected.peakLiveVectorGroups))
-    return std::move(error);
-  if (llvm::Error error = requireRVVCompositeResourceIntegerField(
-          context, "vector register budget",
-          selection.vectorRegisterBudget,
-          expected.vectorRegisterBudget))
-    return std::move(error);
-  if (selection.peakLiveVectorGroups > selection.vectorRegisterBudget)
-    return makeRVVEmitCRouteProviderError(
-        llvm::Twine(context) +
-        " composite resource peak live vector-group estimate " +
-        llvm::Twine(selection.peakLiveVectorGroups) +
-        " exceeds vector register budget " +
-        llvm::Twine(selection.vectorRegisterBudget));
-  if (llvm::Error error = requireRVVCompositeResourceStringField(
-          context, "runtime AVL source", selection.runtimeAVLSource,
-          expected.runtimeAVLSource))
-    return std::move(error);
-  if (llvm::Error error = requireRVVCompositeResourceStringField(
-          context, "runtime ABI order", selection.runtimeABIOrder,
-          expected.runtimeABIOrder))
-    return std::move(error);
-  if (llvm::Error error = requireRVVCompositeResourceStringField(
-          context, "target capability provider mirror",
-          selection.targetCapabilityProviderMirror,
-          expected.targetCapabilityProviderMirror))
-    return std::move(error);
-  if (llvm::Error error = requireRVVCompositeResourceStringField(
-          context, "target capability legality mirror",
-          selection.targetCapabilityLegalityMirror,
-          expected.targetCapabilityLegalityMirror))
-    return std::move(error);
-  if (legality != kRVVCompositeResourceLegal)
-    return makeRVVEmitCRouteProviderError(
-        llvm::Twine(context) +
-        " composite resource legality must be 'legal' before provider route "
-        "construction but was '" +
-        legality + "'");
-  if (llvm::Error error = requireRVVCompositeResourceStringField(
-          context, "rejection reason", selection.rejectionReason,
-          expected.rejectionReason))
-    return std::move(error);
-  return selection;
-}
-
-llvm::Error verifyRVVCompositeGatherMAccScatterResourceDescriptionSelection(
-    const RVVSelectedBodyEmitCRouteDescription &description,
-    llvm::StringRef context) {
-  const RVVCompositeGatherMAccScatterResourceSelection &selection =
-      description.compositeGatherMAccScatterResourceSelection;
-  if (description.operation !=
-      RVVSelectedBodyOperationKind::
-          RuntimeScalarComputedMaskIndexedGatherMAccScatter) {
-    if (!selection.hasSelection)
-      return llvm::Error::success();
-    return makeRVVEmitCRouteProviderError(
-        llvm::Twine(context) +
-        " non-composite route must not carry composite gather-MAcc-scatter "
-        "resource selection facts");
-  }
-  if (!selection.hasSelection || !selection.isLegal ||
-      selection.selectedCandidateID.empty())
-    return makeRVVEmitCRouteProviderError(
-        llvm::Twine(context) +
-        " runtime-scalar computed-mask indexed gather-MAcc-scatter route "
-        "requires a provider-consumed legal composite resource candidate "
-        "before route construction");
-  if (selection.peakLiveVectorGroups > selection.vectorRegisterBudget)
-    return makeRVVEmitCRouteProviderError(
-        llvm::Twine(context) +
-        " runtime-scalar computed-mask indexed gather-MAcc-scatter route "
-        "rejects composite resource peak live vector-group estimate " +
-        llvm::Twine(selection.peakLiveVectorGroups) +
-        " above vector register budget " +
-        llvm::Twine(selection.vectorRegisterBudget));
-  return llvm::Error::success();
-}
-
-llvm::StringRef stringifyRVVTailPolicy(weft::rvv::TailPolicy policy) {
-  switch (policy) {
-  case weft::rvv::TailPolicy::Agnostic:
-    return "agnostic";
-  case weft::rvv::TailPolicy::Undisturbed:
-    return "undisturbed";
-  }
-  llvm_unreachable("unknown RVV tail policy");
-}
-
-llvm::StringRef stringifyRVVMaskPolicy(weft::rvv::MaskPolicy policy) {
-  switch (policy) {
-  case weft::rvv::MaskPolicy::Agnostic:
-    return "agnostic";
-  case weft::rvv::MaskPolicy::Undisturbed:
-    return "undisturbed";
-  }
-  llvm_unreachable("unknown RVV mask policy");
-}
-
-llvm::Expected<llvm::StringRef>
-getRVVSelectedBodyElementTypeNameForSEW(std::int64_t sew,
-                                        llvm::StringRef context) {
-  if (sew == weft::rvv::getRVVSEW16Bits())
-    return llvm::StringRef("i16");
-  if (sew == weft::rvv::getRVVFirstSliceSEWBits())
-    return llvm::StringRef("i32");
-  if (sew == weft::rvv::getRVVSEW64Bits())
-    return llvm::StringRef("i64");
-  return makeRVVEmitCRouteProviderError(
-      llvm::Twine(context) +
-      " typed config facts require a supported integer element type for SEW " +
-      llvm::Twine(sew));
 }
 
 llvm::Expected<RVVSelectedBodyTypedConfigFacts>

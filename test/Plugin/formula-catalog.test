@@ -1,0 +1,7 @@
+# RUN: weft-formula-catalog-test | FileCheck %s
+
+# CHECK: formula catalog/registry integrity ok:
+# CHECK-SAME: formula authorities,
+# CHECK-SAME: registered source front doors; direct route and all entries uniquely owned
+# CHECK-SAME: declared dependency fields and
+# CHECK-SAME: declared formula cases

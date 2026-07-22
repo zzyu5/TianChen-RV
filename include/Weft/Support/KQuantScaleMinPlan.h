@@ -5,8 +5,8 @@
 // DECODE plan.
 //
 // A KQuantScaleMinPlan is the transient C++ compile-period object the RVV plugin's
-// dequant FormulaProvider (kquantScaleMinPlanFromFacts, RVVGearboxSchedule.h -- the
-// formula-layer home) produces from the stamped decode_core descriptor facts, and the
+// family-local construction formula (`constructKQuantScaleMinPlan`) produces from
+// the stamped decode_core descriptor facts, and the
 // K-quant EMITTERS (emitDequantizeRowQ45KVectorBody / ...Q2K / ...Q3K / ...Q6K) read
 // plan.* INSTEAD of scatter-reading the per-format super-block geometry off the format
 // name. Format names lose ALL dispatch power: the plan's `mechanism` tag routes the
@@ -56,8 +56,10 @@
 #include "Weft/Support/NibbleDecodePlan.h" // the shared closed DequantMechanism taxonomy
 
 #include "llvm/ADT/StringRef.h"
+#include "llvm/ADT/StringSwitch.h"
 
 #include <cstdint>
+#include <optional>
 
 namespace weft {
 
@@ -78,6 +80,33 @@ enum class KQuantScaleModel {
   Q6K, ///< block_q6_K: 6-bit quant (4-bit ql + 2-bit qh), signed-int8 per-sub scale,
        ///< SINGLE mul / no min (scales@192, d@208, qh@128).
 };
+
+inline llvm::StringRef stringifyKQuantScaleModel(KQuantScaleModel model) {
+  switch (model) {
+  case KQuantScaleModel::Q2K:
+    return "q2k";
+  case KQuantScaleModel::Q3K:
+    return "q3k";
+  case KQuantScaleModel::Q4K:
+    return "q4k";
+  case KQuantScaleModel::Q5K:
+    return "q5k";
+  case KQuantScaleModel::Q6K:
+    return "q6k";
+  }
+  return "";
+}
+
+inline std::optional<KQuantScaleModel>
+parseKQuantScaleModel(llvm::StringRef value) {
+  return llvm::StringSwitch<std::optional<KQuantScaleModel>>(value)
+      .Case("q2k", KQuantScaleModel::Q2K)
+      .Case("q3k", KQuantScaleModel::Q3K)
+      .Case("q4k", KQuantScaleModel::Q4K)
+      .Case("q5k", KQuantScaleModel::Q5K)
+      .Case("q6k", KQuantScaleModel::Q6K)
+      .Default(std::nullopt);
+}
 
 /// The legality gate (fail-closed, the GridDecodePlan / NibbleDecodePlan /
 /// CodebookGatherPlan discipline): a K-quant plan is realizable ONLY when a legal load

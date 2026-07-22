@@ -59,6 +59,10 @@ inline constexpr llvm::StringLiteral kSEWAttrName("sew");
 inline constexpr llvm::StringLiteral kLMULAttrName("lmul");
 inline constexpr llvm::StringLiteral kPolicyAttrName("policy");
 inline constexpr llvm::StringLiteral kUnrollFactorAttrName("unroll_factor");
+inline constexpr llvm::StringLiteral kOperandEncodingAttrName(
+    "operand_encoding");
+inline constexpr llvm::StringLiteral kReductionStructureAttrName(
+    "reduction_structure");
 inline constexpr llvm::StringLiteral kElementCountAttrName("element_count");
 inline constexpr llvm::StringLiteral kRequiredMarchAttrName("required_march");
 inline constexpr llvm::StringLiteral kRoleAttrName("role");
@@ -281,10 +285,6 @@ mlir::LogicalResult verifyBoundedMetadata(mlir::Operation *op,
 bool isAllowedSetVLAttr(llvm::StringRef name);
 
 bool isAllowedWithVLAttr(llvm::StringRef name);
-
-bool isAllowedVSetVLRegionMarkerAttr(llvm::StringRef name);
-
-bool isAllowedGearboxCrossRegionHandoffAttr(llvm::StringRef name);
 
 bool isAllowedI32LoadAttr(llvm::StringRef);
 

@@ -11,11 +11,16 @@
 
 #include <algorithm>
 #include <string>
+#include <utility>
 
 namespace weft::plugin {
 namespace {
 
 constexpr llvm::StringLiteral kOffloadPluginName("offload-plugin");
+constexpr llvm::StringLiteral kOffloadConstructionFormulaID(
+    "weft.offload.runtime.construct");
+constexpr llvm::StringLiteral kOffloadCostFormulaID(
+    "weft.offload.runtime.analytic-prior");
 constexpr llvm::StringLiteral kOffloadPluginVersion("0.1.0");
 constexpr llvm::StringLiteral kOffloadRuntimeCapabilityID("offload.runtime");
 constexpr llvm::StringLiteral kOffloadRuntimeCapabilityKind("runtime-offload");
@@ -199,6 +204,7 @@ buildOffloadFirstSliceProposal(const VariantProposalRequest &request) {
 
   VariantProposal proposal(kOffloadRuntimeFirstSliceVariantName,
                            kOffloadPluginName);
+  proposal.setFormulaID(kOffloadConstructionFormulaID);
   proposal.addRequiredCapabilityID(kOffloadRuntimeCapabilityID);
   proposal.setCondition(kOffloadFirstSliceCondition);
   proposal.setGuard(kOffloadFirstSliceGuard);
@@ -354,6 +360,42 @@ void OffloadExtensionPlugin::registerDialects(
   registry.insert<weft::offload::WEFTOffloadDialect>();
 }
 
+void OffloadExtensionPlugin::collectFormulaDescriptors(
+    llvm::SmallVectorImpl<FormulaDescriptor> &out) const {
+  FormulaDescriptor construction(
+      kOffloadConstructionFormulaID, kOffloadPluginName, "operator/offload",
+      FormulaResultKind::CandidateSet,
+      FormulaConstructionStrength::ConstructedWeak);
+  construction.getGeometryAxis().set(FormulaAxisUse::Decisive,
+                                     "OffloadOperationFacts");
+  construction.getGeometryAxis().addConsumedField("high-level-op");
+  construction.getCapabilityAxis().set(FormulaAxisUse::Decisive,
+                                       "OffloadRuntimeCapabilityView");
+  construction.getCapabilityAxis().addConsumedField("runtime-abi");
+  construction.getCapabilityAxis().addConsumedField("handoff-kind");
+  construction.getStaticContextAxis().set(FormulaAxisUse::HonestNull,
+                                          "OffloadNoStaticContext");
+  construction.addSemanticCase("runtime-capability-applicable");
+  construction.addSemanticCase("capability-decline");
+  construction.addProductionEntry("plugin:variant-proposal");
+  out.push_back(std::move(construction));
+
+  FormulaDescriptor cost(
+      kOffloadCostFormulaID, kOffloadPluginName, "operator/offload",
+      FormulaResultKind::AnalyticPrior,
+      FormulaConstructionStrength::ConstructedWeak);
+  cost.getGeometryAxis().set(FormulaAxisUse::Decisive,
+                            "OffloadSelectedVariantFacts");
+  cost.getGeometryAxis().addConsumedField("handoff-kind");
+  cost.getCapabilityAxis().set(FormulaAxisUse::HonestNull,
+                              "OffloadCostNoCapabilityProjection");
+  cost.getStaticContextAxis().set(FormulaAxisUse::HonestNull,
+                                 "OffloadCostNoStaticContext");
+  cost.addSemanticCase("explicit-offload-prior");
+  cost.addProductionEntry("plugin:analytic-cost");
+  out.push_back(std::move(cost));
+}
+
 bool OffloadExtensionPlugin::supportsOperation(
     const VariantProposalRequest &request) const {
   return request.getHighLevelOp() &&
@@ -442,6 +484,7 @@ llvm::Error OffloadExtensionPlugin::estimateVariantCost(
   out.setScore(10.0);
   out.setExplicitPreference(true);
   out.setOriginPlugin(kOffloadPluginName);
+  out.setFormulaID(kOffloadCostFormulaID);
   out.setVariantSymbol(request.getVariant().getSymName());
   out.setExplanation(
       "generic runtime-offload capability-gated placeholder; no materialized "

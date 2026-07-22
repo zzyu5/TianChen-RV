@@ -18,13 +18,10 @@
 // RUN: sed 's/rvv_version = "1.0"/required_mask_policy = "", rvv_version = "1.0"/' %s | not weft-opt --weft-rvv-lower-to-emitc 2>&1 | FileCheck %s --check-prefix=EMPTY-MASK-POLICY
 // RUN: sed 's/rvv_version = "1.0"/required_mask_policy = 0 : i64, rvv_version = "1.0"/' %s | not weft-opt --weft-rvv-lower-to-emitc 2>&1 | FileCheck %s --check-prefix=TYPED-MASK-POLICY
 // RUN: sed 's/rvv_version = "1.0"/required_mask_policy = "sideways", rvv_version = "1.0"/' %s | not weft-opt --weft-rvv-lower-to-emitc 2>&1 | FileCheck %s --check-prefix=UNKNOWN-MASK-POLICY
-// RUN: weft-opt %s --weft-rvv-materialize-dequantize-row-stream-front-door | sed 's/dequant_mechanism = "codebook-gather"/codebook_gather_load_lmul = "m1", dequant_mechanism = "codebook-gather"/' | not weft-opt --weft-rvv-lower-to-emitc 2>&1 | FileCheck %s --check-prefix=PARTIAL
-// RUN: weft-opt %s --weft-rvv-materialize-dequantize-row-stream-front-door | sed 's/dequant_mechanism = "codebook-gather"/codebook_gather_entries = 16 : i64, codebook_gather_load_lmul = "mf2", codebook_gather_minimum_vlen = 128 : i64, codebook_gather_provider = "rvv", codebook_gather_selection_reason = "analytic-narrowest-legal-declared-anchor", codebook_gather_strip_lanes = 16 : i64, codebook_gather_table = "fp4-e2m1", dequant_mechanism = "codebook-gather"/' | not weft-opt --weft-rvv-lower-to-emitc 2>&1 | FileCheck %s --check-prefix=FORGED
-// RUN: weft-opt %s --weft-rvv-materialize-dequantize-row-stream-front-door | sed 's/, dequant_mechanism = "codebook-gather"//' | not weft-opt --weft-rvv-lower-to-emitc 2>&1 | FileCheck %s --check-prefix=MECHANISM
 // RUN: weft-opt %s --weft-rvv-materialize-dequantize-row-stream-front-door | sed '0,/decode_model = "mxfp4"/s//decode_model = "nvfp4"/' | not weft-opt --weft-rvv-lower-to-emitc 2>&1 | FileCheck %s --check-prefix=PARENT-CORE
 // RUN: sed 's/, minimum_vlen = 128 : i64//' %s | not weft-opt --weft-materialize-emitc-lowerable-routes 2>&1 | FileCheck %s --check-prefix=REGISTRY-REJECT
 
-// The A3 capability/stamp boundary is fail-closed. These are real conversion
+// The typed capability/formula boundary is fail-closed. These are real conversion
 // entries, not parser-only or formula-only tests. Unknown and explicit-empty
 // allow-list facts are invalid; absence has distinct, documented base semantics.
 
@@ -51,7 +48,7 @@ module {
 // AMBIGUOUS: ambiguous selected providers were @rvv, @rvv_alt
 // UNAVAILABLE: selected RVV capability provider @rvv satisfying id 'rvv' is unavailable
 // CONFLICT: selected RVV capability provider @rvv conflicts with available provider @rvv_blocker
-// EMPTY-LEGAL: codebook gather decision rejected domain 'rvv.dequant.small-codebook': rejected-empty-legal-set
+// EMPTY-LEGAL: codebook legal set is empty: rejected-empty-legal-set
 // UNKNOWN-LMUL: property 'supported_lmul' contains unknown token 'm16'
 // EMPTY-FACT: must be absent rather than an explicitly empty allow-list/fact
 // UNKNOWN-VERSION: has unknown rvv_version '2.0'
@@ -62,8 +59,5 @@ module {
 // EMPTY-MASK-POLICY: property 'required_mask_policy' must be absent rather than an explicitly empty allow-list/fact
 // TYPED-MASK-POLICY: property 'required_mask_policy' must be a typed string attribute
 // UNKNOWN-MASK-POLICY: property 'required_mask_policy' has unknown policy token 'sideways'
-// PARTIAL: codebook pre-emission selection must carry either none or all
-// FORGED: pre-emission codebook plan stamp 'codebook_gather_load_lmul' must equal recomputed selected value 'm1'; got mf2
-// MECHANISM: codebook construction coherence requires decode_model provenance and typed dequant_mechanism="codebook-gather" to agree
 // PARENT-CORE: requires parent/core decode_model construction coherence; parent carries 'nvfp4' while the core carries 'mxfp4'
 // REGISTRY-REJECT: no registered backend emission driver fully legalizes the selected variant @mxfp4 body to EmitC
