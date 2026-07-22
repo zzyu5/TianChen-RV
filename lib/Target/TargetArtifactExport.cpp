@@ -1731,7 +1731,8 @@ llvm::Error validateMaterializedEmitCHeaderArtifactCandidate(
 }
 
 llvm::Error exportMaterializedEmitCHeaderArtifact(
-    mlir::ModuleOp module, llvm::raw_ostream &os,
+    mlir::ModuleOp module,
+    const plugin::ExtensionPluginRegistry &plugins, llvm::raw_ostream &os,
     const MaterializedEmitCHeaderArtifactConfig &config) {
   if (llvm::Error error = validateMaterializedEmitCHeaderArtifactConfig(config))
     return error;
@@ -1745,7 +1746,8 @@ llvm::Error exportMaterializedEmitCHeaderArtifact(
     return error;
 
   llvm::Expected<mlir::OwningOpRef<mlir::ModuleOp>> emitcModule =
-      materializeSelectedEmitCArtifactModule(module, config.selectedRoute);
+      materializeSelectedEmitCArtifactModule(module, plugins,
+                                             config.selectedRoute);
   if (!emitcModule)
     return emitcModule.takeError();
 
@@ -1956,11 +1958,25 @@ llvm::Error registerMaterializedEmitCObjectBundleArtifactExporters(
 
 llvm::Expected<mlir::OwningOpRef<mlir::ModuleOp>>
 materializeSelectedEmitCArtifactModule(
-    mlir::ModuleOp module, const SelectedEmitCArtifactRouteConfig &config) {
+    mlir::ModuleOp module, const plugin::ExtensionPluginRegistry &plugins,
+    const SelectedEmitCArtifactRouteConfig &config) {
+  // Construction is allowed to stamp family-local plans, so perform it on an
+  // owned clone.  Artifact export remains observational with respect to the
+  // caller's planning IR.
+  mlir::OwningOpRef<mlir::ModuleOp> constructedModule(module.clone());
   llvm::Expected<SelectedEmitCArtifactTarget> target =
-      selectSelectedEmitCArtifactTargetImpl(module, config);
+      selectSelectedEmitCArtifactTargetImpl(*constructedModule, config);
   if (!target)
     return target.takeError();
+
+  if (llvm::Error error = plugins.constructFormulaPlansForVariant(
+          *constructedModule, target->variant))
+    return makeSelectedEmitCArtifactError(
+        config.routeDescription.empty() ? config.routeID
+                                        : config.routeDescription,
+        llvm::Twine("selected family construction failed before artifact "
+                    "projection: ") +
+            llvm::toString(std::move(error)));
 
   // The exported function name/signature handoff identity is derived from the
   // selected kernel+variant (and an optional config override), independent of
@@ -1981,7 +1997,9 @@ materializeSelectedEmitCArtifactModule(
   // matches. There is no metadata/string-route implementation fallback; a body
   // without a fully legalizing family driver is rejected below.
   if (mlir::OwningOpRef<mlir::ModuleOp> convertedModule =
-          conversion::emitc::tryConvertModuleWithRegisteredBackend(module)) {
+          conversion::emitc::
+              tryConvertConstructedModuleWithRegisteredBackend(
+                  *constructedModule)) {
     // A backend fully lowered the selected body to a standalone emitc module.
     // Validate the genuinely necessary invariants against the converted module
     // + config (a well-formed single emitc.func boundary carrying the exact
@@ -2038,10 +2056,10 @@ llvm::Error exportMaterializedEmitCModuleToCpp(
 }
 
 llvm::Expected<std::string> emitSelectedEmitCArtifactCppSource(
-    mlir::ModuleOp module, const SelectedEmitCArtifactRouteConfig &config) {
-  mlir::OwningOpRef<mlir::ModuleOp> clonedModule(module.clone());
+    mlir::ModuleOp module, const plugin::ExtensionPluginRegistry &plugins,
+    const SelectedEmitCArtifactRouteConfig &config) {
   llvm::Expected<mlir::OwningOpRef<mlir::ModuleOp>> emitcModule =
-      materializeSelectedEmitCArtifactModule(*clonedModule, config);
+      materializeSelectedEmitCArtifactModule(module, plugins, config);
   if (!emitcModule)
     return emitcModule.takeError();
 
@@ -3129,6 +3147,7 @@ namespace {
 
 llvm::Error exportTargetArtifactImpl(
     mlir::ModuleOp module, const TargetArtifactExporterRegistry &registry,
+    const plugin::ExtensionPluginRegistry &plugins,
     ArtifactSelectionMode mode, llvm::StringRef routeDescription,
     llvm::raw_ostream &os) {
   llvm::SmallVector<TargetArtifactCandidate, 2> allCandidates;
@@ -3141,7 +3160,7 @@ llvm::Error exportTargetArtifactImpl(
   if (!compositeExporter)
     return compositeExporter.takeError();
   if (*compositeExporter)
-    return (*compositeExporter)->getExportFn()(module, os);
+    return (*compositeExporter)->getExportFn()(module, plugins, os);
 
   llvm::SmallVector<TargetArtifactCandidate, 2> candidates;
   for (const TargetArtifactCandidate &candidate : allCandidates) {
@@ -3206,7 +3225,7 @@ llvm::Error exportTargetArtifactImpl(
           validateTargetArtifactCandidateAgainstExporter(candidate, *exporter))
     return error;
 
-  return exporter->getExportFn()(module, os);
+  return exporter->getExportFn()(module, plugins, os);
 }
 
 void groupTargetArtifactCandidates(
@@ -3224,7 +3243,8 @@ void groupTargetArtifactCandidates(
 
 llvm::Error exportStandaloneTargetArtifactRoute(
     mlir::ModuleOp module, llvm::ArrayRef<TargetArtifactCandidate> candidates,
-    const TargetArtifactExporter &exporter, llvm::raw_ostream &os) {
+    const TargetArtifactExporter &exporter,
+    const plugin::ExtensionPluginRegistry &plugins, llvm::raw_ostream &os) {
   llvm::SmallVector<const TargetArtifactCandidate *, 2> matches;
   for (const TargetArtifactCandidate &candidate : candidates)
     if (candidate.routeID == exporter.getRouteID())
@@ -3247,12 +3267,13 @@ llvm::Error exportStandaloneTargetArtifactRoute(
                                                         exporter))
     return error;
 
-  return exporter.getExportFn()(module, os);
+  return exporter.getExportFn()(module, plugins, os);
 }
 
 llvm::Error exportCompositeTargetArtifactRoute(
     mlir::ModuleOp module, llvm::ArrayRef<TargetArtifactCandidate> candidates,
-    const TargetArtifactCompositeExporter &exporter, llvm::raw_ostream &os) {
+    const TargetArtifactCompositeExporter &exporter,
+    const plugin::ExtensionPluginRegistry &plugins, llvm::raw_ostream &os) {
   TargetArtifactCompositeMatchFn matchFn = exporter.getMatchFn();
   if (!matchFn)
     return makeModuleArtifactExportError(
@@ -3295,7 +3316,7 @@ llvm::Error exportCompositeTargetArtifactRoute(
     }
   }
 
-  return exporter.getExportFn()(module, os);
+  return exporter.getExportFn()(module, plugins, os);
 }
 
 } // namespace
@@ -3721,23 +3742,26 @@ llvm::Error registerTargetArtifactExportersForEnabledExtensionBundles(
 
 llvm::Error exportTargetArtifact(
     mlir::ModuleOp module, const TargetArtifactExporterRegistry &registry,
+    const plugin::ExtensionPluginRegistry &plugins,
     llvm::raw_ostream &os) {
-  return exportTargetArtifactImpl(module, registry,
+  return exportTargetArtifactImpl(module, registry, plugins,
                                   ArtifactSelectionMode::DefaultArtifact,
                                   "target artifact", os);
 }
 
 llvm::Error exportTargetHeaderArtifact(
     mlir::ModuleOp module, const TargetArtifactExporterRegistry &registry,
+    const plugin::ExtensionPluginRegistry &plugins,
     llvm::raw_ostream &os) {
-  return exportTargetArtifactImpl(module, registry,
+  return exportTargetArtifactImpl(module, registry, plugins,
                                   ArtifactSelectionMode::HeaderOnly,
                                   "header artifact", os);
 }
 
 llvm::Error exportTargetArtifactRoute(
     mlir::ModuleOp module, const TargetArtifactExporterRegistry &registry,
-    llvm::StringRef routeID, llvm::raw_ostream &os) {
+    const plugin::ExtensionPluginRegistry &plugins, llvm::StringRef routeID,
+    llvm::raw_ostream &os) {
   routeID = routeID.trim();
   if (routeID.empty())
     return makeModuleArtifactExportError(
@@ -3749,12 +3773,12 @@ llvm::Error exportTargetArtifactRoute(
 
   if (const TargetArtifactExporter *exporter = registry.lookup(routeID))
     return exportStandaloneTargetArtifactRoute(module, candidates, *exporter,
-                                               os);
+                                               plugins, os);
 
   if (const TargetArtifactCompositeExporter *exporter =
           registry.lookupComposite(routeID))
     return exportCompositeTargetArtifactRoute(module, candidates, *exporter,
-                                              os);
+                                              plugins, os);
 
   return makeModuleArtifactExportError(
       llvm::Twine("unknown exact target artifact export route id '") + routeID +
@@ -3763,6 +3787,7 @@ llvm::Error exportTargetArtifactRoute(
 
 llvm::Error exportTargetArtifactBundle(
     mlir::ModuleOp module, const TargetArtifactExporterRegistry &registry,
+    const plugin::ExtensionPluginRegistry &plugins,
     llvm::StringRef outputDirectory) {
   if (llvm::Error error = validateBundleOutputDirectory(outputDirectory))
     return error;
@@ -3798,7 +3823,7 @@ llvm::Error exportTargetArtifactBundle(
 
     std::string artifactBytes;
     llvm::raw_string_ostream artifactStream(artifactBytes);
-    if (llvm::Error error = exportFn(module, artifactStream)) {
+    if (llvm::Error error = exportFn(module, plugins, artifactStream)) {
       removeBundleFiles(writtenPaths);
       std::string message = llvm::toString(std::move(error));
       return makeTargetArtifactBundleExportError(message);

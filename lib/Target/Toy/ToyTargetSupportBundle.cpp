@@ -155,9 +155,10 @@ ConstructionTemplateArtifactAdapterConfig getToyArtifactAdapterConfig() {
 }
 
 llvm::Error exportToyHeaderArtifact(mlir::ModuleOp module,
+                                    const plugin::ExtensionPluginRegistry &plugins,
                                     llvm::raw_ostream &os) {
   return exportConstructionTemplateHeaderArtifact(
-      module, os, getToyArtifactAdapterConfig());
+      module, plugins, os, getToyArtifactAdapterConfig());
 }
 
 llvm::Error compileToyGeneratedSourceToObject(llvm::StringRef source,
@@ -245,9 +246,10 @@ llvm::Error compileToyGeneratedSourceToObject(llvm::StringRef source,
 }
 
 llvm::Error exportToyObjectArtifact(mlir::ModuleOp module,
+                                    const plugin::ExtensionPluginRegistry &plugins,
                                     llvm::raw_ostream &os) {
   return exportConstructionTemplateObjectArtifact(
-      module, os, getToyArtifactAdapterConfig());
+      module, plugins, os, getToyArtifactAdapterConfig());
 }
 
 llvm::Error registerToyObjectBundleTargetArtifactExporter(

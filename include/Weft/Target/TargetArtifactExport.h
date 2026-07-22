@@ -39,8 +39,10 @@ enum class VariantEmissionRole;
 
 namespace weft::target {
 
-using TargetArtifactExportFn = llvm::Error (*)(mlir::ModuleOp module,
-                                               llvm::raw_ostream &os);
+using TargetArtifactExportFn = llvm::Error (*)(
+    mlir::ModuleOp module,
+    const plugin::ExtensionPluginRegistry &plugins,
+    llvm::raw_ostream &os);
 using TargetArtifactCandidateValidationFn =
     std::function<llvm::Error(const TargetArtifactCandidate &candidate)>;
 using PluginTargetArtifactExporterRegistrationFn =
@@ -408,7 +410,8 @@ llvm::Error validateMaterializedEmitCHeaderArtifactCandidate(
     const MaterializedEmitCHeaderArtifactConfig &config);
 
 llvm::Error exportMaterializedEmitCHeaderArtifact(
-    mlir::ModuleOp module, llvm::raw_ostream &os,
+    mlir::ModuleOp module, const plugin::ExtensionPluginRegistry &plugins,
+    llvm::raw_ostream &os,
     const MaterializedEmitCHeaderArtifactConfig &config);
 
 llvm::Expected<const TargetArtifactCandidate *>
@@ -440,13 +443,15 @@ llvm::Error registerMaterializedEmitCObjectBundleArtifactExporters(
 
 llvm::Expected<mlir::OwningOpRef<mlir::ModuleOp>>
 materializeSelectedEmitCArtifactModule(
-    mlir::ModuleOp module, const SelectedEmitCArtifactRouteConfig &config);
+    mlir::ModuleOp module, const plugin::ExtensionPluginRegistry &plugins,
+    const SelectedEmitCArtifactRouteConfig &config);
 
 llvm::Expected<std::string> getSelectedEmitCArtifactFunctionName(
     mlir::ModuleOp module, const SelectedEmitCArtifactRouteConfig &config);
 
 llvm::Expected<std::string> emitSelectedEmitCArtifactCppSource(
-    mlir::ModuleOp module, const SelectedEmitCArtifactRouteConfig &config);
+    mlir::ModuleOp module, const plugin::ExtensionPluginRegistry &plugins,
+    const SelectedEmitCArtifactRouteConfig &config);
 
 llvm::Error exportMaterializedEmitCModuleToCpp(
     mlir::ModuleOp module, llvm::raw_ostream &os,
@@ -454,18 +459,22 @@ llvm::Error exportMaterializedEmitCModuleToCpp(
 
 llvm::Error exportTargetArtifact(
     mlir::ModuleOp module, const TargetArtifactExporterRegistry &registry,
+    const plugin::ExtensionPluginRegistry &plugins,
     llvm::raw_ostream &os);
 
 llvm::Error exportTargetHeaderArtifact(
     mlir::ModuleOp module, const TargetArtifactExporterRegistry &registry,
+    const plugin::ExtensionPluginRegistry &plugins,
     llvm::raw_ostream &os);
 
 llvm::Error exportTargetArtifactRoute(
     mlir::ModuleOp module, const TargetArtifactExporterRegistry &registry,
-    llvm::StringRef routeID, llvm::raw_ostream &os);
+    const plugin::ExtensionPluginRegistry &plugins, llvm::StringRef routeID,
+    llvm::raw_ostream &os);
 
 llvm::Error exportTargetArtifactBundle(
     mlir::ModuleOp module, const TargetArtifactExporterRegistry &registry,
+    const plugin::ExtensionPluginRegistry &plugins,
     llvm::StringRef outputDirectory);
 
 } // namespace weft::target

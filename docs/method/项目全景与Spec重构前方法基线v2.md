@@ -467,7 +467,8 @@ Weft 决定执行结构；标准 MLIR/LLVM toolchain 负责目标指令和 artif
 - 仓库没有 NVIDIA/AMD GPU construction family；
 - 没有 GPU typed body、GPU formula、GPU artifact/runtime 或 GPU 性能证据；
 - H100/5090D 是后续 implementation profile，不是当前 supported target；
-- 本轮只定义架构并创建 GPU 前置重构 task。
+- GPU 前置的 artifact-neutral family construction rebase 已实施；本轮仍未实现任何 GPU
+  family 或 GPU artifact。
 
 因此可以说“V2 architecture 显式容纳 GPU family”，不能说“Weft 已支持 GPU”。
 
@@ -536,7 +537,7 @@ measurement 只修正合法残差，artifact lowerer 无 compute authority。
 
 ---
 
-## 9. 当前代码基础与真正的 V2 阻塞
+## 9. 当前代码基础与 artifact-neutral rebase 状态
 
 ### 9.1 已经成立的基础
 
@@ -548,38 +549,46 @@ measurement 只修正合法残差，artifact lowerer 无 compute authority。
   `kind/format/fold_model` 重选；
 - shared EmitC conversion 只有一个 `applyPartialConversion` harness；
 - direct pass、registry、translate 与 artifact 路径 fail closed；
-- 当前 live EmitC driver 都有 construction hook；
+- `ExtensionPlugin` base construction fail closed，所有 live production family 显式实现
+  `constructFormulaPlans` / `hasConstructedFinalBody`；
+- target/profile 在 construction 前绑定 origin family 与 typed `c_f`；
+- `TypedBackendEmissionDriver` 没有 construction hook，constructed-only API 只消费 final
+  typed body/plan；
+- `emitc.func` 只属于 current EmitC artifact completion gate；
 - mixed-family body 在 standalone materialization 前拒绝；
 - `ConstructedWeak` 与 strong reconstruction 的界线保持诚实。
 
-这些资产必须保留，不能因 V2 重构恢复旧 emitter authority。
+这些资产必须保留，后续 caller closure、GPU family 或强重建工作都不能恢复旧 emitter
+authority。
 
-### 9.2 当前抽象仍然不够干净
+### 9.2 当前仍需完成的验收与后续结构工作
 
-当前代码存在四个 V2 级结构问题：
+Artifact-neutral 主体切换已经完成；剩余工作不能被误写成 construction 仍在 EmitC driver：
 
-1. `ExtensionPlugin::constructFormulaPlans` 仍有默认成功 no-op，且只有 RVV 真正在 plugin
-   lifecycle 覆写；其它 family construction 主要住在 EmitC backend driver；
-2. `TypedBackendEmissionDriver::prepareForConversion` 同时承担 family construction 与
-   EmitC conversion preparation，construction authority 因而被 artifact 形态绑住；
-3. `BackendEmissionRegistry` 与 conversion success 以 `emitc.func` 为完成条件，适合作为
-   当前 RISC-V EmitC artifact backend，却不能代表通用 construction completion；
-4. source request 仍主要以 loose `Operation*`、front-door pass 与 family-specific attrs
+1. source request 仍主要以 loose `Operation*`、front-door pass 与 family-specific attrs
    传递，尚未形成清楚、可枚举的 `P=(S,g,ω)` ownership contract。
+2. production source/direct/pass/translate/artifact caller 必须逐条接受 construction-before-
+   artifact closure 与负例审计，不能只依赖接口存在或 catalog 数量；
+3. `ConstructedWeak` final leaf 仍需 delete-leaf reconstruction 才能升级 strong
+   construction；
+4. full catalog/inventory、behavior negative tests 与 `check-weft` 仍是本轮验收门，不由本文
+   预先宣告通过。
 
-所以现在若直接“加 GPU backend”，GPU 只能：
+因此现在也不能把 GPU 简化为：
 
 - 伪装成 EmitC backend；或
-- 绕开 current construction lifecycle；或
+- 绕开 current artifact-neutral construction lifecycle；或
 - 在新 emitter 中重新解释 source metadata。
 
 三种都违反 V2 第一性原理。
 
 ---
 
-## 10. GPU 之前的第一个横向重构
+## 10. GPU 之前的第一个横向重构（已实施的结构基线）
 
-首个 task 应是 **artifact-neutral family construction rebase**，而不是 GPU implementation。
+首个 task 定义为 **artifact-neutral family construction rebase**，而不是 GPU
+implementation；本轮代码已经实施其主体切换，本节继续作为实现与验收准则，不改写为 GPU
+完成声明。
 
 ### 10.1 重构目标
 
@@ -655,7 +664,7 @@ canonical problem/source entry
 
 ## 11. 后续 GPU realization 的完整方向
 
-架构重构完成后，GPU 可以按真正 family 接入：
+在 artifact-neutral rebase 完成 caller closure 与验收后，GPU 可以按真正 family 接入：
 
 1. NVIDIA capability profiles；
 2. source/problem applicability；
@@ -757,9 +766,10 @@ GPU correctness/performance。
 
 ### Issues / Tasks
 
-- issue 记录 current construction lifecycle 被 EmitC 绑住的真实缺口；
-- 第一个 task 只做 artifact-neutral horizontal rebase；
-- GPU implementation 在该 task 完成后另建，不作为本轮 task 的隐藏子项。
+- issue 保留 rebase 前 construction lifecycle 被 EmitC 绑住的历史问题，并继续记录本轮
+  caller closure 与验收边界；
+- 第一个 task 只实施 artifact-neutral horizontal rebase，当前主体切换已经落地；
+- GPU implementation 仍须另建，不作为本轮 task 的隐藏子项。
 
 ---
 

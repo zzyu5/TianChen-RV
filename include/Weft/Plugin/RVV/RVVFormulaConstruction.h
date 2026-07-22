@@ -13,9 +13,16 @@ mlir::LogicalResult constructRVVQuantizeRowFormulaBodies(mlir::ModuleOp module);
 mlir::LogicalResult
 constructRVVDequantizeRowFormulaBodies(mlir::ModuleOp module);
 
+/// Recursively certify that every operation nested in a constructed RVV loop
+/// body belongs to the explicit typed-mechanism allowlist.  This is a family
+/// construction qualification, independent of any artifact representation.
+mlir::LogicalResult
+validateRVVConstructedTypedBodies(mlir::ModuleOp module);
+
 /// The unique RVV pre-emission construction cut. It evaluates family-local
 /// typed formulas and atomically creates or validates the final typed plans.
-/// It emits no target code and has no partial-plan or replay mode.
+/// It includes recursive typed-body qualification, emits no target code, and
+/// has no partial-plan or replay mode.
 mlir::LogicalResult constructRVVFormulaBodies(mlir::ModuleOp module);
 
 } // namespace weft::plugin::rvv

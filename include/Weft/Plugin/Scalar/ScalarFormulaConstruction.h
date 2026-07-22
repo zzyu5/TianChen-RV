@@ -1,6 +1,8 @@
 #ifndef WEFT_PLUGIN_SCALAR_SCALARFORMULACONSTRUCTION_H
 #define WEFT_PLUGIN_SCALAR_SCALARFORMULACONSTRUCTION_H
 
+#include "mlir/IR/BuiltinOps.h"
+#include "mlir/Support/LogicalResult.h"
 #include "llvm/ADT/StringRef.h"
 
 namespace weft::plugin::scalar {
@@ -17,6 +19,11 @@ inline constexpr llvm::StringLiteral kScalarQ40DequantizeRowFormulaID(
 
 inline constexpr llvm::StringLiteral kScalarFinalPlanAttrName(
     "weft.scalar.final_plan");
+
+/// Evaluate every Scalar family formula and attach its artifact-neutral final
+/// typed plan.  Artifact spellings (callee names, headers, ABI syntax) are not
+/// part of this result.
+mlir::LogicalResult constructScalarFinalPlans(mlir::ModuleOp module);
 
 } // namespace weft::plugin::scalar
 

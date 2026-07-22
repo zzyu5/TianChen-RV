@@ -5,6 +5,7 @@
 
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Builders.h"
+#include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/DialectRegistry.h"
 #include "llvm/Support/Errc.h"
 #include "llvm/Support/raw_ostream.h"
@@ -358,6 +359,21 @@ OffloadExtensionPlugin::getCapabilities() const {
 void OffloadExtensionPlugin::registerDialects(
     mlir::DialectRegistry &registry) const {
   registry.insert<weft::offload::WEFTOffloadDialect>();
+}
+
+llvm::Error
+OffloadExtensionPlugin::constructFormulaPlans(mlir::ModuleOp) const {
+  // Offload is deliberately a fail-closed metadata handoff placeholder in the
+  // current system.  It has no executable kernel construction family yet.
+  // Keeping this override explicit prevents the base class from silently
+  // treating absence of construction as success while still allowing planning
+  // to report the existing unsupported route diagnostic.
+  return llvm::Error::success();
+}
+
+bool OffloadExtensionPlugin::hasConstructedFinalBody(
+    weft::exec::VariantOp) const {
+  return false;
 }
 
 void OffloadExtensionPlugin::collectFormulaDescriptors(

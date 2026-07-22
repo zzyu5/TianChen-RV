@@ -87,7 +87,7 @@ module {
 
 // Registry-backed materialization runs the same preparation/qualification cut;
 // it cannot bypass the recursive allowlist through the artifact path.
-// REGISTRY-REJECT: no registered backend emission driver fully legalizes the selected variant @rvv_flat_loop_allowlist body to EmitC
+// REGISTRY-REJECT: 'arith.constant' op is not in the M-FLAT typed flat block-dot loop-body allowlist
 
 // A caller cannot supply a partial final plan, nor forge a complete plan that
 // conflicts with the concrete typed mechanism body. Formula construction owns

@@ -42,7 +42,7 @@ void registerBuiltinBackendEmitters(BackendEmissionRegistry &registry) {
 }
 
 mlir::OwningOpRef<mlir::ModuleOp>
-tryConvertModuleWithRegisteredBackend(mlir::ModuleOp source) {
+tryConvertConstructedModuleWithRegisteredBackend(mlir::ModuleOp source) {
   // Meyers singleton: lazily constructed on first use and populated once. The
   // function-local static dodges the global-init-order hazard (the registered
   // drivers are themselves function-local statics in their own translation
@@ -53,7 +53,7 @@ tryConvertModuleWithRegisteredBackend(mlir::ModuleOp source) {
     registerBuiltinBackendEmitters(r);
     return r;
   }();
-  return registry.tryConvertModuleClone(source);
+  return registry.tryConvertConstructedModuleClone(source);
 }
 
 } // namespace emitc

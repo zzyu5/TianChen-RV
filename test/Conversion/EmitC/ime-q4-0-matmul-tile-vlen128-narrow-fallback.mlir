@@ -20,5 +20,5 @@ module {
   }
 }
 
-// UNSUPPORTED-VLEN: no registered backend emission driver fully legalizes the selected variant {{.*}} body to EmitC
-// MISSING-VLEN: no registered backend emission driver fully legalizes the selected variant {{.*}} body to EmitC
+// UNSUPPORTED-VLEN: bound family construction for origin 'ime-plugin' rejected selected variant legality
+// MISSING-VLEN: bound family construction for origin 'ime-plugin' rejected selected variant legality

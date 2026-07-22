@@ -15,10 +15,16 @@ namespace llvm {
 class raw_ostream;
 } // namespace llvm
 
+namespace weft::plugin {
+class ExtensionPluginRegistry;
+} // namespace weft::plugin
+
 namespace weft::target {
 
 using TargetTranslateExportFn =
-    std::function<llvm::Error(mlir::ModuleOp, llvm::raw_ostream &)>;
+    std::function<llvm::Error(mlir::ModuleOp,
+                              const plugin::ExtensionPluginRegistry &,
+                              llvm::raw_ostream &)>;
 
 class TargetTranslateRoute {
 public:

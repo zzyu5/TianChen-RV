@@ -5,6 +5,7 @@ add_mlir_library(WeftScalarTarget
   WeftConversionEmitC
   WeftConversionEmitCBuiltin
   WeftScalarEmitCRouteProvider
+  WeftScalarFormulaConstruction
   WeftTarget
   MLIREmitCDialect
   MLIRTargetCpp

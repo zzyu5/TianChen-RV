@@ -14,6 +14,5 @@ module {
   }
 }
 
-// CHECK: Weft-RV variant emission plan collection failed
-// CHECK-SAME: variant @fast in kernel @public_unknown_origin as direct variant
-// CHECK: unknown origin plugin 'mock-emitter'
+// CHECK: formula construction failed before emission planning
+// CHECK-SAME: formula construction cannot bind unknown origin 'mock-emitter'

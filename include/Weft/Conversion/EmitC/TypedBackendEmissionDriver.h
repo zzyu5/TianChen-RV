@@ -3,7 +3,6 @@
 
 #include "mlir/IR/BuiltinOps.h"
 
-#include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/LogicalResult.h"
 
@@ -24,7 +23,7 @@ namespace emitc {
 /// (e.g. a future RVM family) implements this interface and registers itself in
 /// the `BackendEmissionRegistry`; the two core (non-plugin) materialization call
 /// sites iterate the registry instead of hardcoding one family's conversion.
-/// The generic harness `convertModuleWithBackendEmitter` owns the boilerplate
+/// The generic harness `convertConstructedModuleWithBackendEmitter` owns the boilerplate
 /// (load emitc, identity TypeConverter, applyPartialConversion, the
 /// fully-legalized gate); each driver supplies ONLY the family-specific pieces.
 class TypedBackendEmissionDriver {
@@ -33,23 +32,6 @@ public:
 
   /// Stable backend identity (e.g. "rvv"). Used for registry diagnostics.
   virtual llvm::StringRef getBackendName() const = 0;
-
-  /// Read-only formula-catalog inventory for this backend's production direct
-  /// entries.  These names are audit keys only; the registry never dispatches
-  /// or evaluates a formula by string.
-  virtual llvm::ArrayRef<llvm::StringRef>
-  getConstructionEntryNames() const = 0;
-
-  /// Family-owned construction that must complete before any conversion
-  /// pattern can emit backend code (for example formula construction plus
-  /// final typed-plan materialization). The shared harness calls this for
-  /// every entry path, including registry clone conversion.
-  ///
-  /// This is deliberately pure virtual. A backend which has no construction
-  /// owner is not a backend of the production registry: an implicit no-op
-  /// would make a direct typed-body route a second, hidden authority.
-  virtual llvm::LogicalResult
-  prepareForConversion(mlir::ModuleOp module) const = 0;
 
   /// Registers the type conversions mapping this backend's typed dataflow types
   /// to the emitc C types they lower to. Runs AFTER the harness installs an
@@ -82,20 +64,23 @@ public:
   virtual bool moduleHasBackendBody(mlir::ModuleOp module) const = 0;
 };
 
-/// Runs the shared RVV/RVM-style typed-body->emitc DialectConversion harness IN
-/// PLACE on `module` using `driver`: loads the emitc dialect,
-/// calls `driver.prepareForConversion`, builds an identity TypeConverter plus
-/// the driver's type conversions, configures the
+/// Runs the shared typed-final-body -> EmitC artifact projection IN PLACE on
+/// `module` using `driver`: loads the emitc dialect, builds an identity
+/// TypeConverter plus the driver's type conversions, configures the
 /// ConversionTarget via the driver, installs the driver's patterns, runs
 /// `applyPartialConversion`, then runs `driver.postConversionCleanup`.
+///
+/// `module` MUST already contain a family-constructed typed final body.  This
+/// harness deliberately has no construction hook: an artifact driver may
+/// mechanically lower the chosen body, but may not create or re-select compute.
 ///
 /// Returns true ONLY when the module FULLY legalized to emitc: an emitc.func was
 /// produced AND no `builtin.unrealized_conversion_cast` survives AND
 /// `driver.moduleHasBackendBody` reports no leftover backend op/type (the
 /// strangler-fig gate). On false the `module` may be partially mutated, so
 /// callers that need the original must convert a clone.
-bool convertModuleWithBackendEmitter(mlir::ModuleOp module,
-                                     const TypedBackendEmissionDriver &driver);
+bool convertConstructedModuleWithBackendEmitter(
+    mlir::ModuleOp module, const TypedBackendEmissionDriver &driver);
 
 } // namespace emitc
 } // namespace conversion

@@ -2,6 +2,7 @@ add_mlir_library(WeftRVVConstructionProtocol
   RVVConstructionProtocol.cpp
   ../RVVCapabilityProfile.cpp
   RVVCompositeGatherMAccScatterFormula.cpp
+  RVVConstructedBodyQualification.cpp
   RVVFlatBlockDotFormula.cpp
   RVVFormulaConstruction.cpp
   RVVScheduleFormula.cpp

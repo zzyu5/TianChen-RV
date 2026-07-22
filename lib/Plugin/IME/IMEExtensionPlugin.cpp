@@ -699,6 +699,20 @@ void IMEExtensionPlugin::registerDialects(
   registry.insert<weft::ime::WEFTIMEDialect>();
 }
 
+llvm::Error
+IMEExtensionPlugin::constructFormulaPlans(mlir::ModuleOp module) const {
+  if (mlir::succeeded(constructIMEFormulaPlans(module)))
+    return llvm::Error::success();
+  return llvm::createStringError(
+      llvm::inconvertibleErrorCode(),
+      "IME formula-construction cut rejected the module");
+}
+
+bool IMEExtensionPlugin::hasConstructedFinalBody(
+    weft::exec::VariantOp variant) const {
+  return hasIMEConstructedFinalBody(variant);
+}
+
 void IMEExtensionPlugin::collectFormulaDescriptors(
     llvm::SmallVectorImpl<FormulaDescriptor> &out) const {
   FormulaDescriptor construction(
@@ -723,7 +737,7 @@ void IMEExtensionPlugin::collectFormulaDescriptors(
         "unsupported-capability"})
     construction.addSemanticCase(semanticCase);
   construction.addProductionEntry("plugin:variant-proposal");
-  construction.addProductionEntry("backend:ime-direct-typed-body");
+  construction.addProductionEntry("construction:ime-final-typed-body");
   out.push_back(std::move(construction));
 
   FormulaDescriptor cost(

@@ -305,30 +305,33 @@ llvm::Error requireTensorExtLiteArtifactPreconditions(mlir::ModuleOp module,
 }
 
 llvm::Error exportTensorExtLiteHeaderArtifact(mlir::ModuleOp module,
+                                              const plugin::ExtensionPluginRegistry &plugins,
                                               llvm::raw_ostream &os) {
   if (llvm::Error error = requireTensorExtLiteArtifactPreconditions(
           module, /*requireSourceConsumed=*/false))
     return error;
   return exportConstructionTemplateHeaderArtifact(
-      module, os, getTensorExtLiteArtifactAdapterConfig());
+      module, plugins, os, getTensorExtLiteArtifactAdapterConfig());
 }
 
 llvm::Error exportTensorExtLiteObjectArtifact(mlir::ModuleOp module,
+                                              const plugin::ExtensionPluginRegistry &plugins,
                                               llvm::raw_ostream &os) {
   if (llvm::Error error = requireTensorExtLiteArtifactPreconditions(
           module, /*requireSourceConsumed=*/true))
     return error;
   return exportConstructionTemplateObjectArtifact(
-      module, os, getTensorExtLiteArtifactAdapterConfig());
+      module, plugins, os, getTensorExtLiteArtifactAdapterConfig());
 }
 
 llvm::Error exportTensorExtLiteEmitCToCpp(mlir::ModuleOp module,
+                                          const plugin::ExtensionPluginRegistry &plugins,
                                           llvm::raw_ostream &os) {
   if (llvm::Error error = requireTensorExtLiteArtifactPreconditions(
           module, /*requireSourceConsumed=*/true))
     return error;
   return exportConstructionTemplateEmitCToCpp(
-      module, os, getTensorExtLiteArtifactAdapterConfig());
+      module, plugins, os, getTensorExtLiteArtifactAdapterConfig());
 }
 
 llvm::Error registerTensorExtLiteTargetArtifactExporter(

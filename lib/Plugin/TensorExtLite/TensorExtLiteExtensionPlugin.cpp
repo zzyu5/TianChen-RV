@@ -10,6 +10,7 @@
 
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Builders.h"
+#include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/DialectRegistry.h"
 #include "mlir/Pass/Pass.h"
 #include "llvm/ADT/STLExtras.h"
@@ -603,6 +604,28 @@ void TensorExtLiteExtensionPlugin::registerDialects(
   registry.insert<weft::tensorext_lite::WEFTTensorExtLiteDialect>();
 }
 
+llvm::Error TensorExtLiteExtensionPlugin::constructFormulaPlans(
+    mlir::ModuleOp module) const {
+  if (mlir::succeeded(
+          tensorext_lite::constructTensorExtLiteFinalBody(module)))
+    return llvm::Error::success();
+  return makeTensorExtLitePluginError(
+      "artifact-neutral TensorExtLite final-body construction failed");
+}
+
+bool TensorExtLiteExtensionPlugin::hasConstructedFinalBody(
+    weft::exec::VariantOp variant) const {
+  auto kernel = variant->getParentOfType<weft::exec::KernelOp>();
+  if (!kernel)
+    return false;
+  bool found = false;
+  kernel.walk([&](weft::tensorext_lite::ConfigSkeletonOp body) {
+    if (isOperationSelectedForVariant(body.getOperation(), variant))
+      found = true;
+  });
+  return found;
+}
+
 llvm::Error
 TensorExtLiteExtensionPlugin::verifyExecutableConstructionConformance()
     const {
@@ -628,7 +651,8 @@ void TensorExtLiteExtensionPlugin::collectFormulaDescriptors(
   construction.addSemanticCase("capability-decline");
   construction.addProductionEntry("plugin:variant-proposal");
   construction.addProductionEntry(kTensorExtLiteSourceFrontDoorArgument);
-  construction.addProductionEntry("backend:tensorext-lite-direct-typed-body");
+  construction.addProductionEntry(
+      "construction:tensorext-lite-final-typed-body");
   out.push_back(std::move(construction));
 
   FormulaDescriptor cost(

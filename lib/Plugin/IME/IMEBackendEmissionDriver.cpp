@@ -4,9 +4,7 @@
 #include "Weft/Conversion/EmitC/TypedBackendEmissionDriver.h"
 #include "Weft/Dialect/Exec/IR/ExecOps.h"
 #include "Weft/Dialect/IME/IR/IMEDialect.h"
-#include "Weft/Plugin/IME/IMEExtensionPlugin.h"
 #include "Weft/Plugin/IME/IMEFormulaConstruction.h"
-#include "Weft/Support/CapabilityModel.h"
 
 #include "mlir/Dialect/EmitC/IR/EmitC.h"
 #include "mlir/IR/Builders.h"
@@ -15,10 +13,8 @@
 #include "mlir/Transforms/DialectConversion.h"
 
 #include "llvm/ADT/SmallVector.h"
-#include "llvm/Support/Error.h"
 #include "llvm/Support/raw_ostream.h"
 
-#include <algorithm>
 #include <cassert>
 #include <cstdint>
 #include <string>
@@ -218,43 +214,21 @@ std::string macKloopHelperBody(llvm::StringRef helperName,
   return text;
 }
 
-//===----------------------------------------------------------------------===//
-// G8 leaf-batching IME construction formula. The MAC-leaf brick's typed facts
-// construct the final helper/mnemonic/batching plan, so a new IME cell (a
-// u/su/us op, or a single-fragment kt==1 tile) inherits the correct leaf without
-// a second emitter decision. Three predicate legs:
-//   (1) cap    = ime_op in {vmadot, vmadotu, vmadotsu, vmadotus}, read off the
-//                VmadotMacLeafOp brick -> the MAC instruction mnemonic + the leaf
-//                helper family. (Only "vmadot" is verifier-admitted today; the
-//                other three are forward-looking keying-completeness.)
-//   (2) fmt    = fragment kt = mat_k / mac_k (fragments along K; q4_0/q8_0 = K/8,
-//                q4_K = 256/8 = 32 super-block fragments).
-//   (3) bottleneck = kt>=2 selects the register-resident BATCHED K-loop leaf
-//                (single vsetvli, one store); kt==1 auto-falls back to the
-//                single-fragment un-batched leaf (macHelperBody; no K/8 loop --
-//                the batching optimization is definitionally not applicable). No
-//                deployed cell has kt==1, so this leg is forward-looking too.
-// For every deployed IME cell (ime_op="vmadot", kt=mat_k/8>=2) this selects the
-// register-resident batched vmadot K-loop leaf => byte-IDENTICAL to the prior
-// hardcoded emit (the predicate only turns the hardcode into fact-derivation).
-//===----------------------------------------------------------------------===//
+// Artifact projection of the family-constructed MAC schedule.  The typed leaf
+// supplies the instruction identity and the computation plan supplies the
+// already-selected batching bit; this code only maps them to C/asm spellings.
 struct IMEMacLeafPlan {
   llvm::StringRef helperName; ///< the leaf helper the matmul body calls + we emit
   llvm::StringRef mnemonic;   ///< the IME MAC instruction (asm leaf)
-  bool batched = true;        ///< kt>=2 => register-resident batched K-loop leaf
-  std::string reason;         ///< predicate provenance ({ime_op /\ kt} = the reason)
+  bool batched = true;
+  std::string reason;
 };
 
-IMEMacLeafPlan constructIMEMacLeafPlan(weft::ime::VmadotMacLeafOp macLeaf,
-                                       int64_t matK) {
+mlir::FailureOr<IMEMacLeafPlan>
+projectIMEMacLeafArtifact(weft::ime::VmadotMacLeafOp macLeaf, bool batched) {
   IMEMacLeafPlan sel;
-  // (1) cap: the op-carried MAC instruction fact (never a hardcoded "vmadot").
   llvm::StringRef imeOp = macLeaf.getImeOp();
-  // (2) fmt: fragments along K = mat_k / mac_k. (3) bottleneck: batch only when
-  // there is more than one fragment to fold register-resident.
-  const int64_t macK = macLeaf.getMacK();
-  const int64_t fragmentKt = macK > 0 ? matK / macK : 1;
-  sel.batched = fragmentKt >= 2;
+  sel.batched = batched;
   if (imeOp == "vmadotu") {
     sel.mnemonic = "vmadotu";
     sel.helperName =
@@ -267,17 +241,18 @@ IMEMacLeafPlan constructIMEMacLeafPlan(weft::ime::VmadotMacLeafOp macLeaf,
     sel.mnemonic = "vmadotus";
     sel.helperName =
         sel.batched ? kVmadotusMacKloopHelperName : kVmadotusHelperName;
-  } else {
-    // The signed "vmadot" MAC -- the only leaf the verifier admits today.
+  } else if (imeOp == "vmadot") {
     sel.mnemonic = "vmadot";
     sel.helperName =
         sel.batched ? kVmadotMacKloopHelperName : kVmadotHelperName;
+  } else {
+    return macLeaf.emitError()
+           << "IME artifact projection has no spelling for typed ime_op '"
+           << imeOp << "'";
   }
-  sel.reason = "ime_op=" + sel.mnemonic.str() +
-               " fragment_kt=" + std::to_string(fragmentKt) +
-               (sel.batched
-                    ? " (>=2 => register-resident batched K-loop leaf)"
-                    : " (==1 => single-fragment un-batched leaf)");
+  sel.reason = "typed_ime_op=" + sel.mnemonic.str() +
+               " constructed_mac_batched=" +
+               (sel.batched ? std::string("1") : std::string("0"));
   return sel;
 }
 
@@ -320,85 +295,27 @@ std::string selectedMacLeafBody(const IMEMacLeafPlan &sel) {
 // spills -> full-matmul NULL).
 //===----------------------------------------------------------------------===//
 
-/// [PAT-1] IME vmadot output-tiling registry ROW (registration-as-data, the C3' capability-keyed
-/// pattern library object). NOT open-coded selection: a data table the emitter consults. Mirrors the
-/// schema/pattern-registry.v1.json row shape {pattern_id, requires(capability), status, metrics_hook}.
-struct IMEVmadotTilingPattern {
-  llvm::StringRef pattern_id;
-  int njw;                    ///< output-tile width in column-tiles (= A-fragment reuse factor)
-  int minVregBudget;          ///< register floor: 1 A + njw B + 2*njw int32 accumulators
-  llvm::StringRef status;     ///< [PAT-1] status: mechanized | measured-negative | planned
+/// Artifact-only metadata for rendering the already-selected wide schedule.
+/// It has no eligibility predicate and therefore cannot select computation.
+struct IMEWideArtifactMetadata {
+  llvm::StringRef patternId;
+  int njw;
+  llvm::StringRef status;
   llvm::StringRef metricsHook;
 };
 
-/// The DISCRIMINANT capability fact is the vector-register budget (VLEN256 => 32 vregs; each 4x8
-/// int8 fragment fills one m1 register, so NJW=w consumes 1 A + w B + 2w accumulator regs). The
-/// widths whose register floor fits the budget AND that are `mechanized` are selectable; a
-/// `measured-negative` row is a design-space asset (records the falsified w4-epilogue-spill boundary)
-/// and is NOT selectable. Per-format board-measured (perf discipline: no projection).
-static constexpr IMEVmadotTilingPattern kIMEVmadotTilingPatterns[] = {
-    {"IME-VMADOT-TILE-W1-baseline", 1, 3, "mechanized",
+static constexpr IMEWideArtifactMetadata kIMEWideArtifactMetadata[] = {
+    {"IME-VMADOT-TILE-W1-baseline", 1, "mechanized",
      "test/Conversion/EmitC/ime-q4-0-matmul-tile-materialization.mlir"},
-    {"IME-VMADOT-TILE-W2-Areuse", 2, 7, "mechanized",
+    {"IME-VMADOT-TILE-W2-Areuse", 2, "mechanized",
      "test/Target/IME/q4-0-vmadot-tile-wide-int32-oracle.c + "
      "experiments/active/g6-a-ime-perf-bridge/M7-vmadot-tiling/evidence.md"},
-    {"IME-VMADOT-TILE-W4-Areuse-epilogue-spill", 4, 13, "measured-negative",
+    {"IME-VMADOT-TILE-W4-Areuse-epilogue-spill", 4, "measured-negative",
      "experiments/active/g6-a-ime-perf-bridge/M7-vmadot-tiling/evidence.md "
      "(w4 compute 1.955x but full-matmul NULL: 16-accumulator f32 epilogue spills)"},
 };
 
-/// [PAT-1] wide-vmadot per-FORMAT MEASURED-NEGATIVE registry (registration-as-data,
-/// the C3' capability-keyed pattern-library object). This is approach (b) of the G8
-/// keying-audit deliverable: it REPLACES the hardcoded `epilogueBound=false/false/true`
-/// bool literals that were previously spelled per format at the three deploy sites.
-/// A row records a BOARD-MEASURED negative result for a (weight_format, wide-vmadot)
-/// pair -- exactly the SAME `status=="measured-negative"` mechanism as the W4 tiling
-/// row above (the W4 row is width-keyed; these rows are format-keyed). When a tile's
-/// weight_format has a `measured-negative` row, deployment DECLINES wide by REGISTRY
-/// LOOKUP; a format with NO row (q4_0/q8_0: no measured negative) deploys the widest
-/// mechanized tiling. The real fold/epilogue-cost BOTTLENECK MODEL (deriving the
-/// decline from the region's fold primitives) is deferred to phase 3 (the q4_K@ime
-/// push), where it will corroborate or supersede this measured row with fresh board
-/// data. Per-format board-measured (perf discipline: no projection).
-struct IMEWideFormatMeasurement {
-  llvm::StringRef weightFormat; ///< the tile's weight_format fact (registry key)
-  llvm::StringRef status;       ///< "measured-negative" => decline wide for this fmt
-  llvm::StringRef metric;       ///< the measured wide-vs-narrow full-matmul ratio
-  llvm::StringRef metricsHook;  ///< the board evidence for the measured row
-};
-
-/// q4_K@ime wide-vmadot was BOARD-MEASURED at 0.909x (G6-A M7 tiling roll-out: the
-/// super-block two-level 6-bit sc/m + S_scale/S_min fold epilogue dilutes the
-/// array-util MAC-tiling win -> full-matmul LOSS). Registering it here as a
-/// measured-negative row makes the q4_K wide decline a REGISTRY FACT, not a hardcoded
-/// per-format bool. q4_0/q8_0 have NO row (no measured negative) => wide deploys.
-static constexpr IMEWideFormatMeasurement kIMEWideFormatMeasurements[] = {
-    {"q4_K", "measured-negative", "0.909x",
-     "experiments/active/g6-a-ime-perf-bridge/M7-vmadot-tiling/evidence.md "
-     "(q4_K@ime wide-vmadot 0.909x: super-block two-level 6-bit sc/m + "
-     "S_scale/S_min fold epilogue dominates -> array-util MAC-tiling win washes out)"},
-};
-
-/// Looks up the per-format measured-negative registry. Returns the matching row when
-/// the format has a board-measured-negative wide result (=> decline wide), else null.
-const IMEWideFormatMeasurement *
-lookupWideFormatMeasuredNegative(llvm::StringRef weightFormat) {
-  for (const IMEWideFormatMeasurement &m : kIMEWideFormatMeasurements)
-    if (m.status == "measured-negative" && m.weightFormat == weightFormat)
-      return &m;
-  return nullptr;
-}
-
-/// The RISC-V architectural vector register-file size. This is the ONE genuinely
-/// VLEN-INVARIANT fact in the wide-vmadot accounting: 32 architectural vregs exist
-/// at every VLEN. (The per-fragment vreg COST is NOT VLEN-invariant -- that is the
-/// bug the hardcoded `32` budget hid; see constructWideVmadotPlan below.)
-constexpr int kRVVVectorRegisterFileSize = 32;
-
-/// G8 wide-vmadot deployment decision (the parametric capability-key result). njw>1
-/// => deploy the WIDE (output-tiled) leaf; njw==1 => narrow-only (auto fallback /
-/// legal decline). The reason string records WHICH predicate leg fired (for the
-/// emitted provenance comment: honest decline is materialized, never silent).
+/// Artifact projection of the family-constructed wide schedule.
 struct IMEWideDeployPlan {
   int njw = 1;
   llvm::StringRef patternId;
@@ -407,117 +324,52 @@ struct IMEWideDeployPlan {
   std::string reason;
 };
 
-/// The VLEN-PARAMETRIC capability-keyed wide-vmadot predicate (replaces the
-/// hardcoded `32` + q4_0-only hand-wiring). Three legs, all derived from FACTS on
-/// the tile op + the capability provider -- none hardcoded per-format:
-///   (1) CAPABILITY FACT: vlen_bits -> the per-fragment vreg cost. The int8 4x8 A/B
-///       fragment costs rpfIn = ceil(macM*macK*elem_in_bits / VLEN) vregs; the 4x4
-///       int32 accumulator tile costs rpfAcc = ceil(macM*macN*accum_bits / VLEN).
-///       (=1 / =2 @ VLEN256; =2 / =4 @ VLEN128 -- so the budget floor is NOT
-///       VLEN-invariant.) The emitted leaf loads the fragment with ONE `vle8 e8,m1`,
-///       which is only valid when the fragment fits ONE vreg (rpfIn==1); otherwise
-///       fail-closed to narrow.
-///   (2) FORMAT FEATURE: the fragment kt/bits (macM/macN/macK, elem/accum bits) come
-///       from the tile op -- the same predicate serves q4_0/q8_0/q4_K, no format name.
-///   (3) BOTTLENECK SHAPE: MAC-tiling payoff vs. epilogue weight, driven by the
-///       per-format MEASURED-NEGATIVE registry (approach b). A `weightFormat` with a
-///       `measured-negative` row (q4_K: board-measured 0.909x -- the two-level 6-bit
-///       sc/m + S_scale/S_min fold dominates) gets a MAC-tiling NULL -> LEGAL DECLINE
-///       by REGISTRY LOOKUP, NOT a hardcoded per-format bool. Formats with no row
-///       (q4_0/q8_0) proceed to the capability/width legs and deploy wide.
-/// The vreg floor for a width-njw tiling is rpfIn (the reused A) + njw*rpfIn (the
-/// njw B col-tiles) + njw*rpfAcc (the njw int32 accumulator tiles); the widest
-/// MECHANIZED tiling whose floor fits the 32-register file is selected.
 IMEWideDeployPlan
-constructWideVmadotPlan(int64_t vlenBits, int64_t macM, int64_t macN,
-                        int64_t macK, int64_t elemInBits, int64_t accumBits,
-                        llvm::StringRef weightFormat) {
-  IMEWideDeployPlan d;
-  const int64_t fragBits = macM * macK * elemInBits;
-  const int64_t accBits = macM * macN * accumBits;
-  const int64_t vb = vlenBits;
-  auto ceilDiv = [](int64_t a, int64_t b) -> int64_t {
-    return b > 0 ? (a + b - 1) / b : 1;
-  };
-  const int64_t rpfIn = std::max<int64_t>(1, ceilDiv(fragBits, vb));
-  const int64_t rpfAcc = std::max<int64_t>(1, ceilDiv(accBits, vb));
+projectIMEWideArtifact(mlir::Operation *typedBody,
+                       const IMEQuantComputationPlan &computation) {
+  IMEWideDeployPlan artifact;
+  artifact.njw = static_cast<int>(computation.wideNJW);
 
-  // (3) bottleneck-shape leg: a per-format MEASURED-NEGATIVE registry row declines
-  // MAC-tiling (same status=="measured-negative" mechanism as the W4 tiling row).
-  // The decline is a REGISTRY LOOKUP on the weight_format fact, not a hardcoded bool.
-  if (const IMEWideFormatMeasurement *neg =
-          lookupWideFormatMeasuredNegative(weightFormat)) {
-    d.reason = "bottleneck-shape=epilogue-bound decline (MAC-tiling NULL): " +
-               weightFormat.str() + " wide-vmadot registry status=" +
-               neg->status.str() + " measured " + neg->metric.str() +
-               " [PAT-1 measured-negative row; " + neg->metricsHook.str() + "]";
-    return d;
+  for (const IMEWideArtifactMetadata &metadata :
+       kIMEWideArtifactMetadata) {
+    if (metadata.njw != artifact.njw)
+      continue;
+    artifact.patternId = metadata.patternId;
+    artifact.statusStr = metadata.status;
+    artifact.metricsHook = metadata.metricsHook;
+    break;
   }
-  // (1) capability leg: the single-`vle8 e8,m1` leaf requires the fragment to fit
-  // ONE vreg. At a VLEN where it does not (rpfIn>1) the emitted leaf is invalid ->
-  // fail-closed to narrow.
-  if (rpfIn != 1) {
-    d.reason = "capability=vlen-fragment-mismatch decline: macM*macK*elem_in_bits=" +
-               std::to_string(fragBits) + " does not fit one " + std::to_string(vb) +
-               "-bit vreg (rpfIn=" + std::to_string(rpfIn) +
-               "); single-vle8 e8,m1 leaf invalid at this VLEN -> narrow fallback";
-    return d;
-  }
-  // (1)+(2): widest MECHANIZED tiling whose VLEN-parametric vreg floor fits 32.
-  const IMEVmadotTilingPattern *best = &kIMEVmadotTilingPatterns[0];
-  int64_t bestFloor = rpfIn * (1 + best->njw) + rpfAcc * best->njw;
-  for (const IMEVmadotTilingPattern &p : kIMEVmadotTilingPatterns) {
-    const int64_t floorNjw = rpfIn * (1 + p.njw) + rpfAcc * (int64_t)p.njw;
-    if (p.status == "mechanized" && floorNjw <= kRVVVectorRegisterFileSize &&
-        p.njw > best->njw) {
-      best = &p;
-      bestFloor = floorNjw;
+
+  if (artifact.njw <= 1) {
+    // The construction plan records only the selected numeric schedule.  This
+    // diagnostic projection is keyed by the typed body identity, not by a
+    // format string or a second scheduling decision.  q4_K is the one current
+    // typed body whose already-selected narrow schedule is backed by the
+    // sealed wide-vmadot measured-negative result.
+    if (llvm::isa<weft::ime::Q4KMatMulTileOp>(typedBody)) {
+      artifact.reason =
+          "bottleneck-shape=epilogue-bound decline (MAC-tiling NULL): q4_K "
+          "wide-vmadot registry status=measured-negative measured 0.909x "
+          "[PAT-1 measured-negative row; experiments/active/"
+          "g6-a-ime-perf-bridge/M7-vmadot-tiling/evidence.md (q4_K@ime "
+          "wide-vmadot 0.909x: super-block two-level 6-bit sc/m + "
+          "S_scale/S_min fold epilogue dominates -> array-util MAC-tiling "
+          "win washes out)]";
+    } else {
+      artifact.reason =
+          "family construction selected the narrow computation schedule";
     }
+    return artifact;
   }
-  d.njw = best->njw;
-  d.patternId = best->pattern_id;
-  d.statusStr = best->status;
-  d.metricsHook = best->metricsHook;
-  d.reason = "capability=vlen_bits=" + std::to_string(vb) + " rpfIn=1 rpfAcc=" +
-             std::to_string(rpfAcc) + " vreg_floor(njw=" + std::to_string(best->njw) +
-             ")=" + std::to_string(bestFloor) + "<=32 => deploy " +
-             best->pattern_id.str();
-  return d;
-}
-
-/// Project the VLEN fact from the canonical capability set of this tile's
-/// enclosing kernel.  Missing, unavailable, untyped, or malformed capability
-/// data is an unsupported construction input; there is no emitter default and
-/// no module-global first-match lookup.
-mlir::FailureOr<int64_t> readIMEConstructionVlenBits(mlir::Operation *tile) {
-  auto kernel = tile->getParentOfType<weft::exec::KernelOp>();
-  if (!kernel)
-    return tile->emitError(
-        "IME construction requires an enclosing weft.exec.kernel");
-  llvm::Expected<support::TargetCapabilitySet> capabilities =
-      support::TargetCapabilitySet::buildFromKernelChecked(kernel);
-  if (!capabilities) {
-    tile->emitError() << llvm::toString(capabilities.takeError());
-    return mlir::failure();
-  }
-  const support::CapabilityDescriptor *imeCapability =
-      capabilities->lookupProviderByID("spacemit.ime");
-  if (!imeCapability || !imeCapability->isAvailable())
-    return tile->emitError(
-        "IME construction requires available capability id 'spacemit.ime'");
-  mlir::Attribute vlen = imeCapability->getPropertyAttribute("vlen_bits");
-  int64_t value = 0;
-  if (auto integer = llvm::dyn_cast_if_present<mlir::IntegerAttr>(vlen))
-    value = integer.getInt();
-  else if (auto text = llvm::dyn_cast_if_present<mlir::StringAttr>(vlen)) {
-    long long parsed = 0;
-    if (!text.getValue().getAsInteger(10, parsed))
-      value = parsed;
-  }
-  if (value <= 0)
-    return tile->emitError(
-        "IME construction requires a positive typed vlen_bits capability fact");
-  return value;
+  artifact.reason =
+      "capability=vlen_bits=" + std::to_string(computation.wideVlenBits) +
+      " rpfIn=" +
+      std::to_string(computation.wideInputFragmentVRegs) + " rpfAcc=" +
+      std::to_string(computation.wideAccumulatorVRegs) +
+      " vreg_floor(njw=" + std::to_string(computation.wideNJW) + ")=" +
+      std::to_string(computation.wideVRegFloor) +
+      "<=32 => deploy constructed schedule";
+  return artifact;
 }
 
 /// The WIDE (NJW-tiled) register-resident int8->int32 MAC leaf, emitted as ONE self-contained
@@ -1251,277 +1103,75 @@ std::string q4KMatmulHelperBody(llvm::StringRef helperName,
   return text;
 }
 
-mlir::DictionaryAttr makeIMEFinalPlan(
-    mlir::MLIRContext *context,
-    llvm::ArrayRef<std::pair<llvm::StringRef, int64_t>> integerFields,
-    llvm::ArrayRef<std::pair<llvm::StringRef, llvm::StringRef>> stringFields) {
-  llvm::SmallVector<mlir::NamedAttribute, 16> attrs;
-  attrs.push_back(mlir::NamedAttribute(
-      mlir::StringAttr::get(context, "formula_id"),
-      mlir::StringAttr::get(context, kIMEConstructionFormulaID)));
-  for (auto [name, value] : integerFields)
-    attrs.push_back(mlir::NamedAttribute(
-        mlir::StringAttr::get(context, name),
-        mlir::IntegerAttr::get(mlir::IntegerType::get(context, 64), value)));
-  for (auto [name, value] : stringFields)
-    attrs.push_back(mlir::NamedAttribute(
-        mlir::StringAttr::get(context, name),
-        mlir::StringAttr::get(context, value)));
-  return mlir::DictionaryAttr::get(context, attrs);
-}
+struct IMEArtifactSpelling {
+  llvm::StringRef helperName;
+  llvm::StringRef mnemonic;
+};
 
-mlir::LogicalResult attachIMEFinalPlan(mlir::Operation *op,
-                                       mlir::DictionaryAttr expected) {
-  auto existing =
-      op->getAttrOfType<mlir::DictionaryAttr>(kIMEFinalPlanAttrName);
-  if (op->hasAttr(kIMEFinalPlanAttrName) && !existing)
-    return op->emitError("IME final construction plan must be a dictionary");
-  if (existing && existing != expected)
-    return op->emitError(
-        "IME final construction plan is partial, stale, or conflicts with the "
-        "typed body");
-  op->setAttr(kIMEFinalPlanAttrName, expected);
-  return mlir::success();
-}
-
-mlir::LogicalResult constructIMESimplePlan(mlir::Operation *op,
-                                           llvm::StringRef helper,
-                                           llvm::StringRef mnemonic) {
-  auto plan = makeIMEFinalPlan(
-      op->getContext(), /*integerFields=*/{},
-      {{"emit_helper", helper}, {"mac_mnemonic", mnemonic}});
-  return attachIMEFinalPlan(op, plan);
-}
-
-template <typename TileOp>
-mlir::LogicalResult constructIMEQuantTilePlan(TileOp tile,
-                                               llvm::StringRef emitHelper) {
-  mlir::Block &body = tile.getBody().front();
-  auto macLeaves = body.template getOps<weft::ime::VmadotMacLeafOp>();
-  if (macLeaves.empty())
-    return tile.emitError(
-        "IME quant tile construction requires one typed vmadot MAC leaf");
-  IMEMacLeafPlan macLeaf =
-      constructIMEMacLeafPlan(*macLeaves.begin(), tile.getMatK());
-  auto vlenBits = readIMEConstructionVlenBits(tile.getOperation());
-  if (mlir::failed(vlenBits))
+mlir::FailureOr<IMEArtifactSpelling>
+projectIMESimpleMACArtifact(mlir::Operation *op) {
+  if (mlir::failed(requireIMESimpleComputationPlan(op)))
     return mlir::failure();
-  IMEWideDeployPlan wide = constructWideVmadotPlan(
-      *vlenBits, tile.getMacM(), tile.getMacN(),
-      tile.getMacK(), tile.getElemInBits(), tile.getAccumBits(),
-      tile.getWeightFormat());
-  llvm::SmallVector<std::pair<llvm::StringRef, int64_t>, 5> integers = {
-      {"mat_m", tile.getMatM()},
-      {"mat_n", tile.getMatN()},
-      {"mat_k", tile.getMatK()},
-      {"mac_batched", macLeaf.batched ? 1 : 0},
-      {"wide_njw", wide.njw}};
-  llvm::SmallVector<std::pair<llvm::StringRef, llvm::StringRef>, 8> strings = {
-      {"emit_helper", emitHelper},
-      {"mac_helper", macLeaf.helperName},
-      {"mac_mnemonic", macLeaf.mnemonic},
-      {"mac_reason", macLeaf.reason},
-      {"wide_pattern", wide.patternId},
-      {"wide_status", wide.statusStr},
-      {"wide_metrics_hook", wide.metricsHook},
-      {"wide_reason", wide.reason}};
-  return attachIMEFinalPlan(
-      tile.getOperation(),
-      makeIMEFinalPlan(tile.getContext(), integers, strings));
+  if (llvm::isa<weft::ime::MMAOp>(op))
+    return IMEArtifactSpelling{kVmadotHelperName, "vmadot"};
+  if (llvm::isa<weft::ime::MMAUOp>(op))
+    return IMEArtifactSpelling{kVmadotuHelperName, "vmadotu"};
+  if (llvm::isa<weft::ime::MMASUOp>(op))
+    return IMEArtifactSpelling{kVmadotsuHelperName, "vmadotsu"};
+  if (llvm::isa<weft::ime::MMAUSOp>(op))
+    return IMEArtifactSpelling{kVmadotusHelperName, "vmadotus"};
+  if (auto slide = llvm::dyn_cast<weft::ime::MMASlideOp>(op)) {
+    if (slide.getSlide() == 1)
+      return IMEArtifactSpelling{kVmadot1SlideHelperName, "vmadot1"};
+    if (slide.getSlide() == 2)
+      return IMEArtifactSpelling{kVmadot2SlideHelperName, "vmadot2"};
+    if (slide.getSlide() == 3)
+      return IMEArtifactSpelling{kVmadot3SlideHelperName, "vmadot3"};
+  }
+  return op->emitError(
+      "IME artifact projection cannot map this typed simple MAC body");
 }
 
-mlir::LogicalResult constructIMEFinalPlans(mlir::ModuleOp module) {
-  static const IMEExtensionPlugin imePlugin;
-  mlir::LogicalResult result = mlir::success();
-  module.walk([&](mlir::Operation *op) {
-    bool isFinalBody =
-        llvm::isa<weft::ime::MMAOp, weft::ime::MMAUOp,
-                  weft::ime::MMASUOp, weft::ime::MMAUSOp,
-                  weft::ime::MMASlideOp, weft::ime::MatMulOp,
-                  weft::ime::Q40MatMulTileOp, weft::ime::Q80MatMulTileOp,
-                  weft::ime::Q4KMatMulTileOp>(op);
-    if (isFinalBody) {
-      auto kernel = op->getParentOfType<weft::exec::KernelOp>();
-      auto sourceKernel =
-          op->getAttrOfType<mlir::StringAttr>("source_kernel");
-      if (!kernel || !sourceKernel ||
-          sourceKernel.getValue() != kernel.getSymName()) {
-        op->emitError("IME construction requires source_kernel to match an "
-                      "enclosing weft.exec.kernel");
-        result = mlir::failure();
-        return mlir::WalkResult::interrupt();
-      }
-      llvm::Expected<support::TargetCapabilitySet> capabilities =
-          support::TargetCapabilitySet::buildFromKernelChecked(kernel);
-      if (!capabilities) {
-        op->emitError() << llvm::toString(capabilities.takeError());
-        result = mlir::failure();
-        return mlir::WalkResult::interrupt();
-      }
-      const support::CapabilityDescriptor *imeCapability =
-          capabilities->lookupProviderByID("spacemit.ime");
-      if (!imeCapability || !imeCapability->isAvailable()) {
-        op->emitError("IME construction requires available canonical "
-                      "capability id 'spacemit.ime'");
-        result = mlir::failure();
-        return mlir::WalkResult::interrupt();
-      }
-      auto selectedVariant =
-          op->getAttrOfType<mlir::FlatSymbolRefAttr>("selected_variant");
-      weft::exec::VariantOp variantOp;
-      unsigned variantMatches = 0;
-      if (selectedVariant) {
-        kernel.walk([&](weft::exec::VariantOp candidate) {
-          if (candidate.getSymName() != selectedVariant.getValue())
-            return;
-          variantOp = candidate;
-          ++variantMatches;
-        });
-      }
-      if (!selectedVariant || variantMatches != 1) {
-        op->emitError("IME construction requires selected_variant to resolve "
-                      "exactly once in the enclosing kernel");
-        result = mlir::failure();
-        return mlir::WalkResult::interrupt();
-      }
-      VariantLegalityRequest legality(variantOp, kernel, *capabilities);
-      if (llvm::Error error = imePlugin.verifyVariantLegality(legality)) {
-        op->emitError() << llvm::toString(std::move(error));
-        result = mlir::failure();
-        return mlir::WalkResult::interrupt();
-      }
-    }
-    if (auto mma = llvm::dyn_cast<weft::ime::MMAOp>(op))
-      result = constructIMESimplePlan(mma, kVmadotHelperName, "vmadot");
-    else if (auto mma = llvm::dyn_cast<weft::ime::MMAUOp>(op))
-      result = constructIMESimplePlan(mma, kVmadotuHelperName, "vmadotu");
-    else if (auto mma = llvm::dyn_cast<weft::ime::MMASUOp>(op))
-      result = constructIMESimplePlan(mma, kVmadotsuHelperName, "vmadotsu");
-    else if (auto mma = llvm::dyn_cast<weft::ime::MMAUSOp>(op))
-      result = constructIMESimplePlan(mma, kVmadotusHelperName, "vmadotus");
-    else if (auto slide = llvm::dyn_cast<weft::ime::MMASlideOp>(op)) {
-      llvm::StringRef helper = slide.getSlide() == 1   ? kVmadot1SlideHelperName
-                               : slide.getSlide() == 2 ? kVmadot2SlideHelperName
-                                                      : kVmadot3SlideHelperName;
-      llvm::StringRef mnemonic = slide.getSlide() == 1   ? "vmadot1"
-                                 : slide.getSlide() == 2 ? "vmadot2"
-                                                        : "vmadot3";
-      result = constructIMESimplePlan(slide, helper, mnemonic);
-    } else if (auto matmul = llvm::dyn_cast<weft::ime::MatMulOp>(op)) {
-      bool isUnsigned = matmul.getImeOp() == "vmadotu";
-      llvm::SmallVector<std::pair<llvm::StringRef, int64_t>, 3> integers = {
-          {"mat_m", matmul.getMatM()},
-          {"mat_n", matmul.getMatN()},
-          {"mat_k", matmul.getMatK()}};
-      llvm::SmallVector<std::pair<llvm::StringRef, llvm::StringRef>, 2> strings =
-          {{"emit_helper",
-            isUnsigned ? llvm::StringRef(kMatmulUHelperName)
-                       : llvm::StringRef(kMatmulHelperName)},
-           {"mac_mnemonic", isUnsigned ? llvm::StringRef("vmadotu")
-                                        : llvm::StringRef("vmadot")}};
-      result = attachIMEFinalPlan(
-          matmul.getOperation(),
-          makeIMEFinalPlan(matmul.getContext(), integers, strings));
-    } else if (auto tile = llvm::dyn_cast<weft::ime::Q40MatMulTileOp>(op))
-      result = constructIMEQuantTilePlan(tile, kQ40MatmulHelperName);
-    else if (auto tile = llvm::dyn_cast<weft::ime::Q80MatMulTileOp>(op))
-      result = constructIMEQuantTilePlan(tile, kQ80MatmulHelperName);
-    else if (auto tile = llvm::dyn_cast<weft::ime::Q4KMatMulTileOp>(op))
-      result = constructIMEQuantTilePlan(tile, kQ4KMatmulHelperName);
-    else if (op->getName().getDialectNamespace() ==
-             weft::ime::WEFTIMEDialect::getDialectNamespace()) {
-      // Region bricks are mechanisms owned by one of the three final quant
-      // tiles.  A standalone brick is not a production body and must not make
-      // the registry report a successful direct conversion.
-      if (!op->getParentOfType<weft::ime::Q40MatMulTileOp>() &&
-          !op->getParentOfType<weft::ime::Q80MatMulTileOp>() &&
-          !op->getParentOfType<weft::ime::Q4KMatMulTileOp>()) {
-        op->emitError("standalone IME mechanism op has no final construction "
-                      "owner");
-        result = mlir::failure();
-      }
-    }
-    return mlir::failed(result) ? mlir::WalkResult::interrupt()
-                                : mlir::WalkResult::advance();
-  });
-  return result;
-}
+struct IMEMatMulArtifactPlan {
+  IMEMatMulComputationPlan computation;
+  IMEArtifactSpelling spelling;
+};
 
-mlir::FailureOr<mlir::DictionaryAttr>
-requireIMEFinalPlan(mlir::Operation *op) {
-  auto plan = op->getAttrOfType<mlir::DictionaryAttr>(kIMEFinalPlanAttrName);
-  if (!plan)
-    return op->emitError(
-        "IME emitter requires a family-constructed final plan");
-  auto formula = plan.getAs<mlir::StringAttr>("formula_id");
-  if (!formula || formula.getValue() != kIMEConstructionFormulaID)
-    return op->emitError("IME final plan has the wrong formula owner");
-  return plan;
-}
-
-mlir::FailureOr<int64_t> imePlanInt(mlir::DictionaryAttr plan,
-                                    llvm::StringRef name,
-                                    mlir::Operation *op) {
-  auto value = plan.getAs<mlir::IntegerAttr>(name);
-  if (!value)
-    return op->emitError() << "IME final plan is missing integer field '" << name
-                           << "'";
-  return value.getInt();
-}
-
-mlir::FailureOr<llvm::StringRef> imePlanString(mlir::DictionaryAttr plan,
-                                               llvm::StringRef name,
-                                               mlir::Operation *op) {
-  auto value = plan.getAs<mlir::StringAttr>(name);
-  if (!value)
-    return op->emitError() << "IME final plan is missing string field '" << name
-                           << "'";
-  return value.getValue();
-}
-
-mlir::LogicalResult readIMEQuantPlan(
-    mlir::Operation *op, IMEMacLeafPlan &macLeaf,
-    IMEWideDeployPlan &wide, llvm::StringRef &emitHelper,
-    int64_t &matM, int64_t &matN, int64_t &matK) {
-  auto planOr = requireIMEFinalPlan(op);
-  if (mlir::failed(planOr))
+mlir::FailureOr<IMEMatMulArtifactPlan>
+projectIMEMatMulArtifact(weft::ime::MatMulOp matmul) {
+  auto computation = readIMEMatMulComputationPlan(matmul.getOperation());
+  if (mlir::failed(computation))
     return mlir::failure();
-  auto matMOr = imePlanInt(*planOr, "mat_m", op);
-  auto matNOr = imePlanInt(*planOr, "mat_n", op);
-  auto matKOr = imePlanInt(*planOr, "mat_k", op);
-  auto batchedOr = imePlanInt(*planOr, "mac_batched", op);
-  auto njwOr = imePlanInt(*planOr, "wide_njw", op);
-  auto macHelperOr = imePlanString(*planOr, "mac_helper", op);
-  auto macMnemonicOr = imePlanString(*planOr, "mac_mnemonic", op);
-  auto macReasonOr = imePlanString(*planOr, "mac_reason", op);
-  auto widePatternOr = imePlanString(*planOr, "wide_pattern", op);
-  auto wideStatusOr = imePlanString(*planOr, "wide_status", op);
-  auto wideMetricsOr = imePlanString(*planOr, "wide_metrics_hook", op);
-  auto wideReasonOr = imePlanString(*planOr, "wide_reason", op);
-  auto emitHelperOr = imePlanString(*planOr, "emit_helper", op);
-  if (mlir::failed(matMOr) || mlir::failed(matNOr) || mlir::failed(matKOr) ||
-      mlir::failed(batchedOr) || mlir::failed(njwOr) ||
-      mlir::failed(macHelperOr) || mlir::failed(macMnemonicOr) ||
-      mlir::failed(macReasonOr) || mlir::failed(widePatternOr) ||
-      mlir::failed(wideStatusOr) || mlir::failed(wideMetricsOr) ||
-      mlir::failed(wideReasonOr) || mlir::failed(emitHelperOr))
-    return mlir::failure();
-  matM = *matMOr;
-  matN = *matNOr;
-  matK = *matKOr;
-  macLeaf.helperName = *macHelperOr;
-  macLeaf.mnemonic = *macMnemonicOr;
-  macLeaf.batched = *batchedOr != 0;
-  macLeaf.reason = macReasonOr->str();
-  wide.njw = static_cast<int>(*njwOr);
-  wide.patternId = *widePatternOr;
-  wide.statusStr = *wideStatusOr;
-  wide.metricsHook = *wideMetricsOr;
-  wide.reason = wideReasonOr->str();
-  emitHelper = *emitHelperOr;
-  return mlir::success();
+  if (matmul.getImeOp() == "vmadot")
+    return IMEMatMulArtifactPlan{
+        *computation, {kMatmulHelperName, "vmadot"}};
+  if (matmul.getImeOp() == "vmadotu")
+    return IMEMatMulArtifactPlan{
+        *computation, {kMatmulUHelperName, "vmadotu"}};
+  return matmul.emitError(
+      "IME matmul artifact projection requires a typed vmadot/vmadotu body");
 }
 
+struct IMEQuantArtifactPlan {
+  IMEQuantComputationPlan computation;
+  IMEMacLeafPlan macLeaf;
+  IMEWideDeployPlan wide;
+};
+
+mlir::FailureOr<IMEQuantArtifactPlan>
+projectIMEQuantArtifact(mlir::Operation *op,
+                        weft::ime::VmadotMacLeafOp macLeaf) {
+  auto computation = readIMEQuantComputationPlan(op);
+  if (mlir::failed(computation))
+    return mlir::failure();
+  auto macArtifact =
+      projectIMEMacLeafArtifact(macLeaf, computation->macBatched);
+  if (mlir::failed(macArtifact))
+    return mlir::failure();
+  return IMEQuantArtifactPlan{
+      *computation, *macArtifact,
+      projectIMEWideArtifact(op, *computation)};
+}
 /// Lowers a selected IME MAC boundary (`weft.ime.mma` signed / `weft.ime.mma_u`
 /// unsigned) into a standalone EmitC module:
 ///   #include <stdint.h>
@@ -1549,19 +1199,13 @@ public:
     mlir::MLIRContext *context = mma.getContext();
     mlir::Location loc = mma.getLoc();
 
-    auto planOr = requireIMEFinalPlan(mma.getOperation());
-    if (mlir::failed(planOr))
-      return rewriter.notifyMatchFailure(mma,
-                                         "IME MAC final plan is missing");
-    auto helperOr =
-        imePlanString(*planOr, "emit_helper", mma.getOperation());
-    auto mnemonicOr =
-        imePlanString(*planOr, "mac_mnemonic", mma.getOperation());
-    if (mlir::failed(helperOr) || mlir::failed(mnemonicOr))
-      return rewriter.notifyMatchFailure(mma,
-                                         "IME MAC final plan is partial");
-    llvm::StringRef helperName = *helperOr;
-    std::string helperBody = macHelperBody(helperName, *mnemonicOr);
+    auto artifact = projectIMESimpleMACArtifact(mma.getOperation());
+    if (mlir::failed(artifact))
+      return rewriter.notifyMatchFailure(
+          mma, "IME MAC computation plan cannot be projected to EmitC");
+    llvm::StringRef helperName = artifact->helperName;
+    std::string helperBody =
+        macHelperBody(helperName, artifact->mnemonic);
 
     auto variant =
         mma->template getAttrOfType<mlir::FlatSymbolRefAttr>("selected_variant");
@@ -1653,19 +1297,13 @@ public:
     mlir::MLIRContext *context = mma.getContext();
     mlir::Location loc = mma.getLoc();
 
-    auto planOr = requireIMEFinalPlan(mma.getOperation());
-    if (mlir::failed(planOr))
-      return rewriter.notifyMatchFailure(mma,
-                                         "IME slide final plan is missing");
-    auto helperOr =
-        imePlanString(*planOr, "emit_helper", mma.getOperation());
-    auto mnemonicOr =
-        imePlanString(*planOr, "mac_mnemonic", mma.getOperation());
-    if (mlir::failed(helperOr) || mlir::failed(mnemonicOr))
-      return rewriter.notifyMatchFailure(mma,
-                                         "IME slide final plan is partial");
-    llvm::StringRef helperName = *helperOr;
-    std::string helperBody = macSlideHelperBody(helperName, *mnemonicOr);
+    auto artifact = projectIMESimpleMACArtifact(mma.getOperation());
+    if (mlir::failed(artifact))
+      return rewriter.notifyMatchFailure(
+          mma, "IME slide computation plan cannot be projected to EmitC");
+    llvm::StringRef helperName = artifact->helperName;
+    std::string helperBody =
+        macSlideHelperBody(helperName, artifact->mnemonic);
 
     auto variant =
         mma->getAttrOfType<mlir::FlatSymbolRefAttr>("selected_variant");
@@ -1763,24 +1401,13 @@ public:
     mlir::MLIRContext *context = matmul.getContext();
     mlir::Location loc = matmul.getLoc();
 
-    auto planOr = requireIMEFinalPlan(matmul.getOperation());
-    if (mlir::failed(planOr))
-      return rewriter.notifyMatchFailure(matmul,
-                                         "IME matmul final plan is missing");
-    auto helperOr =
-        imePlanString(*planOr, "emit_helper", matmul.getOperation());
-    auto mnemonicOr =
-        imePlanString(*planOr, "mac_mnemonic", matmul.getOperation());
-    auto matMOr = imePlanInt(*planOr, "mat_m", matmul.getOperation());
-    auto matNOr = imePlanInt(*planOr, "mat_n", matmul.getOperation());
-    auto matKOr = imePlanInt(*planOr, "mat_k", matmul.getOperation());
-    if (mlir::failed(helperOr) || mlir::failed(mnemonicOr) ||
-        mlir::failed(matMOr) || mlir::failed(matNOr) ||
-        mlir::failed(matKOr))
-      return rewriter.notifyMatchFailure(matmul,
-                                         "IME matmul final plan is partial");
-    llvm::StringRef helperName = *helperOr;
-    std::string helperBody = matmulHelperBody(helperName, *mnemonicOr);
+    auto artifact = projectIMEMatMulArtifact(matmul);
+    if (mlir::failed(artifact))
+      return rewriter.notifyMatchFailure(
+          matmul, "IME matmul computation plan cannot be projected to EmitC");
+    llvm::StringRef helperName = artifact->spelling.helperName;
+    std::string helperBody =
+        matmulHelperBody(helperName, artifact->spelling.mnemonic);
 
     auto variant =
         matmul->getAttrOfType<mlir::FlatSymbolRefAttr>("selected_variant");
@@ -1794,9 +1421,9 @@ public:
         ("weft_emitc_" + sourceKernel.getValue() + "_" + variant.getValue())
             .str();
 
-    int64_t matM = *matMOr;
-    int64_t matN = *matNOr;
-    int64_t matK = *matKOr;
+    int64_t matM = artifact->computation.matM;
+    int64_t matN = artifact->computation.matN;
+    int64_t matK = artifact->computation.matK;
 
     llvm::StringRef sourceOpName = matmul.getWEFTEmitCLowerableSourceOpName();
     llvm::StringRef sourceRole = matmul.getWEFTEmitCLowerableSourceRole();
@@ -1903,19 +1530,17 @@ public:
       return rewriter.notifyMatchFailure(
           tile, "q4_0 tile region must carry the q4_0_dequant_core + "
                 "vmadot_mac_leaf bricks");
-    // Family construction has already consumed the typed MAC facts and fragment
-    // geometry into the final helper/mnemonic/batching plan. Emission only reads
-    // that result; it does not run the leaf formula again.
-    IMEMacLeafPlan macLeaf;
-    IMEWideDeployPlan wide;
-    llvm::StringRef emitHelper;
-    int64_t matM = 0;
-    int64_t matN = 0;
-    int64_t matK = 0;
-    if (mlir::failed(readIMEQuantPlan(tile.getOperation(), macLeaf, wide,
-                                     emitHelper, matM, matN, matK)))
-      return rewriter.notifyMatchFailure(tile,
-                                         "IME q4_0 final plan is partial");
+    auto artifact =
+        projectIMEQuantArtifact(tile.getOperation(), *macLeaves.begin());
+    if (mlir::failed(artifact))
+      return rewriter.notifyMatchFailure(
+          tile, "IME q4_0 computation plan cannot be projected to EmitC");
+    const IMEMacLeafPlan &macLeaf = artifact->macLeaf;
+    const IMEWideDeployPlan &wide = artifact->wide;
+    llvm::StringRef emitHelper = kQ40MatmulHelperName;
+    int64_t matM = artifact->computation.matM;
+    int64_t matN = artifact->computation.matN;
+    int64_t matK = artifact->computation.matK;
     llvm::StringRef macKloopHelperName = macLeaf.helperName;
 
     auto variant =
@@ -2096,19 +1721,17 @@ public:
       return rewriter.notifyMatchFailure(
           tile, "q8_0 tile region must carry the q8_0_dequant_core + "
                 "vmadot_mac_leaf bricks");
-    // Family construction has already consumed the typed MAC facts and fragment
-    // geometry into the final helper/mnemonic/batching plan. Emission only reads
-    // that result; it does not run the leaf formula again.
-    IMEMacLeafPlan macLeaf;
-    IMEWideDeployPlan wide;
-    llvm::StringRef emitHelper;
-    int64_t matM = 0;
-    int64_t matN = 0;
-    int64_t matK = 0;
-    if (mlir::failed(readIMEQuantPlan(tile.getOperation(), macLeaf, wide,
-                                     emitHelper, matM, matN, matK)))
-      return rewriter.notifyMatchFailure(tile,
-                                         "IME q8_0 final plan is partial");
+    auto artifact =
+        projectIMEQuantArtifact(tile.getOperation(), *macLeaves.begin());
+    if (mlir::failed(artifact))
+      return rewriter.notifyMatchFailure(
+          tile, "IME q8_0 computation plan cannot be projected to EmitC");
+    const IMEMacLeafPlan &macLeaf = artifact->macLeaf;
+    const IMEWideDeployPlan &wide = artifact->wide;
+    llvm::StringRef emitHelper = kQ80MatmulHelperName;
+    int64_t matM = artifact->computation.matM;
+    int64_t matN = artifact->computation.matN;
+    int64_t matK = artifact->computation.matK;
     llvm::StringRef macKloopHelperName = macLeaf.helperName;
 
     auto variant =
@@ -2242,19 +1865,17 @@ public:
                 "q4_K_scale_min_unpack_core + vmadot_mac_leaf + "
                 "q4_K_scale_weighted_accum + q4_K_min_bias_accum bricks (the "
                 "hollow bare-MAC shape is rejected)");
-    // Family construction has already consumed the typed MAC facts and fragment
-    // geometry into the final helper/mnemonic/batching plan. Emission only reads
-    // that result; it does not run the leaf formula again.
-    IMEMacLeafPlan macLeaf;
-    IMEWideDeployPlan wide;
-    llvm::StringRef emitHelper;
-    int64_t matM = 0;
-    int64_t matN = 0;
-    int64_t matK = 0;
-    if (mlir::failed(readIMEQuantPlan(tile.getOperation(), macLeaf, wide,
-                                     emitHelper, matM, matN, matK)))
-      return rewriter.notifyMatchFailure(tile,
-                                         "IME q4_K final plan is partial");
+    auto artifact =
+        projectIMEQuantArtifact(tile.getOperation(), *macLeaves.begin());
+    if (mlir::failed(artifact))
+      return rewriter.notifyMatchFailure(
+          tile, "IME q4_K computation plan cannot be projected to EmitC");
+    const IMEMacLeafPlan &macLeaf = artifact->macLeaf;
+    const IMEWideDeployPlan &wide = artifact->wide;
+    llvm::StringRef emitHelper = kQ4KMatmulHelperName;
+    int64_t matM = artifact->computation.matM;
+    int64_t matN = artifact->computation.matN;
+    int64_t matK = artifact->computation.matK;
     llvm::StringRef macKloopHelperName = macLeaf.helperName;
 
     auto variant =
@@ -2358,18 +1979,6 @@ class IMEBackendEmissionDriver final
     : public weftemitc::TypedBackendEmissionDriver {
 public:
   llvm::StringRef getBackendName() const override { return "ime"; }
-
-  llvm::ArrayRef<llvm::StringRef>
-  getConstructionEntryNames() const override {
-    static constexpr llvm::StringRef entries[] = {
-        "backend:ime-direct-typed-body"};
-    return entries;
-  }
-
-  llvm::LogicalResult
-  prepareForConversion(mlir::ModuleOp module) const override {
-    return constructIMEFinalPlans(module);
-  }
 
   void populateTypeConversions(
       mlir::TypeConverter & /*typeConverter*/) const override {}

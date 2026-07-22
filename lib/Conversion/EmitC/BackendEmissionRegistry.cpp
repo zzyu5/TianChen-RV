@@ -11,7 +11,8 @@ namespace conversion {
 namespace emitc {
 
 mlir::OwningOpRef<mlir::ModuleOp>
-BackendEmissionRegistry::tryConvertModuleClone(mlir::ModuleOp source) const {
+BackendEmissionRegistry::tryConvertConstructedModuleClone(
+    mlir::ModuleOp source) const {
   for (const TypedBackendEmissionDriver *driver : drivers) {
     // Cheap pre-check: skip a backend that does not own any body in this module
     // (so the registry never speculatively converts a non-matching family).
@@ -47,7 +48,8 @@ BackendEmissionRegistry::tryConvertModuleClone(mlir::ModuleOp source) const {
           convertedModule->getContext(),
           [](mlir::Diagnostic &) { return mlir::success(); });
       fullyConverted =
-          convertModuleWithBackendEmitter(*convertedModule, *driver);
+          convertConstructedModuleWithBackendEmitter(*convertedModule,
+                                                      *driver);
     }
     if (fullyConverted)
       return convertedModule;

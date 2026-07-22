@@ -164,6 +164,13 @@ enum class VariantFallbackRole {
 
 llvm::StringRef stringifyVariantFallbackRole(VariantFallbackRole role);
 
+/// True when `operation` belongs to the same kernel as `variant` and carries
+/// an exact `selected_variant = @variant` binding.  Final typed bodies may be
+/// nested inside the variant or live as kernel-level sibling boundaries; this
+/// relation is the common structural join and contains no family semantics.
+bool isOperationSelectedForVariant(mlir::Operation *operation,
+                                   weft::exec::VariantOp variant);
+
 class VariantEmissionRequest {
 public:
   VariantEmissionRequest(weft::exec::VariantOp variant,
@@ -674,8 +681,16 @@ public:
   virtual void collectFormulaDescriptors(
       llvm::SmallVectorImpl<FormulaDescriptor> &out) const;
   /// Construct or validate every family-owned formula plan before downstream
-  /// legality, route planning, or emission consumes the typed body.
+  /// legality, selection, or artifact lowering consumes the typed body.  This
+  /// is a required production-family contract. The base implementation fails
+  /// closed so protocol-focused test plugins need not invent compute, but no
+  /// live family can obtain implicit construction success.
   virtual llvm::Error constructFormulaPlans(mlir::ModuleOp module) const;
+  /// True only when `variant` carries this family's construction-qualified
+  /// typed final body/carrier.  This is an existence query, not a verifier or
+  /// a formula replay; the family remains the sole compute authority.
+  virtual bool
+  hasConstructedFinalBody(weft::exec::VariantOp variant) const;
   virtual llvm::Error registerSourceFrontDoorPasses(
       const ExtensionPluginRegistry &registry,
       llvm::SmallVectorImpl<SourceFrontDoorPassRegistration> &out) const;
@@ -740,6 +755,11 @@ public:
       bool enabledOnly = true) const;
   llvm::Error collectSourceFrontDoorPasses(
       llvm::SmallVectorImpl<SourceFrontDoorPassRegistration> &out) const;
+  /// Enumerate each registered source entry's canonical P=(S,g,omega)
+  /// ownership by joining the source registry with the formula catalog.  This
+  /// is a coverage/integrity view only and is never used to dispatch compute.
+  llvm::Error collectCanonicalProblemCatalog(
+      llvm::SmallVectorImpl<CanonicalProblemDescriptor> &out) const;
   llvm::Error
   collectVariantProposals(const VariantProposalRequest &request,
                           llvm::SmallVectorImpl<VariantProposal> &out) const;
@@ -762,6 +782,11 @@ public:
   llvm::Error buildVariantEmissionPlan(const VariantEmissionRequest &request,
                                        VariantEmissionPlan &out) const;
   llvm::Error constructFormulaPlans(mlir::ModuleOp module) const;
+  /// Bind one selected variant to its origin family and typed target
+  /// capability set, then invoke that family's artifact-neutral construction
+  /// lifecycle.  Artifact kind/backend identity is intentionally absent.
+  llvm::Error constructFormulaPlansForVariant(
+      mlir::ModuleOp module, weft::exec::VariantOp variant) const;
   llvm::Error materializeSelectedLoweringBoundary(
       const VariantLoweringBoundaryRequest &request,
       VariantLoweringBoundaryResult &out) const;

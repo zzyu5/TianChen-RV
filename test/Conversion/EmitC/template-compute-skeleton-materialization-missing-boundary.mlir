@@ -26,4 +26,4 @@ module {
   }
 }
 
-// CHECK: no registered backend emission driver fully legalizes the selected variant @template_zero_core_first_slice body to EmitC
+// CHECK: bound family construction for origin 'template-plugin' produced no family-typed final body in variant @template_zero_core_first_slice

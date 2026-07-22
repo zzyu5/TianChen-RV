@@ -10,6 +10,7 @@
 
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Builders.h"
+#include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/DialectRegistry.h"
 #include "mlir/Pass/Pass.h"
 #include "llvm/Support/Errc.h"
@@ -432,6 +433,27 @@ void ToyExtensionPlugin::registerDialects(
   registry.insert<weft::toy::WEFTToyDialect>();
 }
 
+llvm::Error
+ToyExtensionPlugin::constructFormulaPlans(mlir::ModuleOp module) const {
+  if (mlir::succeeded(toy::constructToyFinalBody(module)))
+    return llvm::Error::success();
+  return makeToyPluginError(
+      "artifact-neutral Toy final-body construction failed");
+}
+
+bool ToyExtensionPlugin::hasConstructedFinalBody(
+    weft::exec::VariantOp variant) const {
+  auto kernel = variant->getParentOfType<weft::exec::KernelOp>();
+  if (!kernel)
+    return false;
+  bool found = false;
+  kernel.walk([&](weft::toy::ComputeSkeletonOp body) {
+    if (isOperationSelectedForVariant(body.getOperation(), variant))
+      found = true;
+  });
+  return found;
+}
+
 llvm::Error ToyExtensionPlugin::verifyExecutableConstructionConformance()
     const {
   return toy::verifyToyConstructionProtocolReady();
@@ -456,7 +478,7 @@ void ToyExtensionPlugin::collectFormulaDescriptors(
   construction.addSemanticCase("template-capability-decline");
   construction.addProductionEntry("plugin:variant-proposal");
   construction.addProductionEntry(kToySourceFrontDoorArgument);
-  construction.addProductionEntry("backend:toy-direct-typed-body");
+  construction.addProductionEntry("construction:toy-final-typed-body");
   out.push_back(std::move(construction));
 
   FormulaDescriptor cost(

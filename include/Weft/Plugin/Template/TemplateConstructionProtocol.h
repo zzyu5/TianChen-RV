@@ -6,8 +6,10 @@
 
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Error.h"
+#include "mlir/Support/LogicalResult.h"
 
 namespace mlir {
+class ModuleOp;
 class Operation;
 } // namespace mlir
 
@@ -21,6 +23,9 @@ class TargetCapabilitySet;
 } // namespace weft::support
 
 namespace weft::plugin::template_ext {
+
+/// Artifact-neutral construction/qualification for the Template final body.
+mlir::LogicalResult constructTemplateFinalBody(mlir::ModuleOp module);
 
 /// Verifies that a selected Template variant is legal to emit: capability
 /// conformance (provider id/kind/properties) AND variant metadata-vs-manifest

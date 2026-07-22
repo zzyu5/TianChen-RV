@@ -32,7 +32,8 @@ public:
 
   /// Iterates the registered backends, skipping those whose
   /// `moduleHasBackendBody(source)` is false, and tries
-  /// `convertModuleWithBackendEmitter` on a CLONE of `source` for each
+  /// `convertConstructedModuleWithBackendEmitter` on a CLONE of `source` for
+  /// each
   /// candidate. A module claimed by more than one registered backend is
   /// rejected before conversion: one backend cleanup may not discard another
   /// family's body. Returns the converted clone on the FIRST full conversion; the
@@ -40,7 +41,7 @@ public:
   /// OwningOpRef when no registered backend fully converts the module. `source`
   /// is never mutated.
   mlir::OwningOpRef<mlir::ModuleOp>
-  tryConvertModuleClone(mlir::ModuleOp source) const;
+  tryConvertConstructedModuleClone(mlir::ModuleOp source) const;
 
 private:
   llvm::SmallVector<const TypedBackendEmissionDriver *, 4> drivers;
@@ -56,7 +57,7 @@ void registerBuiltinBackendEmitters(BackendEmissionRegistry &registry);
 /// core materialization call sites use. The registry is a function-local static
 /// (Meyers singleton) so there is no global-init-order hazard.
 mlir::OwningOpRef<mlir::ModuleOp>
-tryConvertModuleWithRegisteredBackend(mlir::ModuleOp source);
+tryConvertConstructedModuleWithRegisteredBackend(mlir::ModuleOp source);
 
 } // namespace emitc
 } // namespace conversion

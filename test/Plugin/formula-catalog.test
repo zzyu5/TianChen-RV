@@ -2,7 +2,7 @@
 
 # CHECK: formula catalog/registry integrity ok:
 # CHECK-SAME: formula authorities,
-# CHECK-SAME: registered source front doors,
-# CHECK-SAME: construction-qualified backends; direct route and all entries uniquely owned
+# CHECK-SAME: registered source front doors /
+# CHECK-SAME: canonical P=(S,g,omega) owners, 7 separate artifact backends; direct route and all entries uniquely owned
 # CHECK-SAME: declared dependency fields and
 # CHECK-SAME: declared formula cases

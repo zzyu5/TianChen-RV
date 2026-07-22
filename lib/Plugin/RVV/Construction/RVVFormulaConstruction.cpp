@@ -467,7 +467,7 @@ mlir::LogicalResult constructRVVFormulaBodies(mlir::ModuleOp module) {
           /*dumpCandidates=*/false, /*onlyOpType=*/std::nullopt)))
     return mlir::failure();
 
-  return mlir::success();
+  return validateRVVConstructedTypedBodies(module);
 }
 
 } // namespace weft::plugin::rvv

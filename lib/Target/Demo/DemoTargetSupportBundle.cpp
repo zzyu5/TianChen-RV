@@ -234,24 +234,27 @@ llvm::Error compileDemoGeneratedSourceToObject(llvm::StringRef source,
 }
 
 llvm::Error exportDemoHeaderArtifact(mlir::ModuleOp module,
-                                         llvm::raw_ostream &os) {
+                                     const plugin::ExtensionPluginRegistry &plugins,
+                                     llvm::raw_ostream &os) {
   return exportConstructionTemplateHeaderArtifact(
-      module, os, getDemoArtifactAdapterConfig());
+      module, plugins, os, getDemoArtifactAdapterConfig());
 }
 
 llvm::Error exportDemoObjectArtifact(mlir::ModuleOp module,
-                                         llvm::raw_ostream &os) {
+                                     const plugin::ExtensionPluginRegistry &plugins,
+                                     llvm::raw_ostream &os) {
   return exportConstructionTemplateObjectArtifact(
-      module, os, getDemoArtifactAdapterConfig());
+      module, plugins, os, getDemoArtifactAdapterConfig());
 }
 
 llvm::Error exportDemoEmitCToCpp(mlir::ModuleOp module,
-                                     llvm::raw_ostream &os) {
+                                 const plugin::ExtensionPluginRegistry &plugins,
+                                 llvm::raw_ostream &os) {
   if (llvm::Error error =
           plugin::demo_ext::verifyDemoConstructionProtocolReady())
     return error;
   return exportConstructionTemplateEmitCToCpp(
-      module, os, getDemoArtifactAdapterConfig());
+      module, plugins, os, getDemoArtifactAdapterConfig());
 }
 
 llvm::Error registerDemoObjectBundleTargetArtifactExporter(

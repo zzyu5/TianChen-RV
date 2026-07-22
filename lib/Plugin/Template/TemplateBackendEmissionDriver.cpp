@@ -2,10 +2,8 @@
 
 #include "Weft/Conversion/EmitC/BackendEmissionRegistry.h"
 #include "Weft/Conversion/EmitC/TypedBackendEmissionDriver.h"
-#include "Weft/Dialect/Exec/IR/ExecOps.h"
 #include "Weft/Dialect/Template/IR/TemplateDialect.h"
 #include "Weft/Plugin/Template/TemplateConstructionProtocol.h"
-#include "Weft/Support/CapabilityModel.h"
 #include "Weft/Support/RuntimeABI.h"
 
 #include "mlir/Dialect/EmitC/IR/EmitC.h"
@@ -30,63 +28,6 @@ namespace emitc = ::mlir::emitc;
 namespace weftemitc = ::weft::conversion::emitc;
 
 constexpr llvm::StringLiteral kOpInterface = "WEFTEmitCLowerableOpInterface";
-
-mlir::LogicalResult constructTemplateFinalBody(mlir::ModuleOp module) {
-  if (llvm::Error error = verifyTemplateConstructionProtocolReady()) {
-    module.emitError() << llvm::toString(std::move(error));
-    return mlir::failure();
-  }
-
-  bool unsupportedBody = false;
-  module.walk([&](mlir::Operation *op) {
-    if (op->getName().getDialectNamespace() ==
-            weft::template_ext::WEFTTemplateDialect::getDialectNamespace() &&
-        !llvm::isa<weft::template_ext::ComputeSkeletonOp>(op)) {
-      op->emitError("Template direct construction only accepts its final "
-                    "typed compute body");
-      unsupportedBody = true;
-    }
-  });
-  if (unsupportedBody)
-    return mlir::failure();
-
-  mlir::LogicalResult result = mlir::success();
-  module.walk([&](weft::template_ext::ComputeSkeletonOp compute) {
-    auto variant = compute->getAttrOfType<mlir::FlatSymbolRefAttr>(
-        "selected_variant");
-    auto kernel = compute->getParentOfType<weft::exec::KernelOp>();
-    if (!variant || !kernel) {
-      compute.emitError("Template construction requires a selected variant in "
-                        "an enclosing kernel");
-      result = mlir::failure();
-      return;
-    }
-    weft::exec::VariantOp variantOp;
-    kernel.walk([&](weft::exec::VariantOp candidate) {
-      if (candidate.getSymName() == variant.getValue())
-        variantOp = candidate;
-    });
-    if (!variantOp) {
-      compute.emitError("Template construction requires selected_variant to "
-                        "resolve to a typed variant body");
-      result = mlir::failure();
-      return;
-    }
-    llvm::Expected<support::TargetCapabilitySet> capabilities =
-        support::TargetCapabilitySet::buildFromKernelChecked(kernel);
-    if (!capabilities) {
-      compute.emitError() << llvm::toString(capabilities.takeError());
-      result = mlir::failure();
-      return;
-    }
-    if (llvm::Error error = verifyTemplateSelectedVariantLegality(
-            variantOp, kernel, *capabilities)) {
-      compute.emitError() << llvm::toString(std::move(error));
-      result = mlir::failure();
-    }
-  });
-  return result;
-}
 
 mlir::Type emitCTypeForCTypeSpelling(mlir::MLIRContext *context,
                                      llvm::StringRef cType) {
@@ -231,18 +172,6 @@ class TemplateBackendEmissionDriver final
     : public weftemitc::TypedBackendEmissionDriver {
 public:
   llvm::StringRef getBackendName() const override { return "template"; }
-
-  llvm::ArrayRef<llvm::StringRef>
-  getConstructionEntryNames() const override {
-    static constexpr llvm::StringRef entries[] = {
-        "backend:template-direct-typed-body"};
-    return entries;
-  }
-
-  llvm::LogicalResult
-  prepareForConversion(mlir::ModuleOp module) const override {
-    return constructTemplateFinalBody(module);
-  }
 
   void populateTypeConversions(
       mlir::TypeConverter & /*typeConverter*/) const override {}

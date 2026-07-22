@@ -1,82 +1,68 @@
-# Every production backend must name and execute a family-local construction
-# entry.  The shared interface deliberately has no implicit success path.
-# RUN: rg -n 'prepareForConversion\(mlir::ModuleOp module\) const = 0' %S/../../include/Weft/Conversion/EmitC/TypedBackendEmissionDriver.h | FileCheck %s --check-prefix=PURE
-# RUN: not rg -n 'prepareForConversion\(mlir::ModuleOp module\) const \{' %S/../../include/Weft/Conversion/EmitC/TypedBackendEmissionDriver.h
-# RUN: rg -n 'getConstructionEntryNames\(\) const override' %S/../../lib/Conversion/RVV/RVVToEmitC.cpp | FileCheck %s --check-prefix=RVV
-# RUN: rg -n 'getConstructionEntryNames\(\) const override' %S/../../lib/Plugin/Demo/DemoBackendEmissionDriver.cpp | FileCheck %s --check-prefix=DEMO
-# RUN: rg -n 'getConstructionEntryNames\(\) const override' %S/../../lib/Plugin/IME/IMEBackendEmissionDriver.cpp | FileCheck %s --check-prefix=IME
-# RUN: rg -n 'getConstructionEntryNames\(\) const override' %S/../../lib/Plugin/Scalar/ScalarBackendEmissionDriver.cpp | FileCheck %s --check-prefix=SCALAR
-# RUN: rg -n 'getConstructionEntryNames\(\) const override' %S/../../lib/Plugin/Toy/ToyBackendEmissionDriver.cpp | FileCheck %s --check-prefix=TOY
-# RUN: rg -n 'getConstructionEntryNames\(\) const override' %S/../../lib/Plugin/Template/TemplateBackendEmissionDriver.cpp | FileCheck %s --check-prefix=TEMPLATE
-# RUN: rg -n 'getConstructionEntryNames\(\) const override' %S/../../lib/Plugin/TensorExtLite/EmitC/TensorExtLiteBackendEmissionDriver.cpp | FileCheck %s --check-prefix=TENSOR
-# RUN: rg -n 'constructRVVFormulaBodies\(module\)' %S/../../lib/Conversion/RVV/RVVToEmitC.cpp | FileCheck %s --check-prefix=RVV-CALL
-# RUN: sed -n '/constructRVVFormulaBodies(mlir::ModuleOp module)/,/return mlir::success()/p' %S/../../lib/Plugin/RVV/Construction/RVVFormulaConstruction.cpp | FileCheck %s --check-prefix=RVV-DIRECTION-SYMMETRY
-# RUN: rg -n 'validateRVVConstructedTypedBodies\(module\)' %S/../../lib/Conversion/RVV/RVVToEmitC.cpp | FileCheck %s --check-prefix=RVV-QUALIFICATION
-# RUN: not rg -n 'Ggml(QuantizeRowQ80|QuantizeRowQ81|QuantizeRowQ8K|DequantizeRow)Op' %S/../../lib/Conversion/RVV
-# RUN: rg -n 'return constructDemoFinalBody\(module\)' %S/../../lib/Plugin/Demo/DemoBackendEmissionDriver.cpp | FileCheck %s --check-prefix=DEMO-CALL
-# RUN: rg -n 'return constructIMEFinalPlans\(module\)' %S/../../lib/Plugin/IME/IMEBackendEmissionDriver.cpp | FileCheck %s --check-prefix=IME-CALL
-# RUN: rg -n 'return constructScalarFinalPlans\(module\)' %S/../../lib/Plugin/Scalar/ScalarBackendEmissionDriver.cpp | FileCheck %s --check-prefix=SCALAR-CALL
-# RUN: rg -n 'return constructToyFinalBody\(module\)' %S/../../lib/Plugin/Toy/ToyBackendEmissionDriver.cpp | FileCheck %s --check-prefix=TOY-CALL
-# RUN: rg -n 'return constructTemplateFinalBody\(module\)' %S/../../lib/Plugin/Template/TemplateBackendEmissionDriver.cpp | FileCheck %s --check-prefix=TEMPLATE-CALL
-# RUN: rg -n 'return constructTensorExtLiteFinalBody\(module\)' %S/../../lib/Plugin/TensorExtLite/EmitC/TensorExtLiteBackendEmissionDriver.cpp | FileCheck %s --check-prefix=TENSOR-CALL
+# Family construction is a required plugin contract.  There is no successful
+# base implementation, while every current plugin makes an explicit choice
+# (Offload explicitly reports no final body).
+# RUN: sed -n '/ExtensionPlugin::constructFormulaPlans/,/^}/p' %S/../../lib/Plugin/ExtensionPlugin.cpp | FileCheck %s --check-prefix=FAIL-CLOSED-BASE
+# RUN: sed -n '/ExtensionPlugin::hasConstructedFinalBody/,/^}/p' %S/../../lib/Plugin/ExtensionPlugin.cpp | FileCheck %s --check-prefix=NO-BODY-BASE
+# RUN: rg -l 'ExtensionPlugin::constructFormulaPlans\(' %S/../../lib/Plugin/*/*ExtensionPlugin.cpp | wc -l | FileCheck %s --check-prefix=PLUGIN-COUNT
+# RUN: rg -l 'ExtensionPlugin::hasConstructedFinalBody\(' %S/../../lib/Plugin/*/*ExtensionPlugin.cpp | wc -l | FileCheck %s --check-prefix=PLUGIN-COUNT
 
-# The live backend table contains every supported emitter family.  Offload is
-# deliberately absent because its plugin contract is explicit unsupported.
-# RUN: FileCheck %s --check-prefix=TABLE < %S/../../lib/Conversion/EmitC/Builtin/BuiltinBackendEmitters.cpp
-# RUN: rg -n 'runtime-offload has no active materialized EmitC lowering or target' %S/../../lib/Plugin/Offload/OffloadExtensionPlugin.cpp | FileCheck %s --check-prefix=OFFLOAD
-
-# Public materialization, target artifact export, and the scalar translate
-# route all enter the same backend registry and fail closed when no family
-# fully legalizes; none may build a metadata/string implementation fallback.
-# RUN: rg -n 'tryConvertModuleWithRegisteredBackend' %S/../../lib/Transforms/EmitCLowerableMaterialization.cpp | FileCheck %s --check-prefix=PUBLIC-REGISTRY
-# RUN: rg -n 'tryConvertModuleWithRegisteredBackend' %S/../../lib/Target/TargetArtifactExport.cpp | FileCheck %s --check-prefix=ARTIFACT-REGISTRY
-# RUN: rg -n 'tryConvertModuleWithRegisteredBackend' %S/../../lib/Target/Scalar/ScalarTargetSupportBundle.cpp | FileCheck %s --check-prefix=TRANSLATE-REGISTRY
-# RUN: rg -n 'no registered backend emission driver fully legalizes' %S/../../lib/Transforms/EmitCLowerableMaterialization.cpp %S/../../lib/Target/TargetArtifactExport.cpp %S/../../lib/Target/Scalar/ScalarTargetSupportBundle.cpp | FileCheck %s --check-prefix=FAIL-CLOSED
-
-# Raw conversion machinery is implementation-private.  Across production
-# include/lib/tools, the only MLIR conversion application lives in the shared
-# harness that calls prepareForConversion first; callers cannot assemble a
-# parallel RVV pattern pipeline from a public header.
-# RUN: not rg -n 'populateRVV(ToEmitCTypeConversions|ElementwiseToEmitCPatterns)' %S/../../include
+# EmitC drivers are artifact consumers only.  The retired construction hook and
+# backend-owned formula inventory must not return anywhere in production code.
+# RUN: not rg -n 'prepareForConversion|getConstructionEntryNames' %S/../../include %S/../../lib
+# RUN: not rg -n 'construct(DemoFinalBody|ToyFinalBody|TemplateFinalBody|TensorExtLiteFinalBody|ScalarFinalPlans|IMEFormulaPlans)' %S/../../lib/Plugin/*/*BackendEmissionDriver.cpp %S/../../lib/Plugin/TensorExtLite/EmitC/TensorExtLiteBackendEmissionDriver.cpp
+# RUN: sed -n '/convertConstructedModuleWithBackendEmitter(/,/^}/p' %S/../../lib/Conversion/EmitC/TypedBackendEmissionDriver.cpp | not rg 'constructFormulaPlans|construct[A-Z]|prepareForConversion'
 # RUN: rg -n 'mlir::apply(Full|Partial|Analysis)Conversion' %S/../../include %S/../../lib %S/../../tools | FileCheck %s --check-prefix=ONE-CONVERSION
 # RUN: rg -n 'apply(Full|Partial|Analysis)Conversion[[:space:]]*\(' %S/../../include %S/../../lib %S/../../tools | wc -l | FileCheck %s --check-prefix=ONE-CONVERSION-COUNT
 # RUN: not rg -n 'mlir::apply(Full|Analysis)Conversion' %S/../../include %S/../../lib %S/../../tools
+
+# The selected-variant materialization path binds origin/capabilities and runs
+# construction before entering the construction-blind artifact registry.
+# RUN: sed -n '/llvm::Error runMaterialization/,/ExtensionPluginRegistry ownedRegistry/p' %S/../../lib/Transforms/EmitCLowerableMaterialization.cpp | FileCheck %s --check-prefix=BOUND-ORDER
+# RUN: rg -n 'registry->constructFormulaPlans\(getOperation\(\)\)' %S/../../lib/Transforms/EmissionReadiness.cpp | FileCheck %s --check-prefix=PIPELINE-CONSTRUCTION
+# RUN: sed -n '/^materializeSelectedEmitCArtifactModule(/,/^}/p' %S/../../lib/Target/TargetArtifactExport.cpp | FileCheck %s --check-prefix=TARGET-ORDER
+# RUN: sed -n '/exportScalarEmitCToCpp/,/^}/p' %S/../../lib/Target/Scalar/ScalarTargetSupportBundle.cpp | FileCheck %s --check-prefix=SCALAR-TRANSLATE-ORDER
+# RUN: sed -n '/bool convertRVVModuleToEmitC/,/^}/p' %S/../../lib/Conversion/RVV/RVVToEmitC.cpp | FileCheck %s --check-prefix=RVV-DIRECT-ORDER
+
+# Construction, formula and artifact inventories are separate.  Formula
+# descriptors name construction entries; artifact drivers name only backends.
+# RUN: not rg -n 'addProductionEntry\("backend:' %S/../../lib/Plugin
+# RUN: rg -n 'addProductionEntry\("construction:' %S/../../lib/Plugin | FileCheck %s --check-prefix=CONSTRUCTION-INVENTORY
+# RUN: FileCheck %s --check-prefix=TABLE < %S/../../lib/Conversion/EmitC/Builtin/BuiltinBackendEmitters.cpp
+# RUN: rg -n 'runtime-offload has no active materialized EmitC lowering or target' %S/../../lib/Plugin/Offload/OffloadExtensionPlugin.cpp | FileCheck %s --check-prefix=OFFLOAD
+
+# Mixed ownership remains fail closed in both registry and direct RVV entry.
 # RUN: rg -n 'hasCompetingBackendBody' %S/../../lib/Conversion/EmitC/BackendEmissionRegistry.cpp | FileCheck %s --check-prefix=MIXED-BACKEND
 # RUN: rg -n 'moduleHasForeignEmitCLowerableBody' %S/../../lib/Conversion/RVV/RVVToEmitC.cpp | FileCheck %s --check-prefix=DIRECT-MIXED
+# RUN: rg -n 'no registered backend emission driver fully legalizes' %S/../../lib/Transforms/EmitCLowerableMaterialization.cpp %S/../../lib/Target/TargetArtifactExport.cpp %S/../../lib/Target/Scalar/ScalarTargetSupportBundle.cpp | FileCheck %s --check-prefix=FAIL-CLOSED
 
-# Scalar and IME decisions happen in their construction owners.  Pattern code
-# may only parse/consume the final plan; it cannot call the old selectors or
-# derive qk fractions/plane geometry from the typed op again.
-# RUN: sed -n '/class ScalarComputeSkeletonToEmitCFunc/,/class ScalarBackendEmissionDriver/p' %S/../../lib/Plugin/Scalar/ScalarBackendEmissionDriver.cpp | rg 'requireScalarPlan|scalarPlanInt' | FileCheck %s --check-prefix=SCALAR-CONSUME
-# RUN: sed -n '/class ScalarComputeSkeletonToEmitCFunc/,/class ScalarBackendEmissionDriver/p' %S/../../lib/Plugin/Scalar/ScalarBackendEmissionDriver.cpp | not rg 'getQk\(|getWeightBlockStride\(|getActivationBlockStride\(|getWeightDByteOffset\(|getActivationDByteOffset\(|getActivationQuantByteOffset\(|getWeightQuantByteOffset\('
-# RUN: sed -n '/class IMEMACToEmitCFunc/,/class IMEBackendEmissionDriver/p' %S/../../lib/Plugin/IME/IMEBackendEmissionDriver.cpp | rg 'requireIMEFinalPlan|readIMEQuantPlan' | FileCheck %s --check-prefix=IME-CONSUME
-# RUN: sed -n '/class IMEMACToEmitCFunc/,/class IMEBackendEmissionDriver/p' %S/../../lib/Plugin/IME/IMEBackendEmissionDriver.cpp | not rg 'constructIMEMacLeafPlan\(|constructWideVmadotPlan\(|readIMEConstructionVlenBits\(|getImeOp\(\)[[:space:]]*=='
-# RUN: sed -n '/class IMEMACToEmitCFunc/,/class IMEBackendEmissionDriver/p' %S/../../lib/Plugin/IME/IMEBackendEmissionDriver.cpp | rg 'emitHelper' | FileCheck %s --check-prefix=IME-HELPER
-# RUN: sed -n '/class IMEMACToEmitCFunc/,/class IMEBackendEmissionDriver/p' %S/../../lib/Plugin/IME/IMEBackendEmissionDriver.cpp | not rg 'kQ40MatmulHelperName|kQ80MatmulHelperName|kQ4KMatmulHelperName'
+# Scalar and IME computation plans contain computation facts only.  Artifact
+# spellings are projected mechanically inside their EmitC drivers.
+# RUN: not rg -n 'callee|EmitCConstructionRoute' %S/../../lib/Plugin/Scalar/ScalarFormulaConstruction.cpp
+# RUN: rg -n 'llvm::StringRef callee = route.callee' %S/../../lib/Plugin/Scalar/ScalarBackendEmissionDriver.cpp | FileCheck %s --check-prefix=SCALAR-PROJECTION
+# RUN: not rg -n 'emit_helper|mac_helper' %S/../../lib/Plugin/IME/IMEFormulaConstruction.cpp %S/../../include/Weft/Plugin/IME/IMEFormulaConstruction.h
+# RUN: rg -n 'projectIME(SimpleMAC|MatMul|Quant)Artifact' %S/../../lib/Plugin/IME/IMEBackendEmissionDriver.cpp | FileCheck %s --check-prefix=IME-PROJECTION
 
-# flat_* remains the RVV formula-produced final computation plan consumed
-# directly by the emitter; kind/format/fold_model never regain authority.
+# RVV formula direction and flat_* final-plan authority remain unchanged.
+# RUN: sed -n '/constructRVVFormulaBodies(mlir::ModuleOp module)/,/return mlir::success()/p' %S/../../lib/Plugin/RVV/Construction/RVVFormulaConstruction.cpp | FileCheck %s --check-prefix=RVV-DIRECTION-SYMMETRY
+# RUN: not rg -n 'Ggml(QuantizeRowQ80|QuantizeRowQ81|QuantizeRowQ8K|DequantizeRow)Op' %S/../../lib/Conversion/RVV
 # RUN: sed -n '/VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(/,/^}/p' %S/../../lib/Conversion/RVV/RVVToEmitCBlockQuantLinear.cpp | rg 'readFinalFlatBlockDotComputePlan' | FileCheck %s --check-prefix=FLAT
 # RUN: sed -n '/VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(/,/^}/p' %S/../../lib/Conversion/RVV/RVVToEmitCBlockQuantLinear.cpp | not rg 'getFoldModel\(|getAttr(OfType)?<[^>]+>\("(kind|format|fold_model)"\)|getAttr\("(kind|format|fold_model)"\)'
 
-# PURE: prepareForConversion(mlir::ModuleOp module) const = 0
-# RVV: getConstructionEntryNames() const override
-# DEMO: getConstructionEntryNames() const override
-# IME: getConstructionEntryNames() const override
-# SCALAR: getConstructionEntryNames() const override
-# TOY: getConstructionEntryNames() const override
-# TEMPLATE: getConstructionEntryNames() const override
-# TENSOR: getConstructionEntryNames() const override
-# RVV-CALL: constructRVVFormulaBodies(module)
-# RVV-DIRECTION-SYMMETRY: constructRVVQuantizeRowFormulaBodies(module)
-# RVV-DIRECTION-SYMMETRY-NEXT: mlir::failed(constructRVVDequantizeRowFormulaBodies(module))
-# RVV-QUALIFICATION: validateRVVConstructedTypedBodies(module)
-# DEMO-CALL: return constructDemoFinalBody(module)
-# IME-CALL: return constructIMEFinalPlans(module)
-# SCALAR-CALL: return constructScalarFinalPlans(module)
-# TOY-CALL: return constructToyFinalBody(module)
-# TEMPLATE-CALL: return constructTemplateFinalBody(module)
-# TENSOR-CALL: return constructTensorExtLiteFinalBody(module)
+# FAIL-CLOSED-BASE: extension plugin has no artifact-neutral construction implementation
+# NO-BODY-BASE: return false
+# PLUGIN-COUNT: 8
+# ONE-CONVERSION: lib/Conversion/EmitC/TypedBackendEmissionDriver.cpp:{{[0-9]+}}:          mlir::applyPartialConversion
+# ONE-CONVERSION-COUNT: 1
+# BOUND-ORDER: constructFormulaPlansForVariant
+# BOUND-ORDER: tryConvertConstructedModuleWithRegisteredBackend
+# PIPELINE-CONSTRUCTION: registry->constructFormulaPlans(getOperation())
+# TARGET-ORDER: constructFormulaPlansForVariant
+# TARGET-ORDER: tryConvertConstructedModuleWithRegisteredBackend
+# SCALAR-TRANSLATE-ORDER: constructScalarFinalPlans
+# SCALAR-TRANSLATE-ORDER: tryConvertConstructedModuleWithRegisteredBackend
+# RVV-DIRECT-ORDER: constructRVVFormulaBodies
+# RVV-DIRECT-ORDER: convertConstructedModuleWithBackendEmitter
+# CONSTRUCTION-INVENTORY: addProductionEntry("construction:
 # TABLE: rvv::registerRVVBackendEmitter
 # TABLE: ::weft::plugin::demo_ext::registerDemoBackendEmitter
 # TABLE: ::weft::plugin::toy::registerToyBackendEmitter
@@ -85,19 +71,15 @@
 # TABLE: ::weft::plugin::ime::registerIMEBackendEmitter
 # TABLE: ::weft::plugin::scalar::registerScalarBackendEmitter
 # OFFLOAD: runtime-offload has no active materialized EmitC lowering or target
-# PUBLIC-REGISTRY: tryConvertModuleWithRegisteredBackend
-# ARTIFACT-REGISTRY: tryConvertModuleWithRegisteredBackend
-# TRANSLATE-REGISTRY: tryConvertModuleWithRegisteredBackend
-# FAIL-CLOSED: no registered backend emission driver fully legalizes
-# FAIL-CLOSED: no registered backend emission driver fully legalizes
-# FAIL-CLOSED: no registered backend emission driver fully legalizes
-# SCALAR-CONSUME: requireScalarPlan
-# SCALAR-CONSUME: scalarPlanInt
-# IME-CONSUME: requireIMEFinalPlan
-# IME-CONSUME: readIMEQuantPlan
-# IME-HELPER: emitHelper
-# FLAT: readFinalFlatBlockDotComputePlan
-# ONE-CONVERSION: lib/Conversion/EmitC/TypedBackendEmissionDriver.cpp:{{[0-9]+}}:          mlir::applyPartialConversion
-# ONE-CONVERSION-COUNT: 1
 # MIXED-BACKEND: hasCompetingBackendBody
 # DIRECT-MIXED: moduleHasForeignEmitCLowerableBody
+# FAIL-CLOSED: no registered backend emission driver fully legalizes
+# FAIL-CLOSED: no registered backend emission driver fully legalizes
+# FAIL-CLOSED: no registered backend emission driver fully legalizes
+# SCALAR-PROJECTION: llvm::StringRef callee = route.callee
+# IME-PROJECTION: projectIMESimpleMACArtifact
+# IME-PROJECTION: projectIMEMatMulArtifact
+# IME-PROJECTION: projectIMEQuantArtifact
+# RVV-DIRECTION-SYMMETRY: constructRVVQuantizeRowFormulaBodies(module)
+# RVV-DIRECTION-SYMMETRY-NEXT: mlir::failed(constructRVVDequantizeRowFormulaBodies(module))
+# FLAT: readFinalFlatBlockDotComputePlan

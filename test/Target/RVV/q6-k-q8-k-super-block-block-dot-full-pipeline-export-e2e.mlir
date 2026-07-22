@@ -34,7 +34,7 @@
 // are op structure the emitter consumes, not a route-family concern).
 //
 // BYTE-EXACT: the object is packaged from the exact CORE EmitC (the same
-// tryConvertModuleWithRegisteredBackend / convertRVVModuleToEmitC lowering the
+// tryConvertConstructedModuleWithRegisteredBackend / convertRVVModuleToEmitC lowering the
 // direct --weft-rvv-lower-to-emitc path uses), so the exported artifact's emit is
 // byte-identical to the CORE == emission-plans emit (the typed super-block
 // SINGLE-accumulator lowering emitTypedSuperBlockScalesTimesSumiLoopBody, itself

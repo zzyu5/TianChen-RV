@@ -173,12 +173,14 @@ tools/bench/bench --self-test
 
 ## 当前工程推进方向
 
-当前 Weft-RV registered/direct production path 已统一到 construction-before-emission：shared
-backend interface 不再允许隐式 no-op preparation；registry clone、公开 materialization、
-direct RVV conversion、translate 与 artifact 路径都在 family emitter 之前调用同一
-family-local construction owner。RVV、IME、Scalar、Demo、Toy、Template 与
-TensorExtLite 是当前具备该入口的 backend；Offload 仍是显式 unsupported，不能成为空
-emitter 或 fallback。
+当前 Weft-RV registered/direct production path 已统一到 artifact-neutral
+construction-before-artifact：target/profile 先绑定 origin family 与 typed `c_f`，再由
+`ExtensionPlugin::constructFormulaPlans` 构造或资格化 final typed body/plan，并由
+`hasConstructedFinalBody` 报告 completion。`ExtensionPlugin` 的 base implementation
+fail closed；RVV、IME、Scalar、Demo、Toy、Template 与 TensorExtLite 都显式实现该
+family lifecycle，Offload 显式 unsupported。随后
+`convertConstructedModuleWithBackendEmitter` / `tryConvertConstructedModuleWithRegisteredBackend`
+只消费已构造模块；artifact registry 与 driver 不再拥有 construction hook。
 
 RVV quantize/dequantize、repack、通用 schedule、selected-body 与 flat block-dot 已沿既有
 typed formula 链构造，其中 `flat_*` 是 formula 产生的最终计算 plan，emitter 直接读取，
@@ -192,11 +194,11 @@ Demo/Toy/Template/TensorExtLite 以已资格化 final typed body 加固定机械
 `g/c/ω + mechanisms + formula` 重建同一实例时，才可升级 strong construction。后续工程
 重点是继续做 mechanism factorization、能力因果与该删除实验，而不是重开兼容入口。
 
-V2 同时暴露了下一项横向债务：非 RVV family construction 仍主要由 EmitC
-`TypedBackendEmissionDriver::prepareForConversion` 触发，shared success gate 依赖
-`emitc.func`。GPU 实现之前必须把 canonical problem、target/family binding 与 family
-construction 移到 artifact-neutral lifecycle，再让 current EmitC driver 只消费 final body。
-这次重构覆盖所有 current family/caller，不创建 GPU dialect/backend，也不保留双路径。
+V2 的首轮横向重构已经把 canonical problem 之后的 target/family binding 与 family
+construction 从 EmitC driver 迁入 artifact-neutral plugin lifecycle。`emitc.func` 现在只保留
+为 current EmitC artifact 的完整 legalization gate，不再代表 construction completion；GPU
+也没有被注册成 EmitC emitter。本轮没有创建 GPU dialect/backend，后续 GPU family 必须复用
+同一 construction contract，并拥有自己的 typed body 与 artifact lowering。
 
 公共底座与上述切换也不表示每个 `ConstructedWeak` leaf 已经完成强义重建。关闭剩余
 公开 authority inversion 后，应在同一横向结构上推进：

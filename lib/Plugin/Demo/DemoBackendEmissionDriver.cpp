@@ -3,9 +3,7 @@
 #include "Weft/Conversion/EmitC/BackendEmissionRegistry.h"
 #include "Weft/Conversion/EmitC/TypedBackendEmissionDriver.h"
 #include "Weft/Dialect/Demo/IR/DemoDialect.h"
-#include "Weft/Dialect/Exec/IR/ExecOps.h"
 #include "Weft/Plugin/Demo/DemoConstructionProtocol.h"
-#include "Weft/Support/CapabilityModel.h"
 
 #include "mlir/Dialect/EmitC/IR/EmitC.h"
 #include "mlir/IR/Builders.h"
@@ -26,61 +24,6 @@ namespace emitc = ::mlir::emitc;
 namespace weftemitc = ::weft::conversion::emitc;
 
 constexpr llvm::StringLiteral kOpInterface("WEFTEmitCLowerableOpInterface");
-
-mlir::LogicalResult constructDemoFinalBody(mlir::ModuleOp module) {
-  if (llvm::Error error = verifyDemoConstructionProtocolReady()) {
-    module.emitError() << llvm::toString(std::move(error));
-    return mlir::failure();
-  }
-  bool unsupportedBody = false;
-  module.walk([&](mlir::Operation *op) {
-    if (op->getName().getDialectNamespace() ==
-            weft::demo_ext::WEFTDemoDialect::getDialectNamespace() &&
-        !llvm::isa<weft::demo_ext::ComputeSkeletonOp>(op)) {
-      op->emitError("Demo direct construction only accepts its final typed "
-                    "compute body");
-      unsupportedBody = true;
-    }
-  });
-  if (unsupportedBody)
-    return mlir::failure();
-  mlir::LogicalResult result = mlir::success();
-  module.walk([&](weft::demo_ext::ComputeSkeletonOp compute) {
-    auto variant = compute->getAttrOfType<mlir::FlatSymbolRefAttr>(
-        "selected_variant");
-    auto kernel = compute->getParentOfType<weft::exec::KernelOp>();
-    if (!variant || !kernel) {
-      compute.emitError("Demo construction requires a selected variant in an "
-                        "enclosing kernel");
-      result = mlir::failure();
-      return;
-    }
-    weft::exec::VariantOp variantOp;
-    kernel.walk([&](weft::exec::VariantOp candidate) {
-      if (candidate.getSymName() == variant.getValue())
-        variantOp = candidate;
-    });
-    if (!variantOp) {
-      compute.emitError("Demo construction requires selected_variant to "
-                        "resolve to a typed variant body");
-      result = mlir::failure();
-      return;
-    }
-    llvm::Expected<support::TargetCapabilitySet> capabilities =
-        support::TargetCapabilitySet::buildFromKernelChecked(kernel);
-    if (!capabilities) {
-      compute.emitError() << llvm::toString(capabilities.takeError());
-      result = mlir::failure();
-      return;
-    }
-    if (llvm::Error error = verifyDemoSelectedVariantLegality(
-            variantOp, kernel, *capabilities)) {
-      compute.emitError() << llvm::toString(std::move(error));
-      result = mlir::failure();
-    }
-  });
-  return result;
-}
 
 std::string routeSourceComment(llvm::StringRef opName,
                                llvm::StringRef role) {
@@ -175,18 +118,6 @@ class DemoBackendEmissionDriver final
     : public weftemitc::TypedBackendEmissionDriver {
 public:
   llvm::StringRef getBackendName() const override { return "demo"; }
-
-  llvm::ArrayRef<llvm::StringRef>
-  getConstructionEntryNames() const override {
-    static constexpr llvm::StringRef entries[] = {
-        "backend:demo-direct-typed-body"};
-    return entries;
-  }
-
-  llvm::LogicalResult
-  prepareForConversion(mlir::ModuleOp module) const override {
-    return constructDemoFinalBody(module);
-  }
 
   void populateTypeConversions(mlir::TypeConverter &) const override {}
 

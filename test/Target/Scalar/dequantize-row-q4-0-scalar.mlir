@@ -31,7 +31,7 @@
 
 // HELP: --weft-scalar-emitc-to-cpp
 // HELP-SAME: MLIR EmitC C/C++ emitter
-// MISSING-CAPABILITY: no registered backend emission driver fully legalizes the selected portable-scalar body to EmitC
+// MISSING-CAPABILITY: scalar direct construction requires available canonical capability id 'scalar.fallback'
 
 module {
   weft.exec.kernel @q4_0_dequant_kernel {

@@ -12,7 +12,7 @@ namespace weft {
 namespace conversion {
 namespace emitc {
 
-bool convertModuleWithBackendEmitter(
+bool convertConstructedModuleWithBackendEmitter(
     mlir::ModuleOp module, const TypedBackendEmissionDriver &driver) {
   mlir::MLIRContext *context = module.getContext();
 
@@ -23,12 +23,6 @@ bool convertModuleWithBackendEmitter(
   // pass's `dependentDialects` and makes the harness self-sufficient for both
   // callers. Loading is idempotent.
   context->loadDialect<mlir::emitc::EmitCDialect>();
-
-  // The one lifecycle hook shared by direct conversion, pass conversion and
-  // registry clone conversion. A backend that requires selected typed stamps
-  // must finish them here, before lowering patterns can create EmitC.
-  if (mlir::failed(driver.prepareForConversion(module)))
-    return false;
 
   mlir::TypeConverter typeConverter;
   // Identity for any type the backend conversions do not rewrite, so the

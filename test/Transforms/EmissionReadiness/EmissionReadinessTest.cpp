@@ -88,6 +88,10 @@ public:
 
   bool isEnabled() const override { return enabled; }
 
+  llvm::Error constructFormulaPlans(mlir::ModuleOp) const override {
+    return llvm::Error::success();
+  }
+
   llvm::Error checkVariantEmissionReadiness(
       const VariantEmissionRequest &request,
       VariantEmissionStatus &out) const override {

@@ -3,7 +3,7 @@
   "name": "artifact-neutral-family-construction-rebase",
   "title": "Artifact-neutral family construction 横向重基",
   "description": "在实现 GPU 之前，一次性把 canonical execution problem、target/family binding 与所有 current family 的 construction lifecycle 从 EmitC artifact driver 中拆出；EmitC 退回 current artifact consumer，所有 source/direct/pass/translate/artifact caller 继续共享唯一 construction-before-artifact 主链。",
-  "status": "planning",
+  "status": "in_progress",
   "dev_type": "refactor",
   "scope": "project-wide-architecture",
   "package": null,

@@ -429,6 +429,25 @@ llvm::StringRef stringifyVariantFallbackRole(VariantFallbackRole role) {
   return "unknown";
 }
 
+bool isOperationSelectedForVariant(mlir::Operation *operation,
+                                   weft::exec::VariantOp variant) {
+  if (!operation || !variant)
+    return false;
+  auto variantKernel = variant->getParentOfType<weft::exec::KernelOp>();
+  auto operationKernel =
+      operation->getParentOfType<weft::exec::KernelOp>();
+  if (!variantKernel || operationKernel != variantKernel)
+    return false;
+  // A body physically nested in the variant is already structurally bound and
+  // need not duplicate selected_variant metadata.  Kernel-level sibling
+  // boundaries require the explicit symbol join below.
+  if (isNestedUnder(operation, variant.getOperation()))
+    return true;
+  auto selected = operation->getAttrOfType<mlir::FlatSymbolRefAttr>(
+      "selected_variant");
+  return selected && selected.getValue() == variant.getSymName();
+}
+
 VariantEmissionStatus
 VariantEmissionStatus::getSupported(llvm::StringRef originPlugin,
                                     llvm::StringRef variantSymbol,
@@ -591,6 +610,18 @@ void ExtensionPlugin::collectFormulaDescriptors(
   out.push_back(std::move(descriptor));
 }
 
+llvm::Error
+ExtensionPlugin::constructFormulaPlans(mlir::ModuleOp) const {
+  return llvm::createStringError(
+      llvm::inconvertibleErrorCode(),
+      "extension plugin has no artifact-neutral construction implementation");
+}
+
+bool ExtensionPlugin::hasConstructedFinalBody(
+    weft::exec::VariantOp) const {
+  return false;
+}
+
 llvm::Error ExtensionPlugin::proposeVariants(
     const VariantProposalRequest &request,
     llvm::SmallVectorImpl<VariantProposal> &out) const {
@@ -636,11 +667,6 @@ llvm::Error ExtensionPlugin::checkVariantEmissionReadiness(
       request.getVariant() ? request.getVariant().getSymName()
                            : llvm::StringRef("<missing>"),
       "origin plugin does not provide an emission readiness path");
-  return llvm::Error::success();
-}
-
-llvm::Error ExtensionPlugin::constructFormulaPlans(mlir::ModuleOp module) const {
-  (void)module;
   return llvm::Error::success();
 }
 
@@ -999,6 +1025,55 @@ llvm::Error ExtensionPluginRegistry::collectSourceFrontDoorPasses(
   return llvm::Error::success();
 }
 
+llvm::Error ExtensionPluginRegistry::collectCanonicalProblemCatalog(
+    llvm::SmallVectorImpl<CanonicalProblemDescriptor> &out) const {
+  llvm::SmallVector<FormulaDescriptor, 48> formulas;
+  if (llvm::Error error = collectFormulaCatalog(formulas))
+    return error;
+  llvm::SmallVector<SourceFrontDoorPassRegistration, 48> frontDoors;
+  if (llvm::Error error = collectSourceFrontDoorPasses(frontDoors))
+    return error;
+
+  llvm::StringMap<const FormulaDescriptor *> formulasByID;
+  for (const FormulaDescriptor &formula : formulas)
+    formulasByID.try_emplace(formula.getID(), &formula);
+
+  llvm::StringSet<> sourceEntries;
+  for (const CanonicalProblemDescriptor &existing : out)
+    if (!existing.getSourceEntry().empty())
+      sourceEntries.insert(existing.getSourceEntry());
+
+  for (const SourceFrontDoorPassRegistration &frontDoor : frontDoors) {
+    const FormulaDescriptor *formula = formulasByID.lookup(
+        frontDoor.getFormulaID());
+    if (!formula)
+      return makePluginRegistryError(
+          llvm::Twine("canonical problem source entry '") +
+          frontDoor.getArgument() + "' has no formula owner");
+    if (formula->getOwnerPlugin() != frontDoor.getOwnerPlugin())
+      return makePluginRegistryError(
+          llvm::Twine("canonical problem source entry '") +
+          frontDoor.getArgument() + "' disagrees with its formula owner");
+    if (formula->getOperatorDomain().trim().empty() ||
+        formula->getGeometryAxis().getType().trim().empty() ||
+        formula->getStaticContextAxis().getType().trim().empty())
+      return makePluginRegistryError(
+          llvm::Twine("canonical problem source entry '") +
+          frontDoor.getArgument() +
+          "' must expose S domain plus typed g and omega ownership");
+    if (!sourceEntries.insert(frontDoor.getArgument()).second)
+      return makePluginRegistryError(
+          llvm::Twine("duplicate canonical problem source entry '") +
+          frontDoor.getArgument() + "'");
+
+    out.emplace_back(frontDoor.getArgument(), frontDoor.getOwnerPlugin(),
+                     frontDoor.getFormulaID(), formula->getOperatorDomain(),
+                     formula->getGeometryAxis().getType(),
+                     formula->getStaticContextAxis().getType());
+  }
+  return llvm::Error::success();
+}
+
 llvm::Error ExtensionPluginRegistry::collectVariantProposals(
     const VariantProposalRequest &request,
     llvm::SmallVectorImpl<VariantProposal> &out) const {
@@ -1262,8 +1337,44 @@ ExtensionPluginRegistry::constructFormulaPlans(mlir::ModuleOp module) const {
   if (!module)
     return llvm::createStringError(llvm::inconvertibleErrorCode(),
                                    "formula construction requires a module");
-  for (const ExtensionPlugin *plugin : plugins) {
-    if (!plugin || !plugin->isEnabled())
+
+  // A module may contain several pre-selection variants.  Bind each distinct
+  // origin family exactly once from the typed variant origin; never infer the
+  // family from an artifact driver, route id, or dialect-name switch.
+  llvm::SmallVector<weft::exec::VariantOp, 8> variants;
+  module.walk([&](weft::exec::VariantOp variant) { variants.push_back(variant); });
+  llvm::StringSet<> constructedFamilies;
+  for (weft::exec::VariantOp variant : variants) {
+    auto originAttr =
+        variant->getAttrOfType<mlir::StringAttr>(kOriginAttrName);
+    if (!originAttr || originAttr.getValue().trim().empty())
+      return makePluginRegistryError(
+          llvm::Twine("formula construction requires variant @") +
+          variant.getSymName() + " to name a non-empty origin family");
+    llvm::StringRef origin = originAttr.getValue();
+    const ExtensionPlugin *plugin = lookupPlugin(origin);
+    if (!plugin)
+      return makePluginRegistryError(
+          llvm::Twine("formula construction cannot bind unknown origin '") +
+          origin + "'");
+    if (!plugin->isEnabled())
+      return makePluginRegistryError(
+          llvm::Twine("formula construction cannot bind disabled origin '") +
+          origin + "'");
+
+    auto kernel = variant->getParentOfType<weft::exec::KernelOp>();
+    if (!kernel)
+      return makePluginRegistryError(
+          llvm::Twine("formula construction requires variant @") +
+          variant.getSymName() + " to have an enclosing kernel");
+    llvm::Expected<support::TargetCapabilitySet> capabilities =
+        support::TargetCapabilitySet::buildFromKernelChecked(kernel);
+    if (!capabilities)
+      return makePluginRegistryError(
+          llvm::Twine("formula construction for origin '") + origin +
+          "' rejected target/profile capability projection: " +
+          llvm::toString(capabilities.takeError()));
+    if (!constructedFamilies.insert(origin).second)
       continue;
     if (llvm::Error error = plugin->constructFormulaPlans(module))
       return llvm::createStringError(
@@ -1272,6 +1383,67 @@ ExtensionPluginRegistry::constructFormulaPlans(mlir::ModuleOp module) const {
           plugin->getName().str().c_str(),
           llvm::toString(std::move(error)).c_str());
   }
+  return llvm::Error::success();
+}
+
+llvm::Error ExtensionPluginRegistry::constructFormulaPlansForVariant(
+    mlir::ModuleOp module, weft::exec::VariantOp variant) const {
+  if (!module || !variant)
+    return makePluginRegistryError(
+        "bound family construction requires a module and selected variant");
+  if (!isNestedUnder(variant.getOperation(), module.getOperation()))
+    return makePluginRegistryError(
+        "bound family construction variant does not belong to the module");
+
+  auto kernel = variant->getParentOfType<weft::exec::KernelOp>();
+  if (!kernel)
+    return makePluginRegistryError(
+        llvm::Twine("bound family construction requires variant @") +
+        variant.getSymName() + " to have an enclosing kernel");
+  auto originAttr = variant->getAttrOfType<mlir::StringAttr>(kOriginAttrName);
+  if (!originAttr || originAttr.getValue().trim().empty())
+    return makePluginRegistryError(
+        llvm::Twine("bound family construction requires variant @") +
+        variant.getSymName() + " to name a non-empty origin family");
+
+  llvm::StringRef origin = originAttr.getValue();
+  const ExtensionPlugin *plugin = lookupPlugin(origin);
+  if (!plugin)
+    return makePluginRegistryError(
+        llvm::Twine("bound family construction cannot bind unknown origin '") +
+        origin + "'");
+  if (!plugin->isEnabled())
+    return makePluginRegistryError(
+        llvm::Twine("bound family construction cannot bind disabled origin '") +
+        origin + "'");
+
+  // Building the target capability set here is the typed c_f binding gate.
+  // The family may project finer-grained facts internally, but artifact code
+  // cannot postpone or redo this binding.
+  llvm::Expected<support::TargetCapabilitySet> capabilities =
+      support::TargetCapabilitySet::buildFromKernelChecked(kernel);
+  if (!capabilities)
+    return makePluginRegistryError(
+        llvm::Twine("bound family construction for origin '") + origin +
+        "' rejected target/profile capability projection: " +
+        llvm::toString(capabilities.takeError()));
+
+  if (llvm::Error error = plugin->verifyVariantLegality(
+          VariantLegalityRequest(variant, kernel, *capabilities)))
+    return makePluginRegistryError(
+        llvm::Twine("bound family construction for origin '") + origin +
+        "' rejected selected variant legality: " +
+        llvm::toString(std::move(error)));
+
+  if (llvm::Error error = plugin->constructFormulaPlans(module))
+    return makePluginRegistryError(
+        llvm::Twine("bound family construction for origin '") + origin +
+        "' failed: " + llvm::toString(std::move(error)));
+  if (!plugin->hasConstructedFinalBody(variant))
+    return makePluginRegistryError(
+        llvm::Twine("bound family construction for origin '") + origin +
+        "' produced no family-typed final body in variant @" +
+        variant.getSymName());
   return llvm::Error::success();
 }
 

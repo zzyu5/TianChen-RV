@@ -137,6 +137,30 @@ void ScalarExtensionPlugin::registerDialects(
   registry.insert<weft::scalar::WEFTScalarDialect>();
 }
 
+llvm::Error
+ScalarExtensionPlugin::constructFormulaPlans(mlir::ModuleOp module) const {
+  if (mlir::succeeded(scalar::constructScalarFinalPlans(module)))
+    return llvm::Error::success();
+  return makeScalarPluginError(
+      "artifact-neutral Scalar final-plan construction failed");
+}
+
+bool ScalarExtensionPlugin::hasConstructedFinalBody(
+    weft::exec::VariantOp variant) const {
+  auto kernel = variant->getParentOfType<weft::exec::KernelOp>();
+  if (!kernel)
+    return false;
+  bool found = false;
+  kernel.walk([&](mlir::Operation *op) {
+    if (llvm::isa<weft::scalar::ComputeSkeletonOp,
+                  weft::scalar::TernaryQ2Q8BlockDotOp,
+                  weft::scalar::DequantizeRowQ4Op>(op) &&
+        isOperationSelectedForVariant(op, variant))
+      found = true;
+  });
+  return found;
+}
+
 void ScalarExtensionPlugin::collectFormulaDescriptors(
     llvm::SmallVectorImpl<FormulaDescriptor> &out) const {
   FormulaDescriptor construction(
@@ -156,7 +180,7 @@ void ScalarExtensionPlugin::collectFormulaDescriptors(
   construction.addSemanticCase("capability-available-single-candidate");
   construction.addSemanticCase("capability-unavailable-not-applicable");
   construction.addProductionEntry("plugin:variant-proposal");
-  construction.addProductionEntry("backend:scalar-compute-skeleton");
+  construction.addProductionEntry("construction:scalar-compute-plan");
   out.push_back(std::move(construction));
 
   FormulaDescriptor ternaryBlockDot(
@@ -177,7 +201,8 @@ void ScalarExtensionPlugin::collectFormulaDescriptors(
                                              "ScalarTQ2NoStaticContext");
   ternaryBlockDot.addSemanticCase("canonical-tq2-0-q8-k");
   ternaryBlockDot.addSemanticCase("unsupported-layout-reject");
-  ternaryBlockDot.addProductionEntry("backend:scalar-tq2-q8-block-dot");
+  ternaryBlockDot.addProductionEntry(
+      "construction:scalar-tq2-q8-block-dot-plan");
   out.push_back(std::move(ternaryBlockDot));
 
   FormulaDescriptor q40Dequant(
@@ -196,7 +221,8 @@ void ScalarExtensionPlugin::collectFormulaDescriptors(
                                         "ScalarQ40NoStaticContext");
   q40Dequant.addSemanticCase("canonical-q4-0-row");
   q40Dequant.addSemanticCase("unsupported-layout-reject");
-  q40Dequant.addProductionEntry("backend:scalar-q4-0-dequantize-row");
+  q40Dequant.addProductionEntry(
+      "construction:scalar-q4-0-dequantize-row-plan");
   out.push_back(std::move(q40Dequant));
 
   FormulaDescriptor cost(

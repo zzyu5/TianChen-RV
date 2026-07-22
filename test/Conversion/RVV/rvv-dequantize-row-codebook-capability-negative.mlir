@@ -60,4 +60,4 @@ module {
 // TYPED-MASK-POLICY: property 'required_mask_policy' must be a typed string attribute
 // UNKNOWN-MASK-POLICY: property 'required_mask_policy' has unknown policy token 'sideways'
 // PARENT-CORE: requires parent/core decode_model construction coherence; parent carries 'nvfp4' while the core carries 'mxfp4'
-// REGISTRY-REJECT: no registered backend emission driver fully legalizes the selected variant @mxfp4 body to EmitC
+// REGISTRY-REJECT: RVV dequantize-row formula rejected construction: selected RVV provider @rvv is missing typed minimum_vlen

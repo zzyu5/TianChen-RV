@@ -21,7 +21,7 @@
 // (they never carry this route id and never reach the RepackGemv exporter).
 //
 // BYTE-EXACT: the object is packaged from the exact CORE EmitC (the same
-// tryConvertModuleWithRegisteredBackend / convertRVVModuleToEmitC lowering the
+// tryConvertConstructedModuleWithRegisteredBackend / convertRVVModuleToEmitC lowering the
 // direct --weft-rvv-lower-to-emitc path uses), so the production-export emit is
 // byte-identical to the CORE == emission-plans emit (asserted below by diff). The
 // exported function symbol is the kernel+variant handoff name. NO board / NO perf

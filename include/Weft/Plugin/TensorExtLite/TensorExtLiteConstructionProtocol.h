@@ -8,8 +8,10 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Error.h"
+#include "mlir/Support/LogicalResult.h"
 
 namespace mlir {
+class ModuleOp;
 class Operation;
 } // namespace mlir
 
@@ -23,6 +25,10 @@ class TargetCapabilitySet;
 } // namespace weft::support
 
 namespace weft::plugin::tensorext_lite {
+
+/// Artifact-neutral construction/qualification for the complete typed role
+/// sequence.  EmitC route data is neither an input nor a completion condition.
+mlir::LogicalResult constructTensorExtLiteFinalBody(mlir::ModuleOp module);
 
 /// Verifies that a selected TensorExtLite variant is legal to emit: capability
 /// conformance (provider id/kind/properties) AND variant metadata-vs-manifest

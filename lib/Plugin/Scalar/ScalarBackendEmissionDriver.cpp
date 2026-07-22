@@ -4,10 +4,8 @@
 #include "Weft/Conversion/EmitC/WEFTEmitCLowerableOpInterface.h"
 #include "Weft/Conversion/EmitC/TypedBackendEmissionDriver.h"
 #include "Weft/Dialect/Scalar/IR/ScalarDialect.h"
-#include "Weft/Dialect/Exec/IR/ExecOps.h"
 #include "Weft/Plugin/Scalar/ScalarFormulaConstruction.h"
 #include "Weft/Plugin/Scalar/ScalarEmitCRouteProvider.h"
-#include "Weft/Support/CapabilityModel.h"
 
 #include "mlir/Dialect/EmitC/IR/EmitC.h"
 #include "mlir/IR/Builders.h"
@@ -30,162 +28,6 @@ namespace weftemitc = ::weft::conversion::emitc;
 
 using scalar::kScalarFinalPlanAttrName;
 
-/// A scalar direct route starts with a typed operation rather than with the
-/// normal plugin pass.  These helpers are the scalar family's construction
-/// owner for that entry: they consume the typed geometry once, derive every
-/// code-affecting structural field, and persist the complete result on the
-/// operation for the emitter.  A pre-existing plan is accepted only when it is
-/// exactly the construction result; a partial or forged plan fails closed.
-mlir::LogicalResult attachScalarFinalPlan(
-    mlir::Operation *op, mlir::DictionaryAttr expected,
-    llvm::StringRef formulaID) {
-  auto existing = op->getAttrOfType<mlir::DictionaryAttr>(
-      kScalarFinalPlanAttrName);
-  if (op->hasAttr(kScalarFinalPlanAttrName) && !existing)
-    return op->emitError() << "scalar construction plan must be a dictionary for "
-                           << formulaID;
-  if (existing && existing != expected)
-    return op->emitError()
-           << "scalar construction plan is partial, stale, or conflicts with "
-              "typed geometry for "
-           << formulaID;
-  op->setAttr(kScalarFinalPlanAttrName, expected);
-  return mlir::success();
-}
-
-mlir::DictionaryAttr makeScalarPlan(
-    mlir::MLIRContext *context, llvm::StringRef formulaID,
-    llvm::ArrayRef<std::pair<llvm::StringRef, int64_t>> integerFields,
-    llvm::ArrayRef<std::pair<llvm::StringRef, llvm::StringRef>> stringFields =
-        {}) {
-  llvm::SmallVector<mlir::NamedAttribute, 16> attrs;
-  attrs.push_back(mlir::NamedAttribute(
-      mlir::StringAttr::get(context, "formula_id"),
-      mlir::StringAttr::get(context, formulaID)));
-  for (auto [name, value] : integerFields)
-    attrs.push_back(mlir::NamedAttribute(
-        mlir::StringAttr::get(context, name),
-        mlir::IntegerAttr::get(mlir::IntegerType::get(context, 64), value)));
-  for (auto [name, value] : stringFields)
-    attrs.push_back(mlir::NamedAttribute(
-        mlir::StringAttr::get(context, name),
-        mlir::StringAttr::get(context, value)));
-  return mlir::DictionaryAttr::get(context, attrs);
-}
-
-mlir::LogicalResult constructScalarComputePlan(mlir::ModuleOp module) {
-  bool saw = false;
-  mlir::LogicalResult result = mlir::success();
-  module.walk([&](weft::scalar::ComputeSkeletonOp compute) {
-    saw = true;
-    auto immediate = compute->getAttrOfType<mlir::IntegerAttr>(
-        "scalar_immediate");
-    auto sourceKernel =
-        compute->getAttrOfType<mlir::StringAttr>("source_kernel");
-    auto variant = compute->getAttrOfType<mlir::FlatSymbolRefAttr>(
-        "selected_variant");
-    if (!immediate || !sourceKernel || !variant ||
-        sourceKernel.getValue().trim().empty() ||
-        variant.getValue().trim().empty()) {
-      result = compute->emitError()
-               << "scalar compute construction requires source_kernel, "
-                  "selected_variant and scalar_immediate";
-      return;
-    }
-    llvm::SmallVector<std::pair<llvm::StringRef, int64_t>, 1> ints = {
-        {"scalar_immediate", immediate.getInt()}};
-    llvm::SmallVector<std::pair<llvm::StringRef, llvm::StringRef>, 1> strings =
-        {{"callee", getScalarEmitCConstructionRoute().callee}};
-    auto plan = makeScalarPlan(compute.getContext(),
-                               kScalarFallbackConstructionFormulaID, ints,
-                               strings);
-    if (mlir::failed(attachScalarFinalPlan(
-            compute.getOperation(), plan,
-            kScalarFallbackConstructionFormulaID)))
-      result = mlir::failure();
-  });
-  if (!saw)
-    return mlir::success();
-  return result;
-}
-
-mlir::LogicalResult constructScalarTernaryPlan(mlir::ModuleOp module) {
-  bool saw = false;
-  mlir::LogicalResult result = mlir::success();
-  module.walk([&](weft::scalar::TernaryQ2Q8BlockDotOp dot) {
-    saw = true;
-    // These are the complete ggml tq2_0 x q8_K mechanism facts.  The op name
-    // fixes the semantic format; accepting a different layout here would turn
-    // the direct route into an unqualified second implementation.
-    if (dot.getQk() != 256 || dot.getWeightBlockStride() != 66 ||
-        dot.getActivationBlockStride() != 292 ||
-        dot.getWeightDByteOffset() != 64 ||
-        dot.getActivationDByteOffset() != 0 ||
-        dot.getActivationQuantByteOffset() != 4) {
-      result = dot->emitError()
-               << "tq2_0 x q8_K construction only admits the canonical "
-                  "qk/stride/offset geometry";
-      return;
-    }
-    llvm::SmallVector<std::pair<llvm::StringRef, int64_t>, 14> ints = {
-        {"qk", dot.getQk()},
-        {"weight_block_stride", dot.getWeightBlockStride()},
-        {"activation_block_stride", dot.getActivationBlockStride()},
-        {"weight_d_byte_offset", dot.getWeightDByteOffset()},
-        {"activation_d_byte_offset", dot.getActivationDByteOffset()},
-        {"activation_quant_byte_offset", dot.getActivationQuantByteOffset()},
-        {"packed_weight_bytes", dot.getQk() / 4},
-        {"planes", 4},
-        {"plane_lanes", 32},
-        {"plane_group_stride", 32},
-        {"field_bits", 2},
-        {"field_mask", 3},
-        {"decode_zero_point", 1},
-        {"activation_plane_stride", 4}};
-    auto plan = makeScalarPlan(dot.getContext(), kScalarTernaryBlockDotFormulaID,
-                               ints);
-    if (mlir::failed(attachScalarFinalPlan(
-            dot.getOperation(), plan, kScalarTernaryBlockDotFormulaID)))
-      result = mlir::failure();
-  });
-  if (!saw)
-    return mlir::success();
-  return result;
-}
-
-mlir::LogicalResult constructScalarQ40DequantPlan(mlir::ModuleOp module) {
-  bool saw = false;
-  mlir::LogicalResult result = mlir::success();
-  module.walk([&](weft::scalar::DequantizeRowQ4Op dequant) {
-    saw = true;
-    if (dequant.getQk() != 32 || dequant.getWeightBlockStride() != 18 ||
-        dequant.getWeightDByteOffset() != 0 ||
-        dequant.getWeightQuantByteOffset() != 2) {
-      result = dequant->emitError()
-               << "q4_0 dequant construction only admits the canonical "
-                  "qk/stride/offset geometry";
-      return;
-    }
-    llvm::SmallVector<std::pair<llvm::StringRef, int64_t>, 8> ints = {
-        {"qk", dequant.getQk()},
-        {"weight_block_stride", dequant.getWeightBlockStride()},
-        {"weight_d_byte_offset", dequant.getWeightDByteOffset()},
-        {"weight_quant_byte_offset", dequant.getWeightQuantByteOffset()},
-        {"half_width", dequant.getQk() / 2},
-        {"field_bits", 4},
-        {"field_mask", 15},
-        {"decode_zero_point", 8}};
-    auto plan = makeScalarPlan(dequant.getContext(),
-                               kScalarQ40DequantizeRowFormulaID, ints);
-    if (mlir::failed(attachScalarFinalPlan(
-            dequant.getOperation(), plan, kScalarQ40DequantizeRowFormulaID)))
-      result = mlir::failure();
-  });
-  if (!saw)
-    return mlir::success();
-  return result;
-}
-
 mlir::FailureOr<mlir::DictionaryAttr>
 requireScalarPlan(mlir::Operation *op, llvm::StringRef formulaID) {
   auto plan = op->getAttrOfType<mlir::DictionaryAttr>(kScalarFinalPlanAttrName);
@@ -206,64 +48,6 @@ mlir::FailureOr<int64_t> scalarPlanInt(mlir::DictionaryAttr plan,
     return op->emitError() << "scalar final plan is missing integer field '"
                            << name << "'";
   return value.getInt();
-}
-
-mlir::FailureOr<llvm::StringRef> scalarPlanString(mlir::DictionaryAttr plan,
-                                                  llvm::StringRef name,
-                                                  mlir::Operation *op) {
-  auto value = plan.getAs<mlir::StringAttr>(name);
-  if (!value)
-    return op->emitError() << "scalar final plan is missing string field '"
-                           << name << "'";
-  return value.getValue();
-}
-
-mlir::LogicalResult constructScalarFinalPlans(mlir::ModuleOp module) {
-  mlir::LogicalResult contextStatus = mlir::success();
-  module.walk([&](mlir::Operation *op) {
-    if (op->getName().getDialectNamespace() !=
-        weft::scalar::WEFTScalarDialect::getDialectNamespace())
-      return mlir::WalkResult::advance();
-    if (!llvm::isa<weft::scalar::ComputeSkeletonOp,
-                   weft::scalar::TernaryQ2Q8BlockDotOp,
-                   weft::scalar::DequantizeRowQ4Op>(op)) {
-      op->emitError("scalar direct construction has no formula owner for this "
-                    "typed operation");
-      contextStatus = mlir::failure();
-      return mlir::WalkResult::interrupt();
-    }
-    auto kernel = op->getParentOfType<weft::exec::KernelOp>();
-    auto sourceKernel = op->getAttrOfType<mlir::StringAttr>("source_kernel");
-    if (!kernel || !sourceKernel || sourceKernel.getValue() != kernel.getSymName()) {
-      op->emitError("scalar direct construction requires source_kernel to "
-                    "match an enclosing weft.exec.kernel");
-      contextStatus = mlir::failure();
-      return mlir::WalkResult::interrupt();
-    }
-    llvm::Expected<support::TargetCapabilitySet> capabilities =
-        support::TargetCapabilitySet::buildFromKernelChecked(kernel);
-    if (!capabilities) {
-      op->emitError() << llvm::toString(capabilities.takeError());
-      contextStatus = mlir::failure();
-      return mlir::WalkResult::interrupt();
-    }
-    const support::CapabilityDescriptor *scalarCapability =
-        capabilities->lookupProviderByID("scalar.fallback");
-    if (!scalarCapability || !scalarCapability->isAvailable()) {
-      op->emitError("scalar direct construction requires available canonical "
-                    "capability id 'scalar.fallback'");
-      contextStatus = mlir::failure();
-      return mlir::WalkResult::interrupt();
-    }
-    return mlir::WalkResult::advance();
-  });
-  if (mlir::failed(contextStatus))
-    return mlir::failure();
-  if (mlir::failed(constructScalarComputePlan(module)) ||
-      mlir::failed(constructScalarTernaryPlan(module)) ||
-      mlir::failed(constructScalarQ40DequantPlan(module)))
-    return mlir::failure();
-  return mlir::success();
 }
 
 std::string routeSourceComment(llvm::StringRef opName, llvm::StringRef role,
@@ -335,13 +119,10 @@ public:
           compute, "scalar compute final plan was not constructed");
     auto immediateOr =
         scalarPlanInt(*planOr, "scalar_immediate", compute.getOperation());
-    auto calleeOr =
-        scalarPlanString(*planOr, "callee", compute.getOperation());
-    if (mlir::failed(immediateOr) || mlir::failed(calleeOr))
+    if (mlir::failed(immediateOr))
       return rewriter.notifyMatchFailure(compute,
                                          "scalar compute final plan is partial");
     int64_t immediate = *immediateOr;
-    llvm::StringRef callee = *calleeOr;
     std::string functionName =
         ("weft_emitc_" + sourceKernel.getValue() + "_" + variant.getValue())
             .str();
@@ -359,6 +140,7 @@ public:
 
     const ScalarEmitCConstructionRoute &route =
         getScalarEmitCConstructionRoute();
+    llvm::StringRef callee = route.callee;
 
     auto module = compute->getParentOfType<mlir::ModuleOp>();
     if (!module)
@@ -1133,20 +915,6 @@ class ScalarBackendEmissionDriver final
     : public weftemitc::TypedBackendEmissionDriver {
 public:
   llvm::StringRef getBackendName() const override { return "scalar"; }
-
-  llvm::ArrayRef<llvm::StringRef>
-  getConstructionEntryNames() const override {
-    static constexpr llvm::StringRef entries[] = {
-        "backend:scalar-compute-skeleton",
-        "backend:scalar-tq2-q8-block-dot",
-        "backend:scalar-q4-0-dequantize-row"};
-    return entries;
-  }
-
-  llvm::LogicalResult
-  prepareForConversion(mlir::ModuleOp module) const override {
-    return constructScalarFinalPlans(module);
-  }
 
   void populateTypeConversions(
       mlir::TypeConverter & /*typeConverter*/) const override {

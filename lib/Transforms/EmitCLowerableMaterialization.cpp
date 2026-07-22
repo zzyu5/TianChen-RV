@@ -252,6 +252,17 @@ private:
     if (!target)
       return target.takeError();
 
+    // Bind P=(S,g,omega) to this selected variant's origin family and finish
+    // its typed final body before choosing any artifact projection.  The
+    // backend registry below is intentionally construction-blind.
+    if (llvm::Error error =
+            registry->constructFormulaPlansForVariant(module,
+                                                      target->variant))
+      return makeEmitCMaterializationPassError(
+          llvm::Twine("selected family construction failed before EmitC "
+                      "artifact projection: ") +
+          llvm::toString(std::move(error)));
+
     // Stage 3 换心 decouple (PATH R, emitc-lowerable-route materialization).
     // Attempt the real typed-body->emitc DialectConversion on a CLONE of the
     // module — via the table-driven backend-emission registry (mirrors the
@@ -264,7 +275,8 @@ private:
     // the live IR; only a full conversion keeps it. Zero family-name branch —
     // purely "did a registered backend legalize this body."
     if (mlir::OwningOpRef<mlir::ModuleOp> convertedModule =
-            conversion::emitc::tryConvertModuleWithRegisteredBackend(module))
+            conversion::emitc::
+                tryConvertConstructedModuleWithRegisteredBackend(module))
       return replaceModuleBodyWithMaterializedEmitC(
           module, std::move(convertedModule));
 

@@ -50,4 +50,4 @@ module {
   }
 }
 
-// CHECK: no registered backend emission driver fully legalizes the selected variant @toy_template_first_slice body to EmitC
+// CHECK: Toy direct construction only accepts its final typed compute body

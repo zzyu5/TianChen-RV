@@ -26,4 +26,4 @@ module {
   }
 }
 
-// CHECK: no registered backend emission driver fully legalizes the selected variant @tensorext_lite_tile_mma_first_slice body to EmitC
+// CHECK: bound family construction for origin 'tensorext-lite-plugin' produced no family-typed final body in variant @tensorext_lite_tile_mma_first_slice

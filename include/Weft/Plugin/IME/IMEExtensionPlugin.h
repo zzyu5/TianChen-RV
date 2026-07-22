@@ -29,6 +29,8 @@ public:
   llvm::StringRef getVersion() const override;
   llvm::ArrayRef<PluginCapability> getCapabilities() const override;
   void registerDialects(mlir::DialectRegistry &registry) const override;
+  llvm::Error constructFormulaPlans(mlir::ModuleOp module) const override;
+  bool hasConstructedFinalBody(weft::exec::VariantOp variant) const override;
   void collectFormulaDescriptors(
       llvm::SmallVectorImpl<FormulaDescriptor> &out) const override;
   bool supportsOperation(const VariantProposalRequest &request) const override;

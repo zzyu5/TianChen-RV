@@ -9,6 +9,7 @@
 
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Builders.h"
+#include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/DialectRegistry.h"
 #include "llvm/Support/Errc.h"
 #include "llvm/Support/raw_ostream.h"
@@ -423,6 +424,27 @@ void TemplateExtensionPlugin::registerDialects(
 }
 
 llvm::Error
+TemplateExtensionPlugin::constructFormulaPlans(mlir::ModuleOp module) const {
+  if (mlir::succeeded(template_ext::constructTemplateFinalBody(module)))
+    return llvm::Error::success();
+  return makeTemplatePluginError(
+      "artifact-neutral Template final-body construction failed");
+}
+
+bool TemplateExtensionPlugin::hasConstructedFinalBody(
+    weft::exec::VariantOp variant) const {
+  auto kernel = variant->getParentOfType<weft::exec::KernelOp>();
+  if (!kernel)
+    return false;
+  bool found = false;
+  kernel.walk([&](weft::template_ext::ComputeSkeletonOp body) {
+    if (isOperationSelectedForVariant(body.getOperation(), variant))
+      found = true;
+  });
+  return found;
+}
+
+llvm::Error
 TemplateExtensionPlugin::verifyExecutableConstructionConformance() const {
   return template_ext::verifyTemplateConstructionProtocolReady();
 }
@@ -445,7 +467,7 @@ void TemplateExtensionPlugin::collectFormulaDescriptors(
   construction.addSemanticCase("capability-applicable-role-sequence");
   construction.addSemanticCase("capability-decline");
   construction.addProductionEntry("plugin:variant-proposal");
-  construction.addProductionEntry("backend:template-direct-typed-body");
+  construction.addProductionEntry("construction:template-final-typed-body");
   out.push_back(std::move(construction));
 
   FormulaDescriptor cost(

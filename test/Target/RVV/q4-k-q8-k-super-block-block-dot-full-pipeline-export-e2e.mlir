@@ -35,7 +35,7 @@
 //      monolithic route id -- decomposed routes are byte-exact untouched.
 //
 // BYTE-EXACT: the object is packaged from the exact CORE EmitC (the same
-// tryConvertModuleWithRegisteredBackend / convertRVVModuleToEmitC lowering the
+// tryConvertConstructedModuleWithRegisteredBackend / convertRVVModuleToEmitC lowering the
 // direct --weft-rvv-lower-to-emitc path uses), so the exported artifact's emit is
 // byte-identical to the CORE == emission-plans emit. The typed super-block loop
 // body's executable C is byte-identical to the retired monolith's (modulo the

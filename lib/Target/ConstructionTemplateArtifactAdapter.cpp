@@ -406,7 +406,8 @@ llvm::Error validateConstructionTemplateTargetArtifactCandidate(
 }
 
 llvm::Error exportConstructionTemplateHeaderArtifact(
-    mlir::ModuleOp module, llvm::raw_ostream &os,
+    mlir::ModuleOp module, const plugin::ExtensionPluginRegistry &plugins,
+    llvm::raw_ostream &os,
     const ConstructionTemplateArtifactAdapterConfig &config) {
   if (llvm::Error error =
           validateConstructionTemplateArtifactAdapterConfig(config))
@@ -421,11 +422,13 @@ llvm::Error exportConstructionTemplateHeaderArtifact(
           target->candidate, config))
     return error;
   return exportMaterializedEmitCHeaderArtifact(
-      module, os, getConstructionTemplateHeaderArtifactConfig(config));
+      module, plugins, os,
+      getConstructionTemplateHeaderArtifactConfig(config));
 }
 
 llvm::Error exportConstructionTemplateObjectArtifact(
-    mlir::ModuleOp module, llvm::raw_ostream &os,
+    mlir::ModuleOp module, const plugin::ExtensionPluginRegistry &plugins,
+    llvm::raw_ostream &os,
     const ConstructionTemplateArtifactAdapterConfig &config) {
   if (llvm::Error error =
           validateConstructionTemplateArtifactAdapterConfig(config))
@@ -442,14 +445,16 @@ llvm::Error exportConstructionTemplateObjectArtifact(
     return error;
 
   llvm::Expected<std::string> source =
-      emitSelectedEmitCArtifactCppSource(module, config.selectedRoute);
+      emitSelectedEmitCArtifactCppSource(module, plugins,
+                                         config.selectedRoute);
   if (!source)
     return source.takeError();
   return config.objectPackagerFn(*source, os);
 }
 
 llvm::Error exportConstructionTemplateEmitCToCpp(
-    mlir::ModuleOp module, llvm::raw_ostream &os,
+    mlir::ModuleOp module, const plugin::ExtensionPluginRegistry &plugins,
+    llvm::raw_ostream &os,
     const ConstructionTemplateArtifactAdapterConfig &config) {
   if (llvm::Error error =
           validateConstructionTemplateArtifactAdapterConfig(config))
@@ -466,7 +471,8 @@ llvm::Error exportConstructionTemplateEmitCToCpp(
     return error;
 
   llvm::Expected<std::string> source =
-      emitSelectedEmitCArtifactCppSource(module, config.selectedRoute);
+      emitSelectedEmitCArtifactCppSource(module, plugins,
+                                         config.selectedRoute);
   if (!source)
     return source.takeError();
   os << *source;

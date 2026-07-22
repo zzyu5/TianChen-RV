@@ -9,6 +9,7 @@
 
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Builders.h"
+#include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/DialectRegistry.h"
 #include "llvm/Support/Errc.h"
 #include "llvm/Support/raw_ostream.h"
@@ -423,6 +424,27 @@ void DemoExtensionPlugin::registerDialects(
 }
 
 llvm::Error
+DemoExtensionPlugin::constructFormulaPlans(mlir::ModuleOp module) const {
+  if (mlir::succeeded(demo_ext::constructDemoFinalBody(module)))
+    return llvm::Error::success();
+  return makeDemoPluginError(
+      "artifact-neutral Demo final-body construction failed");
+}
+
+bool DemoExtensionPlugin::hasConstructedFinalBody(
+    weft::exec::VariantOp variant) const {
+  auto kernel = variant->getParentOfType<weft::exec::KernelOp>();
+  if (!kernel)
+    return false;
+  bool found = false;
+  kernel.walk([&](weft::demo_ext::ComputeSkeletonOp body) {
+    if (isOperationSelectedForVariant(body.getOperation(), variant))
+      found = true;
+  });
+  return found;
+}
+
+llvm::Error
 DemoExtensionPlugin::verifyExecutableConstructionConformance() const {
   return demo_ext::verifyDemoConstructionProtocolReady();
 }
@@ -445,7 +467,7 @@ void DemoExtensionPlugin::collectFormulaDescriptors(
   construction.addSemanticCase("capability-applicable-role-sequence");
   construction.addSemanticCase("capability-decline");
   construction.addProductionEntry("plugin:variant-proposal");
-  construction.addProductionEntry("backend:demo-direct-typed-body");
+  construction.addProductionEntry("construction:demo-final-typed-body");
   out.push_back(std::move(construction));
 
   FormulaDescriptor cost(

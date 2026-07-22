@@ -63,10 +63,31 @@ int main() {
           "collect source front-door registrations"))
     return result;
 
+  llvm::SmallVector<CanonicalProblemDescriptor, 48> problems;
+  if (int result = expectSuccess(
+          plugins.collectCanonicalProblemCatalog(problems),
+          "collect canonical problem catalog"))
+    return result;
+  if (problems.size() != frontDoors.size())
+    return fail("canonical problem catalog must cover every source front door "
+                "exactly once");
+  llvm::StringSet<> problemEntries;
+  for (const CanonicalProblemDescriptor &problem : problems) {
+    if (!problemEntries.insert(problem.getSourceEntry()).second)
+      return fail(llvm::Twine("duplicate canonical problem entry: ") +
+                  problem.getSourceEntry());
+    if (problem.getOwnerPlugin().empty() || problem.getFormulaID().empty() ||
+        problem.getOperatorDomain().empty() || problem.getGeometryType().empty() ||
+        problem.getStaticContextType().empty())
+      return fail(llvm::Twine("canonical problem entry is missing typed P=(S,g,"
+                              "omega) ownership: ") +
+                  problem.getSourceEntry());
+  }
+
   llvm::StringMap<const FormulaDescriptor *> byID;
   llvm::StringMap<unsigned> scopedProductionEntryOwners;
   llvm::StringMap<unsigned> globalProductionEntryOwners;
-  llvm::StringSet<> catalogBackendEntries;
+  llvm::StringSet<> catalogConstructionEntries;
   std::size_t declaredDependencyFields = 0;
   std::size_t declaredFormulaCases = 0;
   for (const FormulaDescriptor &formula : formulas) {
@@ -81,8 +102,8 @@ int main() {
           (formula.getOwnerPlugin() + llvm::Twine("\n") + entry).str();
       ++scopedProductionEntryOwners[key];
       ++globalProductionEntryOwners[entry];
-      if (llvm::StringRef(entry).starts_with("backend:"))
-        catalogBackendEntries.insert(entry);
+      if (llvm::StringRef(entry).starts_with("construction:"))
+        catalogConstructionEntries.insert(entry);
     }
     auto countDecisive = [&](const FormulaAxisDescriptor &axis) {
       if (axis.getUse() == FormulaAxisUse::Decisive)
@@ -97,37 +118,19 @@ int main() {
   weft::conversion::emitc::BackendEmissionRegistry backendRegistry;
   weft::conversion::emitc::registerBuiltinBackendEmitters(backendRegistry);
   llvm::StringSet<> backendNames;
-  llvm::StringMap<unsigned> backendConstructionEntryClaims;
   for (const weft::conversion::emitc::TypedBackendEmissionDriver *backend :
        backendRegistry.getRegisteredBackends()) {
     if (!backendNames.insert(backend->getBackendName()).second)
       return fail(llvm::Twine("duplicate backend identity: ") +
                   backend->getBackendName());
-    if (backend->getConstructionEntryNames().empty())
-      return fail(llvm::Twine("backend has no construction formula entry: ") +
-                  backend->getBackendName());
-    for (llvm::StringRef entry : backend->getConstructionEntryNames()) {
-      if (!entry.starts_with("backend:"))
-        return fail(llvm::Twine("backend construction entry has no backend: "
-                                "namespace: ") +
-                    entry);
-      if (++backendConstructionEntryClaims[entry] != 1)
-        return fail(llvm::Twine("backend construction entry is claimed by "
-                                "multiple live backends: ") +
-                    entry);
-      if (globalProductionEntryOwners.lookup(entry) != 1)
-        return fail(llvm::Twine("backend construction entry must have exactly "
-                                "one catalog owner: ") +
-                    entry);
-    }
   }
-  if (catalogBackendEntries.size() != backendConstructionEntryClaims.size())
-    return fail("catalog backend entries and live backend construction entries "
-                "must be the same set");
-  for (const auto &entry : catalogBackendEntries)
-    if (backendConstructionEntryClaims.lookup(entry.getKey()) != 1)
-      return fail(llvm::Twine("catalog contains a dead backend construction "
-                              "entry: ") +
+  if (catalogConstructionEntries.empty())
+    return fail("formula catalog exposes no artifact-neutral construction "
+                "entries");
+  for (const auto &entry : catalogConstructionEntries)
+    if (globalProductionEntryOwners.lookup(entry.getKey()) != 1)
+      return fail(llvm::Twine("construction entry must have exactly one "
+                              "family formula owner: ") +
                   entry.getKey());
   for (llvm::StringRef requiredBackend :
        {"rvv", "demo", "toy", "template", "tensorext_lite", "ime",
@@ -430,9 +433,10 @@ int main() {
   llvm::outs() << "formula catalog/registry integrity ok: " << plugins.size()
                << " plugins, " << formulas.size() << " formula authorities, "
                << frontDoors.size()
-               << " registered source front doors, " << backendNames.size()
-               << " construction-qualified backends; direct route and all "
-                  "entries uniquely owned; "
+               << " registered source front doors / " << problems.size()
+               << " canonical P=(S,g,omega) owners, " << backendNames.size()
+               << " separate artifact backends; direct route and all entries "
+                  "uniquely owned; "
                << declaredDependencyFields << " declared dependency fields and "
                << declaredFormulaCases << " declared formula cases\n";
   return 0;

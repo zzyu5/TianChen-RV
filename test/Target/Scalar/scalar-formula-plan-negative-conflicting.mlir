@@ -28,4 +28,4 @@ module {
   }
 }
 
-// CHECK: no registered backend emission driver fully legalizes the selected portable-scalar body to EmitC
+// CHECK: scalar construction plan is partial, stale, or conflicts with typed geometry for weft.scalar.q4-0.dequantize-row.construct

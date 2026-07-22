@@ -17,6 +17,7 @@ add_mlir_library(WeftIMEBackendEmitter
 
 add_mlir_library(WeftIMEPlugin
   IMEExtensionPlugin.cpp
+  IMEFormulaConstruction.cpp
 
   PARTIAL_SOURCES_INTENDED
 

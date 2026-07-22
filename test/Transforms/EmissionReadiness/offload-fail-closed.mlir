@@ -132,6 +132,5 @@ module {
   }
 }
 
-// CHECK: Weft-RV variant emission plan collection failed
-// CHECK-SAME: variant @foreign_offload
-// CHECK: unknown origin plugin 'offload-unregistered-plugin'
+// CHECK: formula construction failed before emission planning
+// CHECK-SAME: formula construction cannot bind unknown origin 'offload-unregistered-plugin'

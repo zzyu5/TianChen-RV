@@ -60,4 +60,4 @@ module {
 // POSITIVE: emitc.func @weft_emitc_capability_parity_kernel_vector
 // MISSING-REQ: requires structured array attribute 'requires' containing capability symbol references
 // DIRECT-REJECT: failed to legalize operation 'weft.exec.variant'
-// REGISTRY-REJECT: no registered backend emission driver fully legalizes the selected variant @vector body to EmitC
+// REGISTRY-REJECT: Weft-RV EmitC lowerable materialization failed:

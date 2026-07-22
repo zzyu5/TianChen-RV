@@ -22,4 +22,4 @@ module {
 // CHECK: emitc.func @weft_emitc_demo_direct_emitc_demo_zero_core_first_slice
 // CHECK: weft_emitc.route_source_op=weft_demo.compute_skeleton role=compute
 // CHECK: call_opaque "weft_demo_compute_skeleton"
-// STALE: no registered backend emission driver fully legalizes the selected variant @demo_zero_core_first_slice body to EmitC
+// STALE: bound family construction for origin 'demo-plugin' rejected selected variant legality

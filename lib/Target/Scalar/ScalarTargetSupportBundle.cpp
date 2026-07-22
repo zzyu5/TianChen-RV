@@ -2,6 +2,7 @@
 
 #include "Weft/Conversion/EmitC/BackendEmissionRegistry.h"
 #include "Weft/Plugin/Scalar/ScalarEmitCRouteProvider.h"
+#include "Weft/Plugin/Scalar/ScalarFormulaConstruction.h"
 #include "Weft/Target/TargetTranslateRegistration.h"
 
 #include "mlir/IR/BuiltinOps.h"
@@ -29,9 +30,16 @@ llvm::Error makeScalarTargetRouteError(llvm::Twine message) {
 /// C/C++ through the upstream MLIR EmitC C/C++ emitter. The live module is
 /// never mutated.
 llvm::Error exportScalarEmitCToCpp(mlir::ModuleOp module,
+                                   const plugin::ExtensionPluginRegistry &plugins,
                                    llvm::raw_ostream &os) {
+  mlir::OwningOpRef<mlir::ModuleOp> constructed(module.clone());
+  if (mlir::failed(
+          plugin::scalar::constructScalarFinalPlans(*constructed)))
+    return makeScalarTargetRouteError(
+        "Scalar family construction rejected the selected typed body");
   mlir::OwningOpRef<mlir::ModuleOp> emitcModule =
-      conversion::emitc::tryConvertModuleWithRegisteredBackend(module);
+      conversion::emitc::
+          tryConvertConstructedModuleWithRegisteredBackend(*constructed);
   if (!emitcModule)
     return makeScalarTargetRouteError(
         "no registered backend emission driver fully legalizes the selected "

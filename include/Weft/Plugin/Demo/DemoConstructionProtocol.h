@@ -6,8 +6,10 @@
 
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Error.h"
+#include "mlir/Support/LogicalResult.h"
 
 namespace mlir {
+class ModuleOp;
 class Operation;
 } // namespace mlir
 
@@ -21,6 +23,9 @@ class TargetCapabilitySet;
 } // namespace weft::support
 
 namespace weft::plugin::demo_ext {
+
+/// Artifact-neutral construction/qualification for the Demo final typed body.
+mlir::LogicalResult constructDemoFinalBody(mlir::ModuleOp module);
 
 /// Verifies that a selected Demo variant is legal to emit: capability
 /// conformance (provider id/kind/properties) AND variant metadata-vs-manifest

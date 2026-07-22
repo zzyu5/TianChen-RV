@@ -234,24 +234,27 @@ llvm::Error compileTemplateGeneratedSourceToObject(llvm::StringRef source,
 }
 
 llvm::Error exportTemplateHeaderArtifact(mlir::ModuleOp module,
+                                         const plugin::ExtensionPluginRegistry &plugins,
                                          llvm::raw_ostream &os) {
   return exportConstructionTemplateHeaderArtifact(
-      module, os, getTemplateArtifactAdapterConfig());
+      module, plugins, os, getTemplateArtifactAdapterConfig());
 }
 
 llvm::Error exportTemplateObjectArtifact(mlir::ModuleOp module,
+                                         const plugin::ExtensionPluginRegistry &plugins,
                                          llvm::raw_ostream &os) {
   return exportConstructionTemplateObjectArtifact(
-      module, os, getTemplateArtifactAdapterConfig());
+      module, plugins, os, getTemplateArtifactAdapterConfig());
 }
 
 llvm::Error exportTemplateEmitCToCpp(mlir::ModuleOp module,
+                                     const plugin::ExtensionPluginRegistry &plugins,
                                      llvm::raw_ostream &os) {
   if (llvm::Error error =
           plugin::template_ext::verifyTemplateConstructionProtocolReady())
     return error;
   return exportConstructionTemplateEmitCToCpp(
-      module, os, getTemplateArtifactAdapterConfig());
+      module, plugins, os, getTemplateArtifactAdapterConfig());
 }
 
 llvm::Error registerTemplateObjectBundleTargetArtifactExporter(

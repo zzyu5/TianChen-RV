@@ -17,5 +17,5 @@ module {
   }
 }
 
-// CHECK: no registered backend emission driver fully legalizes the selected variant @rvv_pre_route_add body to EmitC
+// CHECK: bound family construction for origin 'rvv-plugin' produced no family-typed final body in variant @rvv_pre_route_add
 // CHECK-NOT: emitc.func

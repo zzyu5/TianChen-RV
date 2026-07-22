@@ -469,6 +469,19 @@ RVVExtensionPlugin::constructFormulaPlans(mlir::ModuleOp module) const {
       "RVV formula-construction cut rejected the module");
 }
 
+bool RVVExtensionPlugin::hasConstructedFinalBody(
+    weft::exec::VariantOp variant) const {
+  auto kernel = variant->getParentOfType<weft::exec::KernelOp>();
+  if (!kernel)
+    return false;
+  bool found = false;
+  kernel.walk([&](weft::rvv::WithVLOp body) {
+    if (isOperationSelectedForVariant(body.getOperation(), variant))
+      found = true;
+  });
+  return found;
+}
+
 void RVVExtensionPlugin::collectFormulaDescriptors(
     llvm::SmallVectorImpl<FormulaDescriptor> &out) const {
   auto addDecisiveFields = [](FormulaAxisDescriptor &axis,
@@ -862,7 +875,7 @@ void RVVExtensionPlugin::collectFormulaDescriptors(
        getRVVSelectedBodyRealizationOwners())
     realization.addSemanticCase(owner.familyName);
   realization.addProductionEntry("internal:selected-body-realization");
-  realization.addProductionEntry("backend:rvv-direct-typed-body");
+  realization.addProductionEntry("construction:rvv-final-typed-body");
   out.push_back(std::move(realization));
 }
 

@@ -118,6 +118,40 @@ private:
   llvm::SmallVector<std::string, 8> productionEntries;
 };
 
+/// Read-only ownership record for a production canonical problem P=(S,g,omega).
+/// It is derived by joining a registered source front door with its typed
+/// FormulaDescriptor; it contains no evaluator, target family, schedule,
+/// winner, leaf identity, or artifact route.
+class CanonicalProblemDescriptor {
+public:
+  CanonicalProblemDescriptor() = default;
+  CanonicalProblemDescriptor(llvm::StringRef sourceEntry,
+                             llvm::StringRef ownerPlugin,
+                             llvm::StringRef formulaID,
+                             llvm::StringRef operatorDomain,
+                             llvm::StringRef geometryType,
+                             llvm::StringRef staticContextType)
+      : sourceEntry(sourceEntry.str()), ownerPlugin(ownerPlugin.str()),
+        formulaID(formulaID.str()), operatorDomain(operatorDomain.str()),
+        geometryType(geometryType.str()),
+        staticContextType(staticContextType.str()) {}
+
+  llvm::StringRef getSourceEntry() const { return sourceEntry; }
+  llvm::StringRef getOwnerPlugin() const { return ownerPlugin; }
+  llvm::StringRef getFormulaID() const { return formulaID; }
+  llvm::StringRef getOperatorDomain() const { return operatorDomain; }
+  llvm::StringRef getGeometryType() const { return geometryType; }
+  llvm::StringRef getStaticContextType() const { return staticContextType; }
+
+private:
+  std::string sourceEntry;
+  std::string ownerPlugin;
+  std::string formulaID;
+  std::string operatorDomain;
+  std::string geometryType;
+  std::string staticContextType;
+};
+
 } // namespace weft::plugin
 
 #endif // WEFT_PLUGIN_FORMULACATALOG_H

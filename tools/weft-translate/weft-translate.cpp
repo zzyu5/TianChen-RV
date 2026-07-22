@@ -33,6 +33,7 @@ namespace {
 
 using TargetArtifactExportFn = llvm::Error (*)(
     mlir::ModuleOp, const weft::target::TargetArtifactExporterRegistry &,
+    const weft::plugin::ExtensionPluginRegistry &,
     llvm::raw_ostream &);
 
 namespace execDiagnostic = weft::exec::diagnostic;
@@ -140,6 +141,7 @@ mlir::LogicalResult runSourceArtifactFrontDoorPipeline(
 mlir::LogicalResult
 exportTargetTranslateRoute(mlir::ModuleOp module,
                            const weft::target::TargetTranslateRoute &route,
+                           const weft::plugin::ExtensionPluginRegistry &plugins,
                            llvm::raw_ostream &os) {
   if (route.requiresBinaryStdout()) {
     if (std::error_code error = llvm::sys::ChangeStdoutToBinary()) {
@@ -156,7 +158,7 @@ exportTargetTranslateRoute(mlir::ModuleOp module,
   if (route.hasTargetArtifactRouteID())
     return planAndExportTargetTranslateArtifactRoute(module, route, os);
 
-  if (llvm::Error error = route.getExportFn()(module, os)) {
+  if (llvm::Error error = route.getExportFn()(module, plugins, os)) {
     std::string message = llvm::toString(std::move(error));
     module.emitError() << message;
     return mlir::failure();
@@ -200,6 +202,8 @@ mlir::LogicalResult runSourceArtifactFrontDoorPipeline(
 
 void registerBuiltinTargetTranslateRouteTranslations() {
   static weft::target::TargetTranslateRouteRegistry routeRegistry;
+  static weft::plugin::ExtensionBundleRegistry bundles;
+  static weft::plugin::ExtensionPluginRegistry plugins;
   static std::vector<std::unique_ptr<mlir::TranslateFromMLIRRegistration>>
       registrations;
   static bool initialized = false;
@@ -207,8 +211,6 @@ void registerBuiltinTargetTranslateRouteTranslations() {
     return;
 
   if (!initialized) {
-    weft::plugin::ExtensionBundleRegistry bundles;
-    weft::plugin::ExtensionPluginRegistry plugins;
     if (llvm::Error error = populateBuiltinExtensionFrontDoor(bundles, plugins)) {
       llvm::report_fatal_error(
           llvm::Twine("failed to register Weft-RV built-in extension "
@@ -229,16 +231,17 @@ void registerBuiltinTargetTranslateRouteTranslations() {
   for (const weft::target::TargetTranslateRoute &route :
        routeRegistry.getRoutes()) {
     const weft::target::TargetTranslateRoute *routePtr = &route;
+    const weft::plugin::ExtensionPluginRegistry *pluginsPtr = &plugins;
     mlir::TranslateFromMLIRFunction translate =
-        [routePtr](mlir::Operation *op,
-                   llvm::raw_ostream &os) -> mlir::LogicalResult {
+        [routePtr, pluginsPtr](mlir::Operation *op,
+                              llvm::raw_ostream &os) -> mlir::LogicalResult {
       auto module = llvm::dyn_cast<mlir::ModuleOp>(op);
       if (!module)
         return op->emitError()
                << "expected a 'builtin.module' op for Weft-RV target "
                   "translate route '"
                << routePtr->getRouteID() << "'";
-      return exportTargetTranslateRoute(module, *routePtr, os);
+      return exportTargetTranslateRoute(module, *routePtr, *pluginsPtr, os);
     };
 
     registrations.push_back(
@@ -300,7 +303,7 @@ exportCoherenceGatedTargetArtifact(mlir::ModuleOp module, llvm::raw_ostream &os,
     return mlir::failure();
   }
 
-  if (llvm::Error error = exportFn(module, exporters, os)) {
+  if (llvm::Error error = exportFn(module, exporters, plugins, os)) {
     std::string message = llvm::toString(std::move(error));
     module.emitError() << message;
     return mlir::failure();
@@ -325,7 +328,7 @@ mlir::LogicalResult exportCoherenceGatedTargetArtifactRoute(
   }
 
   if (llvm::Error error = weft::target::exportTargetArtifactRoute(
-          module, exporters, routeID, os)) {
+          module, exporters, plugins, routeID, os)) {
     std::string message = llvm::toString(std::move(error));
     module.emitError() << message;
     return mlir::failure();
@@ -371,7 +374,7 @@ mlir::LogicalResult planAndExportTargetTranslateArtifactRoute(
   }
 
   if (llvm::Error error = weft::target::exportTargetArtifactRoute(
-          module, exporters, route.getTargetArtifactRouteID(), os)) {
+          module, exporters, plugins, route.getTargetArtifactRouteID(), os)) {
     std::string message = llvm::toString(std::move(error));
     module.emitError() << message;
     return mlir::failure();
@@ -408,7 +411,8 @@ mlir::LogicalResult exportTargetArtifactBundle(mlir::ModuleOp module,
   }
 
   if (llvm::Error error = weft::target::exportTargetArtifactBundle(
-          module, exporters, targetArtifactBundleOutputDirectory)) {
+          module, exporters, plugins,
+          targetArtifactBundleOutputDirectory)) {
     std::string message = llvm::toString(std::move(error));
     module.emitError() << message;
     return mlir::failure();
@@ -434,7 +438,8 @@ sourceArtifactBundleFrontDoor(mlir::ModuleOp module, llvm::raw_ostream &os) {
     return mlir::failure();
 
   if (llvm::Error error = weft::target::exportTargetArtifactBundle(
-          module, exporters, targetArtifactBundleOutputDirectory)) {
+          module, exporters, plugins,
+          targetArtifactBundleOutputDirectory)) {
     std::string message = llvm::toString(std::move(error));
     module.emitError() << message;
     return mlir::failure();

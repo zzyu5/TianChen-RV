@@ -1076,9 +1076,10 @@ ConstructionTemplateArtifactAdapterConfig
 getRVVSelectedBodyArtifactAdapterConfig();
 
 llvm::Error exportMaterializedRVVEmitCToCpp(mlir::ModuleOp module,
+                                            const plugin::ExtensionPluginRegistry &plugins,
                                             llvm::raw_ostream &os) {
   return exportConstructionTemplateEmitCToCpp(
-      module, os, getRVVSelectedBodyArtifactAdapterConfig());
+      module, plugins, os, getRVVSelectedBodyArtifactAdapterConfig());
 }
 
 // Package the generated EmitC C/C++ as a RISC-V RVV relocatable object under an
@@ -1528,15 +1529,17 @@ getRVVSelectedBodyArtifactAdapterConfig() {
 }
 
 llvm::Error exportRVVSelectedBodyTargetArtifact(mlir::ModuleOp module,
+                                                const plugin::ExtensionPluginRegistry &plugins,
                                                    llvm::raw_ostream &os) {
   return exportConstructionTemplateObjectArtifact(
-      module, os, getRVVSelectedBodyArtifactAdapterConfig());
+      module, plugins, os, getRVVSelectedBodyArtifactAdapterConfig());
 }
 
 llvm::Error exportRVVSelectedBodyHeaderArtifact(mlir::ModuleOp module,
+                                                const plugin::ExtensionPluginRegistry &plugins,
                                                    llvm::raw_ostream &os) {
   return exportConstructionTemplateHeaderArtifact(
-      module, os, getRVVSelectedBodyArtifactAdapterConfig());
+      module, plugins, os, getRVVSelectedBodyArtifactAdapterConfig());
 }
 
 // P2-b chunk3: the monolithic block-dot object-export adapter config, per route
@@ -1545,7 +1548,7 @@ llvm::Error exportRVVSelectedBodyHeaderArtifact(mlir::ModuleOp module,
 // honest monolithic candidate validator, the (family) header route id, and the
 // (family) metadata evidence. The object emit reuses the common RVV->EmitC
 // DialectConversion (materializeSelectedEmitCArtifactModule ->
-// tryConvertModuleWithRegisteredBackend), which chunk 1 already made lower the
+// tryConvertConstructedModuleWithRegisteredBackend), which lowers the
 // monolithic op, so the exported EmitC is byte-identical to the CORE
 // --weft-rvv-lower-to-emitc emit. This config is used ONLY by the monolithic
 // OBJECT export fns (below); it is never handed to the header/object bundle
@@ -1642,36 +1645,40 @@ getRVVMonolithicBlockDotArtifactAdapterConfig(
 
 llvm::Error
 exportRVVMonolithicSuperBlockBlockDotTargetArtifact(mlir::ModuleOp module,
+                                                    const plugin::ExtensionPluginRegistry &plugins,
                                                     llvm::raw_ostream &os) {
   return exportConstructionTemplateObjectArtifact(
-      module, os,
+      module, plugins, os,
       getRVVMonolithicBlockDotArtifactAdapterConfig(
           plugin::rvv::MonolithicBlockDotRouteFamily::SuperBlock));
 }
 
 llvm::Error
 exportRVVMonolithicFlatBlockDotTargetArtifact(mlir::ModuleOp module,
+                                              const plugin::ExtensionPluginRegistry &plugins,
                                               llvm::raw_ostream &os) {
   return exportConstructionTemplateObjectArtifact(
-      module, os,
+      module, plugins, os,
       getRVVMonolithicBlockDotArtifactAdapterConfig(
           plugin::rvv::MonolithicBlockDotRouteFamily::Flat));
 }
 
 llvm::Error
 exportRVVMonolithicRepackGemvTargetArtifact(mlir::ModuleOp module,
+                                            const plugin::ExtensionPluginRegistry &plugins,
                                             llvm::raw_ostream &os) {
   return exportConstructionTemplateObjectArtifact(
-      module, os,
+      module, plugins, os,
       getRVVMonolithicBlockDotArtifactAdapterConfig(
           plugin::rvv::MonolithicBlockDotRouteFamily::RepackGemv));
 }
 
 llvm::Error
 exportRVVMonolithicRepackGemmTargetArtifact(mlir::ModuleOp module,
+                                            const plugin::ExtensionPluginRegistry &plugins,
                                             llvm::raw_ostream &os) {
   return exportConstructionTemplateObjectArtifact(
-      module, os,
+      module, plugins, os,
       getRVVMonolithicBlockDotArtifactAdapterConfig(
           plugin::rvv::MonolithicBlockDotRouteFamily::RepackGemm));
 }

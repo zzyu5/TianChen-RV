@@ -16,4 +16,4 @@ module {
   }
 }
 
-// CHECK: no registered backend emission driver fully legalizes the selected portable-scalar body to EmitC
+// CHECK: q4_0 dequant construction only admits the canonical qk/stride/offset geometry

@@ -7,6 +7,19 @@ add_mlir_library(WeftScalarEmitCRouteProvider
   MLIRSupport
 )
 
+add_mlir_library(WeftScalarFormulaConstruction
+  ScalarFormulaConstruction.cpp
+
+  PARTIAL_SOURCES_INTENDED
+
+  LINK_LIBS PUBLIC
+  WeftExecDialect
+  WeftScalarDialect
+  WeftSupport
+  MLIRIR
+  MLIRSupport
+)
+
 add_mlir_library(WeftScalarBackendEmitter
   ScalarBackendEmissionDriver.cpp
 
@@ -29,6 +42,7 @@ add_mlir_library(WeftScalarPlugin
   PARTIAL_SOURCES_INTENDED
 
   LINK_LIBS PUBLIC
+  WeftScalarFormulaConstruction
   WeftScalarDialect
   WeftScalarTarget
   WeftPlugin

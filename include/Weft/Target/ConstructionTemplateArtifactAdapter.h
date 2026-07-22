@@ -80,15 +80,18 @@ llvm::Error validateConstructionTemplateTargetArtifactCandidate(
     const ConstructionTemplateArtifactAdapterConfig &config);
 
 llvm::Error exportConstructionTemplateHeaderArtifact(
-    mlir::ModuleOp module, llvm::raw_ostream &os,
+    mlir::ModuleOp module, const plugin::ExtensionPluginRegistry &plugins,
+    llvm::raw_ostream &os,
     const ConstructionTemplateArtifactAdapterConfig &config);
 
 llvm::Error exportConstructionTemplateObjectArtifact(
-    mlir::ModuleOp module, llvm::raw_ostream &os,
+    mlir::ModuleOp module, const plugin::ExtensionPluginRegistry &plugins,
+    llvm::raw_ostream &os,
     const ConstructionTemplateArtifactAdapterConfig &config);
 
 llvm::Error exportConstructionTemplateEmitCToCpp(
-    mlir::ModuleOp module, llvm::raw_ostream &os,
+    mlir::ModuleOp module, const plugin::ExtensionPluginRegistry &plugins,
+    llvm::raw_ostream &os,
     const ConstructionTemplateArtifactAdapterConfig &config);
 
 llvm::Error registerConstructionTemplateArtifactAdapterExporters(
