@@ -67,7 +67,7 @@ construction-protocol manifest 已登记就视为 final body construction 已统
   denylist 覆盖全部 inventory；
 - [x] full build、完整 lit、plugin/unit、direct-route self-tests、diff/json/task checks
   全部通过；
-- [ ] spec/issues 只在上述事实成立后更新，task 固定最终 commit，工作区干净；
+- [x] spec/issues 只在上述事实成立后更新，task 固定主体实现 commit，收口提交后工作区干净；
 - [x] `ConstructedWeak` 与 delete-leaf strong reconstruction 的边界继续诚实保留。
 
 ## 明确不是完成证明的东西
