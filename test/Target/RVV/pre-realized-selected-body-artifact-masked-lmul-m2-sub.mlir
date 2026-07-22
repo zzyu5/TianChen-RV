@@ -43,35 +43,10 @@ module {
 
 // PLAN: weft.exec.diagnostic
 // PLAN-SAME: artifact_kind = "riscv-elf-relocatable-object"
-// PLAN-SAME: {key = "rvv_selected_body_operation", value = "masked_sub"}
-// PLAN-SAME: {key = "rvv_selected_body_typed_compute_op", value = "weft_rvv.masked_binary"}
-// PLAN-SAME: {key = "weft_rvv.config_contract", value = "rvv-selected-body-sew32-lmul-m2-tail-agnostic-mask-agnostic.v1"}
-// PLAN-SAME: {key = "weft_rvv.element_type", value = "i32"}
-// PLAN-SAME: {key = "weft_rvv.sew", value = "32"}
-// PLAN-SAME: {key = "weft_rvv.lmul", value = "m2"}
-// PLAN-SAME: {key = "weft_rvv.runtime_control_plan", value = "rvv-runtime-avl-vl-control-plan.v1"}
-// PLAN-SAME: {key = "weft_rvv.route_operand_binding_plan", value = "rvv-route-operand-binding:masked_sub.v1"}
-// PLAN-SAME: {key = "weft_rvv.elementwise_arithmetic_route_family_plan", value = "rvv-elementwise-arithmetic-route-family-plan.v1"}
-// PLAN-SAME: {key = "weft_rvv.target_leaf_profile", value = "rvv-v1-typed-masked-elementwise-arithmetic-leaf-profile.v1"}
-// PLAN-SAME: {key = "weft_rvv.provider_supported_mirror", value = "provider_supported_mirror:rvv-masked-elementwise-arithmetic-plan-validated"}
-// PLAN-SAME: {key = "weft_rvv.c_type_mapping", value = "vl:size_t,lhs/rhs/passthrough:typed-vector,mask:typed-mask,result:typed-vector"}
-// PLAN-SAME: {key = "weft_rvv.mask_role", value = "predicate-mask-produced-by-compare"}
-// PLAN-SAME: {key = "weft_rvv.mask_source", value = "compare-produced-mask-same-vl-scope"}
-// PLAN-SAME: {key = "weft_rvv.inactive_lane_contract", value = "masked-off-lanes-preserve-passthrough-vector"}
-// PLAN-SAME: {key = "weft_rvv.masked_passthrough_layout", value = "passthrough-vector-preserves-inactive-lanes"}
-// PLAN-SAME: runtime_abi_name = "rvv-generic-masked-sub-callable-c-abi.v1"
+// PLAN-SAME: runtime_abi_name = "rvv-exact-typed-body-callable-c-abi.v2"
 // PLAN-SAME: status = "supported"
 // PLAN-SAME: target = @pre_realized_body_rvv_masked_lmul_m2_sub
 
 // HEADER: weft.rvv.selected_variant: @pre_realized_body_rvv_masked_lmul_m2_sub
-// HEADER: weft.rvv.runtime_abi_name: rvv-generic-masked-sub-callable-c-abi.v1
-// HEADER: weft.rvv.config_contract: rvv-selected-body-sew32-lmul-m2-tail-agnostic-mask-agnostic.v1
-// HEADER: weft.rvv.element_type: i32
-// HEADER: weft.rvv.sew: 32
-// HEADER: weft.rvv.lmul: m2
-// HEADER-DAG: weft.rvv.elementwise_arithmetic_route_family_plan: rvv-elementwise-arithmetic-route-family-plan.v1
-// HEADER-DAG: weft.rvv.target_leaf_profile: rvv-v1-typed-masked-elementwise-arithmetic-leaf-profile.v1
-// HEADER-DAG: weft.rvv.provider_supported_mirror: provider_supported_mirror:rvv-masked-elementwise-arithmetic-plan-validated
-// HEADER-DAG: weft.rvv.c_type_mapping: vl:size_t,lhs/rhs/passthrough:typed-vector,mask:typed-mask,result:typed-vector
-// HEADER-DAG: weft.rvv.route_operand_binding_plan: rvv-route-operand-binding:masked_sub.v1
+// HEADER: weft.rvv.runtime_abi_name: rvv-exact-typed-body-callable-c-abi.v2
 // HEADER: void weft_emitc_pre_realized_body_masked_lmul_m2_sub_kernel_pre_realized_body_rvv_masked_lmul_m2_sub(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n);

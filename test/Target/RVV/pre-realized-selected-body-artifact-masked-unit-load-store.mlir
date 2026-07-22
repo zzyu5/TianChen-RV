@@ -49,33 +49,14 @@ module {
 
 // PLAN: weft.exec.diagnostic
 // PLAN-SAME: artifact_kind = "riscv-elf-relocatable-object"
-// PLAN-SAME: {key = "rvv_selected_body_operation", value = "masked_unit_load_store"}
-// PLAN-SAME: {key = "rvv_selected_body_typed_compute_op", value = "weft_rvv.masked_load"}
-// PLAN-SAME: {key = "weft_rvv.memory_form", value = "masked-unit-load-store"}
-// PLAN-SAME: {key = "weft_rvv.runtime_abi_order", value = "src,mask,dst,n"}
-// PLAN-SAME: {key = "weft_rvv.route_operand_binding_plan", value = "rvv-route-operand-binding:masked_unit_load_store.v1"}
-// PLAN-SAME: {key = "weft_rvv.route_operand_binding_operands", value = "rvv-route-operand-binding:masked_unit_load_store.v1;src=lhs-input-buffer:src:runtime-abi-mirror|materialized-masked-load-base|masked-load-source-call|header-mirror;mask=mask-input-buffer:mask:runtime-abi-mirror|materialized-mask-load-base|masked-load-mask-call|header-mirror;dst=output-buffer:dst:runtime-abi-mirror|materialized-old-destination-load-base|masked-load-passthrough-call|materialized-store-base|header-mirror;n=runtime-element-count:n:runtime-abi-mirror|setvl-avl|loop-control|header-mirror"}
-// PLAN-SAME: {key = "weft_rvv.masked_memory_layout", value = "unit-stride-source-mask-old-destination-runtime-abi"}
-// PLAN-SAME: {key = "weft_rvv.mask_role", value = "predicate-mask-input-buffer"}
-// PLAN-SAME: {key = "weft_rvv.mask_source", value = "runtime_abi:mask"}
-// PLAN-SAME: {key = "weft_rvv.mask_memory_form", value = "unit-stride-mask-load"}
-// PLAN-SAME: {key = "weft_rvv.inactive_lane_contract", value = "masked-off-lanes-preserve-old-destination"}
-// PLAN-SAME: {key = "weft_rvv.masked_passthrough_layout", value = "old-destination-vector-preserves-inactive-lanes"}
-// PLAN-SAME: {key = "weft_rvv.source_memory_form", value = "unit-stride-load"}
-// PLAN-SAME: {key = "weft_rvv.destination_memory_form", value = "unit-stride-store"}
 // PLAN-SAME: emission_kind = "materialized-emitc-cpp-rvv-intrinsic-object"
-// PLAN-SAME: lowering_boundary = "weft_rvv.with_vl"
 // PLAN-SAME: origin = "rvv-plugin"
 // PLAN-SAME: reason = "emission_plan"
 // PLAN-SAME: role = "dispatch case"
-// PLAN-SAME: runtime_abi_name = "rvv-generic-masked-unit-load-store-callable-c-abi.v1"
+// PLAN-SAME: runtime_abi_name = "rvv-exact-typed-body-callable-c-abi.v2"
 // PLAN-SAME: status = "supported"
 // PLAN-SAME: target = @pre_realized_body_rvv_masked_unit_load_store
 
 // HEADER: weft.rvv.selected_variant: @pre_realized_body_rvv_masked_unit_load_store
-// HEADER: weft.rvv.runtime_abi_name: rvv-generic-masked-unit-load-store-callable-c-abi.v1
-// HEADER: weft.rvv.emitc_route_mapping: rvv-generic-typed-body-emitc-route-family
-// HEADER: weft.rvv.runtime_abi_order: src,mask,dst,n
-// HEADER: weft.rvv.route_operand_binding_plan: rvv-route-operand-binding:masked_unit_load_store.v1
-// HEADER: weft.rvv.route_operand_binding_operands: rvv-route-operand-binding:masked_unit_load_store.v1;src=lhs-input-buffer:src:runtime-abi-mirror|materialized-masked-load-base|masked-load-source-call|header-mirror;mask=mask-input-buffer:mask:runtime-abi-mirror|materialized-mask-load-base|masked-load-mask-call|header-mirror;dst=output-buffer:dst:runtime-abi-mirror|materialized-old-destination-load-base|masked-load-passthrough-call|materialized-store-base|header-mirror;n=runtime-element-count:n:runtime-abi-mirror|setvl-avl|loop-control|header-mirror
+// HEADER: weft.rvv.runtime_abi_name: rvv-exact-typed-body-callable-c-abi.v2
 // HEADER: void weft_emitc_pre_realized_body_masked_unit_load_store_kernel_pre_realized_body_rvv_masked_unit_load_store(const int32_t *src, const int32_t *mask, int32_t *dst, size_t n);

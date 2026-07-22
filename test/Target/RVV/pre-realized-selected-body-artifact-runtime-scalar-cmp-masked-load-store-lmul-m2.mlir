@@ -45,20 +45,7 @@ module {
 // REALIZED-NOT: weft_rvv.typed_runtime_scalar_computed_mask_load_store_pre_realized_body
 
 // PLAN: weft.exec.diagnostic
-// PLAN-SAME: {key = "rvv_selected_body_operation", value = "runtime_scalar_cmp_masked_load_store"}
-// PLAN-SAME: {key = "weft_rvv.config_contract", value = "rvv-selected-body-sew32-lmul-m2-tail-agnostic-mask-agnostic.v1"}
-// PLAN-SAME: {key = "weft_rvv.element_type", value = "i32"}
-// PLAN-SAME: {key = "weft_rvv.sew", value = "32"}
-// PLAN-SAME: {key = "weft_rvv.lmul", value = "m2"}
-// PLAN-SAME: {key = "weft_rvv.compare_predicate_kind", value = "sle"}
-// PLAN-SAME: {key = "weft_rvv.target_leaf_profile", value = "rvv-v1-typed-runtime-scalar-cmp-masked-load-store-leaf-profile.v1"}
-// PLAN-SAME: {key = "weft_rvv.c_type_mapping", value = "vl:size_t,lhs/source/passthrough:typed-vector,rhs_scalar:typed-scalar,mask:typed-mask,result:masked-load-store"}
 // PLAN-SAME: target = @pr_rvv_cmp_mload_m2
 
 // HEADER: weft.rvv.selected_variant: @pr_rvv_cmp_mload_m2
-// HEADER: weft.rvv.element_type: i32
-// HEADER: weft.rvv.sew: 32
-// HEADER: weft.rvv.lmul: m2
-// HEADER: weft.rvv.target_leaf_profile: rvv-v1-typed-runtime-scalar-cmp-masked-load-store-leaf-profile.v1
-// HEADER: weft.rvv.c_type_mapping: vl:size_t,lhs/source/passthrough:typed-vector,rhs_scalar:typed-scalar,mask:typed-mask,result:masked-load-store
 // HEADER: void weft_emitc_pr_rt_cmp_mload_m2_kernel_pr_rvv_cmp_mload_m2(const int32_t *lhs, int32_t rhs_scalar, const int32_t *src, int32_t *dst, size_t n);

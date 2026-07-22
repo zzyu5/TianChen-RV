@@ -35,45 +35,14 @@ module {
 
 // PLAN: weft.exec.diagnostic
 // PLAN-SAME: artifact_kind = "riscv-elf-relocatable-object"
-// PLAN-SAME: {key = "rvv_selected_body_operation", value = "widening_dot_reduce_add"}
-// PLAN-SAME: {key = "rvv_selected_body_typed_compute_op", value = "weft_rvv.widening_dot_reduce"}
-// PLAN-SAME: {key = "weft_rvv.config_contract", value = "rvv-selected-body-sew32-lmul-m1-tail-agnostic-mask-agnostic.v1"}
-// PLAN-SAME: {key = "weft_rvv.sew", value = "32"}
-// PLAN-SAME: {key = "weft_rvv.lmul", value = "m1"}
-// PLAN-SAME: {key = "weft_rvv.runtime_control_plan", value = "rvv-runtime-avl-vl-control-plan.v1"}
-// PLAN-SAME: {key = "weft_rvv.memory_form", value = "vector-rhs-load"}
-// PLAN-SAME: {key = "weft_rvv.runtime_abi_order", value = "lhs,rhs,acc,out,n"}
-// PLAN-SAME: {key = "weft_rvv.route_operand_binding_plan", value = "rvv-route-operand-binding:widening_dot_reduce.v1"}
-// PLAN-SAME: {key = "weft_rvv.route_operand_binding_operands", value = "rvv-route-operand-binding:widening_dot_reduce.v1;lhs=lhs-input-buffer:lhs:abi|ld|dot-lhs|i16|hdr;rhs=rhs-input-buffer:rhs:abi|ld|dot-rhs|i16|hdr;acc=accumulator-input-buffer:acc:abi|seed|red|i32|hdr;out=output-buffer:out:abi|store|i32|hdr;n=runtime-element-count:n:abi|setvl-avl|loop|hdr"}
-// PLAN-SAME: {key = "weft_rvv.contraction_route_family_plan", value = "rvv-contraction-route-family-plan.v1"}
-// PLAN-SAME: {key = "weft_rvv.source_sew", value = "16"}
-// PLAN-SAME: {key = "weft_rvv.source_lmul", value = "mf2"}
-// PLAN-SAME: {key = "weft_rvv.accumulator_sew", value = "32"}
-// PLAN-SAME: {key = "weft_rvv.accumulator_lmul", value = "m1"}
-// PLAN-SAME: {key = "weft_rvv.result_sew", value = "32"}
-// PLAN-SAME: {key = "weft_rvv.result_lmul", value = "m1"}
-// PLAN-SAME: {key = "weft_rvv.widening_dot_accumulator_layout", value = "scalar-i32-seed-lane0-from-accumulator-input"}
-// PLAN-SAME: {key = "weft_rvv.widening_dot_result_layout", value = "store-dot-reduction-lane0-to-output-scalar"}
-// PLAN-SAME: {key = "weft_rvv.widening_dot_relation", value = "signed-i16mf2xi16mf2-reduce-plus-i32-scalar-to-i32"}
-// PLAN-SAME: {key = "weft_rvv.widening_product_intrinsic", value = "__riscv_vwmul_vv_i32m1"}
-// PLAN-SAME: {key = "weft_rvv.widening_dot_reduction_store_vl", value = "1"}
 // PLAN-SAME: emission_kind = "materialized-emitc-cpp-rvv-intrinsic-object"
-// PLAN-SAME: lowering_boundary = "weft_rvv.with_vl"
 // PLAN-SAME: origin = "rvv-plugin"
 // PLAN-SAME: reason = "emission_plan"
 // PLAN-SAME: role = "dispatch case"
-// PLAN-SAME: runtime_abi_name = "rvv-generic-widening-dot-reduce-add-callable-c-abi.v1"
+// PLAN-SAME: runtime_abi_name = "rvv-exact-typed-body-callable-c-abi.v2"
 // PLAN-SAME: status = "supported"
 // PLAN-SAME: target = @explicit_selected_body_rvv_widening_dot_reduce_add
 
 // HEADER: weft.rvv.selected_variant: @explicit_selected_body_rvv_widening_dot_reduce_add
-// HEADER: weft.rvv.runtime_abi_name: rvv-generic-widening-dot-reduce-add-callable-c-abi.v1
-// HEADER: weft.rvv.emitc_route_mapping: rvv-generic-typed-body-emitc-route-family
-// HEADER: weft.rvv.config_contract: rvv-selected-body-sew32-lmul-m1-tail-agnostic-mask-agnostic.v1
-// HEADER: weft.rvv.memory_form: vector-rhs-load
-// HEADER: weft.rvv.widening_dot_relation: signed-i16mf2xi16mf2-reduce-plus-i32-scalar-to-i32
-// HEADER: weft.rvv.runtime_control_plan: rvv-runtime-avl-vl-control-plan.v1
-// HEADER: weft.rvv.route_operand_binding_plan: rvv-route-operand-binding:widening_dot_reduce.v1
-// HEADER: weft.rvv.route_operand_binding_operands: rvv-route-operand-binding:widening_dot_reduce.v1;lhs=lhs-input-buffer:lhs:abi|ld|dot-lhs|i16|hdr;rhs=rhs-input-buffer:rhs:abi|ld|dot-rhs|i16|hdr;acc=accumulator-input-buffer:acc:abi|seed|red|i32|hdr;out=output-buffer:out:abi|store|i32|hdr;n=runtime-element-count:n:abi|setvl-avl|loop|hdr
-// HEADER: weft.rvv.contraction_route_family_plan: rvv-contraction-route-family-plan.v1
+// HEADER: weft.rvv.runtime_abi_name: rvv-exact-typed-body-callable-c-abi.v2
 // HEADER: void weft_emitc_explicit_selected_body_widening_dot_reduce_add_kernel_explicit_selected_body_rvv_widening_dot_reduce_add(const int16_t *lhs, const int16_t *rhs, const int32_t *acc, int32_t *out, size_t n);

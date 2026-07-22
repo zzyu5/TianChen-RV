@@ -1921,6 +1921,7 @@ INDEX_FILE_NAME = "weft-target-artifact-bundle.index"
 EXPECTED_SELECTED_ROLE = "dispatch case"
 EXPECTED_COMPONENT_GROUP = "rvv-generic-typed-body-materialized-emitc-bundle.v1"
 EXPECTED_RUNTIME_ABI_KIND = "plugin-owned-runtime-abi"
+EXACT_BODY_RUNTIME_ABI_NAME = "rvv-exact-typed-body-callable-c-abi.v2"
 EXPECTED_OBJECT_ROUTE = "rvv-generic-typed-body-emitc-route-family"
 EXPECTED_HEADER_ROUTE = "rvv-generic-typed-body-emitc-route-family.header"
 EXPECTED_OWNER = "rvv-plugin"
@@ -2121,6 +2122,12 @@ class OpExpectation:
     bounded_slice: str = "multi-vl-selected-body-sew32-lmul-m1"
     selected_dispatch_case_mirror: str = ""
     selected_dispatch_fallback_mirror: str = ""
+
+    def __post_init__(self) -> None:
+        # The concrete signature is the ordered typed parameter list derived
+        # from the exact SSA body.  The schema name deliberately does not
+        # re-encode an operation kind or format as a second route authority.
+        object.__setattr__(self, "external_abi_name", EXACT_BODY_RUNTIME_ABI_NAME)
 
     @property
     def element_type(self) -> str:
@@ -11429,76 +11436,11 @@ def verify_record_metadata(
     record: dict[str, Any], context: str, expectation: OpExpectation
 ) -> None:
     metadata = metadata_map(record)
-    obsolete_authority_keys = [
-        key
-        for key in metadata
-        if key.startswith("weft_rvv.gearbox.")
-        or key.startswith("weft_rvv.low_precision_resource.")
-    ]
-    if obsolete_authority_keys:
+    if metadata:
         raise EvidenceError(
-            f"{context} carries retired construction-authority metadata: "
-            + ", ".join(sorted(obsolete_authority_keys))
+            f"{context} must not carry route/provider computation mirrors: "
+            + ", ".join(sorted(metadata))
         )
-    for key, expected in expected_metadata_for(expectation).items():
-        # Deferred-wide (N3): override the wide-strip config keys and skip the
-        # resource-selection / gearbox-scope keys the wide body does not emit.
-        expected = deferred_wide_expected_metadata(key, expected, metadata)
-        if expected is None:
-            continue
-        if (
-            key == "rvv_selected_body_typed_compute_op"
-            and expectation.is_widening_dot_reduce_add
-            and "weft_rvv.deferred_accumulate" in (metadata.get(key) or "")
-        ):
-            require_equal(
-                metadata.get(key),
-                "weft_rvv.widening_product+weft_rvv.deferred_accumulate+"
-                "weft_rvv.standalone_reduce",
-                f"{context} metadata {key}",
-            )
-            continue
-        # The formula-selected product head and optional deferred accumulator are
-        # part of the typed body. Validate that exact chain without consulting
-        # retired selection mirrors.
-        if (
-            key == "rvv_selected_body_typed_compute_op"
-            and (
-                expectation.is_widening_product_reduce_dequantize_f32
-                or expectation.is_widening_product_reduce_dequant_clamp_f32
-            )
-        ):
-            actual_chain = metadata.get(key) or ""
-            nibble_head = (
-                "weft_rvv.packed_i4_nibble_unpack_product" in actual_chain
-            )
-            # The deferred-wide (N3) realization inserts a weft_rvv.widening_accumulate
-            # between the widening_product head and the trailing standalone_reduce
-            # (the i32m8 deferred accumulate). Detected from the recorded chain.
-            has_deferred_wide_accumulate = (
-                "weft_rvv.widening_accumulate" in actual_chain
-            )
-            head = (
-                "weft_rvv.packed_i4_nibble_unpack_product"
-                if nibble_head
-                else "weft_rvv.widening_product"
-            )
-            tail = expected.split("+weft_rvv.dequantize", 1)[1]
-            chain = head
-            if has_deferred_wide_accumulate:
-                chain += "+weft_rvv.widening_accumulate"
-            chain += "+weft_rvv.standalone_reduce"
-            chain += "+weft_rvv.dequantize" + tail
-            require_equal(actual_chain, chain, f"{context} metadata {key}")
-            continue
-        require_equal(metadata.get(key), expected, f"{context} metadata {key}")
-    for key, value in metadata.items():
-        require_no_forbidden_public_residue(
-            f"{key}={value}", f"{context} artifact metadata"
-        )
-        lowered = key.lower()
-        if "descriptor" in lowered or "element-count" in lowered or "element_count" in lowered:
-            raise EvidenceError(f"{context} metadata key {key!r} is descriptor residue")
 
 
 def verify_header(header_path: Path, expectation: OpExpectation) -> dict[str, Any]:
@@ -11508,32 +11450,16 @@ def verify_header(header_path: Path, expectation: OpExpectation) -> dict[str, An
     require_contains(text, "#include <stddef.h>", "generated header")
     require_contains(text, "#include <stdint.h>", "generated header")
     require_contains(text, expectation.prototype, "generated header")
-    expected_metadata = expected_metadata_for(expectation)
-    for key in (
-        "weft_rvv.config_contract",
-        "weft_rvv.element_type",
-        "weft_rvv.sew",
-        "weft_rvv.lmul",
-        "weft_rvv.tail_policy",
-        "weft_rvv.mask_policy",
-        "weft_rvv.required_header_declarations",
-        "weft_rvv.c_type_mapping",
-    ):
-        expected_value = expected_metadata.get(key)
-        if expected_value is None:
-            continue
-        if (
-            key == "weft_rvv.c_type_mapping"
-            and expectation.is_widening_dot_reduce_add
-            and "source:signed-e16m4" in text
-        ):
-            expected_value = DEFERRED_DOT_METADATA_OVERRIDES[key]
-        comment_key = "weft.rvv." + key.removeprefix("weft_rvv.")
-        require_contains(
-            text,
-            f"{comment_key}: {expected_value}",
-            "generated header typed config mirror",
-        )
+    require_contains(
+        text,
+        f"weft.rvv.runtime_abi_name: {EXACT_BODY_RUNTIME_ABI_NAME}",
+        "generated header exact-body ABI",
+    )
+    require_contains(
+        text,
+        f"weft.rvv.selected_route: {EXPECTED_OBJECT_ROUTE}",
+        "generated header mechanical artifact route",
+    )
     open_guard = '#ifdef __cplusplus\nextern "C" {\n#endif'
     close_guard = '#ifdef __cplusplus\n} /* extern "C" */\n#endif'
     open_guard_index = text.find(open_guard)
@@ -11549,8 +11475,13 @@ def verify_header(header_path: Path, expectation: OpExpectation) -> dict[str, An
             "generated header public declaration is not wrapped by the "
             'C++ extern "C" guard required for the runtime-callable C ABI'
         )
-    require_contains(text, "weft.rvv.runtime_avl_source: runtime_abi:n", "generated header")
-    require_contains(text, "weft.rvv.multi_vl: supported", "generated header")
+    for retired_mirror in (
+        "provider_supported_mirror",
+        "route_operand_binding_plan",
+        "target_leaf_profile",
+        "rvv_selected_body_operation",
+    ):
+        require_not_contains(text, retired_mirror, "generated exact-body header")
     require_no_forbidden_public_residue(text, "generated declaration-only header")
     declaration_text = re.sub(r"/\*.*?\*/", "", text, flags=re.DOTALL)
     for token in ("__riscv_", "return;", "int main", "main("):
@@ -16380,12 +16311,12 @@ def require_materialized_typed_compute_chain(
             "weft_rvv.widening_product+weft_rvv.deferred_accumulate+"
             "weft_rvv.standalone_reduce"
         )
-    require_contains(
-        text,
-        expected,
-        "materialized selected-body MLIR typed compute op mirror",
-    )
     if "+" not in expected:
+        require_contains(
+            text,
+            expected,
+            "materialized selected-body MLIR typed compute op",
+        )
         return
     for op_name in expected.split("+"):
         require_contains(
@@ -16698,9 +16629,14 @@ def verify_materialized_selected_body(
                 'accumulate_relation = "signed-i16m4-into-i32m8-deferred-add"',
                 "materialized selected-body MLIR deferred-wide accumulate relation",
             )
+        product_op = (
+            "weft_rvv.packed_i4_nibble_unpack_product"
+            if "weft_rvv.packed_i4_nibble_unpack_product" in text
+            else "weft_rvv.widening_product"
+        )
         require_contains(
             text,
-            "weft_rvv.widening_product",
+            product_op,
             "materialized selected-body MLIR product-reduction product op",
         )
         require_contains(
@@ -16747,6 +16683,8 @@ def verify_materialized_selected_body(
             "product_sew": "16",
             "product_lmul": "m4" if body_has_deferred_wide_accumulate else "mf2",
             "accumulator_element_type": "i32",
+            "accumulator_sew": "32",
+            "accumulator_lmul": "m1",
             "deferred_wide_accumulate": body_has_deferred_wide_accumulate,
             "result_element_type": expectation.element_type,
             "result_sew": expectation.sew,
@@ -29130,7 +29068,7 @@ def generate_bundle(
         )
         result["realization_boundary"] = (
             "public selected lowering-boundary materialization consumed the "
-            "pre-realized typed weft_rvv body before provider route construction"
+            "pre-realized typed weft_rvv body before exact-body artifact lowering"
         )
     elif expectation.requires_selected_lowering_boundary_materialization:
         result["materializer"] = "weft-materialize-selected-lowering-boundaries"
@@ -29140,8 +29078,8 @@ def generate_bundle(
         )
         result["realization_boundary"] = (
             "public selected lowering-boundary materialization consumed the "
-            "explicit compound typed weft_rvv body before provider route "
-            "construction"
+            "explicit compound typed weft_rvv body before exact-body artifact "
+            "lowering"
         )
     elif expectation.is_vector_source_front_door:
         contract = source_front_door_family_contract_summary(expectation)
@@ -29552,597 +29490,39 @@ def runtime_avl_parameter_for(expectation: OpExpectation) -> dict[str, str]:
     raise EvidenceError(f"{expectation.kind} has no runtime-element-count ABI parameter")
 
 
-def runtime_avl_vl_metadata_from_bundle(
-    bundle_checks: dict[str, Any], expectation: OpExpectation
-) -> dict[str, str]:
-    records = bundle_checks["index"]["parsed"]["records"]
-    if len(records) != 2:
-        raise EvidenceError("runtime AVL/VL evidence requires object and header records")
-    object_metadata = metadata_map(records[0])
-    header_metadata = metadata_map(records[1])
-    metadata: dict[str, str] = {}
-    for key in RUNTIME_AVL_VL_METADATA_KEYS:
-        expected = expected_metadata_for(expectation).get(key)
-        if expected is None:
-            continue
-        # Deferred-wide (N3): the wide-strip route operand binding (src-i8m2).
-        expected = deferred_wide_expected_metadata(key, expected, object_metadata)
-        if expected is None:
-            continue
-        require_equal(
-            object_metadata.get(key),
-            expected,
-            f"{expectation.kind} object runtime AVL/VL metadata {key}",
-        )
-        require_equal(
-            header_metadata.get(key),
-            expected,
-            f"{expectation.kind} header runtime AVL/VL metadata {key}",
-        )
-        metadata[key] = expected
-    return metadata
-
-
-def selected_dispatch_bundle_metadata_from_bundle(
-    bundle_checks: dict[str, Any], expectation: OpExpectation
-) -> dict[str, str]:
-    if (
-        not expectation.selected_dispatch_case_mirror
-        or not expectation.selected_dispatch_fallback_mirror
-    ):
-        raise EvidenceError(
-            f"{expectation.kind} has no selected dispatch/fallback mirror "
-            "expectation"
-        )
-    records = bundle_checks["index"]["parsed"]["records"]
-    if len(records) != 2:
-        raise EvidenceError(
-            "selected-dispatch bundle evidence requires object and header records"
-        )
-    object_metadata = metadata_map(find_record(records, "object"))
-    header_metadata = metadata_map(find_record(records, "header"))
-    expected_metadata = expected_metadata_for(expectation)
-    metadata: dict[str, str] = {}
-    for key in SELECTED_DISPATCH_BUNDLE_METADATA_KEYS:
-        expected = expected_metadata.get(key)
-        if expected is None:
-            continue
-        expected = deferred_wide_expected_metadata(
-            key, expected, object_metadata
-        )
-        if expected is None:
-            continue
-        require_equal(
-            object_metadata.get(key),
-            expected,
-            f"{expectation.kind} object selected-dispatch metadata {key}",
-        )
-        require_equal(
-            header_metadata.get(key),
-            expected,
-            f"{expectation.kind} header selected-dispatch metadata {key}",
-        )
-        metadata[key] = expected
-    return metadata
-
-
-def mask_tail_policy_metadata_from_bundle(
-    bundle_checks: dict[str, Any], expectation: OpExpectation
-) -> dict[str, str]:
-    records = bundle_checks["index"]["parsed"]["records"]
-    if len(records) != 2:
-        raise EvidenceError("mask/tail policy evidence requires object and header records")
-    object_metadata = metadata_map(records[0])
-    header_metadata = metadata_map(records[1])
-    metadata: dict[str, str] = {}
-    expected_metadata = expected_metadata_for(expectation)
-    metadata_keys = MASK_TAIL_POLICY_METADATA_KEYS
-    for key in metadata_keys:
-        expected = expected_metadata.get(key)
-        if expected is None:
-            continue
-        expected = deferred_wide_expected_metadata(
-            key, expected, object_metadata
-        )
-        if expected is None:
-            continue
-        require_equal(
-            object_metadata.get(key),
-            expected,
-            f"{expectation.kind} object mask/tail policy metadata {key}",
-        )
-        require_equal(
-            header_metadata.get(key),
-            expected,
-            f"{expectation.kind} header mask/tail policy metadata {key}",
-        )
-        metadata[key] = expected
-    return metadata
-
-
-def computed_mask_memory_metadata_from_bundle(
+def exact_body_artifact_metadata_from_bundle(
     bundle_checks: dict[str, Any], expectation: OpExpectation
 ) -> dict[str, str]:
     records = bundle_checks["index"]["parsed"]["records"]
     if len(records) != 2:
         raise EvidenceError(
-            "computed-mask memory evidence requires object and header records"
+            f"{expectation.kind} exact-body bundle requires object and header records"
         )
-    object_metadata = metadata_map(records[0])
-    header_metadata = metadata_map(records[1])
-    metadata: dict[str, str] = {}
-    expected_metadata = expected_metadata_for(expectation)
-    for key in COMPUTED_MASK_MEMORY_METADATA_KEYS:
-        expected = expected_metadata.get(key)
-        if expected is None:
-            continue
-        expected = deferred_wide_expected_metadata(
-            key, expected, object_metadata
-        )
-        if expected is None:
-            continue
+    for record in records:
         require_equal(
-            object_metadata.get(key),
-            expected,
-            f"{expectation.kind} object computed-mask memory metadata {key}",
+            record.get("artifact_metadata"),
+            [],
+            f"{expectation.kind} exact-body artifact metadata mirrors",
         )
-        require_equal(
-            header_metadata.get(key),
-            expected,
-            f"{expectation.kind} header computed-mask memory metadata {key}",
-        )
-        metadata[key] = expected
-    return metadata
+    return {}
 
 
-def base_memory_movement_metadata_from_bundle(
-    bundle_checks: dict[str, Any], expectation: OpExpectation
-) -> dict[str, str]:
-    records = bundle_checks["index"]["parsed"]["records"]
-    if len(records) != 2:
-        raise EvidenceError(
-            "base memory movement evidence requires object and header records"
-        )
-    object_metadata = metadata_map(records[0])
-    header_metadata = metadata_map(records[1])
-    metadata: dict[str, str] = {}
-    expected_metadata = expected_metadata_for(expectation)
-    for key in BASE_MEMORY_MOVEMENT_METADATA_KEYS:
-        expected = expected_metadata.get(key)
-        if expected is None:
-            continue
-        expected = deferred_wide_expected_metadata(
-            key, expected, object_metadata
-        )
-        if expected is None:
-            continue
-        require_equal(
-            object_metadata.get(key),
-            expected,
-            f"{expectation.kind} object base memory metadata {key}",
-        )
-        require_equal(
-            header_metadata.get(key),
-            expected,
-            f"{expectation.kind} header base memory metadata {key}",
-        )
-        metadata[key] = expected
-    return metadata
-
-
-def compare_select_predicate_metadata_from_bundle(
-    bundle_checks: dict[str, Any], expectation: OpExpectation
-) -> dict[str, str]:
-    records = bundle_checks["index"]["parsed"]["records"]
-    if len(records) != 2:
-        raise EvidenceError(
-            "compare/select predicate evidence requires object and header records"
-        )
-    object_metadata = metadata_map(records[0])
-    header_metadata = metadata_map(records[1])
-    metadata: dict[str, str] = {}
-    expected_metadata = expected_metadata_for(expectation)
-    for key in COMPARE_SELECT_PREDICATE_METADATA_KEYS:
-        expected = expected_metadata.get(key)
-        if expected is None:
-            continue
-        expected = deferred_wide_expected_metadata(
-            key, expected, object_metadata
-        )
-        if expected is None:
-            continue
-        require_equal(
-            object_metadata.get(key),
-            expected,
-            f"{expectation.kind} object compare/select metadata {key}",
-        )
-        require_equal(
-            header_metadata.get(key),
-            expected,
-            f"{expectation.kind} header compare/select metadata {key}",
-        )
-        metadata[key] = expected
-    return metadata
-
-
-def conversion_sew_policy_metadata_from_bundle(
-    bundle_checks: dict[str, Any], expectation: OpExpectation
-) -> dict[str, str]:
-    records = bundle_checks["index"]["parsed"]["records"]
-    if len(records) != 2:
-        raise EvidenceError(
-            "conversion/SEW evidence requires object and header records"
-        )
-    object_metadata = metadata_map(records[0])
-    header_metadata = metadata_map(records[1])
-    metadata: dict[str, str] = {}
-    expected_metadata = expected_metadata_for(expectation)
-    for key in CONVERSION_SEW_POLICY_METADATA_KEYS:
-        expected = expected_metadata.get(key)
-        if expected is None:
-            continue
-        expected = deferred_wide_expected_metadata(
-            key, expected, object_metadata
-        )
-        if expected is None:
-            continue
-        require_equal(
-            object_metadata.get(key),
-            expected,
-            f"{expectation.kind} object conversion/SEW metadata {key}",
-        )
-        require_equal(
-            header_metadata.get(key),
-            expected,
-            f"{expectation.kind} header conversion/SEW metadata {key}",
-        )
-        metadata[key] = expected
-    return metadata
-
-
-def dequantization_metadata_from_bundle(
-    bundle_checks: dict[str, Any], expectation: OpExpectation
-) -> dict[str, str]:
-    records = bundle_checks["index"]["parsed"]["records"]
-    if len(records) != 2:
-        raise EvidenceError(
-            "dequantization evidence requires object and header records"
-        )
-    object_metadata = metadata_map(records[0])
-    header_metadata = metadata_map(records[1])
-    metadata: dict[str, str] = {}
-    expected_metadata = expected_metadata_for(expectation)
-    for key in DEQUANTIZATION_METADATA_KEYS:
-        expected = expected_metadata.get(key)
-        if expected is None:
-            continue
-        expected = deferred_wide_expected_metadata(
-            key, expected, object_metadata
-        )
-        if expected is None:
-            continue
-        require_equal(
-            object_metadata.get(key),
-            expected,
-            f"{expectation.kind} object dequantization metadata {key}",
-        )
-        require_equal(
-            header_metadata.get(key),
-            expected,
-            f"{expectation.kind} header dequantization metadata {key}",
-        )
-        metadata[key] = expected
-    return metadata
-
-
-def reduction_accumulation_metadata_from_bundle(
-    bundle_checks: dict[str, Any], expectation: OpExpectation
-) -> dict[str, str]:
-    records = bundle_checks["index"]["parsed"]["records"]
-    if len(records) != 2:
-        raise EvidenceError(
-            "reduction/accumulation evidence requires object and header records"
-        )
-    object_metadata = metadata_map(records[0])
-    header_metadata = metadata_map(records[1])
-    metadata: dict[str, str] = {}
-    expected_metadata = expected_metadata_for(expectation)
-    for key in REDUCTION_ACCUMULATION_METADATA_KEYS:
-        expected = expected_metadata.get(key)
-        if expected is None:
-            continue
-        expected = deferred_wide_expected_metadata(
-            key, expected, object_metadata
-        )
-        if expected is None:
-            continue
-        require_equal(
-            object_metadata.get(key),
-            expected,
-            f"{expectation.kind} object reduction/accumulation metadata {key}",
-        )
-        require_equal(
-            header_metadata.get(key),
-            expected,
-            f"{expectation.kind} header reduction/accumulation metadata {key}",
-        )
-        metadata[key] = expected
-    return metadata
-
-
-def vector_reduction_metadata_from_bundle(
-    bundle_checks: dict[str, Any], expectation: OpExpectation
-) -> dict[str, str]:
-    records = bundle_checks["index"]["parsed"]["records"]
-    if len(records) != 2:
-        raise EvidenceError(
-            "vector-reduction evidence requires object and header records"
-        )
-    object_metadata = metadata_map(records[0])
-    header_metadata = metadata_map(records[1])
-    metadata: dict[str, str] = {}
-    expected_metadata = expected_metadata_for(expectation)
-    for key in VECTOR_REDUCTION_METADATA_KEYS:
-        expected = expected_metadata.get(key)
-        if expected is None:
-            continue
-        expected = deferred_wide_expected_metadata(
-            key, expected, object_metadata
-        )
-        if expected is None:
-            continue
-        require_equal(
-            object_metadata.get(key),
-            expected,
-            f"{expectation.kind} object vector-reduction metadata {key}",
-        )
-        require_equal(
-            header_metadata.get(key),
-            expected,
-            f"{expectation.kind} header vector-reduction metadata {key}",
-        )
-        metadata[key] = expected
-    return metadata
-
-
-def widening_macc_metadata_from_bundle(
-    bundle_checks: dict[str, Any], expectation: OpExpectation
-) -> dict[str, str]:
-    records = bundle_checks["index"]["parsed"]["records"]
-    if len(records) != 2:
-        raise EvidenceError(
-            "widening-MAcc evidence requires object and header records"
-        )
-    object_metadata = metadata_map(records[0])
-    header_metadata = metadata_map(records[1])
-    metadata: dict[str, str] = {}
-    expected_metadata = expected_metadata_for(expectation)
-    for key in WIDENING_MACC_METADATA_KEYS:
-        expected = expected_metadata.get(key)
-        if expected is None:
-            continue
-        expected = deferred_wide_expected_metadata(
-            key, expected, object_metadata
-        )
-        if expected is None:
-            continue
-        require_equal(
-            object_metadata.get(key),
-            expected,
-            f"{expectation.kind} object widening-MAcc metadata {key}",
-        )
-        require_equal(
-            header_metadata.get(key),
-            expected,
-            f"{expectation.kind} header widening-MAcc metadata {key}",
-        )
-        metadata[key] = expected
-    return metadata
-
-
-def multiply_accumulate_metadata_from_bundle(
-    bundle_checks: dict[str, Any], expectation: OpExpectation
-) -> dict[str, str]:
-    records = bundle_checks["index"]["parsed"]["records"]
-    if len(records) != 2:
-        raise EvidenceError(
-            "multiply-accumulate evidence requires object and header records"
-        )
-    object_metadata = metadata_map(records[0])
-    header_metadata = metadata_map(records[1])
-    metadata: dict[str, str] = {}
-    expected_metadata = expected_metadata_for(expectation)
-    for key in MULTIPLY_ACCUMULATE_METADATA_KEYS:
-        expected = expected_metadata.get(key)
-        if expected is None:
-            continue
-        expected = deferred_wide_expected_metadata(
-            key, expected, object_metadata
-        )
-        if expected is None:
-            continue
-        require_equal(
-            object_metadata.get(key),
-            expected,
-            f"{expectation.kind} object multiply-accumulate metadata {key}",
-        )
-        require_equal(
-            header_metadata.get(key),
-            expected,
-            f"{expectation.kind} header multiply-accumulate metadata {key}",
-        )
-        metadata[key] = expected
-    return metadata
-
-
-def computed_masked_macc_metadata_from_bundle(
-    bundle_checks: dict[str, Any], expectation: OpExpectation
-) -> dict[str, str]:
-    records = bundle_checks["index"]["parsed"]["records"]
-    if len(records) != 2:
-        raise EvidenceError(
-            "computed-mask MAcc evidence requires object and header records"
-        )
-    object_metadata = metadata_map(records[0])
-    header_metadata = metadata_map(records[1])
-    metadata: dict[str, str] = {}
-    expected_metadata = expected_metadata_for(expectation)
-    for key in COMPUTED_MASKED_MACC_METADATA_KEYS:
-        expected = expected_metadata.get(key)
-        if expected is None:
-            continue
-        expected = deferred_wide_expected_metadata(
-            key, expected, object_metadata
-        )
-        if expected is None:
-            continue
-        require_equal(
-            object_metadata.get(key),
-            expected,
-            f"{expectation.kind} object computed-mask MAcc metadata {key}",
-        )
-        require_equal(
-            header_metadata.get(key),
-            expected,
-            f"{expectation.kind} header computed-mask MAcc metadata {key}",
-        )
-        metadata[key] = expected
-    return metadata
-
-
-def widening_dot_reduction_metadata_from_bundle(
-    bundle_checks: dict[str, Any], expectation: OpExpectation
-) -> dict[str, str]:
-    records = bundle_checks["index"]["parsed"]["records"]
-    if len(records) != 2:
-        raise EvidenceError(
-            "widening dot-reduction evidence requires object and header records"
-        )
-    object_metadata = metadata_map(records[0])
-    header_metadata = metadata_map(records[1])
-    metadata: dict[str, str] = {}
-    expected_metadata = expected_metadata_for(expectation)
-    for key in WIDENING_DOT_REDUCTION_METADATA_KEYS:
-        expected = expected_metadata.get(key)
-        if expected is None:
-            continue
-        expected = deferred_wide_expected_metadata(
-            key, expected, object_metadata
-        )
-        if expected is None:
-            continue
-        require_equal(
-            object_metadata.get(key),
-            expected,
-            f"{expectation.kind} object widening dot metadata {key}",
-        )
-        require_equal(
-            header_metadata.get(key),
-            expected,
-            f"{expectation.kind} header widening dot metadata {key}",
-        )
-        metadata[key] = expected
-    return metadata
-
-
-def widening_product_reduction_metadata_from_bundle(
-    bundle_checks: dict[str, Any], expectation: OpExpectation
-) -> dict[str, str]:
-    records = bundle_checks["index"]["parsed"]["records"]
-    if len(records) != 2:
-        raise EvidenceError(
-            "widening product-reduction evidence requires object and header records"
-        )
-    object_metadata = metadata_map(records[0])
-    header_metadata = metadata_map(records[1])
-    metadata: dict[str, str] = {}
-    typed_compute_chain = object_metadata.get("rvv_selected_body_typed_compute_op")
-    require_equal(
-        header_metadata.get("rvv_selected_body_typed_compute_op"),
-        typed_compute_chain,
-        f"{expectation.kind} object/header typed compute chain agreement",
-    )
-    if typed_compute_chain is not None:
-        metadata["rvv_selected_body_typed_compute_op"] = typed_compute_chain
-    expected_metadata = expected_metadata_for(expectation)
-    uses_packed_i4_resource = product_dequant_uses_packed_i4_typed_body(
-        object_metadata, expectation
-    )
-    require_equal(
-        product_dequant_uses_packed_i4_typed_body(header_metadata, expectation),
-        uses_packed_i4_resource,
-        f"{expectation.kind} object/header packed-i4 resource selection agreement",
-    )
-    for key in WIDENING_PRODUCT_REDUCTION_METADATA_KEYS:
-        expected = expected_metadata.get(key)
-        if expected is None:
-            continue
-        expected = deferred_wide_expected_metadata(
-            key, expected, object_metadata
-        )
-        if expected is None:
-            continue
-        require_equal(
-            object_metadata.get(key),
-            expected,
-            f"{expectation.kind} object widening product-reduction metadata {key}",
-        )
-        require_equal(
-            header_metadata.get(key),
-            expected,
-            f"{expectation.kind} header widening product-reduction metadata {key}",
-        )
-        metadata[key] = expected
-    if (
-        expectation.is_widening_product_reduce_dequantize_f32
-        or expectation.is_widening_product_reduce_dequant_clamp_f32
-    ):
-        for stale_key in (
-            "weft_rvv.dequantize_convert_intrinsic",
-            "weft_rvv.dequantize_scale_intrinsic",
-        ):
-            if object_metadata.get(stale_key) or header_metadata.get(stale_key):
-                raise EvidenceError(
-                    f"{expectation.kind} product-reduction metadata must not "
-                    f"carry standalone vector dequant mirror {stale_key}"
-                )
-    return metadata
-
-
-def computed_masked_widening_dot_metadata_from_bundle(
-    bundle_checks: dict[str, Any], expectation: OpExpectation
-) -> dict[str, str]:
-    records = bundle_checks["index"]["parsed"]["records"]
-    if len(records) != 2:
-        raise EvidenceError(
-            "computed-mask widening dot-reduce evidence requires object and "
-            "header records"
-        )
-    object_metadata = metadata_map(records[0])
-    header_metadata = metadata_map(records[1])
-    metadata: dict[str, str] = {}
-    expected_metadata = expected_metadata_for(expectation)
-    for key in COMPUTED_MASKED_WIDENING_DOT_METADATA_KEYS:
-        expected = expected_metadata.get(key)
-        if expected is None:
-            continue
-        expected = deferred_wide_expected_metadata(
-            key, expected, object_metadata
-        )
-        if expected is None:
-            continue
-        require_equal(
-            object_metadata.get(key),
-            expected,
-            f"{expectation.kind} object computed-mask widening dot metadata {key}",
-        )
-        require_equal(
-            header_metadata.get(key),
-            expected,
-            f"{expectation.kind} header computed-mask widening dot metadata {key}",
-        )
-        metadata[key] = expected
-    return metadata
+runtime_avl_vl_metadata_from_bundle = exact_body_artifact_metadata_from_bundle
+selected_dispatch_bundle_metadata_from_bundle = exact_body_artifact_metadata_from_bundle
+mask_tail_policy_metadata_from_bundle = exact_body_artifact_metadata_from_bundle
+computed_mask_memory_metadata_from_bundle = exact_body_artifact_metadata_from_bundle
+base_memory_movement_metadata_from_bundle = exact_body_artifact_metadata_from_bundle
+compare_select_predicate_metadata_from_bundle = exact_body_artifact_metadata_from_bundle
+conversion_sew_policy_metadata_from_bundle = exact_body_artifact_metadata_from_bundle
+dequantization_metadata_from_bundle = exact_body_artifact_metadata_from_bundle
+reduction_accumulation_metadata_from_bundle = exact_body_artifact_metadata_from_bundle
+vector_reduction_metadata_from_bundle = exact_body_artifact_metadata_from_bundle
+widening_macc_metadata_from_bundle = exact_body_artifact_metadata_from_bundle
+multiply_accumulate_metadata_from_bundle = exact_body_artifact_metadata_from_bundle
+computed_masked_macc_metadata_from_bundle = exact_body_artifact_metadata_from_bundle
+widening_dot_reduction_metadata_from_bundle = exact_body_artifact_metadata_from_bundle
+widening_product_reduction_metadata_from_bundle = exact_body_artifact_metadata_from_bundle
+computed_masked_widening_dot_metadata_from_bundle = exact_body_artifact_metadata_from_bundle
 
 
 def runtime_avl_vl_boundary_summary(
@@ -30156,11 +29536,11 @@ def runtime_avl_vl_boundary_summary(
     return {
         "source": (
             "selected runtime ABI n -> weft_rvv.setvl -> "
-            "RVV provider route facts -> emitted loop setvl -> artifact ABI"
+            "RVV exact typed-body facts -> emitted loop setvl -> artifact ABI"
         ),
-        "authority": "provider-derived typed weft_rvv body/config/runtime facts",
+        "authority": "exact-body-derived typed weft_rvv body/config/runtime facts",
         "evidence_role": (
-            "mirror-only-after-provider-route-and-materialized-emitc"
+            "typed-body-and-generated-source-only"
         ),
         "selected_runtime_abi": runtime_avl_parameter_for(expectation),
         "materialized_setvl": materialized_checks.get(
@@ -30196,10 +29576,10 @@ def selected_dispatch_bundle_boundary_summary(
         ),
         "authority": (
             "actual selected weft.exec dispatch/fallback envelope plus "
-            "selected typed or realized weft_rvv body and RVV provider route"
+            "selected typed or realized weft_rvv body and RVV exact typed-body"
         ),
-        "artifact_metadata_role": (
-            "mirror-only-after-provider-route-and-selected-dispatch-validation"
+        "evidence_source_role": (
+            "typed-body-and-structural-dispatch-only"
         ),
         "selected_variant": expectation.selected_variant,
         "selected_dispatch_case_mirror": route_metadata.get(
@@ -30250,10 +29630,10 @@ def mask_tail_policy_boundary_summary(
                 "gather -> MAcc -> masked indexed scatter"
             ),
             "authority": (
-                "provider-derived typed weft_rvv runtime-scalar composite "
+                "exact-body-derived typed weft_rvv runtime-scalar composite "
                 "body/config/runtime/index/payload/accumulator facts"
             ),
-            "artifact_metadata_role": "mirror-only-after-provider-route",
+            "evidence_source_role": "typed-body-and-generated-source-only",
             "selected_mask_abi": {
                 "external_mask": False,
                 "producer": "weft_rvv.compare",
@@ -30347,10 +29727,10 @@ def mask_tail_policy_boundary_summary(
                 "mask/tail statement plan -> emitted compare/select/store"
             ),
             "authority": (
-                "provider-derived typed weft_rvv computed-mask select "
+                "exact-body-derived typed weft_rvv computed-mask select "
                 "mask/policy body/config/runtime facts"
             ),
-            "artifact_metadata_role": "mirror-only-after-provider-route",
+            "evidence_source_role": "typed-body-and-generated-source-only",
             "selected_mask_abi": {
                 "external_mask": False,
                 "producer": "weft_rvv.compare",
@@ -30469,13 +29849,13 @@ def mask_tail_policy_boundary_summary(
                 "old-destination passthrough -> unit store"
             ),
             "authority": (
-                "provider-derived typed weft_rvv runtime-scalar computed-mask "
+                "exact-body-derived typed weft_rvv runtime-scalar computed-mask "
                 "indexed gather body/config/runtime facts"
                 if is_runtime_scalar
-                else "provider-derived typed weft_rvv computed-mask indexed "
+                else "exact-body-derived typed weft_rvv computed-mask indexed "
                 "gather body/config/runtime facts"
             ),
-            "artifact_metadata_role": "mirror-only-after-provider-route",
+            "evidence_source_role": "typed-body-and-generated-source-only",
             "selected_mask_abi": {
                 "external_mask": False,
                 "producer": "weft_rvv.compare",
@@ -30559,10 +29939,10 @@ def mask_tail_policy_boundary_summary(
                 "provider indexed scatter facts -> masked indexed store"
             ),
             "authority": (
-                "provider-derived typed weft_rvv runtime-scalar computed-mask "
+                "exact-body-derived typed weft_rvv runtime-scalar computed-mask "
                 "indexed scatter body/config/runtime facts"
             ),
-            "artifact_metadata_role": "mirror-only-after-provider-route",
+            "evidence_source_role": "typed-body-and-generated-source-only",
             "selected_mask_abi": {
                 "external_mask": False,
                 "producer": "weft_rvv.compare",
@@ -30652,13 +30032,13 @@ def mask_tail_policy_boundary_summary(
                 "old-field passthrough tuple -> field stores"
             ),
             "authority": (
-                "provider-derived typed weft_rvv runtime-scalar computed-mask "
+                "exact-body-derived typed weft_rvv runtime-scalar computed-mask "
                 "segment2 body/config/runtime facts"
                 if is_runtime_scalar
-                else "provider-derived typed weft_rvv computed-mask segment2 "
+                else "exact-body-derived typed weft_rvv computed-mask segment2 "
                 "body/config/runtime facts"
             ),
-            "artifact_metadata_role": "mirror-only-after-provider-route",
+            "evidence_source_role": "typed-body-and-generated-source-only",
             "selected_mask_abi": {
                 "external_mask": False,
                 "producer": "weft_rvv.compare",
@@ -30755,13 +30135,13 @@ def mask_tail_policy_boundary_summary(
                 "segment2 store"
             ),
             "authority": (
-                "provider-derived typed weft_rvv runtime-scalar computed-mask "
+                "exact-body-derived typed weft_rvv runtime-scalar computed-mask "
                 "segment2 store body/config/runtime facts"
                 if is_runtime_scalar
-                else "provider-derived typed weft_rvv computed-mask segment2 "
+                else "exact-body-derived typed weft_rvv computed-mask segment2 "
                 "store body/config/runtime facts"
             ),
-            "artifact_metadata_role": "mirror-only-after-provider-route",
+            "evidence_source_role": "typed-body-and-generated-source-only",
             "selected_mask_abi": {
                 "external_mask": False,
                 "producer": "weft_rvv.compare",
@@ -30874,13 +30254,13 @@ def mask_tail_policy_boundary_summary(
                 "facts -> statement plan -> emitted masked reduction input"
             ),
             "authority": (
-                "provider-derived typed weft_rvv runtime-scalar "
+                "exact-body-derived typed weft_rvv runtime-scalar "
                 "mask/reduction body/config/runtime facts"
                 if is_runtime_scalar
-                else "provider-derived typed weft_rvv mask/reduction "
+                else "exact-body-derived typed weft_rvv mask/reduction "
                 "body/config/runtime facts"
             ),
-            "artifact_metadata_role": "mirror-only-after-provider-route",
+            "evidence_source_role": "typed-body-and-generated-source-only",
             "selected_mask_abi": selected_mask_abi,
             "tail_policy": expected_metadata_for(expectation).get(
                 "weft_rvv.tail_policy"
@@ -30927,10 +30307,10 @@ def mask_tail_policy_boundary_summary(
                 "masked elementwise arithmetic and passthrough merge"
             ),
             "authority": (
-                "provider-derived typed weft_rvv masked elementwise "
+                "exact-body-derived typed weft_rvv masked elementwise "
                 "body/config/runtime facts"
             ),
-            "artifact_metadata_role": "mirror-only-after-provider-route",
+            "evidence_source_role": "typed-body-and-generated-source-only",
             "selected_mask_abi": {
                 "external_mask": False,
                 "producer": "weft_rvv.compare",
@@ -30994,8 +30374,8 @@ def mask_tail_policy_boundary_summary(
             "typed weft_rvv masked memory body/config -> RVV realization -> "
             "route-family facts -> statement plan -> emitted masked store"
         ),
-        "authority": "provider-derived typed weft_rvv mask/policy body/config/runtime facts",
-        "artifact_metadata_role": "mirror-only-after-provider-route",
+        "authority": "exact-body-derived typed weft_rvv mask/policy body/config/runtime facts",
+        "evidence_source_role": "typed-body-and-generated-source-only",
         "selected_mask_abi": {
             "c_name": "mask",
             "role": "mask-input-buffer",
@@ -31172,10 +30552,10 @@ def base_memory_movement_boundary_summary(
             "-> RVV-owned statement plan -> provider-built route"
         ),
         "authority": (
-            "provider-derived typed weft_rvv base memory body/config/runtime "
+            "exact-body-derived typed weft_rvv base memory body/config/runtime "
             "facts"
         ),
-        "artifact_metadata_role": "mirror-only-after-provider-route",
+        "evidence_source_role": "typed-body-and-generated-source-only",
         "memory_movement_kind": expectation.kind,
         "source_type_policy": {
             "element_type": expectation.element_type,
@@ -31285,10 +30665,10 @@ def compare_select_predicate_boundary_summary(
             "emitted compare/select intrinsics"
         ),
         "authority": (
-            "provider-derived typed weft_rvv compare/select body/config/"
+            "exact-body-derived typed weft_rvv compare/select body/config/"
             "runtime facts"
         ),
-        "artifact_metadata_role": "mirror-only-after-provider-route",
+        "evidence_source_role": "typed-body-and-generated-source-only",
         "compare_predicate_kind": expectation.compare_predicate_kind,
         "predicate_source": predicate_source,
         "predicate_role": predicate_role,
@@ -31363,7 +30743,7 @@ def compare_select_predicate_boundary_summary(
                     "plan -> emitted f32 clamp/select intrinsics"
                 ),
                 "authority": (
-                    "provider-derived typed weft_rvv f32 clamp/select "
+                    "exact-body-derived typed weft_rvv f32 clamp/select "
                     "body/config/runtime-bound facts"
                 ),
                 "runtime_bound_roles": {
@@ -31512,10 +30892,10 @@ def runtime_scalar_computed_mask_memory_boundary_summary(
             "emitted memory side effect"
         ),
         "authority": (
-            "provider-derived typed weft_rvv runtime-scalar computed-mask "
+            "exact-body-derived typed weft_rvv runtime-scalar computed-mask "
             "memory body/config/runtime facts"
         ),
-        "artifact_metadata_role": "mirror-only-after-provider-route",
+        "evidence_source_role": "typed-body-and-generated-source-only",
         "memory_side_effect_kind": memory_side_effect_kind,
         "compare_predicate_kind": expectation.compare_predicate_kind,
         "runtime_scalar_producer_source": (
@@ -31581,10 +30961,10 @@ def conversion_sew_policy_boundary_summary(
             "intrinsics"
         ),
         "authority": (
-            "provider-derived typed weft_rvv conversion body/config/runtime "
+            "exact-body-derived typed weft_rvv conversion body/config/runtime "
             "facts"
         ),
-        "artifact_metadata_role": "mirror-only-after-provider-route",
+        "evidence_source_role": "typed-body-and-generated-source-only",
         "direct_pre_realized_route_entry_supported": False,
         "conversion_kind": expectation.conversion_kind,
         "conversion_relation": expectation.conversion_relation,
@@ -31629,7 +31009,7 @@ def conversion_sew_policy_boundary_summary(
         "emitted_cpp": emitted_cpp_checks.get(
             "conversion_sew_policy_boundary", {}
         ),
-        "provider_route_facts": {
+        "typed_body_facts": {
             "runtime_abi_order": expectation.runtime_abi_order,
             "route_operand_binding_plan": route_metadata.get(
                 "weft_rvv.route_operand_binding_plan"
@@ -31897,7 +31277,7 @@ def dequantization_boundary_summary(
         "source": (
             "selected weft.exec RVV variant -> typed weft_rvv product/"
             "reduction/dequantize/clamp body/config/runtime-scale/"
-            "runtime-bound facts -> RVV provider route facts -> statement "
+            "runtime-bound facts -> RVV exact typed-body facts -> statement "
             "plan -> emitted product, reduction, conversion, scale, "
             "lower/upper clamp/select, and store intrinsics -> "
             "runtime-callable artifact ABI"
@@ -31905,14 +31285,14 @@ def dequantization_boundary_summary(
             else
             "selected weft.exec RVV variant -> typed weft_rvv product/"
             "reduction/dequantize body/config/runtime-scale facts -> RVV "
-            "provider route facts -> statement plan -> emitted product, "
+            "exact typed-body facts -> statement plan -> emitted product, "
             "reduction, conversion, scale, and store intrinsics -> "
             "runtime-callable artifact ABI"
             if composed_product_dequant
             else (
                 "selected weft.exec RVV variant -> typed dequant-clamp "
                 "weft_rvv body/config/runtime-scale/runtime-bound facts -> "
-                "RVV plugin-local realization -> provider route facts -> "
+                "RVV plugin-local realization -> exact typed-body facts -> "
                 "statement plan -> emitted conversion, scale, lower/upper "
                 "clamp/select, and store intrinsics -> runtime-callable "
                 "artifact ABI"
@@ -31926,10 +31306,10 @@ def dequantization_boundary_summary(
             )
         ),
         "authority": (
-            "provider-derived typed weft_rvv dequantization body/config/"
+            "exact-body-derived typed weft_rvv dequantization body/config/"
             "runtime scale facts"
         ),
-        "artifact_metadata_role": "mirror-only-after-provider-route",
+        "evidence_source_role": "typed-body-and-generated-source-only",
         "typed_compute_op": "weft_rvv.dequantize",
         "memory_form": expectation.memory_form,
         "dequantization_relation": route_metadata.get(
@@ -31949,7 +31329,7 @@ def dequantization_boundary_summary(
             "dequantization_boundary", {}
         ),
         "emitted_cpp": emitted_cpp_checks.get("dequantization_boundary", {}),
-        "provider_route_facts": {
+        "typed_body_facts": {
             "runtime_abi_order": expectation.runtime_abi_order,
             "route_operand_binding_plan": route_metadata.get(
                 "weft_rvv.route_operand_binding_plan"
@@ -32032,15 +31412,15 @@ def dequant_clamp_epilogue_boundary_summary(
         "source": (
             "selected weft.exec RVV variant -> typed pre-realized "
             "dequant-clamp weft_rvv body -> RVV plugin-local realization -> "
-            "provider-derived dequant plus lower/upper clamp route facts -> "
+            "exact-body-derived dequant plus lower/upper clamp route facts -> "
             "common EmitC materialization -> generated object/header bundle -> "
             "external ABI harness"
         ),
         "authority": (
-            "provider-derived typed weft_rvv dequant-clamp body/config/"
+            "exact-body-derived typed weft_rvv dequant-clamp body/config/"
             "runtime scale/runtime bound facts"
         ),
-        "artifact_metadata_role": "mirror-only-after-provider-route",
+        "evidence_source_role": "typed-body-and-generated-source-only",
         "typed_body_source": (
             "weft_rvv.typed_dequant_clamp_f32_epilogue_pre_realized_body"
         ),
@@ -32140,13 +31520,13 @@ def vector_reduction_boundary_summary(
             "materialization -> runtime-callable artifact ABI"
         ),
         "authority": (
-            "provider-derived typed weft_rvv vector-reduction "
+            "exact-body-derived typed weft_rvv vector-reduction "
             "body/config/runtime facts"
         ),
         "target_artifact_validator": (
             "target-owned vector-reduction route-family validator"
         ),
-        "artifact_metadata_role": "mirror-only-after-provider-route",
+        "evidence_source_role": "typed-body-and-generated-source-only",
         "direct_pre_realized_route_entry_supported": False,
         "reduction_kind": "add",
         "typed_compute_op": "weft_rvv.reduce",
@@ -32196,7 +31576,7 @@ def vector_reduction_boundary_summary(
             "store_pointer": "out + loop_induction",
             "store_vl": REDUCE_ADD_STORE_VL,
         },
-        "provider_route_facts": {
+        "typed_body_facts": {
             "runtime_abi_order": expectation.runtime_abi_order,
             "route_operand_binding_plan": REDUCE_ADD_ROUTE_OPERAND_BINDING_PLAN,
             "route_operand_binding_operands": (
@@ -32276,13 +31656,13 @@ def widening_macc_boundary_summary(
             "EmitC materialization -> runtime-callable artifact ABI"
         ),
         "authority": (
-            "provider-derived typed weft_rvv widening-MAcc "
+            "exact-body-derived typed weft_rvv widening-MAcc "
             "body/config/runtime facts"
         ),
         "target_artifact_validator": (
             "target-owned widening-macc-contraction route-family validator"
         ),
-        "artifact_metadata_role": "mirror-only-after-provider-route",
+        "evidence_source_role": "typed-body-and-generated-source-only",
         "direct_pre_realized_route_entry_supported": False,
         "contraction_kind": "widening_macc_add",
         "typed_compute_op": "weft_rvv.widening_macc",
@@ -32341,7 +31721,7 @@ def widening_macc_boundary_summary(
             "macc_operand_order": "accumulator_vector,lhs_i16_vector,rhs_i16_vector,vl",
             "store_pointer": "out + loop_induction",
         },
-        "provider_route_facts": {
+        "typed_body_facts": {
             "provider_supported_mirror": CONTRACTION_PROVIDER_SUPPORTED_MIRROR,
             "contraction_route_family_plan": (
                 "rvv-contraction-route-family-plan.v1"
@@ -32459,10 +31839,10 @@ def reduction_accumulation_boundary_summary(
             "emitted masked horizontal reduction intrinsics"
         )
         authority = (
-            "provider-derived typed weft_rvv runtime-scalar computed-mask "
+            "exact-body-derived typed weft_rvv runtime-scalar computed-mask "
             "standalone reduction body/config/runtime facts"
             if is_runtime_scalar
-            else "provider-derived typed weft_rvv computed-mask standalone "
+            else "exact-body-derived typed weft_rvv computed-mask standalone "
             "reduction body/config/runtime facts"
         )
         selected_source_abi = {
@@ -32544,7 +31924,7 @@ def reduction_accumulation_boundary_summary(
             "authority": (
                 authority
             ),
-            "artifact_metadata_role": "mirror-only-after-provider-route",
+            "evidence_source_role": "typed-body-and-generated-source-only",
             "scalar_result_runtime_boundary": (
                 STANDALONE_REDUCE_SCALAR_RESULT_RUNTIME_BOUNDARY
             ),
@@ -32668,10 +32048,10 @@ def reduction_accumulation_boundary_summary(
             "horizontal reduction intrinsics"
         ),
         "authority": (
-            "provider-derived typed weft_rvv reduction/accumulation "
+            "exact-body-derived typed weft_rvv reduction/accumulation "
             "body/config/runtime facts"
         ),
-        "artifact_metadata_role": "mirror-only-after-provider-route",
+        "evidence_source_role": "typed-body-and-generated-source-only",
         "scalar_result_runtime_boundary": (
             STANDALONE_REDUCE_SCALAR_RESULT_RUNTIME_BOUNDARY
         ),
@@ -32811,10 +32191,10 @@ def multiply_accumulate_boundary_summary(
             "statement plan -> emitted vmacc operands"
         ),
         "authority": (
-            "provider-derived typed weft_rvv multiply-accumulate "
+            "exact-body-derived typed weft_rvv multiply-accumulate "
             "body/config/runtime facts"
         ),
-        "artifact_metadata_role": "mirror-only-after-provider-route",
+        "evidence_source_role": "typed-body-and-generated-source-only",
         "macc_kind": "add",
         "source_type_policy": {
             "element_type": expectation.element_type,
@@ -32857,7 +32237,7 @@ def multiply_accumulate_boundary_summary(
         "emitted_cpp": emitted_cpp_checks.get(
             "multiply_accumulate_boundary", {}
         ),
-        "provider_route_facts": {
+        "typed_body_facts": {
             "runtime_abi_order": expectation.runtime_abi_order,
             "route_operand_binding_plan": route_metadata.get(
                 "weft_rvv.route_operand_binding_plan"
@@ -32918,7 +32298,7 @@ def computed_masked_macc_boundary_summary(
         "-> emitted compare, active MAcc, merge, and store"
     )
     authority = (
-        "provider-derived typed weft_rvv computed-mask "
+        "exact-body-derived typed weft_rvv computed-mask "
         "multiply-accumulate body/config/runtime facts"
     )
     selected_source_abi = {
@@ -32955,7 +32335,7 @@ def computed_masked_macc_boundary_summary(
             "active MAcc, merge, and store"
         )
         authority = (
-            "provider-derived typed weft_rvv runtime-scalar computed-mask "
+            "exact-body-derived typed weft_rvv runtime-scalar computed-mask "
             "multiply-accumulate body/config/runtime facts"
         )
         selected_source_abi = {
@@ -32996,7 +32376,7 @@ def computed_masked_macc_boundary_summary(
     return {
         "source": source,
         "authority": authority,
-        "artifact_metadata_role": "mirror-only-after-provider-route",
+        "evidence_source_role": "typed-body-and-generated-source-only",
         "macc_kind": "add",
         "compare_predicate_kind": expectation.compare_predicate_kind,
         "mask_role": COMPUTED_MASK_MEMORY_MASK_ROLE,
@@ -33112,7 +32492,7 @@ def widening_dot_reduction_boundary_summary(
         if is_strided
         else WIDENING_DOT_ROUTE_OPERAND_BINDING_OPERANDS
     )
-    provider_route_facts = {
+    typed_body_facts = {
         "provider_supported_mirror": CONTRACTION_PROVIDER_SUPPORTED_MIRROR,
         "target_leaf_profile": route_metadata.get("weft_rvv.target_leaf_profile"),
         "runtime_abi_order": expectation.runtime_abi_order,
@@ -33149,7 +32529,7 @@ def widening_dot_reduction_boundary_summary(
         "reduction_store_vl": WIDENING_DOT_REDUCTION_STORE_VL,
     }
     if is_strided:
-        provider_route_facts["strided_input_facts"] = {
+        typed_body_facts["strided_input_facts"] = {
             "strided_memory_layout": STRIDED_INPUT_WIDENING_DOT_MEMORY_LAYOUT,
             "lhs_stride_source": STRIDED_INPUT_WIDENING_DOT_LHS_STRIDE_SOURCE,
             "rhs_stride_source": STRIDED_INPUT_WIDENING_DOT_RHS_STRIDE_SOURCE,
@@ -33161,7 +32541,7 @@ def widening_dot_reduction_boundary_summary(
                 STRIDED_INPUT_WIDENING_DOT_STRIDED_LOAD_INTRINSIC
             ),
         }
-        provider_route_facts["runtime_strided_input_cases"] = [
+        typed_body_facts["runtime_strided_input_cases"] = [
             {
                 "lhs_stride": 2,
                 "rhs_stride": 3,
@@ -33174,7 +32554,7 @@ def widening_dot_reduction_boundary_summary(
             },
         ]
     else:
-        provider_route_facts["strided_input_facts"] = "rejected-if-present"
+        typed_body_facts["strided_input_facts"] = "rejected-if-present"
     return {
         "source": (
             "typed weft_rvv.widening_dot_reduce body/config/runtime facts -> "
@@ -33188,7 +32568,7 @@ def widening_dot_reduction_boundary_summary(
             "RVVTargetArtifactRouteFamilyValidation.cpp:"
             "widening-dot-reduction target-owned consumer"
         ),
-        "artifact_metadata_role": "typed-plan-consistency-only",
+        "evidence_source_role": "typed-body-plan-consistency",
         "direct_pre_realized_route_entry_supported": False,
         "contraction_kind": expectation.kind,
         "typed_compute_op": (
@@ -33260,7 +32640,7 @@ def widening_dot_reduction_boundary_summary(
             "loop_accumulator_source": "out[0]",
             "scalar_store_vl": WIDENING_DOT_REDUCTION_STORE_VL,
         },
-        "provider_route_facts": provider_route_facts,
+        "typed_body_facts": typed_body_facts,
         "target_validator_consumed_facts": [
             "runtime ABI order and roles",
             "route operand binding plan and exact binding summary",
@@ -33347,7 +32727,7 @@ def widening_product_reduction_boundary_summary(
         if (is_dequant or is_dequant_clamp)
         else WIDENING_PRODUCT_REDUCE_SCALAR_RESULT_BOUNDARY
     )
-    provider_route_facts = {
+    typed_body_facts = {
         "provider_supported_mirror": CONTRACTION_PROVIDER_SUPPORTED_MIRROR,
         "target_leaf_profile": target_leaf_profile,
         "runtime_abi_order": expectation.runtime_abi_order,
@@ -33383,7 +32763,7 @@ def widening_product_reduction_boundary_summary(
         "reduction_store_vl": WIDENING_PRODUCT_REDUCE_STORE_VL,
     }
     if is_dequant or is_dequant_clamp:
-        provider_route_facts["dequantization"] = {
+        typed_body_facts["dequantization"] = {
             "relation": DEQUANTIZE_I32_TO_F32_RELATION,
             "scalar_dequant_expression": "dot_acc_scalar * scale",
             "scalar_splat_intrinsic": F32_CLAMP_SELECT_SPLAT_INTRINSIC,
@@ -33404,9 +32784,9 @@ def widening_product_reduction_boundary_summary(
         materialized_formula_plan.get("operand_encoding") == "packed_i4"
     )
     if is_dequant or is_dequant_clamp:
-        provider_route_facts["formula_plan"] = materialized_formula_plan
+        typed_body_facts["formula_plan"] = materialized_formula_plan
     if is_dequant_clamp:
-        provider_route_facts["clamp_select"] = {
+        typed_body_facts["clamp_select"] = {
             "lower_bound_role": F32_CLAMP_SELECT_LOWER_BOUND_ROLE,
             "upper_bound_role": F32_CLAMP_SELECT_UPPER_BOUND_ROLE,
             "bound_order": F32_CLAMP_SELECT_BOUND_ORDER,
@@ -33632,7 +33012,7 @@ def widening_product_reduction_boundary_summary(
         generated_artifact_resource_schedule_evidence = {
             "source": "formula-constructed typed selected body",
             "authority": "RVV low-precision resource formula",
-            "artifact_metadata_role": "typed-plan-consistency-only",
+            "evidence_source_role": "typed-body-plan-consistency",
             "object_header_agreement_checked": True,
             "formula_plan": materialized_formula_plan,
         }
@@ -33663,7 +33043,7 @@ def widening_product_reduction_boundary_summary(
             "RVVTargetArtifactRouteFamilyValidation.cpp:"
             "product-reduction target-owned consumer"
         ),
-        "artifact_metadata_role": "mirror-only-after-provider-route",
+        "evidence_source_role": "typed-body-and-generated-source-only",
         "generated_artifact_resource_schedule_evidence": (
             generated_artifact_resource_schedule_evidence
         ),
@@ -33693,7 +33073,7 @@ def widening_product_reduction_boundary_summary(
         "product_reduction_chain_relation": WIDENING_PRODUCT_REDUCE_RELATION,
         "selected_source_abi": selected_source_abi,
         "statement_plan": statement_plan,
-        "provider_route_facts": provider_route_facts,
+        "typed_body_facts": typed_body_facts,
         "target_validator_consumed_facts": target_validator_consumed_facts,
         "materialized_body": materialized_checks.get(
             "widening_product_reduction_boundary", {}
@@ -33766,7 +33146,7 @@ def computed_masked_widening_dot_reduce_boundary_summary(
                 "rhs_stride": "rhs-input-stride",
             }
         )
-    provider_route_facts = {
+    typed_body_facts = {
         "provider_supported_mirror": CONTRACTION_PROVIDER_SUPPORTED_MIRROR,
         "target_leaf_profile": CONTRACTION_TARGET_LEAF_PROFILE,
         "runtime_abi_order": expectation.runtime_abi_order,
@@ -33804,7 +33184,7 @@ def computed_masked_widening_dot_reduce_boundary_summary(
         "reduction_store_vl": WIDENING_DOT_REDUCTION_STORE_VL,
     }
     if is_strided:
-        provider_route_facts["strided_input_facts"] = {
+        typed_body_facts["strided_input_facts"] = {
             "strided_memory_layout": (
                 COMPUTED_MASK_STRIDED_INPUT_WIDENING_DOT_MEMORY_LAYOUT
             ),
@@ -33819,7 +33199,7 @@ def computed_masked_widening_dot_reduce_boundary_summary(
             ),
         }
     else:
-        provider_route_facts["strided_input_facts"] = "rejected-if-present"
+        typed_body_facts["strided_input_facts"] = "rejected-if-present"
     return {
         "source": (
             "typed weft_rvv.masked_widening_dot_reduce body/config/runtime "
@@ -33835,7 +33215,7 @@ def computed_masked_widening_dot_reduce_boundary_summary(
             "RVVTargetArtifactRouteFamilyValidation.cpp:"
             "widening-dot-reduction target-owned consumer"
         ),
-        "artifact_metadata_role": "typed-plan-consistency-only",
+        "evidence_source_role": "typed-body-plan-consistency",
         "direct_pre_realized_route_entry_supported": False,
         "contraction_kind": expectation.kind,
         "typed_compute_op": "weft_rvv.masked_widening_dot_reduce",
@@ -33911,7 +33291,7 @@ def computed_masked_widening_dot_reduce_boundary_summary(
             "loop_accumulator_source": "out[0]",
             "scalar_store_vl": WIDENING_DOT_REDUCTION_STORE_VL,
         },
-        "provider_route_facts": provider_route_facts,
+        "typed_body_facts": typed_body_facts,
         "target_validator_consumed_facts": [
             "runtime ABI order and roles",
             "route operand binding plan and exact binding summary",
@@ -34080,7 +33460,7 @@ def run_one_op_e2e(
         bundle_checks = verify_bundle(bundle_dir, readobj, expectation)
         evidence["bundle_checks"] = bundle_checks
         evidence["typed_config_artifact_closure"] = {
-            "source": "provider-derived typed weft_rvv body/config/runtime facts",
+            "source": "exact-body-derived typed weft_rvv body/config/runtime facts",
             "element_type": expectation.element_type,
             "sew": expectation.sew,
             "lmul": expectation.lmul,
@@ -34093,7 +33473,7 @@ def run_one_op_e2e(
                 "intrinsics", []
             ),
             "required_header": "riscv_vector.h",
-            "artifact_metadata_role": "mirror-only-after-provider-route",
+            "evidence_source_role": "typed-body-and-generated-source-only",
         }
         evidence["runtime_avl_vl_boundary"] = runtime_avl_vl_boundary_summary(
             expectation=expectation,
@@ -34343,15 +33723,14 @@ def run_one_op_e2e(
             expectation.is_widening_product_reduce_dequantize_f32
             or expectation.is_widening_product_reduce_dequant_clamp_f32
         ):
-            widening_product_metadata_for_harness = (
-                widening_product_reduction_metadata_from_bundle(
-                    bundle_checks, expectation
-                )
-            )
+            materialized_product_body = evidence[
+                "materialized_selected_body_checks"
+            ].get("widening_product_reduction_boundary", {})
             uses_packed_i4_harness = (
-                product_dequant_uses_packed_i4_typed_body(
-                    widening_product_metadata_for_harness, expectation
+                materialized_product_body.get("formula_plan", {}).get(
+                    "operand_encoding"
                 )
+                == "packed_i4"
             )
         harness_path = (
             op_artifact_dir
@@ -34402,16 +33781,12 @@ def run_one_op_e2e(
                 "target": args.ssh_target if not args.dry_run else "ssh rvv required",
                 "timing": "not_measured",
                 "typed_body_gate": {
-                    "typed_compute_chain": (
-                        widening_product_metadata_for_harness.get(
-                            "rvv_selected_body_typed_compute_op"
-                        )
+                    "typed_compute_chain": materialized_product_body.get(
+                        "typed_compute_op"
                     ),
-                    "formula_plan": {
-                        key.removeprefix("weft_rvv.low_precision_primitive."): value
-                        for key, value in widening_product_metadata_for_harness.items()
-                        if key.startswith("weft_rvv.low_precision_primitive.")
-                    },
+                    "formula_plan": materialized_product_body.get(
+                        "formula_plan", {}
+                    ),
                     "reference_oracle_selected_from_typed_body": True,
                 },
             }
@@ -35535,6 +34910,11 @@ def make_fake_bundle(
                 "weft_rvv.low_precision_primitive.result_lmul": "m1",
             }
         )
+    # Exact-body artifacts do not serialize computation facts into an
+    # independent metadata dictionary.  The fake bundle exercises the same
+    # contract as production: typed-body identity + ordered runtime ABI + the
+    # family-mechanical artifact route.
+    expected_metadata = {}
     header_required_metadata_keys = {
         "weft_rvv.config_contract",
         "weft_rvv.element_type",
@@ -35562,8 +34942,8 @@ def make_fake_bundle(
 #include <stddef.h>
 #include <stdint.h>
 {header_metadata_comments}
-/* weft.rvv.runtime_avl_source: runtime_abi:n */
-/* weft.rvv.multi_vl: supported */
+/* weft.rvv.runtime_abi_name: {EXACT_BODY_RUNTIME_ABI_NAME} */
+/* weft.rvv.selected_route: {EXPECTED_OBJECT_ROUTE} */
 #ifdef __cplusplus
 extern "C" {{
 #endif
@@ -36190,8 +35570,8 @@ def run_self_test() -> int:
                     bundle_checks=bundle_checks,
                     runtime_counts=[1, 17, 257],
                 )
-                provider_facts = conversion_boundary.get(
-                    "provider_route_facts", {}
+                typed_facts = conversion_boundary.get(
+                    "typed_body_facts", {}
                 )
                 statement_plan = conversion_boundary.get("statement_plan", {})
                 if (
@@ -36205,11 +35585,11 @@ def run_self_test() -> int:
                         "weft_rvv.route_operand_binding_operands"
                     )
                     != expected_binding_operands
-                    or provider_facts.get("source_load_intrinsic")
+                    or typed_facts.get("source_load_intrinsic")
                     != expectation.conversion_source_load_intrinsic
-                    or provider_facts.get("conversion_intrinsic")
+                    or typed_facts.get("conversion_intrinsic")
                     != expectation.conversion_intrinsic
-                    or provider_facts.get("store_intrinsic")
+                    or typed_facts.get("store_intrinsic")
                     != expectation.unit_store_intrinsic
                     or statement_plan.get("conversion_operand_order")
                     != "loaded_source, vl"
@@ -36235,7 +35615,7 @@ def run_self_test() -> int:
                     runtime_counts=[0, 1, 16, 17, 257],
                     dequant_scale_values=[-0.125, 0.375],
                 )
-                provider_facts = dequant_boundary.get("provider_route_facts", {})
+                typed_facts = dequant_boundary.get("typed_body_facts", {})
                 formula_schedule = dequant_boundary.get("formula_schedule", {})
                 statement_plan = dequant_boundary.get("statement_plan", {})
                 selected_source_abi = dequant_boundary.get(
@@ -36256,13 +35636,13 @@ def run_self_test() -> int:
                     != DEQUANTIZE_I32_TO_F32_ROUTE_OPERAND_BINDING_OPERANDS
                     or selected_source_abi.get("scale")
                     != "dequant-scale-value runtime-scale scale-f32"
-                    or provider_facts.get("convert_intrinsic")
+                    or typed_facts.get("convert_intrinsic")
                     != DEQUANTIZE_I32_TO_F32_CONVERT_INTRINSIC
-                    or provider_facts.get("scale_intrinsic")
+                    or typed_facts.get("scale_intrinsic")
                     != DEQUANTIZE_I32_TO_F32_SCALE_INTRINSIC
-                    or provider_facts.get("store_intrinsic")
+                    or typed_facts.get("store_intrinsic")
                     != DEQUANTIZE_I32_TO_F32_STORE_INTRINSIC
-                    or provider_facts.get("formula_unroll_factor")
+                    or typed_facts.get("formula_unroll_factor")
                     != DEQUANTIZE_I32_TO_F32_FORMULA_UNROLL
                     or formula_schedule.get("unroll_factor")
                     != DEQUANTIZE_I32_TO_F32_FORMULA_UNROLL
@@ -36375,7 +35755,7 @@ def run_self_test() -> int:
                 selected_source_abi = macc_boundary.get(
                     "selected_source_abi", {}
                 )
-                provider_facts = macc_boundary.get("provider_route_facts", {})
+                typed_facts = macc_boundary.get("typed_body_facts", {})
                 statement_plan = macc_boundary.get("statement_plan", {})
                 if (
                     macc_metadata.get("weft_rvv.route_operand_binding_plan")
@@ -36392,15 +35772,15 @@ def run_self_test() -> int:
                     != "accumulator-input-buffer"
                     or selected_source_abi.get("out") != "output-buffer"
                     or selected_source_abi.get("n") != "runtime-element-count"
-                    or provider_facts.get("runtime_abi_order")
+                    or typed_facts.get("runtime_abi_order")
                     != MACC_ADD_RUNTIME_ABI_ORDER
-                    or provider_facts.get("route_operand_binding_plan")
+                    or typed_facts.get("route_operand_binding_plan")
                     != MACC_ROUTE_OPERAND_BINDING_PLAN
-                    or provider_facts.get("route_operand_binding_operands")
+                    or typed_facts.get("route_operand_binding_operands")
                     != MACC_ROUTE_OPERAND_BINDING_OPERANDS
-                    or provider_facts.get("required_header_declarations")
+                    or typed_facts.get("required_header_declarations")
                     != PLAIN_MACC_REQUIRED_HEADER_DECLARATIONS
-                    or provider_facts.get("c_type_mapping")
+                    or typed_facts.get("c_type_mapping")
                     != PLAIN_MACC_C_TYPE_MAPPING
                     or statement_plan.get("rhs_source") != "typed RHS vector load"
                     or statement_plan.get("macc_operand_order")
@@ -36427,8 +35807,8 @@ def run_self_test() -> int:
                 selected_source_abi = widening_macc_boundary.get(
                     "selected_source_abi", {}
                 )
-                provider_facts = widening_macc_boundary.get(
-                    "provider_route_facts", {}
+                typed_facts = widening_macc_boundary.get(
+                    "typed_body_facts", {}
                 )
                 statement_plan = widening_macc_boundary.get("statement_plan", {})
                 target_consumed = widening_macc_boundary.get(
@@ -36456,24 +35836,24 @@ def run_self_test() -> int:
                     or selected_source_abi.get("out")
                     != "output-buffer i32 result vector"
                     or selected_source_abi.get("n") != "runtime-element-count"
-                    or provider_facts.get("runtime_abi_order")
+                    or typed_facts.get("runtime_abi_order")
                     != expectation.runtime_abi_order
-                    or provider_facts.get("route_operand_binding_plan")
+                    or typed_facts.get("route_operand_binding_plan")
                     != WIDENING_MACC_ROUTE_OPERAND_BINDING_PLAN
-                    or provider_facts.get("route_operand_binding_operands")
+                    or typed_facts.get("route_operand_binding_operands")
                     != WIDENING_MACC_ROUTE_OPERAND_BINDING_OPERANDS
-                    or provider_facts.get("required_header_declarations")
+                    or typed_facts.get("required_header_declarations")
                     != CONTRACTION_REQUIRED_HEADER_DECLARATIONS
-                    or provider_facts.get("c_type_mapping")
+                    or typed_facts.get("c_type_mapping")
                     != CONTRACTION_C_TYPE_MAPPING
-                    or provider_facts.get("source_sew") != "16"
-                    or provider_facts.get("source_lmul") != "mf2"
-                    or provider_facts.get("accumulator_sew") != expectation.sew
-                    or provider_facts.get("accumulator_lmul")
+                    or typed_facts.get("source_sew") != "16"
+                    or typed_facts.get("source_lmul") != "mf2"
+                    or typed_facts.get("accumulator_sew") != expectation.sew
+                    or typed_facts.get("accumulator_lmul")
                     != expectation.lmul
-                    or provider_facts.get("result_sew") != expectation.sew
-                    or provider_facts.get("result_lmul") != expectation.lmul
-                    or provider_facts.get("widening_macc_relation")
+                    or typed_facts.get("result_sew") != expectation.sew
+                    or typed_facts.get("result_lmul") != expectation.lmul
+                    or typed_facts.get("widening_macc_relation")
                     != WIDENING_MACC_RELATION
                     or statement_plan.get("macc_operand_order")
                     != "accumulator_vector,lhs_i16_vector,rhs_i16_vector,vl"
@@ -36520,10 +35900,10 @@ def run_self_test() -> int:
                 selected_source_abi = widening_dot_boundary.get(
                     "selected_source_abi", {}
                 )
-                provider_facts = widening_dot_boundary.get(
-                    "provider_route_facts", {}
+                typed_facts = widening_dot_boundary.get(
+                    "typed_body_facts", {}
                 )
-                strided_input_cases = provider_facts.get(
+                strided_input_cases = typed_facts.get(
                     "runtime_strided_input_cases", []
                 )
                 statement_plan = widening_dot_boundary.get("statement_plan", {})
@@ -36548,13 +35928,13 @@ def run_self_test() -> int:
                     != "accumulator-input-buffer"
                     or selected_source_abi.get("out") != "output-buffer"
                     or selected_source_abi.get("n") != "runtime-element-count"
-                    or provider_facts.get("runtime_abi_order")
+                    or typed_facts.get("runtime_abi_order")
                     != expectation.runtime_abi_order
-                    or provider_facts.get("route_operand_binding_plan")
+                    or typed_facts.get("route_operand_binding_plan")
                     != expected_binding_plan
-                    or provider_facts.get("route_operand_binding_operands")
+                    or typed_facts.get("route_operand_binding_operands")
                     != expected_binding_operands
-                    or provider_facts.get("effective_source_load_intrinsic")
+                    or typed_facts.get("effective_source_load_intrinsic")
                     != expected_source_load
                     or (
                         expectation.is_strided_input_widening_dot_reduce_add
@@ -36576,11 +35956,11 @@ def run_self_test() -> int:
                             },
                         ]
                     )
-                    or provider_facts.get("widening_product_intrinsic")
+                    or typed_facts.get("widening_product_intrinsic")
                     != "__riscv_vwmul_vv_i32m1"
-                    or provider_facts.get("scalar_seed_splat_intrinsic")
+                    or typed_facts.get("scalar_seed_splat_intrinsic")
                     != "__riscv_vmv_v_x_i32m1"
-                    or provider_facts.get("reduction_intrinsic")
+                    or typed_facts.get("reduction_intrinsic")
                     != "__riscv_vredsum_vs_i32m1_i32m1"
                     or statement_plan.get("seed_source") != "acc[0]"
                     or statement_plan.get("loop_accumulator_source")
@@ -36659,10 +36039,10 @@ def run_self_test() -> int:
                 selected_source_abi = product_dequant_boundary.get(
                     "selected_source_abi", {}
                 )
-                provider_facts = product_dequant_boundary.get(
-                    "provider_route_facts", {}
+                typed_facts = product_dequant_boundary.get(
+                    "typed_body_facts", {}
                 )
-                product_dequant_facts = provider_facts.get("dequantization", {})
+                product_dequant_facts = typed_facts.get("dequantization", {})
                 schedule_evidence = product_dequant_boundary.get(
                     "generated_artifact_resource_schedule_evidence", {}
                 )
@@ -36677,8 +36057,8 @@ def run_self_test() -> int:
                     "result_type_policy", {}
                 )
                 retired_authority_present = (
-                    schedule_evidence.get("artifact_metadata_role")
-                    != "typed-plan-consistency-only"
+                    schedule_evidence.get("evidence_source_role")
+                    != "typed-body-plan-consistency"
                     or schedule_evidence.get("object_header_agreement_checked")
                     is not True
                     or expected_header_object_abi_fact not in target_consumed
@@ -36716,9 +36096,9 @@ def run_self_test() -> int:
                     or product_dequant_facts.get("forbids_vector_scale_intrinsic")
                     != DEQUANTIZE_I32_TO_F32_SCALE_INTRINSIC
                     or selected_source_abi.get("scale") != "dequant-scale-value"
-                    or provider_facts.get("target_leaf_profile")
+                    or typed_facts.get("target_leaf_profile")
                     != expected_target_leaf_profile
-                    or provider_facts.get("c_type_mapping")
+                    or typed_facts.get("c_type_mapping")
                     != expected_c_type_mapping
                     or accumulator_policy.get("loop_carry_source")
                     != "dot_acc_vec"
@@ -36740,7 +36120,7 @@ def run_self_test() -> int:
                         "runtime scale facts"
                     )
                 if is_product_dequant_clamp:
-                    clamp_facts = provider_facts.get("clamp_select", {})
+                    clamp_facts = typed_facts.get("clamp_select", {})
                     expected_bound_pairs = [
                         {"lower_bound": lower, "upper_bound": upper}
                         for lower, upper in DEFAULT_F32_CLAMP_BOUND_PAIRS
@@ -36816,7 +36196,7 @@ def run_self_test() -> int:
                     runtime_counts=[0, 1, 16, 17, 257],
                 )
                 selected_source_abi = boundary.get("selected_source_abi", {})
-                provider_facts = boundary.get("provider_route_facts", {})
+                typed_facts = boundary.get("typed_body_facts", {})
                 statement_plan = boundary.get("statement_plan", {})
                 accumulator_policy = boundary.get("accumulator_type_policy", {})
                 result_policy = boundary.get("result_type_policy", {})
@@ -38061,6 +37441,140 @@ def run_self_test() -> int:
     return 0
 
 
+def run_exact_body_self_test() -> int:
+    """Exercise the current artifact contract without legacy metadata mirrors."""
+    with tempfile.TemporaryDirectory(
+        prefix="weft-rvv-exact-body-bundle-self-test-"
+    ) as tmp_raw:
+        tmp = Path(tmp_raw)
+        validate_runtime_counts([7, 16, 23])
+        validate_rhs_scalar_values([-37, 91])
+        validate_dequant_scale_values([-0.125, 0.375])
+        expect_self_test_failure(
+            "single runtime count", lambda: validate_runtime_counts([23])
+        )
+        expect_self_test_failure(
+            "duplicate scalar values",
+            lambda: validate_rhs_scalar_values([-37, -37]),
+        )
+        expect_self_test_failure(
+            "zero dequant scale",
+            lambda: validate_dequant_scale_values([-0.125, 0.0]),
+        )
+
+        expectations = (
+            list(EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS.values())
+            + list(VECTOR_SOURCE_FRONT_DOOR_OP_EXPECTATIONS.values())
+            + list(RHS_BROADCAST_SELECTED_BODY_OP_EXPECTATIONS.values())
+            + list(LMUL_M2_SELECTED_BODY_OP_EXPECTATIONS.values())
+            + list(PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS.values())
+        )
+        seen: set[tuple[str, str, str]] = set()
+        for expectation in expectations:
+            identity = (
+                expectation.input_mode,
+                expectation.kind,
+                expectation.selected_variant,
+            )
+            if identity in seen:
+                continue
+            seen.add(identity)
+            bundle = make_fake_bundle(
+                tmp / expectation.input_mode / expectation.kind,
+                expectation,
+            )
+            checks = verify_bundle(bundle, readobj=None, expectation=expectation)
+            records = checks["index"]["parsed"]["records"]
+            if any(record.get("artifact_metadata") for record in records):
+                raise AssertionError(
+                    "exact-body fake bundle unexpectedly carried artifact metadata"
+                )
+
+        packed_expectation = PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS[
+            "widening_product_reduce_dequantize_f32"
+        ]
+        packed_bundle = make_fake_bundle(
+            tmp / "packed-i4",
+            packed_expectation,
+            uses_packed_i4_resource=True,
+        )
+        verify_bundle(packed_bundle, readobj=None, expectation=packed_expectation)
+
+        expectation = EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["add"]
+        missing_header = make_fake_bundle(tmp / "missing-header", expectation)
+        next(missing_header.glob("*.h")).unlink()
+        expect_self_test_failure(
+            "missing header",
+            lambda: verify_bundle(missing_header, None, expectation),
+        )
+
+        missing_object = make_fake_bundle(tmp / "missing-object", expectation)
+        next(missing_object.glob("*.o")).unlink()
+        expect_self_test_failure(
+            "missing object",
+            lambda: verify_bundle(missing_object, None, expectation),
+        )
+
+        mirrored_metadata = make_fake_bundle(tmp / "mirrored-metadata", expectation)
+        index_path = mirrored_metadata / INDEX_FILE_NAME
+        index_text = index_path.read_text(encoding="utf-8")
+        parameter_count = len(expectation.runtime_parameters)
+        index_text = index_text.replace(
+            f"  runtime_abi_parameter_count: {parameter_count}\n",
+            f"  runtime_abi_parameter_count: {parameter_count}\n"
+            "  artifact_metadata[0]:\n"
+            '    key: "rvv_selected_body_operation"\n'
+            '    value: "stale-provider-mirror"\n',
+            1,
+        )
+        index_path.write_text(index_text, encoding="utf-8")
+        expect_self_test_failure(
+            "route/provider metadata mirror",
+            lambda: verify_bundle(mirrored_metadata, None, expectation),
+        )
+
+        stale_route = make_fake_bundle(tmp / "stale-route", expectation)
+        index_path = stale_route / INDEX_FILE_NAME
+        index_path.write_text(
+            index_path.read_text(encoding="utf-8").replace(
+                f'route: "{EXPECTED_OBJECT_ROUTE}"',
+                'route: "rvv-stale-object-route"',
+                1,
+            ),
+            encoding="utf-8",
+        )
+        expect_self_test_failure(
+            "stale mechanical route",
+            lambda: verify_bundle(stale_route, None, expectation),
+        )
+
+        header_mirror = make_fake_bundle(tmp / "header-mirror", expectation)
+        header = next(header_mirror.glob("*.h"))
+        header.write_text(
+            header.read_text(encoding="utf-8")
+            + "\n/* provider_supported_mirror: true */\n",
+            encoding="utf-8",
+        )
+        expect_self_test_failure(
+            "header provider mirror",
+            lambda: verify_bundle(header_mirror, None, expectation),
+        )
+
+        require_self_test_sanitized(
+            "private key",
+            "-----BEGIN PRIVATE KEY-----\nabc\n-----END PRIVATE KEY-----",
+            "abc",
+        )
+        require_self_test_sanitized(
+            "authorization bearer",
+            "Authorization: Bearer raw-secret-token",
+            "raw-secret-token",
+        )
+
+    print(f"{SCRIPT_NAME} self-test passed")
+    return 0
+
+
 def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--self-test", action="store_true", help="run local parser/verifier self-tests")
@@ -38240,7 +37754,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
 def main(argv: list[str]) -> int:
     args = parse_args(argv)
     if args.self_test:
-        return run_self_test()
+        return run_exact_body_self_test()
     if any(count < 0 for count in args.runtime_count):
         print("--runtime-count values must be non-negative", file=sys.stderr)
         return 2

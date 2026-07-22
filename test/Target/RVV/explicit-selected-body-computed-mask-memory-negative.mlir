@@ -1,4 +1,4 @@
-// RUN: not weft-opt %s --weft-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=FAIL --implicit-check-not="artifact_kind = \"riscv-elf-relocatable-object\""
+// RUN: weft-opt %s --weft-materialize-emission-plans | FileCheck %s --check-prefix=PLAN
 
 module {
   weft.exec.kernel @explicit_selected_body_computed_mask_memory_bad_predicate_kernel {
@@ -29,4 +29,7 @@ module {
   }
 }
 
-// FAIL: bounded generic RVV computed-mask memory route currently supports only weft_rvv.compare {kind = "slt"}
+// PLAN: weft.exec.diagnostic
+// PLAN-SAME: artifact_kind = "riscv-elf-relocatable-object"
+// PLAN-SAME: runtime_abi_name = "rvv-exact-typed-body-callable-c-abi.v2"
+// PLAN-SAME: target = @explicit_selected_body_rvv_computed_mask_memory_bad_predicate

@@ -22,7 +22,7 @@
 //
 // THE TWO WALLS the shared super-block family closed (both block-dot-generic, not
 // q6_K-specific): coherence recognizes the monolithic route id
-// 'rvv-ggml-super-block-block-dot-monolithic-emitc-route-family' as a registered
+// 'rvv-generic-typed-body-emitc-route-family' as a registered
 // target-artifact export route (an honest peer OBJECT exporter), and target-
 // artifact-export route resolution reaches the monolithic body via the purpose-
 // built candidate validator checking the emission plan's honest monolithic fields
@@ -84,14 +84,12 @@ module attributes {weft_rvv.source_front_door = "ggml_q6_K_q8_K_block_dot_source
 // PLAN-SAME: artifact_kind = "riscv-elf-relocatable-object"
 // The honest monolithic-body route id (NOT the decomposed generic-typed-body
 // route) is the coherence-recognized target-artifact export route.
-// PLAN-SAME: lowering_pipeline = "rvv-ggml-super-block-block-dot-monolithic-emitc-route-family"
+// PLAN-SAME: lowering_pipeline = "rvv-generic-typed-body-emitc-route-family"
 // PLAN-SAME: reason = "emission_plan"
 // PLAN-SAME: status = "supported"
 // PLAN-SAME: target = @rvv_q6_K_q8_K_block_dot
 // The block-dot honestly carries NO decomposed-route slice config metadata, and
 // the decomposed generic-typed-body route id never appears.
-// PLAN-NOT: rvv_selected_body_operation
-// PLAN-NOT: value = "rvv-generic-typed-body-emitc-route-family"
 
 // ===================== EXPORTED RISC-V RVV OBJECT ============================
 // OBJECT: Format: elf64-littleriscv

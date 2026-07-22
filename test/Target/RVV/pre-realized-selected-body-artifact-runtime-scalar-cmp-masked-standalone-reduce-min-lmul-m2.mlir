@@ -43,20 +43,10 @@ module {
 // REALIZED-NOT: weft_rvv.typed_runtime_scalar_computed_mask_standalone_reduce_pre_realized_body
 
 // PLAN: weft.exec.diagnostic
-// PLAN-SAME: {key = "rvv_selected_body_operation", value = "runtime_scalar_cmp_masked_standalone_reduce_min"}
-// PLAN-SAME: {key = "weft_rvv.config_contract", value = "rvv-selected-body-sew32-lmul-m2-tail-agnostic-mask-agnostic.v1"}
-// PLAN-SAME: {key = "weft_rvv.route_operand_binding_plan", value = "rvv-route-operand-binding:runtime_scalar_cmp_masked_standalone_reduce_min.v1"}
-// PLAN-SAME: {key = "weft_rvv.route_operand_binding_operands", value = "rvv-route-operand-binding:runtime_scalar_cmp_masked_standalone_reduce_min.v1;cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs-load|cmp-lhs-call|hdr;rhs_scalar=rhs-scalar-value:rhs_scalar:abi|splat|cmp-rhs-call|hdr;src=source-input-buffer:src:abi|src-load|masked-reduce-input|neutral-inactive|hdr;acc=accumulator-input-buffer:acc:abi|initial-seed|acc-state|masked-reduce-acc|hdr;out=output-buffer:out:abi|acc-state|store-base|hdr;n=runtime-element-count:n:abi|setvl-avl|loop|hdr"}
-// PLAN-SAME: {key = "weft_rvv.standalone_reduction_source_vector_c_type", value = "vint32m2_t"}
-// PLAN-SAME: {key = "weft_rvv.standalone_reduction_scalar_result_vector_c_type", value = "vint32m1_t"}
-// PLAN-SAME: {key = "weft_rvv.inactive_lane_zeroing_requirement", value = "masked-standalone-reduction-neutral-inactive-lanes-before-reduction"}
-// PLAN-SAME: runtime_abi_name = "rvv-generic-runtime-scalar-cmp-masked-standalone-reduce-min-callable-c-abi.v1"
+// PLAN-SAME: runtime_abi_name = "rvv-exact-typed-body-callable-c-abi.v2"
 // PLAN-SAME: status = "supported"
 // PLAN-SAME: target = @rvv_pre_rt_scalar_cm_standalone_reduce_min_m2
 
 // HEADER-DAG: weft.rvv.selected_variant: @rvv_pre_rt_scalar_cm_standalone_reduce_min_m2
-// HEADER-DAG: weft.rvv.runtime_abi_name: rvv-generic-runtime-scalar-cmp-masked-standalone-reduce-min-callable-c-abi.v1
-// HEADER-DAG: weft.rvv.config_contract: rvv-selected-body-sew32-lmul-m2-tail-agnostic-mask-agnostic.v1
-// HEADER-DAG: weft.rvv.standalone_reduction_source_vector_c_type: vint32m2_t
-// HEADER-DAG: weft.rvv.standalone_reduction_scalar_result_vector_c_type: vint32m1_t
+// HEADER-DAG: weft.rvv.runtime_abi_name: rvv-exact-typed-body-callable-c-abi.v2
 // HEADER: void weft_emitc_pre_rt_scalar_cm_standalone_reduce_min_m2_kernel_rvv_pre_rt_scalar_cm_standalone_reduce_min_m2(const int32_t *cmp_lhs, int32_t rhs_scalar, const int32_t *src, const int32_t *acc, int32_t *out, size_t n);

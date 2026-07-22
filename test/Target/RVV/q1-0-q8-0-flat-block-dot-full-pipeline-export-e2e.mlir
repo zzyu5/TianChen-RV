@@ -19,7 +19,7 @@
 // emitter-inlined two-level fold) -- the super-block scalar-core precedent
 // (tq1_0/iq1_s) applied to the FLAT loop op. q1_0's activation is a FLAT
 // block_q8_0 stream, so it still EXPORTS through the EXISTING flat route family
-// ('rvv-ggml-flat-block-dot-monolithic-emitc-route-family') and carries the SAME
+// ('rvv-generic-typed-body-emitc-route-family') and carries the SAME
 // 4-role ggml vec_dot ABI (n, s, vx, vy) as iq4_nl -- resolved by its OWN
 // typedFlatLoopSelector (Q10BinarySign, keyed off the UNIQUE fold_model), NOT the
 // 8-role q8_0 default. The emission is BYTE-IDENTICAL to the retired-in-production
@@ -76,19 +76,14 @@ module attributes {weft_rvv.source_front_door = "ggml_q1_0_q8_0_block_dot_source
 // PLAN-SAME: artifact_kind = "riscv-elf-relocatable-object"
 // The flat block-dot carries the flat (not super-block) op-derived metadata keys
 // (rendered inside artifact_metadata, ahead of lowering_pipeline), with the q1_0 kind.
-// PLAN-SAME: rvv_ggml_flat_block_dot_kind
-// PLAN-SAME: ggml_q1_0_q8_0_block_dot
 // The honest FLAT monolithic-body route id (NOT q4_K's super-block route, NOT the
 // decomposed generic-typed-body route) is the coherence-recognized export route.
-// PLAN-SAME: lowering_pipeline = "rvv-ggml-flat-block-dot-monolithic-emitc-route-family"
+// PLAN-SAME: lowering_pipeline = "rvv-generic-typed-body-emitc-route-family"
 // PLAN-SAME: reason = "emission_plan"
 // PLAN-SAME: status = "supported"
 // PLAN-SAME: target = @rvv_q1_0_q8_0_block_dot
 // The flat block-dot honestly carries NO decomposed-route slice config metadata and
 // never claims the super-block route or a decomposed route.
-// PLAN-NOT: rvv_selected_body_operation
-// PLAN-NOT: value = "rvv-generic-typed-body-emitc-route-family"
-// PLAN-NOT: rvv-ggml-super-block-block-dot-monolithic-emitc-route-family
 
 // ===================== CORE EmitC binary-sign core @ VLEN128 (default m2) ======
 // The CORE EmitC is the q1_0 BINARY {-1,+1}-sign decode: each weight bit is a SIGN

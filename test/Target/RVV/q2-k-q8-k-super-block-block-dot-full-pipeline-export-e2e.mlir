@@ -82,16 +82,13 @@ module attributes {weft_rvv.source_front_door = "ggml_q2_K_q8_K_block_dot_source
 // PLAN-SAME: artifact_kind = "riscv-elf-relocatable-object"
 // The honest super-block monolithic-body route id (NOT the flat route, NOT the
 // decomposed generic-typed-body route) is the coherence-recognized export route.
-// PLAN-SAME: lowering_pipeline = "rvv-ggml-super-block-block-dot-monolithic-emitc-route-family"
+// PLAN-SAME: lowering_pipeline = "rvv-generic-typed-body-emitc-route-family"
 // PLAN-SAME: reason = "emission_plan"
 // PLAN-SAME: status = "supported"
 // PLAN-SAME: target = @rvv_q2_K_q8_K_block_dot
 // The block-dot honestly carries NO decomposed-route slice config metadata, and
 // the decomposed generic-typed-body route id never appears, and never claims the
 // flat route.
-// PLAN-NOT: rvv_selected_body_operation
-// PLAN-NOT: value = "rvv-generic-typed-body-emitc-route-family"
-// PLAN-NOT: rvv-ggml-flat-block-dot-monolithic-emitc-route-family
 
 // ===================== EXPORTED RISC-V RVV OBJECT ============================
 // OBJECT: Format: elf64-littleriscv

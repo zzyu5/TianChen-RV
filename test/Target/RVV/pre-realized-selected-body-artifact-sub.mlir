@@ -41,22 +41,14 @@ module {
 
 // PLAN: weft.exec.diagnostic
 // PLAN-SAME: artifact_kind = "riscv-elf-relocatable-object"
-// PLAN-SAME: {key = "rvv_selected_body_operation", value = "sub"}
-// PLAN-SAME: {key = "rvv_selected_body_typed_compute_op", value = "weft_rvv.binary"}
-// PLAN-SAME: {key = "weft_rvv.route_operand_binding_plan", value = "rvv-route-operand-binding:sub.v1"}
-// PLAN-SAME: {key = "weft_rvv.route_operand_binding_operands", value = "rvv-route-operand-binding:sub.v1;lhs=lhs-input-buffer:lhs:abi|load-base|binary-lhs-call;rhs=rhs-input-buffer:rhs:abi|load-base|binary-rhs-call;out=output-buffer:out:abi|store-base|header;n=runtime-element-count:n:abi|setvl-avl|loop-control|header"}
 // PLAN-SAME: emission_kind = "materialized-emitc-cpp-rvv-intrinsic-object"
-// PLAN-SAME: lowering_boundary = "weft_rvv.with_vl"
 // PLAN-SAME: origin = "rvv-plugin"
 // PLAN-SAME: reason = "emission_plan"
 // PLAN-SAME: role = "dispatch case"
-// PLAN-SAME: runtime_abi_name = "rvv-generic-binary-sub-callable-c-abi.v1"
+// PLAN-SAME: runtime_abi_name = "rvv-exact-typed-body-callable-c-abi.v2"
 // PLAN-SAME: status = "supported"
 // PLAN-SAME: target = @pre_realized_body_rvv_i32_sub
 
 // HEADER: weft.rvv.selected_variant: @pre_realized_body_rvv_i32_sub
-// HEADER: weft.rvv.runtime_abi_name: rvv-generic-binary-sub-callable-c-abi.v1
-// HEADER: weft.rvv.emitc_route_mapping: rvv-generic-typed-body-emitc-route-family
-// HEADER: weft.rvv.route_operand_binding_plan: rvv-route-operand-binding:sub.v1
-// HEADER: weft.rvv.route_operand_binding_operands: rvv-route-operand-binding:sub.v1;lhs=lhs-input-buffer:lhs:abi|load-base|binary-lhs-call;rhs=rhs-input-buffer:rhs:abi|load-base|binary-rhs-call;out=output-buffer:out:abi|store-base|header;n=runtime-element-count:n:abi|setvl-avl|loop-control|header
+// HEADER: weft.rvv.runtime_abi_name: rvv-exact-typed-body-callable-c-abi.v2
 // HEADER: void weft_emitc_pre_realized_body_sub_kernel_pre_realized_body_rvv_i32_sub(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n);

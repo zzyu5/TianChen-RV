@@ -40,27 +40,9 @@ module {
 
 // PLAN: weft.exec.diagnostic
 // PLAN-SAME: artifact_kind = "riscv-elf-relocatable-object"
-// PLAN-SAME: {key = "rvv_selected_body_operation", value = "cmp_select"}
-// PLAN-SAME: {key = "rvv_selected_body_typed_compute_op", value = "weft_rvv.select"}
-// PLAN-SAME: {key = "weft_rvv.config_contract", value = "rvv-selected-body-sew32-lmul-m2-tail-agnostic-mask-agnostic.v1"}
-// PLAN-SAME: {key = "weft_rvv.element_type", value = "i32"}
-// PLAN-SAME: {key = "weft_rvv.sew", value = "32"}
-// PLAN-SAME: {key = "weft_rvv.lmul", value = "m2"}
-// PLAN-SAME: {key = "weft_rvv.compare_predicate_kind", value = "sle"}
-// PLAN-SAME: {key = "weft_rvv.memory_form", value = "vector-rhs-load"}
-// PLAN-SAME: {key = "weft_rvv.route_operand_binding_plan", value = "rvv-route-operand-binding:cmp_select.v1"}
-// PLAN-SAME: {key = "weft_rvv.plain_compare_select_route_family_plan", value = "rvv-plain-compare-select-route-family-plan.v1"}
-// PLAN-SAME: {key = "weft_rvv.bounded_slice", value = "multi-vl-selected-body-sew32-lmul-m2"}
-// PLAN-SAME: {key = "weft_rvv.provider_supported_mirror", value = "provider_supported_mirror:rvv-plain-compare-select-plan-validated"}
-// PLAN-SAME: {key = "weft_rvv.mask_source", value = "compare-produced-mask-same-vl-scope"}
-// PLAN-SAME: {key = "weft_rvv.select_layout", value = "select-lhs-when-mask-else-rhs"}
-// PLAN-SAME: runtime_abi_name = "rvv-generic-cmp-select-callable-c-abi.v1"
+// PLAN-SAME: runtime_abi_name = "rvv-exact-typed-body-callable-c-abi.v2"
 // PLAN-SAME: status = "supported"
 // PLAN-SAME: target = @pre_realized_body_rvv_cmp_select_lmul_m2
 
 // HEADER: weft.rvv.selected_variant: @pre_realized_body_rvv_cmp_select_lmul_m2
-// HEADER: weft.rvv.element_type: i32
-// HEADER: weft.rvv.compare_predicate_kind: sle
-// HEADER: weft.rvv.provider_supported_mirror: provider_supported_mirror:rvv-plain-compare-select-plan-validated
-// HEADER: weft.rvv.plain_compare_select_route_family_plan: rvv-plain-compare-select-route-family-plan.v1
 // HEADER: void weft_emitc_pre_realized_body_cmp_select_lmul_m2_kernel_pre_realized_body_rvv_cmp_select_lmul_m2(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n);

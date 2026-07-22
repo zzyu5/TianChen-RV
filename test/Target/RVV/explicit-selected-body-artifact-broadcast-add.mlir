@@ -32,16 +32,12 @@ module {
 
 // PLAN: weft.exec.diagnostic
 // PLAN-SAME: artifact_kind = "riscv-elf-relocatable-object"
-// PLAN-SAME: {key = "rvv_selected_body_operation", value = "add"}
-// PLAN-SAME: {key = "rvv_selected_body_typed_compute_op", value = "weft_rvv.binary"}
-// PLAN-SAME: {key = "weft_rvv.memory_form", value = "rhs-broadcast-load"}
 // PLAN-SAME: emission_kind = "materialized-emitc-cpp-rvv-intrinsic-object"
 // PLAN-SAME: origin = "rvv-plugin"
-// PLAN-SAME: runtime_abi_name = "rvv-generic-binary-add-callable-c-abi.v1"
+// PLAN-SAME: runtime_abi_name = "rvv-exact-typed-body-callable-c-abi.v2"
 // PLAN-SAME: status = "supported"
 // PLAN-SAME: target = @explicit_selected_body_rvv_i32_broadcast_add
 
 // HEADER: weft.rvv.selected_variant: @explicit_selected_body_rvv_i32_broadcast_add
-// HEADER: weft.rvv.runtime_abi_name: rvv-generic-binary-add-callable-c-abi.v1
-// HEADER: weft.rvv.emitc_route_mapping: rvv-generic-typed-body-emitc-route-family
+// HEADER: weft.rvv.runtime_abi_name: rvv-exact-typed-body-callable-c-abi.v2
 // HEADER: void weft_emitc_explicit_selected_body_broadcast_add_kernel_explicit_selected_body_rvv_i32_broadcast_add(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n);

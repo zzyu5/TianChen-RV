@@ -1,5 +1,6 @@
 add_mlir_library(WeftRVVConstructionProtocol
   RVVConstructionProtocol.cpp
+  RVVArtifactContract.cpp
   ../RVVCapabilityProfile.cpp
   RVVCompositeGatherMAccScatterFormula.cpp
   RVVConstructedBodyQualification.cpp

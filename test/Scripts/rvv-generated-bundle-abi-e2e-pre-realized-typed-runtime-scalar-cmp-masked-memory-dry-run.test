@@ -33,8 +33,6 @@
 # STOREI64-DAG: "rhs_scalar_splat_intrinsic": "__riscv_vmv_v_x_i64m1"
 # STOREI64-DAG: "compare_intrinsic": "__riscv_vmsle_vv_i64m1_b64"
 # STOREI64-DAG: "masked_store_intrinsic": "__riscv_vse64_v_i64m1_m"
-# STOREI64-DAG: "weft_rvv.target_leaf_profile": "rvv-v1-typed-runtime-scalar-cmp-masked-store-leaf-profile.v1"
-# STOREI64-DAG: "weft_rvv.c_type_mapping": "vl:size_t,lhs_payload:typed-vector,rhs_scalar:typed-scalar,mask:typed-mask,dst:masked-store"
 # STOREI64-DAG: "status": "dry_run_success"
 
 # STOREM2-DAG: "path": "{{.*}}test/Target/RVV/pre-realized-selected-body-artifact-runtime-scalar-cmp-masked-store-lmul-m2.mlir"

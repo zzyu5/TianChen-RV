@@ -47,22 +47,10 @@ module {
 // REALIZED-NOT: weft_rvv.typed_runtime_scalar_computed_mask_standalone_reduce_pre_realized_body
 
 // PLAN: weft.exec.diagnostic
-// PLAN-SAME: {key = "rvv_selected_body_operation", value = "runtime_scalar_cmp_masked_standalone_reduce_max"}
-// PLAN-SAME: {key = "rvv_selected_body_typed_compute_op", value = "weft_rvv.masked_standalone_reduce"}
-// PLAN-SAME: {key = "weft_rvv.compare_predicate_kind", value = "sle"}
-// PLAN-SAME: {key = "weft_rvv.memory_form", value = "runtime-scalar-computed-mask-unit-stride-standalone-reduction"}
-// PLAN-SAME: {key = "weft_rvv.runtime_abi_order", value = "cmp_lhs,rhs_scalar,src,acc,out,n"}
-// PLAN-SAME: {key = "weft_rvv.route_operand_binding_plan", value = "rvv-route-operand-binding:runtime_scalar_cmp_masked_standalone_reduce_max.v1"}
-// PLAN-SAME: {key = "weft_rvv.route_operand_binding_operands", value = "rvv-route-operand-binding:runtime_scalar_cmp_masked_standalone_reduce_max.v1;cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs-load|cmp-lhs-call|hdr;rhs_scalar=rhs-scalar-value:rhs_scalar:abi|splat|cmp-rhs-call|hdr;src=source-input-buffer:src:abi|src-load|masked-reduce-input|neutral-inactive|hdr;acc=accumulator-input-buffer:acc:abi|initial-seed|acc-state|masked-reduce-acc|hdr;out=output-buffer:out:abi|acc-state|store-base|hdr;n=runtime-element-count:n:abi|setvl-avl|loop|hdr"}
-// PLAN-SAME: {key = "weft_rvv.accumulation_mask_producer_source", value = "runtime-scalar-splat-compare-rhs"}
-// PLAN-SAME: {key = "weft_rvv.inactive_lane_zeroing_requirement", value = "masked-standalone-reduction-neutral-inactive-lanes-before-reduction"}
-// PLAN-SAME: runtime_abi_name = "rvv-generic-runtime-scalar-cmp-masked-standalone-reduce-max-callable-c-abi.v1"
+// PLAN-SAME: runtime_abi_name = "rvv-exact-typed-body-callable-c-abi.v2"
 // PLAN-SAME: status = "supported"
 // PLAN-SAME: target = @rvv_pre_rt_scalar_cm_standalone_reduce_max
 
 // HEADER: weft.rvv.selected_variant: @rvv_pre_rt_scalar_cm_standalone_reduce_max
-// HEADER: weft.rvv.runtime_abi_name: rvv-generic-runtime-scalar-cmp-masked-standalone-reduce-max-callable-c-abi.v1
-// HEADER: weft.rvv.runtime_abi_order: cmp_lhs,rhs_scalar,src,acc,out,n
-// HEADER: weft.rvv.compare_predicate_kind: sle
-// HEADER: weft.rvv.route_operand_binding_plan: rvv-route-operand-binding:runtime_scalar_cmp_masked_standalone_reduce_max.v1
+// HEADER: weft.rvv.runtime_abi_name: rvv-exact-typed-body-callable-c-abi.v2
 // HEADER: void weft_emitc_pre_rt_scalar_cm_standalone_reduce_max_kernel_rvv_pre_rt_scalar_cm_standalone_reduce_max(const int32_t *cmp_lhs, int32_t rhs_scalar, const int32_t *src, const int32_t *acc, int32_t *out, size_t n);

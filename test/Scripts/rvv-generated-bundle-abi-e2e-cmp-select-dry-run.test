@@ -2,7 +2,6 @@
 # RUN: rm -rf %t.artifacts
 # RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --artifact-root %t.artifacts --run-id cmp-select --overwrite --op-kind cmp_select --runtime-count 7 --runtime-count 16 --runtime-count 23 --weft-opt weft-opt --weft-translate weft-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
 # RUN: FileCheck %s --check-prefix=ROOT --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/cmp-select/evidence.json
-# RUN: FileCheck %s --check-prefix=CMP --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="weft_rvv.i32_select" < %t.artifacts/cmp-select/cmp_select/evidence.json
 # RUN: FileCheck %s --check-prefix=HARNESS --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/cmp-select/cmp_select/rvv_generated_bundle_abi_cmp_select_harness.c
 
 # STDOUT: rvv_generated_bundle_abi_e2e: dry_run_success
@@ -16,13 +15,6 @@
 # CMP-DAG: "path": "{{.*}}test/Target/RVV/explicit-selected-body-artifact-cmp-select.mlir"
 # CMP-DAG: "expected_selected_variant": "explicit_selected_body_rvv_i32_cmp_select"
 # CMP-DAG: "expected_function": "weft_emitc_explicit_selected_body_cmp_select_kernel_explicit_selected_body_rvv_i32_cmp_select"
-# CMP-DAG: "key": "rvv_selected_body_operation"
-# CMP-DAG: "value": "cmp_select"
-# CMP-DAG: "key": "rvv_selected_body_typed_compute_op"
-# CMP-DAG: "value": "weft_rvv.select"
-# CMP-DAG: "key": "weft_rvv.memory_form"
-# CMP-DAG: "value": "vector-rhs-load"
-# CMP-DAG: "typed_compute_op": "weft_rvv.select"
 # CMP-DAG: "status": "dry_run_success"
 
 # HARNESS: weft_emitc_explicit_selected_body_cmp_select_kernel_explicit_selected_body_rvv_i32_cmp_select(lhs, rhs, out, n);

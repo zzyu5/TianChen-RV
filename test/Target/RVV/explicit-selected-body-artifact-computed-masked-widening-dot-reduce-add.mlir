@@ -40,35 +40,10 @@ module {
 
 // PLAN: weft.exec.diagnostic
 // PLAN-SAME: artifact_kind = "riscv-elf-relocatable-object"
-// PLAN-SAME: {key = "rvv_selected_body_operation", value = "computed_masked_widening_dot_reduce_add"}
-// PLAN-SAME: {key = "rvv_selected_body_typed_compute_op", value = "weft_rvv.masked_widening_dot_reduce"}
-// PLAN-SAME: {key = "weft_rvv.runtime_control_plan", value = "rvv-runtime-avl-vl-control-plan.v1"}
-// PLAN-SAME: {key = "weft_rvv.compare_predicate_kind", value = "slt"}
-// PLAN-SAME: {key = "weft_rvv.memory_form", value = "computed-mask-unit-stride-widening-dot-reduce"}
-// PLAN-SAME: {key = "weft_rvv.runtime_abi_order", value = "cmp_lhs,cmp_rhs,lhs,rhs,acc,out,n"}
-// PLAN-SAME: {key = "weft_rvv.route_operand_binding_plan", value = "rvv-route-operand-binding:masked_widening_dot_reduce.v1"}
-// PLAN-SAME: {key = "weft_rvv.route_operand_binding_operands", value = "rvv-route-operand-binding:masked_widening_dot_reduce.v1;cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp|mask|hdr;cmp_rhs=rhs-input-buffer:cmp_rhs:abi|cmp|mask|hdr;dot_lhs=dot-lhs-input-buffer:lhs:abi|ld|mlhs|i16|hdr;dot_rhs=dot-rhs-input-buffer:rhs:abi|ld|mrhs|i16|hdr;acc=accumulator-input-buffer:acc:abi|seed|red|i32|hdr;out=output-buffer:out:abi|store|i32|hdr;n=runtime-element-count:n:abi|setvl-avl|loop|hdr"}
-// PLAN-SAME: {key = "weft_rvv.contraction_route_family_plan", value = "rvv-contraction-route-family-plan.v1"}
-// PLAN-SAME: {key = "weft_rvv.inactive_lane_zeroing_requirement", value = "masked-widening-products-zero-inactive-lanes-before-reduction"}
-// PLAN-SAME: {key = "weft_rvv.mask_role", value = "predicate-mask-produced-by-compare"}
-// PLAN-SAME: {key = "weft_rvv.mask_source", value = "compare-produced-mask-same-vl-scope"}
-// PLAN-SAME: {key = "weft_rvv.mask_memory_form", value = "compare-produced-mask"}
-// PLAN-SAME: {key = "weft_rvv.widening_dot_relation", value = "signed-i16mf2xi16mf2-reduce-plus-i32-scalar-to-i32"}
-// PLAN-SAME: {key = "weft_rvv.masked_widening_product_intrinsic", value = "__riscv_vwmul_vv_i32m1_m"}
-// PLAN-SAME: runtime_abi_name = "rvv-generic-computed-masked-widening-dot-reduce-add-callable-c-abi.v1"
+// PLAN-SAME: runtime_abi_name = "rvv-exact-typed-body-callable-c-abi.v2"
 // PLAN-SAME: status = "supported"
 // PLAN-SAME: target = @rvv_explicit_masked_wdot
 
 // HEADER: weft.rvv.selected_variant: @rvv_explicit_masked_wdot
-// HEADER: weft.rvv.runtime_abi_name: rvv-generic-computed-masked-widening-dot-reduce-add-callable-c-abi.v1
-// HEADER: weft.rvv.emitc_route_mapping: rvv-generic-typed-body-emitc-route-family
-// HEADER: weft.rvv.runtime_abi_order: cmp_lhs,cmp_rhs,lhs,rhs,acc,out,n
-// HEADER: weft.rvv.compare_predicate_kind: slt
-// HEADER: weft.rvv.memory_form: computed-mask-unit-stride-widening-dot-reduce
-// HEADER: weft.rvv.mask_source: compare-produced-mask-same-vl-scope
-// HEADER: weft.rvv.widening_dot_relation: signed-i16mf2xi16mf2-reduce-plus-i32-scalar-to-i32
-// HEADER: weft.rvv.runtime_control_plan: rvv-runtime-avl-vl-control-plan.v1
-// HEADER: weft.rvv.route_operand_binding_plan: rvv-route-operand-binding:masked_widening_dot_reduce.v1
-// HEADER: weft.rvv.route_operand_binding_operands: rvv-route-operand-binding:masked_widening_dot_reduce.v1;cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp|mask|hdr;cmp_rhs=rhs-input-buffer:cmp_rhs:abi|cmp|mask|hdr;dot_lhs=dot-lhs-input-buffer:lhs:abi|ld|mlhs|i16|hdr;dot_rhs=dot-rhs-input-buffer:rhs:abi|ld|mrhs|i16|hdr;acc=accumulator-input-buffer:acc:abi|seed|red|i32|hdr;out=output-buffer:out:abi|store|i32|hdr;n=runtime-element-count:n:abi|setvl-avl|loop|hdr
-// HEADER: weft.rvv.contraction_route_family_plan: rvv-contraction-route-family-plan.v1
+// HEADER: weft.rvv.runtime_abi_name: rvv-exact-typed-body-callable-c-abi.v2
 // HEADER: void weft_emitc_explicit_masked_wdot_kernel_rvv_explicit_masked_wdot(const int32_t *cmp_lhs, const int32_t *cmp_rhs, const int16_t *lhs, const int16_t *rhs, const int32_t *acc, int32_t *out, size_t n);

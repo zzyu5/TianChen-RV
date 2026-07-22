@@ -46,33 +46,7 @@ module {
 // REALIZED-NOT: weft_rvv.typed_runtime_scalar_compare_select_pre_realized_body
 
 // PLAN: weft.exec.diagnostic
-// PLAN-SAME: {key = "weft_rvv.config_contract", value = "rvv-selected-body-sew64-lmul-m1-tail-agnostic-mask-agnostic.v1"}
-// PLAN-SAME: {key = "weft_rvv.element_type", value = "i64"}
-// PLAN-SAME: {key = "weft_rvv.sew", value = "64"}
-// PLAN-SAME: {key = "weft_rvv.lmul", value = "m1"}
-// PLAN-SAME: {key = "weft_rvv.compare_predicate_kind", value = "sle"}
-// PLAN-SAME: {key = "weft_rvv.memory_form", value = "runtime-scalar-compare-select"}
-// PLAN-SAME: {key = "weft_rvv.runtime_abi_order", value = "lhs,rhs_scalar,true_value,false_value,out,n"}
-// PLAN-SAME: {key = "weft_rvv.route_operand_binding_plan", value = "rvv-route-operand-binding:runtime_scalar_cmp_select.v1"}
-// PLAN-SAME: {key = "weft_rvv.computed_mask_select_route_family_plan", value = "rvv-computed-mask-select-route-family-plan.v1"}
-// PLAN-SAME: {key = "weft_rvv.computed_mask_select_mask_producer_source", value = "runtime-scalar-splat-compare-rhs"}
-// PLAN-SAME: {key = "weft_rvv.target_leaf_profile", value = "rvv-v1-typed-runtime-scalar-cmp-select-leaf-profile.v1"}
-// PLAN-SAME: {key = "weft_rvv.provider_supported_mirror", value = "provider_supported_mirror:rvv-runtime-scalar-cmp-select-plan-validated"}
-// PLAN-SAME: {key = "weft_rvv.c_type_mapping", value = "vl:size_t,lhs:typed-vector,rhs_scalar:typed-scalar,mask:typed-mask,true_false:typed-vector,result:typed-vector"}
-// PLAN-SAME: {key = "weft_rvv.mask_role", value = "predicate-mask-produced-by-compare"}
-// PLAN-SAME: {key = "weft_rvv.mask_source", value = "compare-produced-mask-same-vl-scope"}
-// PLAN-SAME: {key = "weft_rvv.mask_memory_form", value = "compare-produced-mask"}
-// PLAN-SAME: {key = "weft_rvv.select_layout", value = "select-true-value-when-mask-else-false-value"}
 // PLAN-SAME: target = @pre_realized_body_rvv_runtime_scalar_cmp_select_i64
 
 // HEADER: weft.rvv.selected_variant: @pre_realized_body_rvv_runtime_scalar_cmp_select_i64
-// HEADER: weft.rvv.element_type: i64
-// HEADER: weft.rvv.sew: 64
-// HEADER: weft.rvv.lmul: m1
-// HEADER: weft.rvv.compare_predicate_kind: sle
-// HEADER: weft.rvv.target_leaf_profile: rvv-v1-typed-runtime-scalar-cmp-select-leaf-profile.v1
-// HEADER: weft.rvv.provider_supported_mirror: provider_supported_mirror:rvv-runtime-scalar-cmp-select-plan-validated
-// HEADER: weft.rvv.computed_mask_select_route_family_plan: rvv-computed-mask-select-route-family-plan.v1
-// HEADER: weft.rvv.computed_mask_select_mask_producer_source: runtime-scalar-splat-compare-rhs
-// HEADER: weft.rvv.c_type_mapping: vl:size_t,lhs:typed-vector,rhs_scalar:typed-scalar,mask:typed-mask,true_false:typed-vector,result:typed-vector
 // HEADER: void weft_emitc_pre_realized_body_runtime_scalar_cmp_select_i64_kernel_pre_realized_body_rvv_runtime_scalar_cmp_select_i64(const int64_t *lhs, int64_t rhs_scalar, const int64_t *true_value, const int64_t *false_value, int64_t *out, size_t n);

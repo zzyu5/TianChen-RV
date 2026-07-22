@@ -8,7 +8,7 @@
 //
 // WHY tq2_0 is MECHANICAL, NOT bespoke: tq2_0 is a genuine super-block (QK_K == 256)
 // so it reuses the EXISTING super-block monolithic route family (the shared
-// 'rvv-ggml-super-block-block-dot-monolithic-emitc-route-family' route id + the
+// 'rvv-generic-typed-body-emitc-route-family' route id + the
 // super-block op-derived metadata keys), NOT a new route-id / family variant. The
 // block-format delta -- 2-bit TERNARY weights (`((qs >> shift) & 3) - 1` over shifts
 // {0,2,4,6}, the `-1` bias folded into the unpack), a SINGLE per-super-block integer
@@ -85,19 +85,14 @@ module attributes {weft_rvv.source_front_door = "ggml_tq2_0_q8_K_block_dot_sourc
 // PLAN-SAME: artifact_kind = "riscv-elf-relocatable-object"
 // The super-block block-dot carries the super-block (not flat) op-derived metadata
 // keys, with the tq2_0 kind -- the SAME super-block route family q4_K uses.
-// PLAN-SAME: rvv_ggml_super_block_block_dot_kind
-// PLAN-SAME: ggml_tq2_0_q8_k_block_dot
 // The honest SUPER-BLOCK monolithic-body route id (NOT the flat route, NOT the
 // decomposed generic-typed-body route) is the coherence-recognized export route.
-// PLAN-SAME: lowering_pipeline = "rvv-ggml-super-block-block-dot-monolithic-emitc-route-family"
+// PLAN-SAME: lowering_pipeline = "rvv-generic-typed-body-emitc-route-family"
 // PLAN-SAME: reason = "emission_plan"
 // PLAN-SAME: status = "supported"
 // PLAN-SAME: target = @rvv_tq2_0_q8_K_block_dot
 // The super-block block-dot honestly carries NO decomposed-route slice config
 // metadata, and never claims the flat route.
-// PLAN-NOT: rvv_selected_body_operation
-// PLAN-NOT: value = "rvv-generic-typed-body-emitc-route-family"
-// PLAN-NOT: rvv-ggml-flat-block-dot-monolithic-emitc-route-family
 
 // ===================== CORE EmitC tq2_0 ternary integer core =================
 // CORE: emitc.func @weft_emitc_ggml_vec_dot_tq2_0_q8_K_kernel_rvv_tq2_0_q8_K_block_dot

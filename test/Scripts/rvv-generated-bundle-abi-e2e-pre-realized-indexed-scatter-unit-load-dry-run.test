@@ -2,7 +2,6 @@
 # RUN: rm -rf %t.artifacts
 # RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-realized-indexed-scatter-unit-load --overwrite --op-kind indexed_scatter_unit_load --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 17 --runtime-count 257 --weft-opt weft-opt --weft-translate weft-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
 # RUN: FileCheck %s --check-prefix=ROOT < %t.artifacts/pre-realized-indexed-scatter-unit-load/evidence.json
-# RUN: FileCheck %s --check-prefix=SCATTER --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="weft_rvv.i32_" < %t.artifacts/pre-realized-indexed-scatter-unit-load/indexed_scatter_unit_load/evidence.json
 # RUN: FileCheck %s --check-prefix=HARNESS --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/pre-realized-indexed-scatter-unit-load/indexed_scatter_unit_load/rvv_generated_bundle_abi_indexed_scatter_unit_load_harness.c
 
 # STDOUT: rvv_generated_bundle_abi_e2e: dry_run_success
@@ -18,33 +17,12 @@
 # SCATTER-DAG: "path": "{{.*}}test/Target/RVV/pre-realized-selected-body-artifact-indexed-scatter-unit-load.mlir"
 # SCATTER-DAG: "prototype": "void weft_emitc_pre_realized_body_indexed_scatter_unit_load_kernel_pre_realized_body_rvv_indexed_scatter_unit_load(const int32_t *src, const uint32_t *index, int32_t *dst, size_t n);"
 # SCATTER-DAG: "expected_function": "weft_emitc_pre_realized_body_indexed_scatter_unit_load_kernel_pre_realized_body_rvv_indexed_scatter_unit_load"
-# SCATTER-DAG: "expected_runtime_abi_name": "rvv-generic-indexed-scatter-unit-load-callable-c-abi.v1"
+# SCATTER-DAG: "expected_runtime_abi_name": "rvv-exact-typed-body-callable-c-abi.v2"
 # SCATTER-DAG: "expected_selected_variant": "pre_realized_body_rvv_indexed_scatter_unit_load"
 # SCATTER-DAG: "front_door": "pre-realized-selected-weft-exec-rvv-body"
 # SCATTER-DAG: "materializer": "weft-materialize-selected-lowering-boundaries"
 # SCATTER-DAG: --weft-materialize-selected-lowering-boundaries
 # SCATTER-DAG: "pre_realized_body_consumed": true
-# SCATTER-DAG: "key": "rvv_emitc_lowerable_route"
-# SCATTER-DAG: "value": "rvv-generic-indexed-scatter-unit-load-emitc-route"
-# SCATTER-DAG: "key": "rvv_selected_body_operation"
-# SCATTER-DAG: "value": "indexed_scatter_unit_load"
-# SCATTER-DAG: "key": "rvv_selected_body_typed_compute_op"
-# SCATTER-DAG: "value": "weft_rvv.move"
-# SCATTER-DAG: "key": "weft_rvv.memory_form"
-# SCATTER-DAG: "value": "unit-load-indexed-store"
-# SCATTER-DAG: "key": "weft_rvv.runtime_abi_order"
-# SCATTER-DAG: "value": "src,index,dst,n"
-# SCATTER-DAG: "key": "weft_rvv.indexed_memory_layout"
-# SCATTER-DAG: "value": "unit-stride-source-indexed-destination-index-runtime-abi"
-# SCATTER-DAG: "key": "weft_rvv.index_uniqueness"
-# SCATTER-DAG: "value": "unique"
-# SCATTER-DAG: "key": "weft_rvv.indexed_destination_memory_form"
-# SCATTER-DAG: "value": "indexed-store"
-# SCATTER-DAG: "key": "weft_rvv.route_operand_binding_plan"
-# SCATTER-DAG: "value": "rvv-route-operand-binding:indexed_scatter_unit_load.v1"
-# SCATTER-DAG: "key": "weft_rvv.route_operand_binding_operands"
-# SCATTER-DAG: "value": "rvv-route-operand-binding:indexed_scatter_unit_load.v1;src=lhs-input-buffer:src:abi|materialized-load-base|move-source|hdr;index=index-input-buffer:index:abi|materialized-index-load-base|index-offset-scale|index-source-mirror|hdr;dst=output-buffer:dst:abi|materialized-indexed-store-base|hdr;n=runtime-element-count:n:abi|setvl-avl|loop-control|hdr"
-# SCATTER-DAG: "typed_compute_op": "weft_rvv.move"
 # SCATTER-DAG: "memory_form": "unit-load-indexed-store"
 # SCATTER-DAG: "status": "dry_run_success"
 

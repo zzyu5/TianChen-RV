@@ -49,33 +49,7 @@ module {
 // REALIZED-NOT: weft_rvv.typed_computed_mask_select_pre_realized_body
 
 // PLAN: weft.exec.diagnostic
-// PLAN-SAME: {key = "weft_rvv.config_contract", value = "rvv-selected-body-sew32-lmul-m2-tail-agnostic-mask-agnostic.v1"}
-// PLAN-SAME: {key = "weft_rvv.element_type", value = "i32"}
-// PLAN-SAME: {key = "weft_rvv.sew", value = "32"}
-// PLAN-SAME: {key = "weft_rvv.lmul", value = "m2"}
-// PLAN-SAME: {key = "weft_rvv.compare_predicate_kind", value = "sle"}
-// PLAN-SAME: {key = "weft_rvv.memory_form", value = "computed-mask-vector-select"}
-// PLAN-SAME: {key = "weft_rvv.runtime_abi_order", value = "cmp_lhs,cmp_rhs,true_value,false_value,out,n"}
-// PLAN-SAME: {key = "weft_rvv.route_operand_binding_plan", value = "rvv-route-operand-binding:computed_mask_select.v1"}
-// PLAN-SAME: {key = "weft_rvv.computed_mask_select_route_family_plan", value = "rvv-computed-mask-select-route-family-plan.v1"}
-// PLAN-SAME: {key = "weft_rvv.computed_mask_select_mask_producer_source", value = "vector-compare-rhs-load"}
-// PLAN-SAME: {key = "weft_rvv.target_leaf_profile", value = "rvv-v1-typed-computed-mask-select-leaf-profile.v1"}
-// PLAN-SAME: {key = "weft_rvv.provider_supported_mirror", value = "provider_supported_mirror:rvv-computed-mask-select-plan-validated"}
-// PLAN-SAME: {key = "weft_rvv.c_type_mapping", value = "vl:size_t,compare:true_false:typed-vector,mask:typed-mask,result:typed-vector"}
-// PLAN-SAME: {key = "weft_rvv.mask_role", value = "predicate-mask-produced-by-compare"}
-// PLAN-SAME: {key = "weft_rvv.mask_source", value = "compare-produced-mask-same-vl-scope"}
-// PLAN-SAME: {key = "weft_rvv.mask_memory_form", value = "compare-produced-mask"}
-// PLAN-SAME: {key = "weft_rvv.select_layout", value = "select-true-value-when-mask-else-false-value"}
 // PLAN-SAME: target = @pre_realized_body_rvv_computed_mask_select_lmul_m2
 
 // HEADER: weft.rvv.selected_variant: @pre_realized_body_rvv_computed_mask_select_lmul_m2
-// HEADER: weft.rvv.element_type: i32
-// HEADER: weft.rvv.sew: 32
-// HEADER: weft.rvv.lmul: m2
-// HEADER: weft.rvv.compare_predicate_kind: sle
-// HEADER: weft.rvv.target_leaf_profile: rvv-v1-typed-computed-mask-select-leaf-profile.v1
-// HEADER: weft.rvv.provider_supported_mirror: provider_supported_mirror:rvv-computed-mask-select-plan-validated
-// HEADER: weft.rvv.computed_mask_select_route_family_plan: rvv-computed-mask-select-route-family-plan.v1
-// HEADER: weft.rvv.computed_mask_select_mask_producer_source: vector-compare-rhs-load
-// HEADER: weft.rvv.c_type_mapping: vl:size_t,compare:true_false:typed-vector,mask:typed-mask,result:typed-vector
 // HEADER: void weft_emitc_pre_realized_body_computed_mask_select_lmul_m2_kernel_pre_realized_body_rvv_computed_mask_select_lmul_m2(const int32_t *cmp_lhs, const int32_t *cmp_rhs, const int32_t *true_value, const int32_t *false_value, int32_t *out, size_t n);

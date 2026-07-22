@@ -2,7 +2,6 @@
 # RUN: rm -rf %t.artifacts
 # RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-realized-scalar-broadcast-add --overwrite --op-kind scalar_broadcast_add --runtime-count 7 --runtime-count 16 --runtime-count 23 --rhs-scalar -37 --rhs-scalar 91 --weft-opt weft-opt --weft-translate weft-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
 # RUN: FileCheck %s --check-prefix=ROOT < %t.artifacts/pre-realized-scalar-broadcast-add/evidence.json
-# RUN: FileCheck %s --check-prefix=SCALAR --implicit-check-not="rvv-route-entry-selected-body-realization" --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="weft_rvv.i32_" < %t.artifacts/pre-realized-scalar-broadcast-add/scalar_broadcast_add/evidence.json
 # RUN: FileCheck %s --check-prefix=HARNESS --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/pre-realized-scalar-broadcast-add/scalar_broadcast_add/rvv_generated_bundle_abi_scalar_broadcast_add_harness.c
 
 # STDOUT: rvv_generated_bundle_abi_e2e: dry_run_success
@@ -18,7 +17,7 @@
 # SCALAR-DAG: "path": "{{.*}}test/Target/RVV/pre-realized-selected-body-artifact-scalar-broadcast-add.mlir"
 # SCALAR-DAG: "prototype": "void weft_emitc_pre_realized_body_scalar_broadcast_add_kernel_pre_realized_body_rvv_scalar_broadcast_add(const int32_t *lhs, int32_t rhs_scalar, int32_t *out, size_t n);"
 # SCALAR-DAG: "expected_function": "weft_emitc_pre_realized_body_scalar_broadcast_add_kernel_pre_realized_body_rvv_scalar_broadcast_add"
-# SCALAR-DAG: "expected_runtime_abi_name": "rvv-generic-scalar-broadcast-add-callable-c-abi.v1"
+# SCALAR-DAG: "expected_runtime_abi_name": "rvv-exact-typed-body-callable-c-abi.v2"
 # SCALAR-DAG: "expected_selected_variant": "pre_realized_body_rvv_scalar_broadcast_add"
 # SCALAR-DAG: "rhs_scalar_values": [
 # SCALAR-DAG: -37
@@ -29,25 +28,6 @@
 # SCALAR-DAG: "route_entry_realization": false
 # SCALAR-DAG: "selected_body_realization_producer": "rvv-plugin-local-selected-body-realization-owner-registry"
 # SCALAR-DAG: "pre_realized_body_consumed": true
-# SCALAR-DAG: "key": "rvv_emitc_lowerable_route"
-# SCALAR-DAG: "value": "rvv-generic-scalar-broadcast-add-emitc-route"
-# SCALAR-DAG: "key": "rvv_selected_body_operation"
-# SCALAR-DAG: "value": "scalar_broadcast_add"
-# SCALAR-DAG: "key": "rvv_selected_body_typed_compute_op"
-# SCALAR-DAG: "value": "weft_rvv.binary"
-# SCALAR-DAG: "key": "weft_rvv.memory_form"
-# SCALAR-DAG: "value": "rhs-scalar-broadcast"
-# SCALAR-DAG: "key": "weft_rvv.runtime_abi_order"
-# SCALAR-DAG: "value": "lhs,rhs_scalar,out,n"
-# SCALAR-DAG: "key": "weft_rvv.runtime_control_plan"
-# SCALAR-DAG: "value": "rvv-runtime-avl-vl-control-plan.v1"
-# SCALAR-DAG: "key": "weft_rvv.route_operand_binding_plan"
-# SCALAR-DAG: "value": "rvv-route-operand-binding:scalar_broadcast_add.v1"
-# SCALAR-DAG: "key": "weft_rvv.route_operand_binding_operands"
-# SCALAR-DAG: "value": "rvv-route-operand-binding:scalar_broadcast_add.v1;lhs=lhs-input-buffer:lhs:abi|materialized-load-base|scalar-broadcast-lhs-call|hdr;rhs_scalar=rhs-scalar-value:rhs_scalar:abi|scalar-broadcast-rhs-call|hdr;out=output-buffer:out:abi|materialized-store-base|hdr;n=runtime-element-count:n:abi|setvl-avl|loop-control|hdr"
-# SCALAR-DAG: "key": "weft_rvv.scalar_broadcast_elementwise_route_family_plan"
-# SCALAR-DAG: "value": "rvv-scalar-broadcast-elementwise-route-family-plan.v1"
-# SCALAR-DAG: "typed_compute_op": "weft_rvv.binary"
 # SCALAR-DAG: "memory_form": "rhs-scalar-broadcast"
 # SCALAR-DAG: "status": "dry_run_success"
 

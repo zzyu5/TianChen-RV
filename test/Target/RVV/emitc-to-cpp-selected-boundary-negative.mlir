@@ -38,9 +38,9 @@ module {
       reason = "emission_plan",
       required_capabilities = [@rvv],
       role = "direct variant",
-      runtime_abi = "rvv-generic-binary-add-callable-c-abi.v1",
+      runtime_abi = "rvv-exact-typed-body-callable-c-abi.v2",
       runtime_abi_kind = "plugin-owned-runtime-abi",
-      runtime_abi_name = "rvv-generic-binary-add-callable-c-abi.v1",
+      runtime_abi_name = "rvv-exact-typed-body-callable-c-abi.v2",
       runtime_glue_role = "emitc-cpp-rvv-intrinsic-runtime-glue",
       severity = "info",
       status = "supported",
@@ -49,5 +49,5 @@ module {
   }
 }
 
-// CHECK: construction-template artifact adapter failed
-// CHECK-SAME: requires one selected materialized weft_rvv.with_vl before artifact export
+// CHECK: Weft RVV exact-body artifact bridge failed
+// CHECK-SAME: candidate must carry the exact body's non-empty typed runtime ABI

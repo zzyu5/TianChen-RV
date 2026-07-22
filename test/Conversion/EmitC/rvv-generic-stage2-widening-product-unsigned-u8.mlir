@@ -21,17 +21,6 @@ module {
 }
 
 // PLAN: weft.exec.diagnostic
-// PLAN-SAME: {key = "weft_rvv.element_type", value = "u16"}
-// PLAN-SAME: {key = "weft_rvv.route_operand_binding_plan", value = "rvv-route-operand-binding:widening_product_u8_u16.v1"}
-// PLAN-SAME: {key = "weft_rvv.target_leaf_profile", value = "rvv-v1-u8mf4-u16mf2-contraction-leaf-profile.v1"}
-// PLAN-SAME: {key = "weft_rvv.c_type_mapping", value = "vl:size_t,source:unsigned-e8mf4,result:unsigned-e16mf2,mask:b32"}
-// PLAN-SAME: {key = "weft_rvv.widening_product_relation", value = "unsigned-u8mf4xu8mf4-to-u16mf2"}
-// PLAN-SAME: {key = "weft_rvv.widening_product_intrinsic", value = "__riscv_vwmulu_vv_u16mf2"}
-// PLAN-SAME: {key = "weft_rvv.low_precision_primitive.kind", value = "unsigned-u8mf4xu8mf4-to-u16mf2-widening-product.v1"}
-// PLAN-SAME: {key = "weft_rvv.low_precision_primitive.source_dtype", value = "u8"}
-// PLAN-SAME: {key = "weft_rvv.low_precision_primitive.source_signedness", value = "unsigned"}
-// PLAN-SAME: {key = "weft_rvv.low_precision_primitive.product_dtype", value = "u16"}
-// PLAN-SAME: {key = "weft_rvv.low_precision_primitive.result_dtype", value = "u16"}
 // PLAN-SAME: runtime_abi_parameters = [{c_name = "lhs", c_type = "const uint8_t *"
 // PLAN-SAME: {c_name = "out", c_type = "uint16_t *"
 // PLAN-SAME: status = "supported"

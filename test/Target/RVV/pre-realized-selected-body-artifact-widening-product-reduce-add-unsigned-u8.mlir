@@ -49,25 +49,11 @@ module {
 // REALIZED: weft_rvv.store %{{.*}}, %[[REDUCED]], %[[VL]]
 
 // PLAN: weft.exec.diagnostic
-// PLAN-SAME: {key = "rvv_selected_body_operation", value = "widening_product_reduce_add"}
-// PLAN-SAME: {key = "rvv_selected_body_typed_compute_op", value = "weft_rvv.widening_product+weft_rvv.standalone_reduce"}
-// PLAN-SAME: {key = "weft_rvv.runtime_abi_order", value = "lhs,rhs,acc,out,n"}
-// PLAN-SAME: {key = "weft_rvv.low_precision_primitive.kind", value = "unsigned-u8mf4xu8mf4-to-u16mf2-product-u32m1-reduction.v1"}
-// PLAN-SAME: {key = "weft_rvv.low_precision_primitive.source_signedness", value = "unsigned"}
-// PLAN-SAME: {key = "weft_rvv.low_precision_primitive.source_load", value = "unit-stride-byte-load"}
-// PLAN-SAME: {key = "weft_rvv.low_precision_primitive.source_extension", value = "zero-extend-u8-to-u16-product"}
-// PLAN-SAME: {key = "weft_rvv.low_precision_primitive.product_dtype", value = "u16"}
-// PLAN-SAME: {key = "weft_rvv.low_precision_primitive.result_dtype", value = "u32"}
-// PLAN-SAME: {key = "weft_rvv.low_precision_primitive.runtime_avl_source", value = "runtime_abi:n"}
 // PLAN-SAME: status = "supported"
 // PLAN-SAME: target = @pre_realized_u8_product_reduce_rvv
 
 // HEADER: weft.rvv.selected_variant: @pre_realized_u8_product_reduce_rvv
-// HEADER: weft.rvv.runtime_abi_name: rvv-generic-widening-product-reduce-add-callable-c-abi.v1
-// HEADER: weft.rvv.low_precision_primitive.payload_mirror.source_signedness: unsigned
-// HEADER: weft.rvv.low_precision_primitive.payload_mirror.source_extension: zero-extend-u8-to-u16-product
-// HEADER: weft.rvv.low_precision_primitive.payload_mirror.runtime_avl_source: runtime_abi:n
-// HEADER: weft.rvv.target_leaf_profile: rvv-v1-u8mf4-u16mf2-u32m1-product-reduction-contraction-leaf-profile.v1
+// HEADER: weft.rvv.runtime_abi_name: rvv-exact-typed-body-callable-c-abi.v2
 // HEADER: void weft_emitc_pre_realized_u8_product_reduce_kernel_pre_realized_u8_product_reduce_rvv(const uint8_t *lhs, const uint8_t *rhs, const uint32_t *acc, uint32_t *out, size_t n);
 
 // STALE-SIGN: requires product_relation "signed-i8mf4xi8mf4-to-i16mf2" when source_signedness is "signed"

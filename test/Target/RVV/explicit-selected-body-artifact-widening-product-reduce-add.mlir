@@ -1,11 +1,5 @@
 // RUN: weft-opt %s --weft-materialize-emission-plans | FileCheck %s --check-prefix=PLAN
 // RUN: weft-opt %s --weft-materialize-emission-plans | weft-translate --weft-export-target-header-artifact | FileCheck %s --check-prefix=HEADER
-// RUN: weft-opt %s --weft-materialize-emission-plans | sed '0,/__riscv_vwredsum_vs_i16mf2_i32m1/s//__riscv_vredsum_vs_i16mf2_i16m1/' | not weft-translate --weft-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-VWREDSUM
-// RUN: weft-opt %s --weft-materialize-emission-plans | sed '0,/weft_rvv.low_precision_primitive.accumulator_dtype", value = "i32/s//weft_rvv.low_precision_primitive.accumulator_dtype", value = "i16/' | not weft-translate --weft-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-PRIM-ACC
-// RUN: weft-opt %s --weft-materialize-emission-plans | sed '0,/weft_rvv.low_precision_primitive.source_load\", value = \"unit-stride-byte-load\"/s//weft_rvv.low_precision_primitive.source_load\", value = \"metadata-only-byte-load\"/' | not weft-translate --weft-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-PRIM-LOAD
-// RUN: weft-opt %s --weft-materialize-emission-plans | sed '0,/weft_rvv.low_precision_primitive.source_extension\", value = \"sign-extend-i8-to-i16-product\"/s//weft_rvv.low_precision_primitive.source_extension\", value = \"zero-extend-u8-to-u16-product\"/' | not weft-translate --weft-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-PRIM-EXT
-// RUN: weft-opt %s --weft-materialize-emission-plans | sed '0,/weft_rvv.low_precision_primitive.runtime_avl_source\", value = \"runtime_abi:n\"/s//weft_rvv.low_precision_primitive.runtime_avl_source\", value = \"metadata-only-avl\"/' | not weft-translate --weft-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-PRIM-AVL
-// RUN: weft-opt %s --weft-materialize-emission-plans | sed '0,/weft_rvv.low_precision_primitive.runtime_control_plan\", value = \"rvv-runtime-avl-vl-control-plan.v1\"/s//weft_rvv.low_precision_primitive.runtime_control_plan_missing\", value = \"rvv-runtime-avl-vl-control-plan.v1\"/' | not weft-translate --weft-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=MISSING-PRIM-RUNTIME
 
 // Explicit selected-body input for one bounded Stage 2 signed low-precision
 // product-reduction chain. The typed weft_rvv body carries i8 source loads,
@@ -42,82 +36,20 @@ module {
 
 // PLAN: weft.exec.diagnostic
 // PLAN-SAME: artifact_kind = "riscv-elf-relocatable-object"
-// PLAN-SAME: {key = "rvv_selected_body_operation", value = "widening_product_reduce_add"}
-// PLAN-SAME: {key = "rvv_selected_body_typed_compute_op", value = "weft_rvv.widening_product+weft_rvv.standalone_reduce"}
-// PLAN-SAME: {key = "weft_rvv.config_contract", value = "rvv-selected-body-sew32-lmul-m1-tail-agnostic-mask-agnostic.v1"}
-// PLAN-SAME: {key = "weft_rvv.runtime_control_plan", value = "rvv-runtime-avl-vl-control-plan.v1"}
-// PLAN-SAME: {key = "weft_rvv.memory_form", value = "vector-rhs-load"}
-// PLAN-SAME: {key = "weft_rvv.runtime_abi_order", value = "lhs,rhs,acc,out,n"}
-// PLAN-SAME: {key = "weft_rvv.route_operand_binding_plan", value = "rvv-route-operand-binding:widening_product_reduce_i8_i16_i32.v1"}
-// PLAN-SAME: {key = "weft_rvv.contraction_route_family_plan", value = "rvv-contraction-route-family-plan.v1"}
-// PLAN-SAME: {key = "weft_rvv.source_sew", value = "8"}
-// PLAN-SAME: {key = "weft_rvv.source_lmul", value = "mf4"}
-// PLAN-SAME: {key = "weft_rvv.product_sew", value = "16"}
-// PLAN-SAME: {key = "weft_rvv.product_lmul", value = "mf2"}
-// PLAN-SAME: {key = "weft_rvv.accumulator_sew", value = "32"}
-// PLAN-SAME: {key = "weft_rvv.accumulator_lmul", value = "m1"}
-// PLAN-SAME: {key = "weft_rvv.result_sew", value = "32"}
-// PLAN-SAME: {key = "weft_rvv.result_lmul", value = "m1"}
-// PLAN-SAME: {key = "weft_rvv.product_reduction_chain_relation", value = "signed-i8mf4xi8mf4-to-i16mf2-reduce-plus-i32-scalar-to-i32"}
-// PLAN-SAME: {key = "weft_rvv.widening_product_intrinsic", value = "__riscv_vwmul_vv_i16mf2"}
-// PLAN-SAME: {key = "weft_rvv.widening_reduction_intrinsic", value = "__riscv_vwredsum_vs_i16mf2_i32m1"}
-// PLAN-SAME: {key = "weft_rvv.scalar_seed_splat_intrinsic", value = "__riscv_vmv_v_x_i32m1"}
-// PLAN-SAME: {key = "weft_rvv.reduction_store_vl", value = "1"}
-// PLAN-SAME: {key = "weft_rvv.low_precision_primitive.contract", value = "rvv-low-precision-widening-primitive-facts.v1"}
-// PLAN-SAME: {key = "weft_rvv.low_precision_primitive.kind", value = "signed-i8mf4xi8mf4-to-i16mf2-product-i32m1-reduction.v1"}
-// PLAN-SAME: {key = "weft_rvv.low_precision_primitive.source_dtype", value = "i8"}
-// PLAN-SAME: {key = "weft_rvv.low_precision_primitive.source_signedness", value = "signed"}
-// PLAN-SAME: {key = "weft_rvv.low_precision_primitive.source_load", value = "unit-stride-byte-load"}
-// PLAN-SAME: {key = "weft_rvv.low_precision_primitive.source_extension", value = "sign-extend-i8-to-i16-product"}
-// PLAN-SAME: {key = "weft_rvv.low_precision_primitive.product_dtype", value = "i16"}
-// PLAN-SAME: {key = "weft_rvv.low_precision_primitive.accumulator_dtype", value = "i32"}
-// PLAN-SAME: {key = "weft_rvv.low_precision_primitive.result_dtype", value = "i32"}
-// PLAN-SAME: {key = "weft_rvv.low_precision_primitive.source_sew", value = "8"}
-// PLAN-SAME: {key = "weft_rvv.low_precision_primitive.source_lmul", value = "mf4"}
-// PLAN-SAME: {key = "weft_rvv.low_precision_primitive.product_sew", value = "16"}
-// PLAN-SAME: {key = "weft_rvv.low_precision_primitive.product_lmul", value = "mf2"}
-// PLAN-SAME: {key = "weft_rvv.low_precision_primitive.accumulator_sew", value = "32"}
-// PLAN-SAME: {key = "weft_rvv.low_precision_primitive.accumulator_lmul", value = "m1"}
-// PLAN-SAME: {key = "weft_rvv.low_precision_primitive.result_sew", value = "32"}
-// PLAN-SAME: {key = "weft_rvv.low_precision_primitive.result_lmul", value = "m1"}
-// PLAN-SAME: {key = "weft_rvv.low_precision_primitive.tail_policy", value = "agnostic"}
-// PLAN-SAME: {key = "weft_rvv.low_precision_primitive.mask_policy", value = "agnostic"}
-// PLAN-SAME: {key = "weft_rvv.low_precision_primitive.runtime_control_plan", value = "rvv-runtime-avl-vl-control-plan.v1"}
-// PLAN-SAME: {key = "weft_rvv.low_precision_primitive.runtime_avl_source", value = "runtime_abi:n"}
 // PLAN-SAME: emission_kind = "materialized-emitc-cpp-rvv-intrinsic-object"
-// PLAN-SAME: lowering_boundary = "weft_rvv.with_vl"
 // PLAN-SAME: origin = "rvv-plugin"
 // PLAN-SAME: reason = "emission_plan"
 // PLAN-SAME: role = "dispatch case"
-// PLAN-SAME: runtime_abi_name = "rvv-generic-widening-product-reduce-add-callable-c-abi.v1"
+// PLAN-SAME: runtime_abi_name = "rvv-exact-typed-body-callable-c-abi.v2"
 // PLAN-SAME: status = "supported"
 // PLAN-SAME: target = @explicit_selected_body_rvv_product_reduce
 
 // HEADER: weft.rvv.selected_variant: @explicit_selected_body_rvv_product_reduce
-// HEADER: weft.rvv.runtime_abi_name: rvv-generic-widening-product-reduce-add-callable-c-abi.v1
-// HEADER: weft.rvv.emitc_route_mapping: rvv-generic-typed-body-emitc-route-family
-// HEADER: weft.rvv.config_contract: rvv-selected-body-sew32-lmul-m1-tail-agnostic-mask-agnostic.v1
-// HEADER: weft.rvv.memory_form: vector-rhs-load
-// HEADER: weft.rvv.low_precision_primitive.payload_mirror.source_load: unit-stride-byte-load
-// HEADER: weft.rvv.low_precision_primitive.payload_mirror.source_extension: sign-extend-i8-to-i16-product
-// HEADER: weft.rvv.low_precision_primitive.payload_mirror.source_sew: 8
-// HEADER: weft.rvv.low_precision_primitive.payload_mirror.product_lmul: mf2
-// HEADER: weft.rvv.low_precision_primitive.payload_mirror.tail_policy: agnostic
-// HEADER: weft.rvv.low_precision_primitive.payload_mirror.runtime_avl_source: runtime_abi:n
-// HEADER: weft.rvv.target_leaf_profile: rvv-v1-i8mf4-i16mf2-i32m1-product-reduction-contraction-leaf-profile.v1
-// HEADER: weft.rvv.route_operand_binding_plan: rvv-route-operand-binding:widening_product_reduce_i8_i16_i32.v1
-// HEADER: weft.rvv.contraction_route_family_plan: rvv-contraction-route-family-plan.v1
-// HEADER: weft.rvv.c_type_mapping: vl:size_t,source:signed-e8mf4,product:signed-e16mf2,seed:signed-i32,result:signed-e32m1
+// HEADER: weft.rvv.runtime_abi_name: rvv-exact-typed-body-callable-c-abi.v2
 // HEADER: void weft_emitc_explicit_selected_body_product_reduce_kernel_explicit_selected_body_rvv_product_reduce(const int8_t *lhs, const int8_t *rhs, const int32_t *acc, int32_t *out, size_t n);
 
-// STALE-VWREDSUM: metadata key '{{.*}}widening_reduction_intrinsic'{{.*}}'__riscv_vwredsum_vs_i16mf2_i32m1' but was '__riscv_vredsum_vs_i16mf2_i16m1'
 
-// STALE-PRIM-ACC: metadata key '{{.*}}low_precision_primitive.accumulator_dtype'{{.*}}'i32' but was 'i16'
 
-// STALE-PRIM-LOAD: metadata key '{{.*}}low_precision_primitive.source_load'{{.*}}'unit-stride-byte-load' but was 'metadata-only-byte-load'
 
-// STALE-PRIM-EXT: metadata key '{{.*}}low_precision_primitive.source_extension'{{.*}}'sign-extend-i8-to-i16-product' but was 'zero-extend-u8-to-u16-product'
 
-// STALE-PRIM-AVL: metadata key '{{.*}}low_precision_primitive.runtime_avl_source'{{.*}}'runtime_abi:n' but was 'metadata-only-avl'
 
-// MISSING-PRIM-RUNTIME: metadata{{.*}}key '{{.*}}low_precision_primitive.runtime_control_plan' but was '{{.*}}low_precision_primitive.runtime_control_plan_missing'

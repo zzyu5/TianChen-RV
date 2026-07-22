@@ -16,7 +16,7 @@
 // route family iq4_xs/q4_K use, despite its grid being the 2048-entry TERNARY
 // iq1s_grid (a uint64 table gathered by vluxei16, NOT iq4_xs's 16-entry vrgather
 // codebook). iq1_s takes the EXISTING super-block monolithic route family (the
-// 'rvv-ggml-super-block-block-dot-monolithic-emitc-route-family' route id + the
+// 'rvv-generic-typed-body-emitc-route-family' route id + the
 // super-block op-derived metadata keys), NOT a new route-id / family variant. The
 // grid is an OP attr consumed by the emitter, NOT a route-family concern: the
 // emission plan (buildMonolithicBlockDotEmissionPlan) and the target-export
@@ -89,19 +89,14 @@ module attributes {weft_rvv.source_front_door = "ggml_iq1_s_q8_K_block_dot_sourc
 // PLAN-SAME: artifact_kind = "riscv-elf-relocatable-object"
 // The super-block block-dot carries the super-block (not flat) op-derived metadata
 // keys, with the iq1_s kind -- the SAME super-block route family q4_K/iq4_xs use.
-// PLAN-SAME: rvv_ggml_super_block_block_dot_kind
-// PLAN-SAME: ggml_iq1_s_q8_k_block_dot
 // The honest SUPER-BLOCK monolithic-body route id (NOT the flat route, NOT the
 // decomposed generic-typed-body route) is the coherence-recognized export route.
-// PLAN-SAME: lowering_pipeline = "rvv-ggml-super-block-block-dot-monolithic-emitc-route-family"
+// PLAN-SAME: lowering_pipeline = "rvv-generic-typed-body-emitc-route-family"
 // PLAN-SAME: reason = "emission_plan"
 // PLAN-SAME: status = "supported"
 // PLAN-SAME: target = @rvv_iq1_s_q8_K_block_dot
 // The super-block block-dot honestly carries NO decomposed-route slice config
 // metadata, and never claims the flat route.
-// PLAN-NOT: rvv_selected_body_operation
-// PLAN-NOT: value = "rvv-generic-typed-body-emitc-route-family"
-// PLAN-NOT: rvv-ggml-flat-block-dot-monolithic-emitc-route-family
 
 // ===================== CORE EmitC ternary-grid integer core ==================
 // CORE: emitc.func @weft_emitc_ggml_vec_dot_iq1_s_q8_K_kernel_rvv_iq1_s_q8_K_block_dot

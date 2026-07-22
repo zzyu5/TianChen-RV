@@ -1840,43 +1840,39 @@ def source_artifact_record_context(
 def low_precision_formula_plan_metadata(
     generation_result: dict[str, Any],
 ) -> dict[str, str]:
-    """Collect the final typed primitive plan without treating evidence as compute."""
-    prefix = "weft_rvv.low_precision_primitive."
+    """Observe the structurally verified final typed body for measurement evidence."""
     boundary = generation_result.get("widening_product_reduction_boundary", {})
-    merged: dict[str, str] = {}
-
-    def merge(key: str, value: Any) -> None:
-        if not key.startswith(prefix):
-            return
-        field = key[len(prefix) :]
-        text = str(value)
-        previous = merged.get(field)
-        if previous is not None and previous != text:
-            raise abi.EvidenceError(
-                "formula-plan evidence disagrees for "
-                f"{key}: {previous!r} vs {text!r}"
-            )
-        merged[field] = text
-
-    for key, value in boundary.get("route_metadata", {}).items():
-        merge(str(key), value)
-    for record in (
-        generation_result.get("bundle_checks", {})
-        .get("index", {})
-        .get("parsed", {})
-        .get("records", [])
-    ):
-        for entry in record.get("artifact_metadata", []):
-            merge(str(entry.get("key", "")), entry.get("value", ""))
+    materialized_body = boundary.get("materialized_body", boundary)
+    fields = (
+        "source_element_type",
+        "source_sew",
+        "source_lmul",
+        "product_element_type",
+        "product_sew",
+        "product_lmul",
+        "accumulator_element_type",
+        "accumulator_sew",
+        "accumulator_lmul",
+        "result_element_type",
+        "result_sew",
+        "result_lmul",
+        "product_relation",
+        "product_reduction_chain_relation",
+    )
+    observed = {
+        field: str(materialized_body[field])
+        for field in fields
+        if materialized_body.get(field) is not None
+    }
 
     required = ("source_lmul", "product_lmul", "accumulator_lmul")
-    missing = [field for field in required if not merged.get(field)]
+    missing = [field for field in required if not observed.get(field)]
     if missing:
         raise abi.EvidenceError(
-            "formula-plan evidence missing typed primitive fields: "
+            "materialized typed body evidence missing primitive fields: "
             + ", ".join(missing)
         )
-    return merged
+    return observed
 
 
 def low_precision_candidate_feedback_record(
@@ -1990,20 +1986,19 @@ def parse_candidate_measurement_inputs(
     return candidates
 
 
-def uses_packed_i4_resource_from_bundle(
-    bundle_checks: dict[str, Any], expectation: abi.OpExpectation
+def uses_packed_i4_resource_from_constructed_body(
+    generation_result: dict[str, Any], expectation: abi.OpExpectation
 ) -> bool:
     if not (
         expectation.is_widening_product_reduce_dequantize_f32
         or expectation.is_widening_product_reduce_dequant_clamp_f32
     ):
         return False
-    metadata = abi.widening_product_reduction_metadata_from_bundle(
-        bundle_checks, expectation
+    boundary = generation_result.get("widening_product_reduction_boundary", {})
+    formula_plan = boundary.get("materialized_body", boundary).get(
+        "formula_plan", {}
     )
-    return abi.product_dequant_uses_packed_i4_typed_body(
-        metadata, expectation
-    )
+    return formula_plan.get("operand_encoding") == "packed_i4"
 
 
 def generate_verified_bundle(
@@ -2316,10 +2311,10 @@ def run_one_measurement(
             expectation=expectation, result=generation_result
         )
 
-        bundle_checks = generation_result["bundle_checks"]
-        uses_packed_i4_resource = uses_packed_i4_resource_from_bundle(
-            bundle_checks, expectation
+        uses_packed_i4_resource = uses_packed_i4_resource_from_constructed_body(
+            generation_result, expectation
         )
+        bundle_checks = generation_result["bundle_checks"]
         baseline_identity = baseline_identity_for(
             expectation, uses_packed_i4_resource=uses_packed_i4_resource
         )

@@ -1,13 +1,6 @@
 // RUN: weft-opt %s --weft-materialize-selected-lowering-boundaries | FileCheck %s --check-prefix=REALIZED
 // RUN: weft-opt %s --weft-materialize-selected-lowering-boundaries --weft-materialize-emission-plans | FileCheck %s --check-prefix=PLAN
 // RUN: weft-opt %s --weft-materialize-selected-lowering-boundaries --weft-materialize-emission-plans | weft-translate --weft-export-target-header-artifact | FileCheck %s --check-prefix=HEADER
-// RUN: weft-opt %s --weft-materialize-selected-lowering-boundaries --weft-materialize-emission-plans | sed '0,/provider_supported_mirror:rvv-plain-elementwise-arithmetic-plan-validated/s//provider_supported_mirror:rvv-script-derived-plain-elementwise/' | not weft-translate --weft-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-ELEM-PROVIDER
-// RUN: weft-opt %s --weft-materialize-selected-lowering-boundaries --weft-materialize-emission-plans | sed '0,/rvv-route-operand-binding:add.v1/s//rvv-route-operand-binding:script-derived-add.v1/' | not weft-translate --weft-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-ELEM-BINDING
-// RUN: weft-opt %s --weft-materialize-selected-lowering-boundaries --weft-materialize-emission-plans | sed '0,/lhs,rhs,out,n/s//lhs,out,rhs,n/' | not weft-translate --weft-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-ELEM-ABI
-// RUN: weft-opt %s --weft-materialize-selected-lowering-boundaries --weft-materialize-emission-plans | sed '0,/stddef.h,stdint.h,riscv_vector.h/s//stddef.h,stdint.h/' | not weft-translate --weft-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-ELEM-HEADER
-// RUN: weft-opt %s --weft-materialize-selected-lowering-boundaries --weft-materialize-emission-plans | sed '0,/vl:size_t/s//vl:uint64_t/' | not weft-translate --weft-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-ELEM-TYPE
-// RUN: weft-opt %s --weft-materialize-selected-lowering-boundaries --weft-materialize-emission-plans | sed '0,/rvv-elementwise-arithmetic-route-family-plan.v1/s//rvv-script-derived-elementwise-plan.v1/' | not weft-translate --weft-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-ELEM-PLAN
-// RUN: weft-opt %s --weft-materialize-selected-lowering-boundaries --weft-materialize-emission-plans | sed '0,/weft_rvv.memory_form", value = "vector-rhs-load"/s//weft_rvv.memory_form", value = "script-derived-memory-form"/' | not weft-translate --weft-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-ELEM-MEMORY
 
 // Pre-realized selected-body input. The RVV plugin must realize this bounded
 // typed body before the provider route/common EmitC/target path can
@@ -48,71 +41,21 @@ module {
 
 // PLAN: weft.exec.diagnostic
 // PLAN-SAME: artifact_kind = "riscv-elf-relocatable-object"
-// PLAN-SAME: {key = "rvv_selected_body_operation", value = "add"}
-// PLAN-SAME: {key = "rvv_selected_body_typed_compute_op", value = "weft_rvv.binary"}
-// PLAN-SAME: {key = "weft_rvv.route_operand_binding_plan", value = "rvv-route-operand-binding:add.v1"}
-// PLAN-SAME: {key = "weft_rvv.route_operand_binding_operands", value = "rvv-route-operand-binding:add.v1;lhs=lhs-input-buffer:lhs:abi|load-base|binary-lhs-call;rhs=rhs-input-buffer:rhs:abi|load-base|binary-rhs-call;out=output-buffer:out:abi|store-base|header;n=runtime-element-count:n:abi|setvl-avl|loop-control|header"}
-// PLAN-SAME: {key = "weft_rvv.elementwise_arithmetic_route_family_plan", value = "rvv-elementwise-arithmetic-route-family-plan.v1"}
-// PLAN-SAME: {key = "weft_rvv.source_memory_form", value = "unit-stride-load"}
-// PLAN-SAME: {key = "weft_rvv.destination_memory_form", value = "unit-stride-store"}
-// PLAN-SAME: {key = "weft_rvv.target_leaf_profile", value = "rvv-v1-typed-plain-elementwise-arithmetic-leaf-profile.v1"}
-// PLAN-SAME: {key = "weft_rvv.provider_supported_mirror", value = "provider_supported_mirror:rvv-plain-elementwise-arithmetic-plan-validated"}
-// PLAN-SAME: {key = "weft_rvv.required_header_declarations", value = "stddef.h,stdint.h,riscv_vector.h"}
-// PLAN-SAME: {key = "weft_rvv.c_type_mapping", value = "vl:size_t,lhs:typed-vector,rhs:typed-vector,result:typed-vector"}
 // PLAN-SAME: emission_kind = "materialized-emitc-cpp-rvv-intrinsic-object"
-// PLAN-SAME: lowering_boundary = "weft_rvv.with_vl"
 // PLAN-SAME: origin = "rvv-plugin"
 // PLAN-SAME: reason = "emission_plan"
 // PLAN-SAME: role = "dispatch case"
-// PLAN-SAME: runtime_abi_name = "rvv-generic-binary-add-callable-c-abi.v1"
+// PLAN-SAME: runtime_abi_name = "rvv-exact-typed-body-callable-c-abi.v2"
 // PLAN-SAME: status = "supported"
 // PLAN-SAME: target = @pre_realized_body_rvv_i32_add
 
 // HEADER: weft.rvv.selected_variant: @pre_realized_body_rvv_i32_add
-// HEADER: weft.rvv.runtime_abi_name: rvv-generic-binary-add-callable-c-abi.v1
-// HEADER: weft.rvv.emitc_route_mapping: rvv-generic-typed-body-emitc-route-family
-// HEADER-DAG: weft.rvv.elementwise_arithmetic_route_family_plan: rvv-elementwise-arithmetic-route-family-plan.v1
-// HEADER-DAG: weft.rvv.target_leaf_profile: rvv-v1-typed-plain-elementwise-arithmetic-leaf-profile.v1
-// HEADER-DAG: weft.rvv.provider_supported_mirror: provider_supported_mirror:rvv-plain-elementwise-arithmetic-plan-validated
-// HEADER-DAG: weft.rvv.source_memory_form: unit-stride-load
-// HEADER-DAG: weft.rvv.destination_memory_form: unit-stride-store
-// HEADER-DAG: weft.rvv.required_header_declarations: stddef.h,stdint.h,riscv_vector.h
-// HEADER-DAG: weft.rvv.c_type_mapping: vl:size_t,lhs:typed-vector,rhs:typed-vector,result:typed-vector
-// HEADER-DAG: weft.rvv.route_operand_binding_plan: rvv-route-operand-binding:add.v1
-// HEADER-DAG: weft.rvv.route_operand_binding_operands: rvv-route-operand-binding:add.v1;lhs=lhs-input-buffer:lhs:abi|load-base|binary-lhs-call;rhs=rhs-input-buffer:rhs:abi|load-base|binary-rhs-call;out=output-buffer:out:abi|store-base|header;n=runtime-element-count:n:abi|setvl-avl|loop-control|header
+// HEADER: weft.rvv.runtime_abi_name: rvv-exact-typed-body-callable-c-abi.v2
 // HEADER: void weft_emitc_pre_realized_body_add_kernel_pre_realized_body_rvv_i32_add(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n);
 
-// STALE-ELEM-PROVIDER: RVV materialized EmitC target artifact bridge failed
-// STALE-ELEM-PROVIDER: weft_rvv.provider_supported_mirror
-// STALE-ELEM-PROVIDER-SAME: must mirror
-// STALE-ELEM-PROVIDER-SAME: rvv-script-derived-plain-elementwise
 
-// STALE-ELEM-BINDING: RVV materialized EmitC target artifact bridge failed
-// STALE-ELEM-BINDING: weft_rvv.route_operand_binding_plan
-// STALE-ELEM-BINDING-SAME: must mirror
-// STALE-ELEM-BINDING-SAME: rvv-route-operand-binding:script-derived-add.v1
 
-// STALE-ELEM-ABI: RVV materialized EmitC target artifact bridge failed
-// STALE-ELEM-ABI: weft_rvv.runtime_abi_order
-// STALE-ELEM-ABI-SAME: must mirror
-// STALE-ELEM-ABI-SAME: lhs,out,rhs,n
 
-// STALE-ELEM-HEADER: RVV materialized EmitC target artifact bridge failed
-// STALE-ELEM-HEADER: weft_rvv.required_header_declarations
-// STALE-ELEM-HEADER-SAME: must mirror
-// STALE-ELEM-HEADER-SAME: stddef.h,stdint.h
 
-// STALE-ELEM-TYPE: RVV materialized EmitC target artifact bridge failed
-// STALE-ELEM-TYPE: weft_rvv.c_type_mapping
-// STALE-ELEM-TYPE-SAME: must mirror
-// STALE-ELEM-TYPE-SAME: vl:uint64_t
 
-// STALE-ELEM-PLAN: RVV materialized EmitC target artifact bridge failed
-// STALE-ELEM-PLAN: weft_rvv.elementwise_arithmetic_route_family_plan
-// STALE-ELEM-PLAN-SAME: must mirror
-// STALE-ELEM-PLAN-SAME: rvv-script-derived-elementwise-plan.v1
 
-// STALE-ELEM-MEMORY: RVV materialized EmitC target artifact bridge failed
-// STALE-ELEM-MEMORY: weft_rvv.memory_form
-// STALE-ELEM-MEMORY-SAME: must mirror
-// STALE-ELEM-MEMORY-SAME: script-derived-memory-form

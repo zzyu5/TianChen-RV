@@ -48,28 +48,11 @@ module {
 // REALIZED: weft_rvv.store %{{.*}}, %[[REDUCED]], %[[VL]]
 
 // PLAN: weft.exec.diagnostic
-// PLAN-SAME: {key = "rvv_selected_body_operation", value = "widening_product_reduce_add"}
-// PLAN-SAME: {key = "rvv_selected_body_typed_compute_op", value = "weft_rvv.widening_product+weft_rvv.standalone_reduce"}
-// PLAN-SAME: {key = "weft_rvv.runtime_abi_order", value = "lhs,rhs,acc,out,n"}
-// PLAN-SAME: {key = "weft_rvv.low_precision_primitive.contract", value = "rvv-low-precision-widening-primitive-facts.v1"}
-// PLAN-SAME: {key = "weft_rvv.low_precision_primitive.kind", value = "signed-i8mf4xi8mf4-to-i16mf2-product-i32m1-reduction.v1"}
-// PLAN-SAME: {key = "weft_rvv.low_precision_primitive.source_signedness", value = "signed"}
-// PLAN-SAME: {key = "weft_rvv.low_precision_primitive.source_load", value = "unit-stride-byte-load"}
-// PLAN-SAME: {key = "weft_rvv.low_precision_primitive.source_extension", value = "sign-extend-i8-to-i16-product"}
-// PLAN-SAME: {key = "weft_rvv.low_precision_primitive.source_sew", value = "8"}
-// PLAN-SAME: {key = "weft_rvv.low_precision_primitive.product_lmul", value = "mf2"}
-// PLAN-SAME: {key = "weft_rvv.low_precision_primitive.accumulator_sew", value = "32"}
-// PLAN-SAME: {key = "weft_rvv.low_precision_primitive.result_lmul", value = "m1"}
-// PLAN-SAME: {key = "weft_rvv.low_precision_primitive.runtime_avl_source", value = "runtime_abi:n"}
 // PLAN-SAME: status = "supported"
 // PLAN-SAME: target = @pre_realized_body_rvv_product_reduce_add
 
 // HEADER: weft.rvv.selected_variant: @pre_realized_body_rvv_product_reduce_add
-// HEADER: weft.rvv.runtime_abi_name: rvv-generic-widening-product-reduce-add-callable-c-abi.v1
-// HEADER: weft.rvv.low_precision_primitive.payload_mirror.source_signedness: signed
-// HEADER: weft.rvv.low_precision_primitive.payload_mirror.source_extension: sign-extend-i8-to-i16-product
-// HEADER: weft.rvv.low_precision_primitive.payload_mirror.runtime_avl_source: runtime_abi:n
-// HEADER: weft.rvv.target_leaf_profile: rvv-v1-i8mf4-i16mf2-i32m1-product-reduction-contraction-leaf-profile.v1
+// HEADER: weft.rvv.runtime_abi_name: rvv-exact-typed-body-callable-c-abi.v2
 // HEADER: void weft_emitc_pre_realized_body_product_reduce_add_kernel_pre_realized_body_rvv_product_reduce_add(const int8_t *lhs, const int8_t *rhs, const int32_t *acc, int32_t *out, size_t n);
 
 // STALE-SOURCE: requires typed product-reduction config to match signed/unsigned source SEW8 LMUL mf4

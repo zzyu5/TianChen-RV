@@ -45,26 +45,10 @@ module {
 // REALIZED-NOT: weft_rvv.typed_runtime_scalar_computed_mask_standalone_reduce_pre_realized_body
 
 // PLAN: weft.exec.diagnostic
-// PLAN-SAME: {key = "rvv_selected_body_operation", value = "runtime_scalar_cmp_masked_standalone_reduce_add"}
-// PLAN-SAME: {key = "rvv_selected_body_typed_compute_op", value = "weft_rvv.masked_standalone_reduce"}
-// PLAN-SAME: {key = "weft_rvv.config_contract", value = "rvv-selected-body-sew64-lmul-m1-tail-agnostic-mask-agnostic.v1"}
-// PLAN-SAME: {key = "weft_rvv.element_type", value = "i64"}
-// PLAN-SAME: {key = "weft_rvv.runtime_control_plan", value = "rvv-runtime-avl-vl-control-plan.v1"}
-// PLAN-SAME: {key = "weft_rvv.compare_predicate_kind", value = "sle"}
-// PLAN-SAME: {key = "weft_rvv.memory_form", value = "runtime-scalar-computed-mask-unit-stride-standalone-reduction"}
-// PLAN-SAME: {key = "weft_rvv.runtime_abi_order", value = "cmp_lhs,rhs_scalar,src,acc,out,n"}
-// PLAN-SAME: {key = "weft_rvv.target_leaf_profile", value = "rvv-v1-typed-runtime-scalar-cmp-masked-standalone-reduction-leaf-profile.v1"}
-// PLAN-SAME: {key = "weft_rvv.provider_supported_mirror", value = "provider_supported_mirror:rvv-runtime-scalar-cmp-masked-standalone-reduction-plan-validated"}
-// PLAN-SAME: {key = "weft_rvv.c_type_mapping", value = "vl:size_t,cmp_lhs/source:typed-source-vector,rhs_scalar:typed-scalar,mask:typed-mask,seed:typed-scalar,result:typed-scalar-reduction-vector"}
-// PLAN-SAME: {key = "weft_rvv.reduction_accumulator_layout", value = "scalar-i64-seed-lane0-from-accumulator-input"}
-// PLAN-SAME: runtime_abi_name = "rvv-generic-runtime-scalar-cmp-masked-standalone-reduce-add-callable-c-abi.v1"
+// PLAN-SAME: runtime_abi_name = "rvv-exact-typed-body-callable-c-abi.v2"
 // PLAN-SAME: status = "supported"
 // PLAN-SAME: target = @rvv_pre_rt_scalar_cm_standalone_reduce_i64
 
 // HEADER: weft.rvv.selected_variant: @rvv_pre_rt_scalar_cm_standalone_reduce_i64
-// HEADER: weft.rvv.runtime_abi_name: rvv-generic-runtime-scalar-cmp-masked-standalone-reduce-add-callable-c-abi.v1
-// HEADER: weft.rvv.runtime_abi_order: cmp_lhs,rhs_scalar,src,acc,out,n
-// HEADER: weft.rvv.compare_predicate_kind: sle
-// HEADER: weft.rvv.reduction_accumulator_layout: scalar-i64-seed-lane0-from-accumulator-input
-// HEADER: weft.rvv.target_leaf_profile: rvv-v1-typed-runtime-scalar-cmp-masked-standalone-reduction-leaf-profile.v1
+// HEADER: weft.rvv.runtime_abi_name: rvv-exact-typed-body-callable-c-abi.v2
 // HEADER: void weft_emitc_pre_rt_scalar_cm_standalone_reduce_i64_kernel_rvv_pre_rt_scalar_cm_standalone_reduce_i64(const int64_t *cmp_lhs, int64_t rhs_scalar, const int64_t *src, const int64_t *acc, int64_t *out, size_t n);

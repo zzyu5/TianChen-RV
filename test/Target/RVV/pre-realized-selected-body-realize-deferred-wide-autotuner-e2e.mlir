@@ -81,10 +81,8 @@ module {
 // EMITC-NOT: call_opaque "__riscv_vwredsum_vs_i16m4_i32m1"
 // EMITC: call_opaque "__riscv_vredsum_vs_i32m8_i32m1"
 
+// PLAN: runtime_abi_name = "rvv-exact-typed-body-callable-c-abi.v2"
+
 // The wide body describes + exports through emission-plans (P-B6): the PLAN
 // metadata carries the deferred-wide typed-compute chain and the honest wide strip
 // ladder on the primitive facts.
-// PLAN-DAG: "rvv_selected_body_typed_compute_op", value = "weft_rvv.widening_product+weft_rvv.widening_accumulate+weft_rvv.standalone_reduce+weft_rvv.dequantize"
-// PLAN-DAG: "weft_rvv.low_precision_primitive.source_lmul", value = "m2"
-// PLAN-DAG: "weft_rvv.low_precision_primitive.product_lmul", value = "m4"
-// PLAN-DAG: "weft_rvv.target_leaf_profile", value = "rvv-v1-i8mf4-i16mf2-i32m1-f32m1-product-reduction-dequantization-leaf-profile.v1"

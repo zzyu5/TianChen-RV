@@ -51,49 +51,10 @@ module {
 
 // PLAN: weft.exec.diagnostic
 // PLAN-SAME: artifact_kind = "riscv-elf-relocatable-object"
-// PLAN-SAME: {key = "rvv_selected_body_operation", value = "strided_input_widening_dot_reduce_add"}
-// PLAN-SAME: {key = "rvv_selected_body_typed_compute_op", value = "weft_rvv.widening_dot_reduce"}
-// PLAN-SAME: {key = "weft_rvv.config_contract", value = "rvv-selected-body-sew32-lmul-m1-tail-agnostic-mask-agnostic.v1"}
-// PLAN-SAME: {key = "weft_rvv.runtime_control_plan", value = "rvv-runtime-avl-vl-control-plan.v1"}
-// PLAN-SAME: {key = "weft_rvv.memory_form", value = "strided-input-widening-dot-reduce"}
-// PLAN-SAME: {key = "weft_rvv.runtime_abi_order", value = "lhs,rhs,acc,out,n,lhs_stride,rhs_stride"}
-// PLAN-SAME: {key = "weft_rvv.route_operand_binding_plan", value = "rvv-route-operand-binding:strided_widening_dot_reduce.v1"}
-// PLAN-SAME: {key = "weft_rvv.route_operand_binding_operands", value = "rvv-route-operand-binding:strided_widening_dot_reduce.v1;lhs=lhs-input-buffer:lhs:abi|sld|dot-lhs|i16|hdr;rhs=rhs-input-buffer:rhs:abi|sld|dot-rhs|i16|hdr;acc=accumulator-input-buffer:acc:abi|seed|red|i32|hdr;out=output-buffer:out:abi|store|i32|hdr;n=runtime-element-count:n:abi|setvl-avl|loop|hdr;lhs_stride=lhs-input-stride:lhs_stride:abi|str|addr|hdr;rhs_stride=rhs-input-stride:rhs_stride:abi|str|addr|hdr"}
-// PLAN-SAME: {key = "weft_rvv.contraction_route_family_plan", value = "rvv-contraction-route-family-plan.v1"}
-// PLAN-SAME: {key = "weft_rvv.source_sew", value = "16"}
-// PLAN-SAME: {key = "weft_rvv.source_lmul", value = "mf2"}
-// PLAN-SAME: {key = "weft_rvv.accumulator_sew", value = "32"}
-// PLAN-SAME: {key = "weft_rvv.accumulator_lmul", value = "m1"}
-// PLAN-SAME: {key = "weft_rvv.result_sew", value = "32"}
-// PLAN-SAME: {key = "weft_rvv.result_lmul", value = "m1"}
-// PLAN-SAME: {key = "weft_rvv.strided_memory_layout", value = "element-strided-lhs-rhs-dot-source-unit-stride-output-runtime-abi"}
-// PLAN-SAME: {key = "weft_rvv.lhs_stride_source", value = "runtime_abi:lhs_stride"}
-// PLAN-SAME: {key = "weft_rvv.rhs_stride_source", value = "runtime_abi:rhs_stride"}
-// PLAN-SAME: {key = "weft_rvv.source_memory_form", value = "strided-load"}
-// PLAN-SAME: {key = "weft_rvv.destination_memory_form", value = "unit-stride-store"}
-// PLAN-SAME: {key = "weft_rvv.widening_dot_accumulator_layout", value = "scalar-i32-seed-lane0-from-accumulator-input"}
-// PLAN-SAME: {key = "weft_rvv.widening_dot_result_layout", value = "store-dot-reduction-lane0-to-output-scalar"}
-// PLAN-SAME: {key = "weft_rvv.widening_dot_relation", value = "signed-i16mf2xi16mf2-reduce-plus-i32-scalar-to-i32"}
-// PLAN-SAME: {key = "weft_rvv.widening_product_intrinsic", value = "__riscv_vwmul_vv_i32m1"}
-// PLAN-SAME: {key = "weft_rvv.strided_load_intrinsic", value = "__riscv_vlse16_v_i16mf2"}
-// PLAN-SAME: {key = "weft_rvv.widening_dot_reduction_store_vl", value = "1"}
-// PLAN-SAME: runtime_abi_name = "rvv-generic-strided-input-widening-dot-reduce-add-callable-c-abi.v1"
+// PLAN-SAME: runtime_abi_name = "rvv-exact-typed-body-callable-c-abi.v2"
 // PLAN-SAME: status = "supported"
 // PLAN-SAME: target = @rvv_strided_input_dot
 
 // HEADER: weft.rvv.selected_variant: @rvv_strided_input_dot
-// HEADER: weft.rvv.runtime_abi_name: rvv-generic-strided-input-widening-dot-reduce-add-callable-c-abi.v1
-// HEADER: weft.rvv.emitc_route_mapping: rvv-generic-typed-body-emitc-route-family
-// HEADER: weft.rvv.runtime_abi_order: lhs,rhs,acc,out,n,lhs_stride,rhs_stride
-// HEADER: weft.rvv.memory_form: strided-input-widening-dot-reduce
-// HEADER: weft.rvv.strided_memory_layout: element-strided-lhs-rhs-dot-source-unit-stride-output-runtime-abi
-// HEADER: weft.rvv.lhs_stride_source: runtime_abi:lhs_stride
-// HEADER: weft.rvv.rhs_stride_source: runtime_abi:rhs_stride
-// HEADER: weft.rvv.source_memory_form: strided-load
-// HEADER: weft.rvv.destination_memory_form: unit-stride-store
-// HEADER: weft.rvv.widening_dot_relation: signed-i16mf2xi16mf2-reduce-plus-i32-scalar-to-i32
-// HEADER: weft.rvv.runtime_control_plan: rvv-runtime-avl-vl-control-plan.v1
-// HEADER: weft.rvv.route_operand_binding_plan: rvv-route-operand-binding:strided_widening_dot_reduce.v1
-// HEADER: weft.rvv.route_operand_binding_operands: rvv-route-operand-binding:strided_widening_dot_reduce.v1;lhs=lhs-input-buffer:lhs:abi|sld|dot-lhs|i16|hdr;rhs=rhs-input-buffer:rhs:abi|sld|dot-rhs|i16|hdr;acc=accumulator-input-buffer:acc:abi|seed|red|i32|hdr;out=output-buffer:out:abi|store|i32|hdr;n=runtime-element-count:n:abi|setvl-avl|loop|hdr;lhs_stride=lhs-input-stride:lhs_stride:abi|str|addr|hdr;rhs_stride=rhs-input-stride:rhs_stride:abi|str|addr|hdr
-// HEADER: weft.rvv.contraction_route_family_plan: rvv-contraction-route-family-plan.v1
+// HEADER: weft.rvv.runtime_abi_name: rvv-exact-typed-body-callable-c-abi.v2
 // HEADER: void weft_emitc_pre_realized_strided_dot_kernel_rvv_strided_input_dot(const int16_t *lhs, const int16_t *rhs, const int32_t *acc, int32_t *out, size_t n, size_t lhs_stride, size_t rhs_stride);

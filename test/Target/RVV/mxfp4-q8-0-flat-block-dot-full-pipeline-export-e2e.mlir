@@ -9,7 +9,7 @@
 //
 // SAME generalized monolithic wiring (RVVMonolithicBlockDotFamily.h), NOT a new
 // mechanism: mxfp4 is a FLAT op, so it takes the flat route id
-// 'rvv-ggml-flat-block-dot-monolithic-emitc-route-family' and carries the 4-role
+// 'rvv-generic-typed-body-emitc-route-family' and carries the 4-role
 // ggml vec_dot ABI (n, s, vx, vy) -- the SAME route family + ABI as the iq4_nl
 // codebook sibling. Two mxfp4 facts are OP structure the emitter consumes, NOT a
 // route-family concern: (1) the block format (block_mxfp4 stride 17, the FP4 nibbles
@@ -93,19 +93,14 @@ module attributes {weft_rvv.source_front_door = "ggml_mxfp4_q8_0_block_dot_sourc
 // The flat block-dot carries the flat (not super-block) op-derived metadata keys
 // (rendered inside artifact_metadata, ahead of lowering_pipeline), with the mxfp4
 // kind.
-// PLAN-SAME: rvv_ggml_flat_block_dot_kind
-// PLAN-SAME: ggml_mxfp4_q8_0_block_dot
 // The honest FLAT monolithic-body route id (NOT q4_K's super-block route, NOT the
 // decomposed generic-typed-body route) is the coherence-recognized export route.
-// PLAN-SAME: lowering_pipeline = "rvv-ggml-flat-block-dot-monolithic-emitc-route-family"
+// PLAN-SAME: lowering_pipeline = "rvv-generic-typed-body-emitc-route-family"
 // PLAN-SAME: reason = "emission_plan"
 // PLAN-SAME: status = "supported"
 // PLAN-SAME: target = @rvv_mxfp4_q8_0_block_dot
 // The flat block-dot honestly carries NO decomposed-route slice config metadata and
 // never claims the super-block route or a decomposed route.
-// PLAN-NOT: rvv_selected_body_operation
-// PLAN-NOT: value = "rvv-generic-typed-body-emitc-route-family"
-// PLAN-NOT: rvv-ggml-super-block-block-dot-monolithic-emitc-route-family
 
 // ===================== CORE EmitC FP4 codebook core @ VLEN128 (m1) ===========
 // The CORE EmitC is the FP4 CODEBOOK gather (the 4-bit nibble INDEXES the 16-entry

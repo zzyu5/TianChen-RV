@@ -105,23 +105,12 @@ module {
 // RESULT config (sew32/m1), and the same logical product-reduction-dequantization
 // route identity/leaf profile + ABI as the narrow path. The route operand binding
 // honestly mirrors the wide strip (src-i8m2).
-// PLAN-DAG: "rvv_selected_body_operation", value = "widening_product_reduce_dequantize_f32"
-// PLAN-DAG: "rvv_selected_body_typed_compute_op", value = "weft_rvv.widening_product+weft_rvv.widening_accumulate+weft_rvv.standalone_reduce+weft_rvv.dequantize"
-// PLAN-DAG: "weft_rvv.config_contract", value = "rvv-selected-body-sew32-lmul-m1-tail-agnostic-mask-agnostic.v1"
-// PLAN-DAG: "weft_rvv.sew", value = "32"
-// PLAN-DAG: "weft_rvv.lmul", value = "m1"
-// PLAN-DAG: "weft_rvv.route_operand_binding_operands", value = "rvv-route-operand-binding:widening_product_reduce_dequantize_f32.v1;lhs=lhs-input-buffer:lhs:abi|src-load|wprod-lhs|src-i8m2|hdr;rhs=rhs-input-buffer:rhs:abi|src-load|wprod-rhs|src-i8m2|hdr;acc=accumulator-input-buffer:acc:abi|seed|wred|i32|hdr;scale=dequant-scale-value:scale:abi|runtime-scale|scale-f32|dequant|hdr;out=output-buffer:out:abi|dequant-result|store|res-f32m1|hdr;n=runtime-element-count:n:abi|setvl-avl|loop|hdr"
-// PLAN-DAG: "weft_rvv.target_leaf_profile", value = "rvv-v1-i8mf4-i16mf2-i32m1-f32m1-product-reduction-dequantization-leaf-profile.v1"
-// PLAN-DAG: "weft_rvv.low_precision_primitive.source_lmul", value = "m2"
-// PLAN-DAG: "weft_rvv.low_precision_primitive.product_lmul", value = "m4"
-// PLAN-DAG: "weft_rvv.low_precision_primitive.accumulator_lmul", value = "m1"
 
 // The deployable header artifact: the same callable C ABI prototype as the narrow
 // path (the deferred-wide realization is an internal config; the runtime ABI is
 // unchanged), exported from the wide bundle.
 // HEADER: weft.rvv.selected_route: rvv-generic-typed-body-emitc-route-family
-// HEADER: weft.rvv.runtime_abi_name: rvv-generic-widening-product-reduce-dequantize-f32-callable-c-abi.v1
-// HEADER: weft.rvv.target_leaf_profile: rvv-v1-i8mf4-i16mf2-i32m1-f32m1-product-reduction-dequantization-leaf-profile.v1
+// HEADER: weft.rvv.runtime_abi_name: rvv-exact-typed-body-callable-c-abi.v2
 // HEADER: void weft_emitc_pre_realized_body_product_reduce_dequantize_kernel_pre_realized_body_rvv_product_reduce_dequantize(const int8_t *lhs, const int8_t *rhs, const int32_t *acc, float scale, float *out, size_t n);
 
 // MISSING-SCALE: runtime scale
@@ -134,3 +123,5 @@ module {
 
 // STALE-AUTH: does not accept authority metadata attribute
 // STALE-AUTH-SAME: route_id
+
+// PLAN: runtime_abi_name = "rvv-exact-typed-body-callable-c-abi.v2"

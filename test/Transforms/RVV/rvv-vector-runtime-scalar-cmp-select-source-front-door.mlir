@@ -105,13 +105,9 @@ module attributes {weft_rvv.source_front_door = "bounded_vector_runtime_scalar_c
 // MATERIALIZED: weft.exec.case @rvv_vector_runtime_scalar_cmp_select_sle
 // MATERIALIZED-SAME: policy = "rvv-vector-runtime-scalar-cmp-select-source-front-door-case"
 
-// PLAN: {key = "rvv_selected_body_operation", value = "runtime_scalar_cmp_select"}
-// PLAN-SAME: {key = "rvv_selected_body_typed_compute_op", value = "weft_rvv.select"}
-// PLAN-SAME: {key = "weft_rvv.runtime_abi_order", value = "lhs,rhs_scalar,true_value,false_value,out,n"}
-// PLAN-SAME: {key = "weft_rvv.computed_mask_select_mask_producer_source", value = "runtime-scalar-splat-compare-rhs"}
-// PLAN-SAME: {key = "weft_rvv.provider_supported_mirror", value = "provider_supported_mirror:rvv-runtime-scalar-cmp-select-plan-validated"}
+// PLAN: weft.exec.diagnostic
 // PLAN-SAME: emission_kind = "materialized-emitc-cpp-rvv-intrinsic-object"
-// PLAN-SAME: runtime_abi_name = "rvv-generic-runtime-scalar-cmp-select-callable-c-abi.v1"
+// PLAN-SAME: runtime_abi_name = "rvv-exact-typed-body-callable-c-abi.v2"
 // PLAN-SAME: status = "supported"
 // PLAN-SAME: target = @rvv_vector_runtime_scalar_cmp_select_sle
 
@@ -119,8 +115,5 @@ module attributes {weft_rvv.source_front_door = "bounded_vector_runtime_scalar_c
 // PIPELINE-FAIL-SAME: requires at least one weft.exec.kernel
 
 // HEADER-SLE: weft.rvv.selected_variant: @rvv_vector_runtime_scalar_cmp_select_sle
-// HEADER-SLE: weft.rvv.runtime_abi_name: rvv-generic-runtime-scalar-cmp-select-callable-c-abi.v1
-// HEADER-SLE: weft.rvv.runtime_abi_order: lhs,rhs_scalar,true_value,false_value,out,n
-// HEADER-SLE: weft.rvv.compare_predicate_kind: sle
-// HEADER-SLE: weft.rvv.computed_mask_select_mask_producer_source: runtime-scalar-splat-compare-rhs
+// HEADER-SLE: weft.rvv.runtime_abi_name: rvv-exact-typed-body-callable-c-abi.v2
 // HEADER-SLE: void weft_emitc_rvv_vector_runtime_scalar_cmp_select_sle_from_vector_source_rvv_vector_runtime_scalar_cmp_select_sle(const int32_t *lhs, int32_t rhs_scalar, const int32_t *true_value, const int32_t *false_value, int32_t *out, size_t n);

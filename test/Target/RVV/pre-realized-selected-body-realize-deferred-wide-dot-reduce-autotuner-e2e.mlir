@@ -148,24 +148,12 @@ module {
 // accumulate+standalone_reduce). The wide source config (i16m4) is structural.
 // PLAN: weft.exec.diagnostic
 // PLAN-SAME: artifact_kind = "riscv-elf-relocatable-object"
-// PLAN-SAME: {key = "rvv_selected_body_operation", value = "widening_dot_reduce_add"}
-// PLAN-SAME: {key = "rvv_selected_body_typed_compute_op", value = "weft_rvv.widening_product+weft_rvv.deferred_accumulate+weft_rvv.standalone_reduce"}
-// PLAN-SAME: {key = "weft_rvv.config_contract", value = "rvv-selected-body-sew32-lmul-m1-tail-agnostic-mask-agnostic.v1"}
-// PLAN-SAME: {key = "weft_rvv.sew", value = "32"}
-// PLAN-SAME: {key = "weft_rvv.lmul", value = "m1"}
-// PLAN-SAME: {key = "weft_rvv.memory_form", value = "vector-rhs-load"}
-// PLAN-SAME: {key = "weft_rvv.runtime_abi_order", value = "lhs,rhs,acc,out,n"}
-// PLAN-SAME: {key = "weft_rvv.target_leaf_profile", value = "rvv-v1-i16m4-i32m1-contraction-leaf-profile.v1"}
-// PLAN-SAME: {key = "weft_rvv.c_type_mapping", value = "vl:size_t,source:signed-e16m4,result:signed-e32m1,mask:b32"}
-// PLAN-SAME: runtime_abi_name = "rvv-generic-widening-dot-reduce-add-callable-c-abi.v1"
+// PLAN-SAME: runtime_abi_name = "rvv-exact-typed-body-callable-c-abi.v2"
 // PLAN-SAME: status = "supported"
 // PLAN-SAME: target = @dot_reduce_autotuner_e2e_rvv
 
 // The deployable callable-C HEADER exports the narrow-identity ABI prototype
 // (const int16_t* lhs/rhs, const int32_t* acc, int32_t* out, size_t n).
 // HEADER: weft.rvv.selected_variant: @dot_reduce_autotuner_e2e_rvv
-// HEADER: weft.rvv.runtime_abi_name: rvv-generic-widening-dot-reduce-add-callable-c-abi.v1
-// HEADER: weft.rvv.config_contract: rvv-selected-body-sew32-lmul-m1-tail-agnostic-mask-agnostic.v1
-// HEADER: weft.rvv.target_leaf_profile: rvv-v1-i16m4-i32m1-contraction-leaf-profile.v1
-// HEADER: weft.rvv.c_type_mapping: vl:size_t,source:signed-e16m4,result:signed-e32m1,mask:b32
+// HEADER: weft.rvv.runtime_abi_name: rvv-exact-typed-body-callable-c-abi.v2
 // HEADER: void weft_emitc_dot_reduce_autotuner_e2e_kernel_dot_reduce_autotuner_e2e_rvv(const int16_t *lhs, const int16_t *rhs, const int32_t *acc, int32_t *out, size_t n);

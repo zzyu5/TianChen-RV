@@ -29,16 +29,10 @@ module {
 
 // PLAN: weft.exec.diagnostic
 // PLAN-SAME: artifact_kind = "riscv-elf-relocatable-object"
-// PLAN-SAME: {key = "rvv_selected_body_operation", value = "mul"}
-// PLAN-SAME: {key = "rvv_selected_body_typed_compute_op", value = "weft_rvv.binary"}
-// PLAN-SAME: {key = "weft_rvv.route_operand_binding_plan", value = "rvv-route-operand-binding:mul.v1"}
-// PLAN-SAME: {key = "weft_rvv.route_operand_binding_operands", value = "rvv-route-operand-binding:mul.v1;lhs=lhs-input-buffer:lhs:abi|load-base|binary-lhs-call;rhs=rhs-input-buffer:rhs:abi|load-base|binary-rhs-call;out=output-buffer:out:abi|store-base|header;n=runtime-element-count:n:abi|setvl-avl|loop-control|header"}
-// PLAN-SAME: runtime_abi_name = "rvv-generic-binary-mul-callable-c-abi.v1"
+// PLAN-SAME: runtime_abi_name = "rvv-exact-typed-body-callable-c-abi.v2"
 // PLAN-SAME: status = "supported"
 // PLAN-SAME: target = @explicit_selected_body_rvv_i32_mul
 
 // HEADER: weft.rvv.selected_variant: @explicit_selected_body_rvv_i32_mul
-// HEADER: weft.rvv.runtime_abi_name: rvv-generic-binary-mul-callable-c-abi.v1
-// HEADER: weft.rvv.route_operand_binding_plan: rvv-route-operand-binding:mul.v1
-// HEADER: weft.rvv.route_operand_binding_operands: rvv-route-operand-binding:mul.v1;lhs=lhs-input-buffer:lhs:abi|load-base|binary-lhs-call;rhs=rhs-input-buffer:rhs:abi|load-base|binary-rhs-call;out=output-buffer:out:abi|store-base|header;n=runtime-element-count:n:abi|setvl-avl|loop-control|header
+// HEADER: weft.rvv.runtime_abi_name: rvv-exact-typed-body-callable-c-abi.v2
 // HEADER: void weft_emitc_explicit_selected_body_mul_kernel_explicit_selected_body_rvv_i32_mul(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n);

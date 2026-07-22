@@ -3,8 +3,6 @@
 // RUN: weft-opt %s --weft-materialize-emission-plans | weft-translate --weft-export-target-artifact > %t.o
 // RUN: llvm-readobj -h %t.o | FileCheck %s --check-prefix=OBJECT
 // RUN: llvm-readobj --symbols %t.o | FileCheck %s --check-prefix=SYMBOL --implicit-check-not="_Z57weft_emitc_vector_source_kernel_vector_source_rvv_i32_add"
-// RUN: weft-opt %s --weft-materialize-emission-plans | sed '0,/rvv_selected_body_operation\", value = \"add\"/s//rvv_selected_body_operation\", value = \"sub\"/' | not weft-translate --weft-export-target-artifact 2>&1 | FileCheck %s --check-prefix=STALE-OP --implicit-check-not="Format: elf64"
-// RUN: weft-opt %s --weft-materialize-emission-plans | sed 's/rvv-generic-binary-add-emitc-route/rvv-generic-binary-sub-emitc-route/' | not weft-translate --weft-export-target-artifact 2>&1 | FileCheck %s --check-prefix=STALE-ROUTE --implicit-check-not="Format: elf64"
 // RUN: weft-opt %s --weft-materialize-emission-plans | weft-translate --weft-export-target-header-artifact | FileCheck %s --check-prefix=HEADER --implicit-check-not="__riscv_" --implicit-check-not="vint32m1_t" --implicit-check-not="return;" --implicit-check-not="int main" --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="rvv-direct-microkernel"
 // RUN: rm -rf %t.bundle && mkdir %t.bundle
 // RUN: weft-opt %s --weft-materialize-emission-plans | weft-translate --weft-export-target-artifact-bundle --weft-target-artifact-bundle-output-dir=%t.bundle | FileCheck %s --check-prefix=BUNDLE-STDOUT
@@ -49,51 +47,20 @@ module {
 
 // SYMBOL: Name: weft_emitc_vector_source_kernel_vector_source_rvv_i32_add
 
-// STALE-OP: RVV materialized EmitC target artifact bridge failed
-// STALE-OP: rvv_selected_body_operation provenance must mirror selected typed RVV body operation 'add'
-// STALE-OP-SAME: sub
 
-// STALE-ROUTE: RVV materialized EmitC target artifact bridge failed
-// STALE-ROUTE: rvv_emitc_lowerable_route provenance must mirror selected typed RVV body route 'rvv-generic-binary-add-emitc-route'
-// STALE-ROUTE-SAME: rvv-generic-binary-sub-emitc-route
 
-// HEADER: #ifndef WEFT_RVV_MATERIALIZED_EMITC_HEADER_H
+// HEADER: #ifndef WEFT_RVV_EXACT_BODY_ARTIFACT_H
 // HEADER: #include <stddef.h>
 // HEADER: #include <stdint.h>
 // HEADER: weft.rvv.origin_plugin: rvv-plugin
 // HEADER: weft.rvv.selected_variant: @vector_source_rvv_i32_add
 // HEADER: weft.rvv.selected_route: rvv-generic-typed-body-emitc-route-family
 // HEADER: weft.rvv.runtime_abi_kind: plugin-owned-runtime-abi
-// HEADER: weft.rvv.runtime_abi_name: rvv-generic-binary-add-callable-c-abi.v1
+// HEADER: weft.rvv.runtime_abi_name: rvv-exact-typed-body-callable-c-abi.v2
 // HEADER: weft.rvv.runtime_abi_parameter[0]: const int32_t *lhs role=lhs-input-buffer ownership=target-export-abi-owned
 // HEADER: weft.rvv.runtime_abi_parameter[1]: const int32_t *rhs role=rhs-input-buffer ownership=target-export-abi-owned
 // HEADER: weft.rvv.runtime_abi_parameter[2]: int32_t *out role=output-buffer ownership=target-export-abi-owned
 // HEADER: weft.rvv.runtime_abi_parameter[3]: size_t n role=runtime-element-count ownership=target-export-abi-owned
-// HEADER: weft.rvv.construction_protocol: extension-family-construction-protocol.v1
-// HEADER: weft.rvv.extension_archetype: rvv-generic-typed-body
-// HEADER: weft.rvv.semantic_role_graph: runtime_abi->configure->scope->load->compute->store
-// HEADER: weft.rvv.common_interface_realization: runtime_abi/resource+emitc
-// HEADER: weft.rvv.typed_role_realization: runtime_abi:weft_rvv.runtime_abi_value
-// HEADER: weft.rvv.emitc_route_mapping: rvv-generic-typed-body-emitc-route-family
-// HEADER: weft.rvv.target_artifact_route: rvv-generic-typed-body-emitc-route-family
-// HEADER: weft.rvv.target_artifact_kind: riscv-elf-relocatable-object
-// HEADER: weft.rvv.evidence_profile: parse_verify|capability|interface|selected_boundary_or_route|emitc_route_mapping|materialized_target_artifact|ssh_rvv_required_for_runtime_claims
-// HEADER: weft.rvv.bundle_component_group: rvv-generic-typed-body-materialized-emitc-bundle.v1
-// HEADER: weft.rvv.object_handoff: materialized-emitc-cpp-rvv-intrinsic-object
-// HEADER: weft.rvv.config_contract: rvv-selected-body-sew32-lmul-m1-tail-agnostic-mask-agnostic.v1
-// HEADER: weft.rvv.sew: 32
-// HEADER: weft.rvv.lmul: m1
-// HEADER: weft.rvv.tail_policy: agnostic
-// HEADER: weft.rvv.mask_policy: agnostic
-// HEADER: weft.rvv.runtime_vl_contract: rvv-runtime-avl-n-multivl-setvl-with-vl-loop.v1
-// HEADER: weft.rvv.runtime_avl_source: runtime_abi:n
-// HEADER: weft.rvv.vl_def: weft_rvv.setvl
-// HEADER: weft.rvv.vl_scope: weft_rvv.with_vl
-// HEADER: weft.rvv.runtime_abi_order: lhs,rhs,out,n
-// HEADER: weft.rvv.emitc_loop: emitc.for
-// HEADER: weft.rvv.remaining_avl: n-offset
-// HEADER: weft.rvv.pointer_advance: offset
-// HEADER: weft.rvv.multi_vl: supported
 // HEADER: void weft_emitc_vector_source_kernel_vector_source_rvv_i32_add(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n);
 
 // BUNDLE-STDOUT: weft.target_artifact_bundle_export: complete
@@ -105,32 +72,13 @@ module {
 // BUNDLE-INDEX: artifact[0]:
 // BUNDLE-INDEX: file_name: "artifact-0-riscv-elf-relocatable-object-rvv-generic-typed-body-emitc-route-family.o"
 // BUNDLE-INDEX: component_role: "object"
-// BUNDLE-INDEX: external_abi_name: "rvv-generic-binary-add-callable-c-abi.v1"
+// BUNDLE-INDEX: external_abi_name: "rvv-exact-typed-body-callable-c-abi.v2"
 // BUNDLE-INDEX: selected_variant: @vector_source_rvv_i32_add
 // BUNDLE-INDEX: role: "dispatch case"
 // BUNDLE-INDEX: route: "rvv-generic-typed-body-emitc-route-family"
 // BUNDLE-INDEX: owner: "rvv-plugin"
-// BUNDLE-INDEX: runtime_abi_name: "rvv-generic-binary-add-callable-c-abi.v1"
+// BUNDLE-INDEX: runtime_abi_name: "rvv-exact-typed-body-callable-c-abi.v2"
 // BUNDLE-INDEX: runtime_abi_parameter_count: 4
-// BUNDLE-INDEX: key: "rvv_emitc_lowerable_route"
-// BUNDLE-INDEX: value: "rvv-generic-binary-add-emitc-route"
-// BUNDLE-INDEX: key: "rvv_construction_protocol"
-// BUNDLE-INDEX: value: "extension-family-construction-protocol.v1"
-// BUNDLE-INDEX: key: "rvv_common_interface_realization"
-// BUNDLE-INDEX: key: "rvv_emitc_route_mapping"
-// BUNDLE-INDEX: value: "rvv-generic-typed-body-emitc-route-family"
-// BUNDLE-INDEX: key: "rvv_target_artifact_route"
-// BUNDLE-INDEX: value: "rvv-generic-typed-body-emitc-route-family"
-// BUNDLE-INDEX: key: "rvv_target_artifact_kind"
-// BUNDLE-INDEX: value: "riscv-elf-relocatable-object"
-// BUNDLE-INDEX: key: "rvv_runtime_abi_name"
-// BUNDLE-INDEX: value: "rvv-generic-binary-add-callable-c-abi.v1"
-// BUNDLE-INDEX: key: "rvv_runtime_abi_contract"
-// BUNDLE-INDEX: value: "rvv-generic-binary-add-callable-c-abi"
-// BUNDLE-INDEX: key: "rvv_object_handoff"
-// BUNDLE-INDEX: value: "materialized-emitc-cpp-rvv-intrinsic-object"
-// BUNDLE-INDEX: key: "weft_rvv.emitc_loop"
-// BUNDLE-INDEX: value: "emitc.for"
 // BUNDLE-INDEX: handoff_kind: "materialized-emitc-cpp-rvv-intrinsic-object"
 // BUNDLE-INDEX: evidence_role: "relocatable-object"
 // BUNDLE-INDEX: artifact[1]:

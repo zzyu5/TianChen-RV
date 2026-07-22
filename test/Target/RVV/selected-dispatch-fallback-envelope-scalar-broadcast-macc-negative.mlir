@@ -1,7 +1,6 @@
 // RUN: weft-opt %s --split-input-file --verify-diagnostics --weft-materialize-emission-plans
 
 module {
-  // expected-error@+1 {{selected dispatch case declares runtime_guard_required=true but does not link runtime_guard to a same-kernel dispatch-availability-guard runtime_param before RVV route construction}}
   weft.exec.kernel @rvv_dispatch_case_missing_runtime_guard {
     weft.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
     weft.exec.capability @scalar_fallback {id = "scalar.fallback", kind = "fallback", status = "available"}
@@ -28,6 +27,7 @@ module {
     weft.exec.variant @scalar_fallback_path attributes {fallback_role = "conservative", origin = "scalar-plugin", requires = [@scalar_fallback]} {
     }
     weft.exec.dispatch {
+      // expected-error@+1 {{requires runtime_guard linkage to a dispatch-availability-guard runtime_param when runtime_guard_required=true}}
       weft.exec.case @rvv_scalar_broadcast_macc {origin = "rvv-plugin", policy = "dispatch-envelope-negative-case", runtime_guard_required = true}
       weft.exec.fallback @scalar_fallback_path {fallback_role = "conservative", origin = "scalar-plugin"}
     }
@@ -37,7 +37,6 @@ module {
 // -----
 
 module {
-  // expected-error@+1 {{selected dispatch fallback target @bad_scalar_fallback must be a fallback-eligible weft.exec.variant with fallback_role='conservative'}}
   weft.exec.kernel @rvv_dispatch_fallback_target_not_eligible {
     weft.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
     weft.exec.capability @scalar_fallback {id = "scalar.fallback", kind = "fallback", status = "available"}
@@ -65,6 +64,7 @@ module {
     }
     weft.exec.dispatch {
       weft.exec.case @rvv_scalar_broadcast_macc {origin = "rvv-plugin", policy = "dispatch-envelope-negative-case"}
+      // expected-error@+1 {{target @bad_scalar_fallback must be a fallback-eligible weft.exec.variant with fallback_role='conservative'}}
       weft.exec.fallback @bad_scalar_fallback {fallback_role = "conservative", origin = "scalar-plugin"}
     }
   }

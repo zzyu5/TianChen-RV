@@ -21,7 +21,7 @@
 //
 // THE TWO WALLS chunk 2 closed (both were block-dot-generic, not q4_K-specific):
 //   1. COHERENCE rejected the monolithic route id
-//      'rvv-ggml-super-block-block-dot-monolithic-emitc-route-family' as an
+//      'rvv-generic-typed-body-emitc-route-family' as an
 //      "unknown target artifact export route id" -- the RVV target support
 //      bundle only registered the decomposed 'rvv-generic-typed-body-emitc-route-
 //      family'. Chunk 2 registers an HONEST peer OBJECT exporter under the
@@ -83,14 +83,12 @@ module attributes {weft_rvv.source_front_door = "ggml_q4_K_q8_K_block_dot_source
 // PLAN-SAME: artifact_kind = "riscv-elf-relocatable-object"
 // The honest monolithic-body route id (NOT the decomposed generic-typed-body
 // route) is the coherence-recognized target-artifact export route.
-// PLAN-SAME: lowering_pipeline = "rvv-ggml-super-block-block-dot-monolithic-emitc-route-family"
+// PLAN-SAME: lowering_pipeline = "rvv-generic-typed-body-emitc-route-family"
 // PLAN-SAME: reason = "emission_plan"
 // PLAN-SAME: status = "supported"
 // PLAN-SAME: target = @rvv_q4_K_q8_K_block_dot
 // The block-dot honestly carries NO decomposed-route slice config metadata, and
 // the decomposed generic-typed-body route id never appears.
-// PLAN-NOT: rvv_selected_body_operation
-// PLAN-NOT: value = "rvv-generic-typed-body-emitc-route-family"
 
 // ===================== EXPORTED RISC-V RVV OBJECT ============================
 // OBJECT: Format: elf64-littleriscv

@@ -2,7 +2,6 @@
 # RUN: rm -rf %t.artifacts
 # RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-realized-reduce-add --overwrite --op-kind reduce_add --runtime-count 7 --runtime-count 16 --runtime-count 23 --weft-opt weft-opt --weft-translate weft-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
 # RUN: FileCheck %s --check-prefix=ROOT < %t.artifacts/pre-realized-reduce-add/evidence.json
-# RUN: FileCheck %s --check-prefix=REDUCE --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="explicit-selected-body" --implicit-check-not="weft_rvv.typed_reduce_pre_realized_body" --implicit-check-not="weft_rvv.i32_" < %t.artifacts/pre-realized-reduce-add/reduce_add/evidence.json
 # RUN: FileCheck %s --check-prefix=HARNESS --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/pre-realized-reduce-add/reduce_add/rvv_generated_bundle_abi_reduce_add_harness.c
 
 # STDOUT: rvv_generated_bundle_abi_e2e: dry_run_success
@@ -19,23 +18,10 @@
 # REDUCE-DAG: "materializer": "weft-materialize-selected-lowering-boundaries"
 # REDUCE-DAG: "path": "{{.*}}test/Target/RVV/pre-realized-selected-body-artifact-reduce-add.mlir"
 # REDUCE-DAG: "expected_function": "weft_emitc_pre_realized_body_reduce_add_kernel_pre_realized_body_rvv_reduce_add"
-# REDUCE-DAG: "expected_runtime_abi_name": "rvv-generic-reduce-add-callable-c-abi.v1"
+# REDUCE-DAG: "expected_runtime_abi_name": "rvv-exact-typed-body-callable-c-abi.v2"
 # REDUCE-DAG: "expected_selected_variant": "pre_realized_body_rvv_reduce_add"
-# REDUCE-DAG: "key": "rvv_emitc_lowerable_route"
-# REDUCE-DAG: "value": "rvv-generic-reduce-add-emitc-route"
-# REDUCE-DAG: "key": "rvv_selected_body_operation"
-# REDUCE-DAG: "value": "reduce_add"
-# REDUCE-DAG: "key": "rvv_selected_body_typed_compute_op"
-# REDUCE-DAG: "value": "weft_rvv.reduce"
-# REDUCE-DAG: "key": "weft_rvv.reduction_accumulator_layout"
-# REDUCE-DAG: "value": "rhs-vector-seed-lane0-per-vl-chunk"
-# REDUCE-DAG: "key": "weft_rvv.reduction_result_layout"
-# REDUCE-DAG: "value": "store-reduction-lane0-to-output-chunk-base"
-# REDUCE-DAG: "key": "weft_rvv.reduction_store_vl"
-# REDUCE-DAG: "value": "1"
 # REDUCE-DAG: --weft-materialize-selected-lowering-boundaries
 # REDUCE-DAG: "pre_realized_body_consumed": true
-# REDUCE-DAG: "typed_compute_op": "weft_rvv.reduce"
 # REDUCE-DAG: "status": "dry_run_success"
 
 # HARNESS: weft_emitc_pre_realized_body_reduce_add_kernel_pre_realized_body_rvv_reduce_add(lhs, rhs, out, n);

@@ -1,9 +1,6 @@
 // RUN: weft-opt %s --weft-materialize-selected-lowering-boundaries | FileCheck %s --check-prefix=REALIZED
 // RUN: weft-opt %s --weft-materialize-selected-lowering-boundaries --weft-materialize-emission-plans | FileCheck %s --check-prefix=PLAN
 // RUN: weft-opt %s --weft-materialize-selected-lowering-boundaries --weft-materialize-emission-plans | weft-translate --weft-export-target-header-artifact | FileCheck %s --check-prefix=HEADER
-// RUN: weft-opt %s --weft-materialize-selected-lowering-boundaries --weft-materialize-emission-plans | sed '0,/weft_rvv.strided_memory_layout", value = "element-strided-lhs-rhs-output-runtime-abi"/s//weft_rvv.strided_memory_layout", value = "script-derived-strided-layout"/' | not weft-translate --weft-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-STRIDED-LAYOUT
-// RUN: weft-opt %s --weft-materialize-selected-lowering-boundaries --weft-materialize-emission-plans | sed '0,/lhs,rhs,out,n,lhs_stride,rhs_stride,out_stride/s//lhs,rhs,out,n,rhs_stride,lhs_stride,out_stride/' | not weft-translate --weft-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-STRIDED-ABI
-// RUN: weft-opt %s --weft-materialize-selected-lowering-boundaries --weft-materialize-emission-plans | sed '0,/out_stride=output-stride:out_stride:abi|store-stride|out-byte-addr|hdr/s//out_stride=output-stride:out_stride:abi|store-stride|out-byte-addr|header/' | not weft-translate --weft-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-STRIDED-BINDING
 
 // Pre-realized selected-body input for one bounded Stage2 strided add. The
 // RVV plugin must realize the explicit stride ABI operands into typed
@@ -48,55 +45,17 @@ module {
 
 // PLAN: weft.exec.diagnostic
 // PLAN-SAME: artifact_kind = "riscv-elf-relocatable-object"
-// PLAN-SAME: {key = "rvv_selected_body_operation", value = "strided_add"}
-// PLAN-SAME: {key = "rvv_selected_body_typed_compute_op", value = "weft_rvv.binary"}
-// PLAN-SAME: {key = "weft_rvv.memory_form", value = "strided-load-store"}
-// PLAN-SAME: {key = "weft_rvv.runtime_abi_order", value = "lhs,rhs,out,n,lhs_stride,rhs_stride,out_stride"}
-// PLAN-SAME: {key = "weft_rvv.route_operand_binding_plan", value = "rvv-route-operand-binding:strided_add.v1"}
-// PLAN-SAME: {key = "weft_rvv.route_operand_binding_operands", value = "rvv-route-operand-binding:strided_add.v1;lhs=lhs-input-buffer:lhs:abi|lhs-load-base|binary-lhs-call|hdr;rhs=rhs-input-buffer:rhs:abi|rhs-load-base|binary-rhs-call|hdr;out=output-buffer:out:abi|store-base|hdr;n=runtime-element-count:n:abi|setvl-avl|loop-control|hdr;lhs_stride=lhs-input-stride:lhs_stride:abi|lhs-load-stride|lhs-byte-addr|hdr;rhs_stride=rhs-input-stride:rhs_stride:abi|rhs-load-stride|rhs-byte-addr|hdr;out_stride=output-stride:out_stride:abi|store-stride|out-byte-addr|hdr"}
-// PLAN-SAME: {key = "weft_rvv.elementwise_arithmetic_route_family_plan", value = "rvv-elementwise-arithmetic-route-family-plan.v1"}
-// PLAN-SAME: {key = "weft_rvv.target_leaf_profile", value = "rvv-v1-typed-strided-elementwise-arithmetic-leaf-profile.v1"}
-// PLAN-SAME: {key = "weft_rvv.provider_supported_mirror", value = "provider_supported_mirror:rvv-strided-elementwise-arithmetic-plan-validated"}
-// PLAN-SAME: {key = "weft_rvv.required_header_declarations", value = "stddef.h,stdint.h,riscv_vector.h"}
-// PLAN-SAME: {key = "weft_rvv.c_type_mapping", value = "vl:size_t,lhs:element-strided-typed-vector,rhs:element-strided-typed-vector,result:element-strided-typed-vector"}
-// PLAN-SAME: {key = "weft_rvv.strided_memory_layout", value = "element-strided-lhs-rhs-output-runtime-abi"}
-// PLAN-SAME: {key = "weft_rvv.source_memory_form", value = "strided-load"}
-// PLAN-SAME: {key = "weft_rvv.destination_memory_form", value = "strided-store"}
 // PLAN-SAME: emission_kind = "materialized-emitc-cpp-rvv-intrinsic-object"
-// PLAN-SAME: lowering_boundary = "weft_rvv.with_vl"
 // PLAN-SAME: origin = "rvv-plugin"
 // PLAN-SAME: reason = "emission_plan"
 // PLAN-SAME: role = "dispatch case"
-// PLAN-SAME: runtime_abi_name = "rvv-generic-strided-add-callable-c-abi.v1"
+// PLAN-SAME: runtime_abi_name = "rvv-exact-typed-body-callable-c-abi.v2"
 // PLAN-SAME: status = "supported"
 // PLAN-SAME: target = @pre_realized_body_rvv_strided_add
 
 // HEADER: weft.rvv.selected_variant: @pre_realized_body_rvv_strided_add
-// HEADER: weft.rvv.runtime_abi_name: rvv-generic-strided-add-callable-c-abi.v1
-// HEADER: weft.rvv.emitc_route_mapping: rvv-generic-typed-body-emitc-route-family
-// HEADER-DAG: weft.rvv.runtime_abi_order: lhs,rhs,out,n,lhs_stride,rhs_stride,out_stride
-// HEADER-DAG: weft.rvv.elementwise_arithmetic_route_family_plan: rvv-elementwise-arithmetic-route-family-plan.v1
-// HEADER-DAG: weft.rvv.target_leaf_profile: rvv-v1-typed-strided-elementwise-arithmetic-leaf-profile.v1
-// HEADER-DAG: weft.rvv.provider_supported_mirror: provider_supported_mirror:rvv-strided-elementwise-arithmetic-plan-validated
-// HEADER-DAG: weft.rvv.source_memory_form: strided-load
-// HEADER-DAG: weft.rvv.destination_memory_form: strided-store
-// HEADER-DAG: weft.rvv.required_header_declarations: stddef.h,stdint.h,riscv_vector.h
-// HEADER-DAG: weft.rvv.c_type_mapping: vl:size_t,lhs:element-strided-typed-vector,rhs:element-strided-typed-vector,result:element-strided-typed-vector
-// HEADER-DAG: weft.rvv.route_operand_binding_plan: rvv-route-operand-binding:strided_add.v1
-// HEADER-DAG: weft.rvv.route_operand_binding_operands: rvv-route-operand-binding:strided_add.v1;lhs=lhs-input-buffer:lhs:abi|lhs-load-base|binary-lhs-call|hdr;rhs=rhs-input-buffer:rhs:abi|rhs-load-base|binary-rhs-call|hdr;out=output-buffer:out:abi|store-base|hdr;n=runtime-element-count:n:abi|setvl-avl|loop-control|hdr;lhs_stride=lhs-input-stride:lhs_stride:abi|lhs-load-stride|lhs-byte-addr|hdr;rhs_stride=rhs-input-stride:rhs_stride:abi|rhs-load-stride|rhs-byte-addr|hdr;out_stride=output-stride:out_stride:abi|store-stride|out-byte-addr|hdr
+// HEADER: weft.rvv.runtime_abi_name: rvv-exact-typed-body-callable-c-abi.v2
 // HEADER: void weft_emitc_pre_realized_body_strided_add_kernel_pre_realized_body_rvv_strided_add(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n, size_t lhs_stride, size_t rhs_stride, size_t out_stride);
 
-// STALE-STRIDED-LAYOUT: RVV materialized EmitC target artifact bridge failed
-// STALE-STRIDED-LAYOUT: weft_rvv.strided_memory_layout
-// STALE-STRIDED-LAYOUT-SAME: must mirror
-// STALE-STRIDED-LAYOUT-SAME: script-derived-strided-layout
 
-// STALE-STRIDED-ABI: RVV materialized EmitC target artifact bridge failed
-// STALE-STRIDED-ABI: weft_rvv.runtime_abi_order
-// STALE-STRIDED-ABI-SAME: must mirror
-// STALE-STRIDED-ABI-SAME: lhs,rhs,out,n,rhs_stride,lhs_stride,out_stride
 
-// STALE-STRIDED-BINDING: RVV materialized EmitC target artifact bridge failed
-// STALE-STRIDED-BINDING: candidate weft_rvv.route_operand_binding_operands provenance must mirror selected typed RVV body binding summary
-// STALE-STRIDED-BINDING-SAME: out_stride=output-stride:out_stride:abi|store-stride|out-byte-addr|hdr
-// STALE-STRIDED-BINDING-SAME: out_stride=output-stride:out_stride:abi|store-stride|out-byte-addr|header

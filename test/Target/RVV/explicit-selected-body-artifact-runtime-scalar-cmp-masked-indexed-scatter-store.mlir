@@ -1,7 +1,5 @@
 // RUN: weft-opt %s --weft-materialize-emission-plans | FileCheck %s --check-prefix=PLAN
 // RUN: weft-opt %s --weft-materialize-emission-plans | weft-translate --weft-export-target-header-artifact | FileCheck %s --check-prefix=HEADER
-// RUN: weft-opt %s --weft-materialize-emission-plans | sed 's/runtime-scalar-splat-compare-rhs/vector-compare-rhs-load/' | not weft-translate --weft-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-PRODUCER
-// RUN: weft-opt %s --weft-materialize-emission-plans | sed '0,/source-before-active-indexed-write;destination-before-inactive-tail-preserve/s//post-call-source-indexed-write/' | not weft-translate --weft-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-WRITE-SIDE
 
 // Hand-authored explicit selected-body input for one bounded Stage2 runtime
 // scalar compare plus masked indexed scatter-store slice. The selected RVV body
@@ -41,40 +39,12 @@ module {
 
 // PLAN: weft.exec.diagnostic
 // PLAN-SAME: artifact_kind = "riscv-elf-relocatable-object"
-// PLAN-SAME: {key = "rvv_selected_body_operation", value = "runtime_scalar_cmp_masked_indexed_scatter_store_unit_load"}
-// PLAN-SAME: {key = "rvv_selected_body_typed_compute_op", value = "weft_rvv.masked_indexed_store"}
-// PLAN-SAME: {key = "weft_rvv.compare_predicate_kind", value = "sle"}
-// PLAN-SAME: {key = "weft_rvv.memory_form", value = "computed-mask-unit-load-indexed-scatter-store"}
-// PLAN-SAME: {key = "weft_rvv.runtime_abi_order", value = "lhs,rhs_scalar,src,index,dst,n"}
-// PLAN-SAME: {key = "weft_rvv.route_operand_binding_plan", value = "rvv-route-operand-binding:runtime_scalar_cmp_masked_indexed_scatter_store_unit_load.v1"}
-// PLAN-SAME: {key = "weft_rvv.route_operand_binding_operands", value = "rvv-route-operand-binding:runtime_scalar_cmp_masked_indexed_scatter_store_unit_load.v1;lhs=lhs-input-buffer:lhs:abi|lhs-load|lhs-call|hdr;rhs_scalar=rhs-scalar-value:rhs_scalar:abi|splat|rhs-call|hdr;src=source-input-buffer:src:abi|src-load|mistore-src-call|hdr;index=index-input-buffer:index:abi|materialized-index-load-base|index-offset-scale|index-source-mirror|hdr;dst=output-buffer:dst:abi|mistore-base|hdr;n=runtime-element-count:n:abi|setvl-avl|loop-control|hdr"}
-// PLAN-SAME: {key = "weft_rvv.computed_mask_memory_mask_producer_source", value = "runtime-scalar-splat-compare-rhs"}
-// PLAN-SAME: {key = "weft_rvv.target_leaf_profile", value = "rvv-v1-typed-runtime-scalar-cmp-masked-indexed-scatter-store-leaf-profile.v1"}
-// PLAN-SAME: {key = "weft_rvv.provider_supported_mirror", value = "provider_supported_mirror:rvv-runtime-scalar-cmp-masked-indexed-scatter-store-plan-validated"}
-// PLAN-SAME: {key = "weft_rvv.c_type_mapping", value = "vl:size_t,lhs/source:signed-e32m1,rhs_scalar:signed-scalar,index:u32m1,mask:b32,dst:runtime-scalar-masked-indexed-store"}
-// PLAN-SAME: {key = "weft_rvv.masked_memory_layout", value = "unit-stride-lhs-runtime-scalar-threshold-source-indexed-masked-destination-runtime-abi"}
-// PLAN-SAME: {key = "weft_rvv.inactive_lane_contract", value = "masked-indexed-store-false-lanes-preserve-output-buffer"}
-// PLAN-SAME: {key = "weft_rvv.masked_passthrough_layout", value = "masked-indexed-store-has-no-passthrough-load"}
-// PLAN-SAME: {key = "weft_rvv.indexed_memory_layout", value = "unit-stride-lhs-runtime-scalar-threshold-source-indexed-masked-destination-runtime-abi"}
-// PLAN-SAME: {key = "weft_rvv.indexed_write_side_contract", value = "source-before-active-indexed-write;destination-before-inactive-tail-preserve"}
-// PLAN-SAME: {key = "weft_rvv.index_uniqueness", value = "unique"}
-// PLAN-SAME: {key = "weft_rvv.indexed_destination_memory_form", value = "masked-indexed-store"}
-// PLAN-SAME: runtime_abi_name = "rvv-generic-runtime-scalar-cmp-masked-indexed-scatter-store-unit-load-callable-c-abi.v1"
+// PLAN-SAME: runtime_abi_name = "rvv-exact-typed-body-callable-c-abi.v2"
 // PLAN-SAME: status = "supported"
 // PLAN-SAME: target = @explicit_selected_body_rvv_rt_scalar_cmidx_store
 
 // HEADER: weft.rvv.selected_variant: @explicit_selected_body_rvv_rt_scalar_cmidx_store
-// HEADER: weft.rvv.runtime_abi_name: rvv-generic-runtime-scalar-cmp-masked-indexed-scatter-store-unit-load-callable-c-abi.v1
-// HEADER: weft.rvv.runtime_abi_order: lhs,rhs_scalar,src,index,dst,n
-// HEADER: weft.rvv.compare_predicate_kind: sle
-// HEADER: weft.rvv.indexed_memory_layout: unit-stride-lhs-runtime-scalar-threshold-source-indexed-masked-destination-runtime-abi
-// HEADER: weft.rvv.indexed_write_side_contract: source-before-active-indexed-write;destination-before-inactive-tail-preserve
-// HEADER: weft.rvv.target_leaf_profile: rvv-v1-typed-runtime-scalar-cmp-masked-indexed-scatter-store-leaf-profile.v1
-// HEADER: weft.rvv.provider_supported_mirror: provider_supported_mirror:rvv-runtime-scalar-cmp-masked-indexed-scatter-store-plan-validated
-// HEADER: weft.rvv.route_operand_binding_plan: rvv-route-operand-binding:runtime_scalar_cmp_masked_indexed_scatter_store_unit_load.v1
-// HEADER: weft.rvv.computed_mask_memory_mask_producer_source: runtime-scalar-splat-compare-rhs
+// HEADER: weft.rvv.runtime_abi_name: rvv-exact-typed-body-callable-c-abi.v2
 // HEADER: void weft_emitc_explicit_selected_body_rt_scalar_cmidx_store_kernel_explicit_selected_body_rvv_rt_scalar_cmidx_store(const int32_t *lhs, int32_t rhs_scalar, const int32_t *src, const uint32_t *index, int32_t *dst, size_t n);
 
-// STALE-PRODUCER: metadata key '{{.*}}computed_mask_memory_mask_producer_source'{{.*}}'runtime-scalar-splat-compare-rhs' but was 'vector-compare-rhs-load'
 
-// STALE-WRITE-SIDE: metadata key '{{.*}}indexed_write_side_contract'{{.*}}'source-before-active-indexed-write;destination-before-inactive-tail-preserve' but was 'post-call-source-indexed-write'

@@ -1,7 +1,7 @@
-// RUN: not weft-opt %s --weft-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=FAIL --implicit-check-not="artifact_kind = \"riscv-elf-relocatable-object\""
+// RUN: weft-opt %s --weft-materialize-emission-plans | FileCheck %s --check-prefix=PLAN
 
-// Legacy RHS broadcast selected-body input is retained only as a Stage1
-// fail-closed fixture.
+// Artifact planning consumes the exact typed body; it does not need a
+// provider-side operation-kind table for the existing lowering coverage.
 
 module {
   weft.exec.kernel @explicit_selected_body_broadcast_mul_kernel {
@@ -29,4 +29,7 @@ module {
   }
 }
 
-// FAIL: legacy selected-body op 'weft_rvv.i32_load' is fail-closed
+// PLAN: weft.exec.diagnostic
+// PLAN-SAME: artifact_kind = "riscv-elf-relocatable-object"
+// PLAN-SAME: runtime_abi_name = "rvv-exact-typed-body-callable-c-abi.v2"
+// PLAN-SAME: target = @explicit_selected_body_rvv_i32_broadcast_mul

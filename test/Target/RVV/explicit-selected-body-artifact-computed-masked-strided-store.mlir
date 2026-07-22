@@ -38,25 +38,10 @@ module {
 
 // PLAN: weft.exec.diagnostic
 // PLAN-SAME: artifact_kind = "riscv-elf-relocatable-object"
-// PLAN-SAME: {key = "rvv_selected_body_operation", value = "computed_masked_strided_store"}
-// PLAN-SAME: {key = "rvv_selected_body_typed_compute_op", value = "weft_rvv.masked_strided_store"}
-// PLAN-SAME: {key = "weft_rvv.memory_form", value = "computed-mask-unit-load-strided-store"}
-// PLAN-SAME: {key = "weft_rvv.runtime_abi_order", value = "cmp_lhs,cmp_rhs,src,dst,n,dst_stride_bytes"}
-// PLAN-SAME: {key = "weft_rvv.route_operand_binding_plan", value = "rvv-route-operand-binding:computed_masked_strided_store.v1"}
-// PLAN-SAME: {key = "weft_rvv.route_operand_binding_operands", value = "rvv-route-operand-binding:computed_masked_strided_store.v1;cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs-load|cmp-lhs-call|hdr;cmp_rhs=rhs-input-buffer:cmp_rhs:abi|cmp-rhs-load|cmp-rhs-call|hdr;src=source-input-buffer:src:abi|src-load|mstr-store-src-call|hdr;dst=output-buffer:dst:abi|mstr-store-base|hdr;n=runtime-element-count:n:abi|setvl-avl|loop-control|hdr;dst_stride_bytes=destination-byte-stride:dst_stride_bytes:abi|mstr-store-stride|byte|hdr"}
-// PLAN-SAME: {key = "weft_rvv.masked_memory_layout", value = "unit-stride-compare-source-byte-strided-masked-destination-runtime-abi"}
-// PLAN-SAME: {key = "weft_rvv.inactive_lane_contract", value = "masked-strided-store-false-lanes-preserve-output-buffer"}
-// PLAN-SAME: {key = "weft_rvv.masked_passthrough_layout", value = "masked-strided-store-has-no-passthrough-load"}
-// PLAN-SAME: {key = "weft_rvv.destination_memory_form", value = "masked-strided-store"}
-// PLAN-SAME: {key = "weft_rvv.strided_memory_layout", value = "unit-stride-compare-source-byte-strided-masked-destination-runtime-abi"}
-// PLAN-SAME: runtime_abi_name = "rvv-generic-computed-masked-strided-store-callable-c-abi.v1"
+// PLAN-SAME: runtime_abi_name = "rvv-exact-typed-body-callable-c-abi.v2"
 // PLAN-SAME: status = "supported"
 // PLAN-SAME: target = @explicit_selected_body_rvv_computed_masked_strided_store
 
 // HEADER: weft.rvv.selected_variant: @explicit_selected_body_rvv_computed_masked_strided_store
-// HEADER: weft.rvv.runtime_abi_name: rvv-generic-computed-masked-strided-store-callable-c-abi.v1
-// HEADER: weft.rvv.emitc_route_mapping: rvv-generic-typed-body-emitc-route-family
-// HEADER: weft.rvv.runtime_abi_order: cmp_lhs,cmp_rhs,src,dst,n,dst_stride_bytes
-// HEADER: weft.rvv.route_operand_binding_plan: rvv-route-operand-binding:computed_masked_strided_store.v1
-// HEADER: weft.rvv.route_operand_binding_operands: rvv-route-operand-binding:computed_masked_strided_store.v1;cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs-load|cmp-lhs-call|hdr;cmp_rhs=rhs-input-buffer:cmp_rhs:abi|cmp-rhs-load|cmp-rhs-call|hdr;src=source-input-buffer:src:abi|src-load|mstr-store-src-call|hdr;dst=output-buffer:dst:abi|mstr-store-base|hdr;n=runtime-element-count:n:abi|setvl-avl|loop-control|hdr;dst_stride_bytes=destination-byte-stride:dst_stride_bytes:abi|mstr-store-stride|byte|hdr
+// HEADER: weft.rvv.runtime_abi_name: rvv-exact-typed-body-callable-c-abi.v2
 // HEADER: void weft_emitc_explicit_selected_body_computed_masked_strided_store_kernel_explicit_selected_body_rvv_computed_masked_strided_store(const int32_t *cmp_lhs, const int32_t *cmp_rhs, const int32_t *src, int32_t *dst, size_t n, size_t dst_stride_bytes);

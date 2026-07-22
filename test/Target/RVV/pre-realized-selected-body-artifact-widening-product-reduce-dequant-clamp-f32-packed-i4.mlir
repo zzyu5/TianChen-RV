@@ -45,14 +45,9 @@ module {
 // REALIZED: weft_rvv.compare
 // REALIZED: weft_rvv.select
 
-// PLAN: {key = "weft_rvv.runtime_abi_order", value = "lhs,rhs,acc,scale,lower_bound,upper_bound,out,n"}
-// PLAN-DAG: {key = "weft_rvv.selected_dispatch_case_mirror", value = "selected_dispatch_case_mirror:@pre_realized_body_rvv_product_reduce_dequant_clamp;role=dispatch case;runtime_guard_required=false;runtime_guard=none;origin=rvv-plugin;policy=pre-realized-selected-body-widening-product-reduce-dequant-clamp-f32-packed-i4-case"}
-// PLAN-DAG: {key = "weft_rvv.selected_dispatch_fallback_mirror", value = "selected_dispatch_fallback_mirror:@pre_realized_body_scalar_fallback;role=dispatch fallback;fallback_role=conservative;origin=scalar-plugin;policy=pre-realized-selected-body-widening-product-reduce-dequant-clamp-f32-packed-i4-fallback-envelope"}
+// PLAN: weft.exec.diagnostic
 // PLAN-SAME: status = "supported"
 
-// HEADER: weft.rvv.runtime_abi_order: lhs,rhs,acc,scale,lower_bound,upper_bound,out,n
-// HEADER-DAG: weft.rvv.selected_dispatch_case_mirror: selected_dispatch_case_mirror:@pre_realized_body_rvv_product_reduce_dequant_clamp;role=dispatch case;runtime_guard_required=false;runtime_guard=none;origin=rvv-plugin;policy=pre-realized-selected-body-widening-product-reduce-dequant-clamp-f32-packed-i4-case
-// HEADER-DAG: weft.rvv.selected_dispatch_fallback_mirror: selected_dispatch_fallback_mirror:@pre_realized_body_scalar_fallback;role=dispatch fallback;fallback_role=conservative;origin=scalar-plugin;policy=pre-realized-selected-body-widening-product-reduce-dequant-clamp-f32-packed-i4-fallback-envelope
 // HEADER: void weft_emitc_pre_realized_body_product_reduce_dequant_clamp_kernel_pre_realized_body_rvv_product_reduce_dequant_clamp(const int8_t *lhs, const int8_t *rhs, const int32_t *acc, float scale, float lower_bound, float upper_bound, float *out, size_t n);
 
 // CPP: __riscv_vle8_v_i8mf4

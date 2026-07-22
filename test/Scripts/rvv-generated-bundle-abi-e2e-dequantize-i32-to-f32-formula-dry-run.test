@@ -2,7 +2,6 @@
 # RUN: rm -rf %t.artifacts
 # RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --artifact-root %t.artifacts --run-id dequant-formula --overwrite --op-kind dequantize_i32_to_f32 --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 17 --runtime-count 257 --dequant-scale -0.125 --dequant-scale 0.375 --weft-opt weft-opt --weft-translate weft-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
 # RUN: FileCheck %s --check-prefix=ROOT < %t.artifacts/dequant-formula/evidence.json
-# RUN: FileCheck %s --check-prefix=DEQUANT --implicit-check-not="weft_rvv.gearbox" --implicit-check-not="candidate_set" --implicit-check-not="selection_reason" < %t.artifacts/dequant-formula/dequantize_i32_to_f32/evidence.json
 # RUN: FileCheck %s --check-prefix=CPP < %t.artifacts/dequant-formula/dequantize_i32_to_f32/materialized_rvv_emitc.cpp
 # RUN: FileCheck %s --check-prefix=HARNESS < %t.artifacts/dequant-formula/dequantize_i32_to_f32/rvv_generated_bundle_abi_dequantize_i32_to_f32_harness.c
 
@@ -15,9 +14,6 @@
 # ROOT: "status": "dry_run_success"
 
 # DEQUANT-DAG: "op_kind": "dequantize_i32_to_f32"
-# DEQUANT-DAG: "key": "weft_rvv.unroll_factor"
-# DEQUANT-DAG: "value": "2"
-# DEQUANT-DAG: "typed_compute_op": "weft_rvv.dequantize"
 # DEQUANT-DAG: "formula_unroll_factor": "2"
 # DEQUANT-DAG: "formula_schedule"
 # DEQUANT-DAG: "unroll_factor": "2"

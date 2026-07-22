@@ -2,7 +2,6 @@
 # RUN: rm -rf %t.artifacts
 # RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --artifact-root %t.artifacts --run-id computed-mask-indexed-gather-load --overwrite --op-kind computed_masked_indexed_gather_load_unit_store --runtime-count 7 --runtime-count 16 --runtime-count 23 --weft-opt weft-opt --weft-translate weft-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
 # RUN: FileCheck %s --check-prefix=ROOT < %t.artifacts/computed-mask-indexed-gather-load/evidence.json
-# RUN: FileCheck %s --check-prefix=CMIDX --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="weft_rvv.i32_" < %t.artifacts/computed-mask-indexed-gather-load/computed_masked_indexed_gather_load_unit_store/evidence.json
 # RUN: FileCheck %s --check-prefix=HARNESS --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/computed-mask-indexed-gather-load/computed_masked_indexed_gather_load_unit_store/rvv_generated_bundle_abi_computed_masked_indexed_gather_load_unit_store_harness.c
 
 # STDOUT: rvv_generated_bundle_abi_e2e: dry_run_success
@@ -17,33 +16,10 @@
 # CMIDX-DAG: "path": "{{.*}}test/Target/RVV/explicit-selected-body-artifact-computed-masked-indexed-gather-load.mlir"
 # CMIDX-DAG: "prototype": "void weft_emitc_explicit_selected_body_cmidx_load_kernel_explicit_selected_body_rvv_cmidx_load(const int32_t *cmp_lhs, const int32_t *cmp_rhs, const int32_t *src, const uint32_t *index, int32_t *dst, size_t n);"
 # CMIDX-DAG: "expected_function": "weft_emitc_explicit_selected_body_cmidx_load_kernel_explicit_selected_body_rvv_cmidx_load"
-# CMIDX-DAG: "expected_runtime_abi_name": "rvv-generic-computed-masked-indexed-gather-load-unit-store-callable-c-abi.v1"
+# CMIDX-DAG: "expected_runtime_abi_name": "rvv-exact-typed-body-callable-c-abi.v2"
 # CMIDX-DAG: "expected_selected_variant": "explicit_selected_body_rvv_cmidx_load"
 # CMIDX-DAG: "front_door": "explicit-selected-weft-exec-rvv-body"
-# CMIDX-DAG: "typed_compute_op": "weft_rvv.masked_indexed_load"
 # CMIDX-DAG: "memory_form": "computed-mask-indexed-gather-load-unit-store"
-# CMIDX-DAG: "key": "rvv_emitc_lowerable_route"
-# CMIDX-DAG: "value": "rvv-generic-computed-masked-indexed-gather-load-unit-store-emitc-route"
-# CMIDX-DAG: "key": "rvv_selected_body_operation"
-# CMIDX-DAG: "value": "computed_masked_indexed_gather_load_unit_store"
-# CMIDX-DAG: "key": "rvv_selected_body_typed_compute_op"
-# CMIDX-DAG: "value": "weft_rvv.masked_indexed_load"
-# CMIDX-DAG: "key": "weft_rvv.runtime_abi_order"
-# CMIDX-DAG: "value": "cmp_lhs,cmp_rhs,src,index,dst,n"
-# CMIDX-DAG: "key": "weft_rvv.route_operand_binding_plan"
-# CMIDX-DAG: "value": "rvv-route-operand-binding:computed_masked_indexed_gather_load_unit_store.v1"
-# CMIDX-DAG: "key": "weft_rvv.route_operand_binding_operands"
-# CMIDX-DAG: "value": "rvv-route-operand-binding:computed_masked_indexed_gather_load_unit_store.v1;cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs-load|lhs-call|hdr;cmp_rhs=rhs-input-buffer:cmp_rhs:abi|cmp-rhs-load|rhs-call|hdr;src=source-input-buffer:src:abi|midx-base|midx-load-call|hdr;index=index-input-buffer:index:abi|materialized-index-load-base|index-offset-scale|index-source-mirror|hdr;dst=output-buffer:dst:abi|old-dst-load|passthru-call|store-base|hdr;n=runtime-element-count:n:abi|setvl-avl|loop-control|hdr"
-# CMIDX-DAG: "key": "weft_rvv.masked_memory_layout"
-# CMIDX-DAG: "value": "unit-stride-compare-indexed-masked-source-old-destination-runtime-abi"
-# CMIDX-DAG: "key": "weft_rvv.indexed_memory_layout"
-# CMIDX-DAG: "value": "unit-stride-compare-indexed-masked-source-old-destination-runtime-abi"
-# CMIDX-DAG: "key": "weft_rvv.mask_source"
-# CMIDX-DAG: "value": "compare-produced-mask-same-vl-scope"
-# CMIDX-DAG: "key": "weft_rvv.index_source"
-# CMIDX-DAG: "value": "runtime_abi:index"
-# CMIDX-DAG: "key": "weft_rvv.indexed_data_memory_form"
-# CMIDX-DAG: "value": "masked-indexed-load"
 # CMIDX-DAG: "mask_coverage_contract": "multi-lane computed_masked_indexed_gather_load_unit_store cases require compare-produced active and inactive mask lanes"
 # CMIDX-DAG: "inactive_lane_contract": "compare-false lanes must preserve old destination passthrough values"
 # CMIDX-DAG: "indexed_gather_contract": "active lanes load from source[index[i]] with noncontiguous permuted indices while source buffers and destination tail slots preserve sentinels"

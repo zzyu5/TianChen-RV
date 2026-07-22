@@ -52,31 +52,10 @@ module {
 // REALIZED-NOT: weft_rvv.typed_runtime_scalar_computed_mask_standalone_reduce_pre_realized_body
 
 // PLAN: weft.exec.diagnostic
-// PLAN-SAME: {key = "rvv_selected_body_operation", value = "runtime_scalar_cmp_masked_standalone_reduce_add"}
-// PLAN-SAME: {key = "rvv_selected_body_typed_compute_op", value = "weft_rvv.masked_standalone_reduce"}
-// PLAN-SAME: {key = "weft_rvv.config_contract", value = "rvv-selected-body-sew32-lmul-m2-tail-agnostic-mask-agnostic.v1"}
-// PLAN-SAME: {key = "weft_rvv.runtime_control_plan", value = "rvv-runtime-avl-vl-control-plan.v1"}
-// PLAN-SAME: {key = "weft_rvv.runtime_abi_order", value = "cmp_lhs,rhs_scalar,src,acc,out,n"}
-// PLAN-SAME: {key = "weft_rvv.route_operand_binding_plan", value = "rvv-route-operand-binding:runtime_scalar_cmp_masked_standalone_reduce_add.v1"}
-// PLAN-SAME: {key = "weft_rvv.standalone_reduction_route_family_plan", value = "rvv-standalone-reduction-route-family-plan.v1"}
-// PLAN-SAME: {key = "weft_rvv.standalone_reduction_source_vector_type", value = "!weft_rvv.vector<i32, \22m2\22>"}
-// PLAN-SAME: {key = "weft_rvv.standalone_reduction_source_vector_c_type", value = "vint32m2_t"}
-// PLAN-SAME: {key = "weft_rvv.standalone_reduction_scalar_result_vector_type", value = "!weft_rvv.vector<i32, \22m1\22>"}
-// PLAN-SAME: {key = "weft_rvv.standalone_reduction_scalar_result_vector_c_type", value = "vint32m1_t"}
-// PLAN-SAME: {key = "weft_rvv.provider_supported_mirror", value = "provider_supported_mirror:rvv-runtime-scalar-cmp-masked-standalone-reduction-plan-validated"}
-// PLAN-SAME: {key = "weft_rvv.c_type_mapping", value = "vl:size_t,cmp_lhs/source:typed-source-vector,rhs_scalar:typed-scalar,mask:typed-mask,seed:typed-scalar,result:typed-scalar-reduction-vector"}
-// PLAN-SAME: {key = "weft_rvv.inactive_lane_zeroing_requirement", value = "masked-standalone-reduction-zero-inactive-lanes-before-reduction"}
-// PLAN-SAME: runtime_abi_name = "rvv-generic-runtime-scalar-cmp-masked-standalone-reduce-add-callable-c-abi.v1"
+// PLAN-SAME: runtime_abi_name = "rvv-exact-typed-body-callable-c-abi.v2"
 // PLAN-SAME: status = "supported"
 // PLAN-SAME: target = @rvv_pre_rt_scalar_cm_standalone_reduce_m2
 
 // HEADER-DAG: weft.rvv.selected_variant: @rvv_pre_rt_scalar_cm_standalone_reduce_m2
-// HEADER-DAG: weft.rvv.runtime_abi_name: rvv-generic-runtime-scalar-cmp-masked-standalone-reduce-add-callable-c-abi.v1
-// HEADER-DAG: weft.rvv.runtime_abi_order: cmp_lhs,rhs_scalar,src,acc,out,n
-// HEADER-DAG: weft.rvv.config_contract: rvv-selected-body-sew32-lmul-m2-tail-agnostic-mask-agnostic.v1
-// HEADER-DAG: weft.rvv.standalone_reduction_route_family_plan: rvv-standalone-reduction-route-family-plan.v1
-// HEADER-DAG: weft.rvv.standalone_reduction_source_vector_type: !weft_rvv.vector<i32, "m2">
-// HEADER-DAG: weft.rvv.standalone_reduction_source_vector_c_type: vint32m2_t
-// HEADER-DAG: weft.rvv.standalone_reduction_scalar_result_vector_type: !weft_rvv.vector<i32, "m1">
-// HEADER-DAG: weft.rvv.standalone_reduction_scalar_result_vector_c_type: vint32m1_t
+// HEADER-DAG: weft.rvv.runtime_abi_name: rvv-exact-typed-body-callable-c-abi.v2
 // HEADER: void weft_emitc_pre_rt_scalar_cm_standalone_reduce_m2_kernel_rvv_pre_rt_scalar_cm_standalone_reduce_m2(const int32_t *cmp_lhs, int32_t rhs_scalar, const int32_t *src, const int32_t *acc, int32_t *out, size_t n);

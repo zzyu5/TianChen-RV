@@ -1120,6 +1120,12 @@ mlir::LogicalResult DispatchCaseOp::verify() {
   auto runtimeGuardAttr =
       getOperation()->getAttrOfType<mlir::FlatSymbolRefAttr>(
           kRuntimeGuardAttrName);
+  if (runtimeGuardRequiredAttr && runtimeGuardRequiredAttr.getValue() &&
+      !runtimeGuardAttr)
+    return emitOpError()
+           << "requires runtime_guard linkage to a "
+              "dispatch-availability-guard runtime_param when "
+              "runtime_guard_required=true";
   if (runtimeGuardAttr) {
     if (!runtimeGuardRequiredAttr || !runtimeGuardRequiredAttr.getValue())
       return emitOpError()
@@ -1187,6 +1193,18 @@ mlir::LogicalResult FallbackOp::verify() {
     return emitOpError()
            << "references unknown fallback variant @" << targetAttr.getValue()
            << " in enclosing weft.exec.kernel";
+
+  auto targetVariant = llvm::dyn_cast<VariantOp>(
+      findDirectKernelSymbol(kernel, targetAttr.getValue()));
+  auto targetFallbackRole = targetVariant->getAttrOfType<mlir::StringAttr>(
+      kFallbackRoleAttrName);
+  if (!targetFallbackRole ||
+      targetFallbackRole.getValue() != kConservativeFallbackRoleValue)
+    return emitOpError()
+           << "target @" << targetAttr.getValue()
+           << " must be a fallback-eligible weft.exec.variant with "
+              "fallback_role='"
+           << kConservativeFallbackRoleValue << "'";
 
   if (isPresentButEmptyStringAttr(getOperation(), kOriginAttrName))
     return emitOpError()

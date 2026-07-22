@@ -57,22 +57,7 @@ module {
 // REALIZED-NOT: weft_rvv.typed_runtime_scalar_dual_compare_mask_and_select_pre_realized_body
 
 // PLAN: weft.exec.diagnostic
-// PLAN-SAME: {key = "rvv_selected_body_operation", value = "runtime_scalar_dual_cmp_mask_and_select"}
-// PLAN-SAME: {key = "weft_rvv.config_contract", value = "rvv-selected-body-sew32-lmul-m2-tail-agnostic-mask-agnostic.v1"}
-// PLAN-SAME: {key = "weft_rvv.element_type", value = "i32"}
-// PLAN-SAME: {key = "weft_rvv.sew", value = "32"}
-// PLAN-SAME: {key = "weft_rvv.lmul", value = "m2"}
-// PLAN-SAME: {key = "weft_rvv.compare_predicate_kind", value = "sle"}
-// PLAN-SAME: {key = "weft_rvv.target_leaf_profile", value = "rvv-v1-typed-runtime-scalar-dual-cmp-mask-and-select-leaf-profile.v1"}
-// PLAN-SAME: {key = "weft_rvv.c_type_mapping", value = "vl:size_t,cmp_lhs_a:typed-vector,rhs_scalar_a:typed-scalar,cmp_lhs_b:typed-vector,rhs_scalar_b:typed-scalar,mask_a:typed-mask,mask_b:typed-mask,mask_and:typed-mask,true_false:typed-vector,result:typed-vector"}
-// PLAN-SAME: {key = "weft_rvv.secondary_compare_predicate_kind", value = "sle"}
-// PLAN-SAME: {key = "weft_rvv.mask_composition", value = "and"}
 // PLAN-SAME: target = @pr_rvv_dual_cmp_sel_m2
 
 // HEADER: weft.rvv.selected_variant: @pr_rvv_dual_cmp_sel_m2
-// HEADER: weft.rvv.element_type: i32
-// HEADER: weft.rvv.sew: 32
-// HEADER: weft.rvv.lmul: m2
-// HEADER: weft.rvv.target_leaf_profile: rvv-v1-typed-runtime-scalar-dual-cmp-mask-and-select-leaf-profile.v1
-// HEADER: weft.rvv.c_type_mapping: vl:size_t,cmp_lhs_a:typed-vector,rhs_scalar_a:typed-scalar,cmp_lhs_b:typed-vector,rhs_scalar_b:typed-scalar,mask_a:typed-mask,mask_b:typed-mask,mask_and:typed-mask,true_false:typed-vector,result:typed-vector
 // HEADER: void weft_emitc_pr_dual_cmp_sel_m2_kernel_pr_rvv_dual_cmp_sel_m2(const int32_t *cmp_lhs_a, int32_t rhs_scalar_a, const int32_t *cmp_lhs_b, int32_t rhs_scalar_b, const int32_t *true_value, const int32_t *false_value, int32_t *out, size_t n);

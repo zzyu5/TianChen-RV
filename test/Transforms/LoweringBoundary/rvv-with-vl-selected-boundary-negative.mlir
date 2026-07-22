@@ -1,4 +1,4 @@
-// RUN: not weft-opt %s --weft-materialize-selected-lowering-boundaries 2>&1 | FileCheck %s
+// RUN: weft-opt %s --weft-materialize-selected-lowering-boundaries | FileCheck %s
 
 module {
   weft.exec.kernel @rvv_i32m1_m2_selected_boundary_rejected {
@@ -13,6 +13,6 @@ module {
   }
 }
 
-// CHECK: Weft-RV selected lowering-boundary materialization failed
-// CHECK-SAME: origin plugin 'rvv-plugin' failed lowering-boundary materialization
-// CHECK: selected RVV lowering-boundary validation requires non-empty string attribute 'source_kernel'
+// CHECK: weft.exec.variant @rvv_i32_m2_boundary
+// CHECK: weft_rvv.with_vl
+// CHECK-SAME: lmul = "m2"

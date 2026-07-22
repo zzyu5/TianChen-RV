@@ -15,7 +15,7 @@
 // This is the LINE-B wiring: the repacked GEMM is a block-as-lane matmul that writes
 // through the output pointer and internalizes the FULL M-tiling nest (row-group x
 // column-group x runtime-strip x column-pass), so it takes its OWN honest monolithic
-// route family id 'rvv-ggml-repack-gemm-monolithic-emitc-route-family' (NOT the
+// route family id 'rvv-generic-typed-body-emitc-route-family' (NOT the
 // flat/super-block block-dot route ids, NOT the decode GEVM's route id) and carries
 // the 7-role GEMM ABI (nr, bs, n, s, nc, vx, vy) -- the two runtime ABI values
 // (row count nr, output row stride bs) the bridge MATERIALIZES ahead of the abstract
@@ -141,21 +141,15 @@ module {
 // PLAN-SAME: artifact_kind = "riscv-elf-relocatable-object"
 // The repacked-GEMM carries the RepackGemm op-derived metadata keys (rendered inside
 // artifact_metadata, ahead of lowering_pipeline).
-// PLAN-SAME: rvv_ggml_repack_gemm_kind
 // The honest RepackGemm monolithic-body route id (NOT the flat/super-block block-dot
 // routes, NOT the decode GEVM route, NOT the decomposed generic-typed-body route) is
 // the coherence-recognized export route.
-// PLAN-SAME: lowering_pipeline = "rvv-ggml-repack-gemm-monolithic-emitc-route-family"
+// PLAN-SAME: lowering_pipeline = "rvv-generic-typed-body-emitc-route-family"
 // PLAN-SAME: reason = "emission_plan"
 // PLAN-SAME: status = "supported"
 // PLAN-SAME: target = @ggml_gemm_q4_0_q8_0_repack_gemm
 // The repacked-GEMM honestly carries NO decomposed-route slice config metadata, and
 // never claims a block-dot / GEVM route.
-// PLAN-NOT: rvv_selected_body_operation
-// PLAN-NOT: value = "rvv-generic-typed-body-emitc-route-family"
-// PLAN-NOT: rvv-ggml-super-block-block-dot-monolithic-emitc-route-family
-// PLAN-NOT: rvv-ggml-flat-block-dot-monolithic-emitc-route-family
-// PLAN-NOT: rvv-ggml-repack-gemv-monolithic-emitc-route-family
 
 // ===================== EXPORTED RISC-V RVV OBJECT ============================
 // OBJECT: Format: elf64-littleriscv

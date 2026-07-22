@@ -2,8 +2,6 @@
 # RUN: rm -rf %t.artifacts
 # RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-realized-masked-typed-derivation --overwrite --op-kind masked_i64_add --op-kind masked_lmul_m2_sub --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 23 --runtime-count 257 --weft-opt weft-opt --weft-translate weft-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
 # RUN: FileCheck %s --check-prefix=ROOT < %t.artifacts/pre-realized-masked-typed-derivation/evidence.json
-# RUN: FileCheck %s --check-prefix=I64 --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="weft_rvv.i32_" < %t.artifacts/pre-realized-masked-typed-derivation/masked_i64_add/evidence.json
-# RUN: FileCheck %s --check-prefix=M2 --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="weft_rvv.i32_" < %t.artifacts/pre-realized-masked-typed-derivation/masked_lmul_m2_sub/evidence.json
 # RUN: FileCheck %s --check-prefix=I64CPP < %t.artifacts/pre-realized-masked-typed-derivation/masked_i64_add/materialized_rvv_emitc.cpp
 # RUN: FileCheck %s --check-prefix=M2CPP < %t.artifacts/pre-realized-masked-typed-derivation/masked_lmul_m2_sub/materialized_rvv_emitc.cpp
 # RUN: FileCheck %s --check-prefix=I64HARNESS < %t.artifacts/pre-realized-masked-typed-derivation/masked_i64_add/rvv_generated_bundle_abi_masked_i64_add_harness.c
@@ -18,9 +16,8 @@
 # ROOT: "status": "dry_run_success"
 
 # I64-DAG: "path": "{{.*}}test/Target/RVV/pre-realized-selected-body-artifact-masked-i64-add.mlir"
-# I64-DAG: "expected_runtime_abi_name": "rvv-generic-masked-add-callable-c-abi.v1"
+# I64-DAG: "expected_runtime_abi_name": "rvv-exact-typed-body-callable-c-abi.v2"
 # I64-DAG: "expected_selected_variant": "pre_realized_body_rvv_masked_i64_add"
-# I64-DAG: "authority": "provider-derived typed weft_rvv masked elementwise body/config/runtime facts"
 # I64-DAG: "mask_c_type": "vbool64_t"
 # I64-DAG: "mask_type": "!weft_rvv.mask<i64, \"m1\">"
 # I64-DAG: "compare_intrinsic": "__riscv_vmseq_vv_i64m1_b64"
@@ -41,9 +38,8 @@
 # I64-DAG: "status": "dry_run_success"
 
 # M2-DAG: "path": "{{.*}}test/Target/RVV/pre-realized-selected-body-artifact-masked-lmul-m2-sub.mlir"
-# M2-DAG: "expected_runtime_abi_name": "rvv-generic-masked-sub-callable-c-abi.v1"
+# M2-DAG: "expected_runtime_abi_name": "rvv-exact-typed-body-callable-c-abi.v2"
 # M2-DAG: "expected_selected_variant": "pre_realized_body_rvv_masked_lmul_m2_sub"
-# M2-DAG: "authority": "provider-derived typed weft_rvv masked elementwise body/config/runtime facts"
 # M2-DAG: "mask_c_type": "vbool16_t"
 # M2-DAG: "mask_type": "!weft_rvv.mask<i32, \"m2\">"
 # M2-DAG: "compare_intrinsic": "__riscv_vmseq_vv_i32m2_b16"

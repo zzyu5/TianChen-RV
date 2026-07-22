@@ -48,42 +48,14 @@ module {
 
 // PLAN: weft.exec.diagnostic
 // PLAN-SAME: artifact_kind = "riscv-elf-relocatable-object"
-// PLAN-SAME: {key = "rvv_selected_body_operation", value = "add"}
-// PLAN-SAME: {key = "rvv_selected_body_typed_compute_op", value = "weft_rvv.binary"}
-// PLAN-SAME: {key = "weft_rvv.config_contract", value = "rvv-selected-body-sew64-lmul-m1-tail-agnostic-mask-agnostic.v1"}
-// PLAN-SAME: {key = "weft_rvv.element_type", value = "i64"}
-// PLAN-SAME: {key = "weft_rvv.sew", value = "64"}
-// PLAN-SAME: {key = "weft_rvv.lmul", value = "m1"}
-// PLAN-SAME: {key = "weft_rvv.runtime_control_plan", value = "rvv-runtime-avl-vl-control-plan.v1"}
-// PLAN-SAME: {key = "weft_rvv.runtime_vl_contract", value = "rvv-runtime-avl-n-multivl-setvl-with-vl-loop.v1"}
-// PLAN-SAME: {key = "weft_rvv.runtime_avl_source", value = "runtime_abi:n"}
-// PLAN-SAME: {key = "weft_rvv.vl_def", value = "weft_rvv.setvl"}
-// PLAN-SAME: {key = "weft_rvv.vl_scope", value = "weft_rvv.with_vl"}
-// PLAN-SAME: {key = "weft_rvv.runtime_abi_order", value = "lhs,rhs,out,n"}
-// PLAN-SAME: {key = "weft_rvv.runtime_avl_abi_parameter", value = "n"}
-// PLAN-SAME: {key = "weft_rvv.route_operand_binding_operands", value = "rvv-route-operand-binding:add.v1;lhs=lhs-input-buffer:lhs:abi|load-base|binary-lhs-call;rhs=rhs-input-buffer:rhs:abi|load-base|binary-rhs-call;out=output-buffer:out:abi|store-base|header;n=runtime-element-count:n:abi|setvl-avl|loop-control|header"}
-// PLAN-SAME: {key = "weft_rvv.emitc_loop", value = "emitc.for"}
-// PLAN-SAME: {key = "weft_rvv.remaining_avl", value = "n-offset"}
-// PLAN-SAME: {key = "weft_rvv.bounded_slice", value = "multi-vl-selected-body-sew64-lmul-m1"}
-// PLAN-SAME: {key = "weft_rvv.multi_vl", value = "supported"}
 // PLAN-SAME: emission_kind = "materialized-emitc-cpp-rvv-intrinsic-object"
-// PLAN-SAME: lowering_boundary = "weft_rvv.with_vl"
 // PLAN-SAME: origin = "rvv-plugin"
 // PLAN-SAME: reason = "emission_plan"
 // PLAN-SAME: role = "dispatch case"
-// PLAN-SAME: runtime_abi_name = "rvv-generic-binary-add-callable-c-abi.v1"
+// PLAN-SAME: runtime_abi_name = "rvv-exact-typed-body-callable-c-abi.v2"
 // PLAN-SAME: status = "supported"
 // PLAN-SAME: target = @pre_realized_body_rvv_i64_add
 
 // HEADER: weft.rvv.selected_variant: @pre_realized_body_rvv_i64_add
-// HEADER: weft.rvv.runtime_abi_name: rvv-generic-binary-add-callable-c-abi.v1
-// HEADER: weft.rvv.emitc_route_mapping: rvv-generic-typed-body-emitc-route-family
-// HEADER: weft.rvv.element_type: i64
-// HEADER: weft.rvv.runtime_vl_contract: rvv-runtime-avl-n-multivl-setvl-with-vl-loop.v1
-// HEADER: weft.rvv.runtime_avl_source: runtime_abi:n
-// HEADER: weft.rvv.runtime_avl_abi_parameter: n
-// HEADER: weft.rvv.remaining_avl: n-offset
-// HEADER: weft.rvv.multi_vl: supported
-// HEADER: weft.rvv.runtime_control_plan: rvv-runtime-avl-vl-control-plan.v1
-// HEADER: weft.rvv.route_operand_binding_operands: rvv-route-operand-binding:add.v1;lhs=lhs-input-buffer:lhs:abi|load-base|binary-lhs-call;rhs=rhs-input-buffer:rhs:abi|load-base|binary-rhs-call;out=output-buffer:out:abi|store-base|header;n=runtime-element-count:n:abi|setvl-avl|loop-control|header
+// HEADER: weft.rvv.runtime_abi_name: rvv-exact-typed-body-callable-c-abi.v2
 // HEADER: void weft_emitc_pre_realized_body_i64_add_kernel_pre_realized_body_rvv_i64_add(const int64_t *lhs, const int64_t *rhs, int64_t *out, size_t n);

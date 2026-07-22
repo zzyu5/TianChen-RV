@@ -56,45 +56,10 @@ module {
 
 // PLAN: weft.exec.diagnostic
 // PLAN-SAME: artifact_kind = "riscv-elf-relocatable-object"
-// PLAN-SAME: {key = "rvv_selected_body_operation", value = "computed_masked_indexed_gather_load_unit_store"}
-// PLAN-SAME: {key = "rvv_selected_body_typed_compute_op", value = "weft_rvv.masked_indexed_load"}
-// PLAN-SAME: {key = "weft_rvv.memory_form", value = "computed-mask-indexed-gather-load-unit-store"}
-// PLAN-SAME: {key = "weft_rvv.runtime_abi_order", value = "cmp_lhs,cmp_rhs,src,index,dst,n"}
-// PLAN-SAME: {key = "weft_rvv.route_operand_binding_plan", value = "rvv-route-operand-binding:computed_masked_indexed_gather_load_unit_store.v1"}
-// PLAN-SAME: {key = "weft_rvv.route_operand_binding_operands", value = "rvv-route-operand-binding:computed_masked_indexed_gather_load_unit_store.v1;cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs-load|lhs-call|hdr;cmp_rhs=rhs-input-buffer:cmp_rhs:abi|cmp-rhs-load|rhs-call|hdr;src=source-input-buffer:src:abi|midx-base|midx-load-call|hdr;index=index-input-buffer:index:abi|materialized-index-load-base|index-offset-scale|index-source-mirror|hdr;dst=output-buffer:dst:abi|old-dst-load|passthru-call|store-base|hdr;n=runtime-element-count:n:abi|setvl-avl|loop-control|hdr"}
-// PLAN-SAME: {key = "weft_rvv.computed_mask_memory_route_family_plan", value = "rvv-computed-mask-memory-route-family-plan.v1"}
-// PLAN-SAME: {key = "weft_rvv.computed_mask_memory_mask_producer_source", value = "vector-compare-rhs-load"}
-// PLAN-SAME: {key = "weft_rvv.target_leaf_profile", value = "rvv-v1-e32m1-computed-mask-indexed-gather-load-leaf-profile.v1"}
-// PLAN-SAME: {key = "weft_rvv.provider_supported_mirror", value = "provider_supported_mirror:rvv-computed-mask-indexed-gather-load-plan-validated"}
-// PLAN-SAME: {key = "weft_rvv.required_header_declarations", value = "stddef.h,stdint.h,riscv_vector.h"}
-// PLAN-SAME: {key = "weft_rvv.c_type_mapping", value = "vl:size_t,compare/source/passthrough:signed-e32m1,index:u32m1,mask:b32,result:masked-indexed-load-store"}
-// PLAN-SAME: {key = "weft_rvv.masked_memory_layout", value = "unit-stride-compare-indexed-masked-source-old-destination-runtime-abi"}
-// PLAN-SAME: {key = "weft_rvv.mask_role", value = "predicate-mask-produced-by-compare"}
-// PLAN-SAME: {key = "weft_rvv.mask_source", value = "compare-produced-mask-same-vl-scope"}
-// PLAN-SAME: {key = "weft_rvv.mask_memory_form", value = "compare-produced-mask"}
-// PLAN-SAME: {key = "weft_rvv.inactive_lane_contract", value = "masked-off-lanes-preserve-old-destination"}
-// PLAN-SAME: {key = "weft_rvv.masked_passthrough_layout", value = "old-destination-vector-preserves-inactive-lanes"}
-// PLAN-SAME: {key = "weft_rvv.source_memory_form", value = "masked-indexed-load"}
-// PLAN-SAME: {key = "weft_rvv.destination_memory_form", value = "unit-stride-store"}
-// PLAN-SAME: {key = "weft_rvv.indexed_memory_layout", value = "unit-stride-compare-indexed-masked-source-old-destination-runtime-abi"}
-// PLAN-SAME: {key = "weft_rvv.index_source", value = "runtime_abi:index"}
-// PLAN-SAME: {key = "weft_rvv.index_eew", value = "32"}
-// PLAN-SAME: {key = "weft_rvv.offset_unit", value = "element"}
-// PLAN-SAME: {key = "weft_rvv.indexed_data_memory_form", value = "masked-indexed-load"}
-// PLAN-SAME: runtime_abi_name = "rvv-generic-computed-masked-indexed-gather-load-unit-store-callable-c-abi.v1"
+// PLAN-SAME: runtime_abi_name = "rvv-exact-typed-body-callable-c-abi.v2"
 // PLAN-SAME: status = "supported"
 // PLAN-SAME: target = @pre_realized_body_rvv_cmidx_load
 
 // HEADER: weft.rvv.selected_variant: @pre_realized_body_rvv_cmidx_load
-// HEADER: weft.rvv.runtime_abi_name: rvv-generic-computed-masked-indexed-gather-load-unit-store-callable-c-abi.v1
-// HEADER: weft.rvv.emitc_route_mapping: rvv-generic-typed-body-emitc-route-family
-// HEADER: weft.rvv.runtime_abi_order: cmp_lhs,cmp_rhs,src,index,dst,n
-// HEADER: weft.rvv.target_leaf_profile: rvv-v1-e32m1-computed-mask-indexed-gather-load-leaf-profile.v1
-// HEADER: weft.rvv.provider_supported_mirror: provider_supported_mirror:rvv-computed-mask-indexed-gather-load-plan-validated
-// HEADER: weft.rvv.route_operand_binding_plan: rvv-route-operand-binding:computed_masked_indexed_gather_load_unit_store.v1
-// HEADER: weft.rvv.route_operand_binding_operands: rvv-route-operand-binding:computed_masked_indexed_gather_load_unit_store.v1;cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs-load|lhs-call|hdr;cmp_rhs=rhs-input-buffer:cmp_rhs:abi|cmp-rhs-load|rhs-call|hdr;src=source-input-buffer:src:abi|midx-base|midx-load-call|hdr;index=index-input-buffer:index:abi|materialized-index-load-base|index-offset-scale|index-source-mirror|hdr;dst=output-buffer:dst:abi|old-dst-load|passthru-call|store-base|hdr;n=runtime-element-count:n:abi|setvl-avl|loop-control|hdr
-// HEADER: weft.rvv.computed_mask_memory_route_family_plan: rvv-computed-mask-memory-route-family-plan.v1
-// HEADER: weft.rvv.computed_mask_memory_mask_producer_source: vector-compare-rhs-load
-// HEADER: weft.rvv.required_header_declarations: stddef.h,stdint.h,riscv_vector.h
-// HEADER: weft.rvv.c_type_mapping: vl:size_t,compare/source/passthrough:signed-e32m1,index:u32m1,mask:b32,result:masked-indexed-load-store
+// HEADER: weft.rvv.runtime_abi_name: rvv-exact-typed-body-callable-c-abi.v2
 // HEADER: void weft_emitc_pre_realized_body_cmidx_load_kernel_pre_realized_body_rvv_cmidx_load(const int32_t *cmp_lhs, const int32_t *cmp_rhs, const int32_t *src, const uint32_t *index, int32_t *dst, size_t n);

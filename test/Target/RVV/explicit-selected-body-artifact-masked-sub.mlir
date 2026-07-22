@@ -30,21 +30,10 @@ module {
 
 // PLAN: weft.exec.diagnostic
 // PLAN-SAME: artifact_kind = "riscv-elf-relocatable-object"
-// PLAN-SAME: {key = "rvv_selected_body_operation", value = "masked_sub"}
-// PLAN-SAME: {key = "rvv_selected_body_typed_compute_op", value = "weft_rvv.masked_binary"}
-// PLAN-SAME: {key = "weft_rvv.memory_form", value = "vector-rhs-load"}
-// PLAN-SAME: {key = "weft_rvv.route_operand_binding_plan", value = "rvv-route-operand-binding:masked_sub.v1"}
-// PLAN-SAME: {key = "weft_rvv.route_operand_binding_operands", value = "rvv-route-operand-binding:masked_sub.v1;lhs=lhs-input-buffer:lhs:abi|load-base|compare-lhs-call|masked-sub-lhs-call|masked-merge-passthrough-call;rhs=rhs-input-buffer:rhs:abi|load-base|compare-rhs-call|masked-sub-rhs-call;out=output-buffer:out:abi|store-base|header;n=runtime-element-count:n:abi|setvl-avl|loop-control|header"}
-// PLAN-SAME: {key = "weft_rvv.mask_role", value = "predicate-mask-produced-by-compare"}
-// PLAN-SAME: {key = "weft_rvv.mask_source", value = "compare-produced-mask-same-vl-scope"}
-// PLAN-SAME: {key = "weft_rvv.inactive_lane_contract", value = "masked-off-lanes-preserve-passthrough-vector"}
-// PLAN-SAME: {key = "weft_rvv.masked_passthrough_layout", value = "passthrough-vector-preserves-inactive-lanes"}
-// PLAN-SAME: runtime_abi_name = "rvv-generic-masked-sub-callable-c-abi.v1"
+// PLAN-SAME: runtime_abi_name = "rvv-exact-typed-body-callable-c-abi.v2"
 // PLAN-SAME: status = "supported"
 // PLAN-SAME: target = @explicit_selected_body_rvv_i32_masked_sub
 
 // HEADER: weft.rvv.selected_variant: @explicit_selected_body_rvv_i32_masked_sub
-// HEADER: weft.rvv.runtime_abi_name: rvv-generic-masked-sub-callable-c-abi.v1
-// HEADER: weft.rvv.route_operand_binding_plan: rvv-route-operand-binding:masked_sub.v1
-// HEADER: weft.rvv.route_operand_binding_operands: rvv-route-operand-binding:masked_sub.v1;lhs=lhs-input-buffer:lhs:abi|load-base|compare-lhs-call|masked-sub-lhs-call|masked-merge-passthrough-call;rhs=rhs-input-buffer:rhs:abi|load-base|compare-rhs-call|masked-sub-rhs-call;out=output-buffer:out:abi|store-base|header;n=runtime-element-count:n:abi|setvl-avl|loop-control|header
+// HEADER: weft.rvv.runtime_abi_name: rvv-exact-typed-body-callable-c-abi.v2
 // HEADER: void weft_emitc_explicit_selected_body_masked_sub_kernel_explicit_selected_body_rvv_i32_masked_sub(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n);

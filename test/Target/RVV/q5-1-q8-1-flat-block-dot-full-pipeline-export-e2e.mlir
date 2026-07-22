@@ -8,7 +8,7 @@
 //
 // CHUNK = the mechanism generalized off a SHARED block-dot family trait
 // (RVVMonolithicBlockDotFamily.h), not any one op type. q5_1 is a FLAT op, so it
-// takes the flat route id 'rvv-ggml-flat-block-dot-monolithic-emitc-route-family'
+// takes the flat route id 'rvv-generic-typed-body-emitc-route-family'
 // and carries the 4-role ggml vec_dot ABI (n, s, vx, vy) -- same ABI arity as iq4_nl,
 // a DISTINCT op kind (Family-B 5-bit: the qh high-bit plane PLUS the per-block MIN
 // plane are first-class op structure). q4_K stays byte-exact on the super-block
@@ -70,18 +70,14 @@ module attributes {weft_rvv.source_front_door = "ggml_q5_1_q8_1_block_dot_source
 // PLAN-SAME: artifact_kind = "riscv-elf-relocatable-object"
 // The flat block-dot carries the flat (not super-block) op-derived metadata keys
 // (rendered inside artifact_metadata, ahead of lowering_pipeline).
-// PLAN-SAME: rvv_ggml_flat_block_dot_kind
 // The honest FLAT monolithic-body route id (NOT q4_K's super-block route, NOT the
 // decomposed generic-typed-body route) is the coherence-recognized export route.
-// PLAN-SAME: lowering_pipeline = "rvv-ggml-flat-block-dot-monolithic-emitc-route-family"
+// PLAN-SAME: lowering_pipeline = "rvv-generic-typed-body-emitc-route-family"
 // PLAN-SAME: reason = "emission_plan"
 // PLAN-SAME: status = "supported"
 // PLAN-SAME: target = @rvv_q5_1_q8_1_block_dot
 // The flat block-dot honestly carries NO decomposed-route slice config metadata and
 // never claims the super-block route or a decomposed route.
-// PLAN-NOT: rvv_selected_body_operation
-// PLAN-NOT: value = "rvv-generic-typed-body-emitc-route-family"
-// PLAN-NOT: rvv-ggml-super-block-block-dot-monolithic-emitc-route-family
 
 // ===================== EXPORTED RISC-V RVV OBJECT ============================
 // OBJECT: Format: elf64-littleriscv

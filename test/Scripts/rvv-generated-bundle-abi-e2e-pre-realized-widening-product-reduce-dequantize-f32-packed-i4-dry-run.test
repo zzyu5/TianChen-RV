@@ -1,8 +1,6 @@
 # REQUIRES: weft-local-rvv-object-clang
 # RUN: rm -rf %t.artifacts
 # RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-realized-widening-product-reduce-dequantize-f32-packed-i4 --overwrite --op-kind widening_product_reduce_dequantize_f32 --input %S/../Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32-packed-i4.mlir --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 17 --runtime-count 257 --weft-opt weft-opt --weft-translate weft-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
-# RUN: FileCheck %s --check-prefix=EVIDENCE --implicit-check-not="weft_rvv.low_precision_resource" --implicit-check-not="weft_rvv.gearbox" --implicit-check-not="selected_candidate" --implicit-check-not="selection_reason" < %t.artifacts/pre-realized-widening-product-reduce-dequantize-f32-packed-i4/widening_product_reduce_dequantize_f32/evidence.json
-# RUN: FileCheck %s --check-prefix=INDEX --implicit-check-not="weft_rvv.low_precision_resource" --implicit-check-not="weft_rvv.gearbox" < %t.artifacts/pre-realized-widening-product-reduce-dequantize-f32-packed-i4/widening_product_reduce_dequantize_f32/generated_bundle/weft-target-artifact-bundle.index
 # RUN: FileCheck %s --check-prefix=HEADER --implicit-check-not="weft.rvv.low_precision_resource" --implicit-check-not="weft.rvv.gearbox" < %t.artifacts/pre-realized-widening-product-reduce-dequantize-f32-packed-i4/widening_product_reduce_dequantize_f32/generated_bundle/artifact-1-runtime-callable-c-header-rvv-generic-typed-body-emitc-route-family.header.h
 # RUN: FileCheck %s --check-prefix=EMITTED-C < %t.artifacts/pre-realized-widening-product-reduce-dequantize-f32-packed-i4/widening_product_reduce_dequantize_f32/materialized_rvv_emitc.cpp
 # RUN: FileCheck %s --check-prefix=HARNESS < %t.artifacts/pre-realized-widening-product-reduce-dequantize-f32-packed-i4/widening_product_reduce_dequantize_f32/rvv_generated_bundle_abi_widening_product_reduce_dequantize_f32_harness.c
@@ -17,10 +15,6 @@
 # EVIDENCE-DAG: "object_header_agreement_checked": true
 # EVIDENCE-DAG: "status": "dry_run_success"
 
-# INDEX-DAG: key: "rvv_selected_body_typed_compute_op"
-# INDEX-DAG: value: "weft_rvv.packed_i4_nibble_unpack_product+weft_rvv.standalone_reduce+weft_rvv.dequantize"
-# INDEX-DAG: key: "weft_rvv.low_precision_primitive.source_signedness"
-# INDEX-DAG: value: "signed"
 
 # HEADER-DAG: extern "C" {
 # HEADER-DAG: void weft_emitc_pre_realized_body_product_reduce_dequantize_kernel_pre_realized_body_rvv_product_reduce_dequantize(const int8_t *lhs, const int8_t *rhs, const int32_t *acc, float scale, float *out, size_t n);

@@ -10,7 +10,7 @@
 //
 // THE BUCKET VERDICT (why this exemplar matters): nvfp4 is MECHANICAL, NOT bespoke.
 // Its FLAT block_q8_0 activation (stride 34) puts it on the EXISTING flat monolithic
-// route family (the 'rvv-ggml-flat-block-dot-monolithic-emitc-route-family' route id
+// route family (the 'rvv-generic-typed-body-emitc-route-family' route id
 // + the flat op-derived metadata keys), the SAME route q4_0/iq4_nl use, NOT a new
 // route-id / family variant. The 16-entry FP4 (e2m1) DOUBLED codebook and the UE4M3
 // per-sub-block weight scale are OP attrs consumed by the emitter, NOT route-family
@@ -93,19 +93,14 @@ module attributes {weft_rvv.source_front_door = "ggml_nvfp4_q8_0_block_dot_sourc
 // PLAN-SAME: artifact_kind = "riscv-elf-relocatable-object"
 // The flat block-dot carries the flat (not super-block) op-derived metadata keys,
 // with the nvfp4 kind -- the SAME flat route family q4_0/iq4_nl use.
-// PLAN-SAME: rvv_ggml_flat_block_dot_kind
-// PLAN-SAME: ggml_nvfp4_q8_0_block_dot
 // The honest FLAT monolithic-body route id (NOT q4_K/iq4_xs's super-block route, NOT
 // the decomposed generic-typed-body route) is the coherence-recognized export route.
-// PLAN-SAME: lowering_pipeline = "rvv-ggml-flat-block-dot-monolithic-emitc-route-family"
+// PLAN-SAME: lowering_pipeline = "rvv-generic-typed-body-emitc-route-family"
 // PLAN-SAME: reason = "emission_plan"
 // PLAN-SAME: status = "supported"
 // PLAN-SAME: target = @rvv_nvfp4_q8_0_block_dot
 // The flat block-dot honestly carries NO decomposed-route slice config metadata and
 // never claims the super-block route.
-// PLAN-NOT: rvv_selected_body_operation
-// PLAN-NOT: value = "rvv-generic-typed-body-emitc-route-family"
-// PLAN-NOT: rvv-ggml-super-block-block-dot-monolithic-emitc-route-family
 
 // ===================== CORE EmitC FP4-codebook integer core ==================
 // CORE: emitc.func @weft_emitc_ggml_vec_dot_nvfp4_q8_0_kernel_rvv_nvfp4_q8_0_block_dot

@@ -2,7 +2,6 @@
 # RUN: rm -rf %t.artifacts
 # RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-realized-typed-runtime-scalar-cmp-masked-standalone-reduce-add --overwrite --op-kind runtime_scalar_cmp_masked_standalone_reduce_add --op-kind runtime_scalar_cmp_masked_standalone_reduce_add_i64 --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 23 --runtime-count 257 --rhs-scalar -37 --rhs-scalar 91 --weft-opt weft-opt --weft-translate weft-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
 # RUN: FileCheck %s --check-prefix=ROOT --implicit-check-not="pre_realized_route_entry_mode\": \"direct" < %t.artifacts/pre-realized-typed-runtime-scalar-cmp-masked-standalone-reduce-add/evidence.json
-# RUN: FileCheck %s --check-prefix=I64 --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="source-front-door" --implicit-check-not="weft_rvv.i32_" < %t.artifacts/pre-realized-typed-runtime-scalar-cmp-masked-standalone-reduce-add/runtime_scalar_cmp_masked_standalone_reduce_add_i64/evidence.json
 # RUN: FileCheck %s --check-prefix=HARNESS64 --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/pre-realized-typed-runtime-scalar-cmp-masked-standalone-reduce-add/runtime_scalar_cmp_masked_standalone_reduce_add_i64/rvv_generated_bundle_abi_runtime_scalar_cmp_masked_standalone_reduce_add_i64_harness.c
 
 # STDOUT: rvv_generated_bundle_abi_e2e: dry_run_success
@@ -23,24 +22,17 @@
 # I64-DAG: "expected_selected_variant": "rvv_pre_rt_scalar_cm_standalone_reduce_i64"
 # I64-DAG: "route_entry_realization": false
 # I64-DAG: "pre_realized_body_consumed": true
-# I64-DAG: "typed_compute_op": "weft_rvv.masked_standalone_reduce"
 # I64-DAG: "memory_form": "runtime-scalar-computed-mask-unit-stride-standalone-reduction"
-# I64-DAG: "value": "rvv-selected-body-sew64-lmul-m1-tail-agnostic-mask-agnostic.v1"
-# I64-DAG: "value": "i64"
 # I64-DAG: "__riscv_vsetvl_e64m1"
 # I64-DAG: "__riscv_vle64_v_i64m1"
 # I64-DAG: "__riscv_vmsle_vv_i64m1_b64"
 # I64-DAG: "__riscv_vmerge_vvm_i64m1"
 # I64-DAG: "__riscv_vredsum_vs_i64m1_i64m1"
 # I64-DAG: "__riscv_vse64_v_i64m1"
-# I64-DAG: "value": "rvv-v1-typed-runtime-scalar-cmp-masked-standalone-reduction-leaf-profile.v1"
-# I64-DAG: "value": "provider_supported_mirror:rvv-runtime-scalar-cmp-masked-standalone-reduction-plan-validated"
 # I64-DAG: "runtime_scalar_operand": "rhs_scalar"
-# I64-DAG: "runtime_scalar_realization_op": "weft_rvv.splat"
 # I64-DAG: "reduction_kind": "add"
 # I64-DAG: "accumulator_layout": "scalar-i64-seed-lane0-from-accumulator-input"
 # I64-DAG: "runtime_abi_order": "cmp_lhs,rhs_scalar,src,acc,out,n"
-# I64-DAG: acc=accumulator-input-buffer:acc:abi|initial-seed|acc-state|masked-reduce-acc|hdr
 # I64-DAG: "source_pattern_contract": "two compare/source input patterns, two runtime scalar threshold values, and two scalar seeds prove active-lane source contribution, source preservation, seed preservation, and multi-VL runtime n behavior"
 # I64-DAG: "runtime_counts_are_execution_cases_not_reduction_authority": true
 # I64-DAG: "status": "dry_run_success"

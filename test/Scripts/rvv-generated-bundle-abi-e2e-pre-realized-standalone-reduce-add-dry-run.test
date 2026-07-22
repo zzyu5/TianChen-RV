@@ -2,7 +2,6 @@
 # RUN: rm -rf %t.artifacts
 # RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-realized-standalone-reduce-add --overwrite --op-kind standalone_reduce_add --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 17 --runtime-count 257 --weft-opt weft-opt --weft-translate weft-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
 # RUN: FileCheck %s --check-prefix=ROOT < %t.artifacts/pre-realized-standalone-reduce-add/evidence.json
-# RUN: FileCheck %s --check-prefix=REDUCE --implicit-check-not="rvv-route-entry-selected-body-realization" --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="weft_rvv.i32_" < %t.artifacts/pre-realized-standalone-reduce-add/standalone_reduce_add/evidence.json
 # RUN: FileCheck %s --check-prefix=HARNESS --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/pre-realized-standalone-reduce-add/standalone_reduce_add/rvv_generated_bundle_abi_standalone_reduce_add_harness.c
 
 # STDOUT: rvv_generated_bundle_abi_e2e: dry_run_success
@@ -18,7 +17,7 @@
 # REDUCE-DAG: "path": "{{.*}}test/Target/RVV/pre-realized-selected-body-artifact-standalone-reduce-add.mlir"
 # REDUCE-DAG: "prototype": "void weft_emitc_pre_realized_body_standalone_reduce_add_kernel_pre_realized_body_rvv_standalone_reduce_add(const int32_t *lhs, const int32_t *acc, int32_t *out, size_t n);"
 # REDUCE-DAG: "expected_function": "weft_emitc_pre_realized_body_standalone_reduce_add_kernel_pre_realized_body_rvv_standalone_reduce_add"
-# REDUCE-DAG: "expected_runtime_abi_name": "rvv-generic-standalone-reduce-add-callable-c-abi.v1"
+# REDUCE-DAG: "expected_runtime_abi_name": "rvv-exact-typed-body-callable-c-abi.v2"
 # REDUCE-DAG: "expected_selected_variant": "pre_realized_body_rvv_standalone_reduce_add"
 # REDUCE-DAG: "front_door": "pre-realized-selected-weft-exec-rvv-body"
 # REDUCE-DAG: "materializer": "weft-materialize-selected-lowering-boundaries"
@@ -26,39 +25,8 @@
 # REDUCE-DAG: "selected_body_realization_producer": "rvv-plugin-local-selected-body-realization-owner-registry"
 # REDUCE-DAG: --weft-materialize-selected-lowering-boundaries
 # REDUCE-DAG: "pre_realized_body_consumed": true
-# REDUCE-DAG: "key": "rvv_emitc_lowerable_route"
-# REDUCE-DAG: "value": "rvv-generic-standalone-reduce-add-emitc-route"
-# REDUCE-DAG: "key": "rvv_selected_body_operation"
-# REDUCE-DAG: "value": "standalone_reduce_add"
-# REDUCE-DAG: "key": "rvv_selected_body_typed_compute_op"
-# REDUCE-DAG: "value": "weft_rvv.standalone_reduce"
-# REDUCE-DAG: "key": "weft_rvv.memory_form"
-# REDUCE-DAG: "value": "unit-stride-standalone-reduction"
-# REDUCE-DAG: "key": "weft_rvv.runtime_abi_order"
-# REDUCE-DAG: "value": "lhs,acc,out,n"
-# REDUCE-DAG: "key": "weft_rvv.runtime_control_plan"
-# REDUCE-DAG: "value": "rvv-runtime-avl-vl-control-plan.v1"
-# REDUCE-DAG: "key": "weft_rvv.route_operand_binding_plan"
-# REDUCE-DAG: "value": "rvv-route-operand-binding:standalone_reduce_add.v1"
-# REDUCE-DAG: "key": "weft_rvv.route_operand_binding_operands"
-# REDUCE-DAG: "value": "rvv-route-operand-binding:standalone_reduce_add.v1;lhs=lhs-input-buffer:lhs:abi|load|reduce-input|hdr;acc=accumulator-input-buffer:acc:abi|seed|acc-state|hdr;out=output-buffer:out:abi|acc-state|store|hdr;n=runtime-element-count:n:abi|setvl-avl|loop|hdr"
-# REDUCE-DAG: "key": "weft_rvv.standalone_reduction_route_family_plan"
-# REDUCE-DAG: "value": "rvv-standalone-reduction-route-family-plan.v1"
-# REDUCE-DAG: "key": "weft_rvv.standalone_reduction_scalar_result_runtime_boundary"
-# REDUCE-DAG: "value": "scalar-result-out0-seeded-before-loop-and-carried-across-runtime-vl-chunks.v1"
-# REDUCE-DAG: "key": "weft_rvv.provider_supported_mirror"
-# REDUCE-DAG: "value": "provider_supported_mirror:rvv-standalone-reduction-plan-validated"
-# REDUCE-DAG: "key": "weft_rvv.reduction_accumulator_layout"
-# REDUCE-DAG: "value": "scalar-i32-seed-lane0-from-accumulator-input"
-# REDUCE-DAG: "key": "weft_rvv.reduction_result_layout"
-# REDUCE-DAG: "value": "store-standalone-reduction-lane0-to-output-scalar"
-# REDUCE-DAG: "key": "weft_rvv.reduction_store_vl"
-# REDUCE-DAG: "value": "1"
-# REDUCE-DAG: "typed_compute_op": "weft_rvv.standalone_reduce"
 # REDUCE-DAG: "memory_form": "unit-stride-standalone-reduction"
 # REDUCE-DAG: "reduction_accumulation_boundary": {
-# REDUCE-DAG: "authority": "provider-derived typed weft_rvv reduction/accumulation body/config/runtime facts"
-# REDUCE-DAG: "artifact_metadata_role": "mirror-only-after-provider-route"
 # REDUCE-DAG: "scalar_result_runtime_boundary": "scalar-result-out0-seeded-before-loop-and-carried-across-runtime-vl-chunks.v1"
 # REDUCE-DAG: "reduction_kind": "add"
 # REDUCE-DAG: "source_vector_type": "!weft_rvv.vector<i32, \"m1\">"

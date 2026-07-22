@@ -46,39 +46,9 @@ module {
 // REALIZED-NOT: weft_rvv.typed_computed_mask_standalone_reduce_pre_realized_body
 
 // PLAN: weft.exec.diagnostic
-// PLAN-SAME: {key = "rvv_selected_body_operation", value = "computed_mask_standalone_reduce_min"}
-// PLAN-SAME: {key = "rvv_selected_body_typed_compute_op", value = "weft_rvv.masked_standalone_reduce"}
-// PLAN-SAME: {key = "weft_rvv.compare_predicate_kind", value = "sle"}
-// PLAN-SAME: {key = "weft_rvv.memory_form", value = "computed-mask-unit-stride-standalone-reduction"}
-// PLAN-SAME: {key = "weft_rvv.runtime_abi_order", value = "cmp_lhs,cmp_rhs,src,acc,out,n"}
-// PLAN-SAME: {key = "weft_rvv.route_operand_binding_plan", value = "rvv-route-operand-binding:computed_mask_standalone_reduce_min.v1"}
-// PLAN-SAME: {key = "weft_rvv.route_operand_binding_operands", value = "rvv-route-operand-binding:computed_mask_standalone_reduce_min.v1;cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs-load|cmp-lhs-call|hdr;cmp_rhs=rhs-input-buffer:cmp_rhs:abi|cmp-rhs-load|cmp-rhs-call|hdr;src=source-input-buffer:src:abi|src-load|masked-reduce-input|neutral-inactive|hdr;acc=accumulator-input-buffer:acc:abi|initial-seed|acc-state|masked-reduce-acc|hdr;out=output-buffer:out:abi|acc-state|store-base|hdr;n=runtime-element-count:n:abi|setvl-avl|loop|hdr"}
-// PLAN-SAME: {key = "weft_rvv.accumulation_route_family_plan", value = "rvv-computed-mask-accumulation-route-family-plan.v1"}
-// PLAN-SAME: {key = "weft_rvv.accumulation_compute_suffix", value = "scalar-horizontal-masked-standalone-reduction"}
-// PLAN-SAME: {key = "weft_rvv.accumulation_mask_producer_source", value = "vector-compare-rhs-load"}
-// PLAN-SAME: {key = "weft_rvv.accumulation_accumulator_contract", value = "scalar-seed-input-feeds-masked-horizontal-reduction"}
-// PLAN-SAME: {key = "weft_rvv.accumulation_result_contract", value = "scalar-horizontal-reduction-lane0-stored-to-output"}
-// PLAN-SAME: {key = "weft_rvv.accumulation_scalar_carry_contract", value = "scalar-result-carries-across-runtime-vl-chunks"}
-// PLAN-SAME: {key = "weft_rvv.standalone_reduction_route_family_plan", value = "rvv-standalone-reduction-route-family-plan.v1"}
-// PLAN-SAME: {key = "weft_rvv.standalone_reduction_source_vector_type", value = "!weft_rvv.vector<i32, \22m2\22>"}
-// PLAN-SAME: {key = "weft_rvv.standalone_reduction_source_vector_c_type", value = "vint32m2_t"}
-// PLAN-SAME: {key = "weft_rvv.standalone_reduction_scalar_result_vector_type", value = "!weft_rvv.vector<i32, \22m1\22>"}
-// PLAN-SAME: {key = "weft_rvv.standalone_reduction_scalar_result_vector_c_type", value = "vint32m1_t"}
-// PLAN-SAME: {key = "weft_rvv.target_leaf_profile", value = "rvv-v1-typed-computed-mask-standalone-reduction-leaf-profile.v1"}
-// PLAN-SAME: {key = "weft_rvv.provider_supported_mirror", value = "provider_supported_mirror:rvv-computed-mask-standalone-reduction-plan-validated"}
-// PLAN-SAME: {key = "weft_rvv.c_type_mapping", value = "vl:size_t,compare/source:typed-source-vector,mask:typed-mask,seed:typed-scalar,result:typed-scalar-reduction-vector"}
-// PLAN-SAME: {key = "weft_rvv.inactive_lane_zeroing_requirement", value = "masked-standalone-reduction-neutral-inactive-lanes-before-reduction"}
-// PLAN-SAME: runtime_abi_name = "rvv-generic-computed-mask-standalone-reduce-min-callable-c-abi.v1"
+// PLAN-SAME: runtime_abi_name = "rvv-exact-typed-body-callable-c-abi.v2"
 // PLAN-SAME: status = "supported"
 // PLAN-SAME: target = @rvv_pre_cm_standalone_reduce_min_lmul_m2
 
 // HEADER: weft.rvv.selected_variant: @rvv_pre_cm_standalone_reduce_min_lmul_m2
-// HEADER: weft.rvv.compare_predicate_kind: sle
-// HEADER: weft.rvv.mask_role: predicate-mask-produced-by-compare
-// HEADER-DAG: weft.rvv.route_operand_binding_plan: rvv-route-operand-binding:computed_mask_standalone_reduce_min.v1
-// HEADER-DAG: weft.rvv.standalone_reduction_source_vector_type: !weft_rvv.vector<i32, "m2">
-// HEADER-DAG: weft.rvv.standalone_reduction_source_vector_c_type: vint32m2_t
-// HEADER-DAG: weft.rvv.standalone_reduction_scalar_result_vector_type: !weft_rvv.vector<i32, "m1">
-// HEADER-DAG: weft.rvv.standalone_reduction_scalar_result_vector_c_type: vint32m1_t
-// HEADER-DAG: weft.rvv.accumulation_compute_suffix: scalar-horizontal-masked-standalone-reduction
 // HEADER: void weft_emitc_pre_cm_standalone_reduce_min_lmul_m2_kernel_rvv_pre_cm_standalone_reduce_min_lmul_m2(const int32_t *cmp_lhs, const int32_t *cmp_rhs, const int32_t *src, const int32_t *acc, int32_t *out, size_t n);

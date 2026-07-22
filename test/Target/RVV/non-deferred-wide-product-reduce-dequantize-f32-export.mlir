@@ -34,12 +34,7 @@
 // vwredsum_vs_i16m4_i32m1), NOT the narrow i8mf4/i16mf2 forms.
 // RUN: weft-opt %s --weft-materialize-emission-plans --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=EMITC
 
-// PLAN-DAG: "rvv_selected_body_operation", value = "widening_product_reduce_dequantize_f32"
-// PLAN-DAG: "weft_rvv.low_precision_primitive.source_lmul", value = "m2"
-// PLAN-DAG: "weft_rvv.low_precision_primitive.product_lmul", value = "m4"
-// PLAN-DAG: "weft_rvv.low_precision_primitive.accumulator_lmul", value = "m1"
 // The route IDENTITY stays narrow (the wide strip is internal to the realized body).
-// PLAN-DAG: "weft_rvv.target_leaf_profile", value = "rvv-v1-i8mf4-i16mf2-i32m1-f32m1-product-reduction-dequantization-leaf-profile.v1"
 
 // EMITC: emitc.func @weft_emitc_rvv_widening_dot_reduce_dequantize_i8_from_vector_source_rvv_widening_dot_reduce_dequantize_i8(
 // EMITC: call_opaque "__riscv_vsetvl_e8m2"
@@ -54,6 +49,8 @@
 // EMITC: call_opaque "__riscv_vfmv_v_f_f32m1"
 // EMITC: call_opaque "__riscv_vse32_v_f32m1"
 // EMITC: return
+
+// PLAN: runtime_abi_name = "rvv-exact-typed-body-callable-c-abi.v2"
 
 module {
   weft.exec.kernel @rvv_widening_dot_reduce_dequantize_i8_from_vector_source {

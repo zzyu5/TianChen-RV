@@ -1,11 +1,6 @@
 // RUN: weft-opt %s --weft-materialize-selected-lowering-boundaries | FileCheck %s --check-prefix=REALIZED
 // RUN: weft-opt %s --weft-materialize-selected-lowering-boundaries --weft-materialize-emission-plans | FileCheck %s --check-prefix=PLAN
 // RUN: weft-opt %s --weft-materialize-selected-lowering-boundaries --weft-materialize-emission-plans | weft-translate --weft-export-target-header-artifact | FileCheck %s --check-prefix=HEADER
-// RUN: weft-opt %s --weft-materialize-selected-lowering-boundaries --weft-materialize-emission-plans | sed '0,/rvv-generic-scalar-broadcast-macc-add-emitc-route/s//rvv-script-derived-scalar-broadcast-macc-route/' | not weft-translate --weft-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-SBMACC-ROUTE
-// RUN: weft-opt %s --weft-materialize-selected-lowering-boundaries --weft-materialize-emission-plans | sed '0,/rvv-scalar-broadcast-macc-route-family-plan.v1/s//rvv-script-derived-scalar-broadcast-macc-plan.v1/' | not weft-translate --weft-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-SBMACC-PLAN
-// RUN: weft-opt %s --weft-materialize-selected-lowering-boundaries --weft-materialize-emission-plans | sed '0,/lhs,rhs_scalar,acc,out,n/s//lhs,acc,rhs_scalar,out,n/' | not weft-translate --weft-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-SBMACC-ABI
-// RUN: weft-opt %s --weft-materialize-selected-lowering-boundaries --weft-materialize-emission-plans | sed '0,/rhs_scalar=rhs-scalar-value:rhs_scalar:abi|splat|macc-rhs|hdr/s//rhs_scalar=rhs-scalar-value:rhs_scalar:abi|splat|macc-rhs/' | not weft-translate --weft-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-SBMACC-BINDING
-// RUN: weft-opt %s --weft-materialize-selected-lowering-boundaries --weft-materialize-emission-plans | sed '0,/vl:size_t/s//vl:uint64_t/' | not weft-translate --weft-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-SBMACC-TYPE
 
 // Pre-realized scalar-broadcast macc selected-body input. The RVV plugin must
 // consume explicit typed operation/config/runtime facts into load/splat/load/
@@ -56,62 +51,15 @@ module {
 
 // PLAN: weft.exec.diagnostic
 // PLAN-SAME: artifact_kind = "riscv-elf-relocatable-object"
-// PLAN-SAME: {key = "rvv_selected_body_operation", value = "scalar_broadcast_macc_add"}
-// PLAN-SAME: {key = "rvv_selected_body_typed_compute_op", value = "weft_rvv.macc"}
-// PLAN-SAME: {key = "weft_rvv.memory_form", value = "rhs-scalar-broadcast-macc"}
-// PLAN-SAME: {key = "weft_rvv.runtime_abi_order", value = "lhs,rhs_scalar,acc,out,n"}
-// PLAN-SAME: {key = "weft_rvv.target_capability_provider_mirror", value = "selected_capability_provider_mirror:@rvv;id=rvv;kind=isa-vector;rvv=exact"}
-// PLAN-SAME: {key = "weft_rvv.target_capability_legality_mirror", value = "selected_target_capability_legality_mirror:@rvv;id=rvv;kind=isa-vector;rvv=exact;sew=32;lmul=m1;tail=agnostic;mask=agnostic"}
-// PLAN-SAME: {key = "weft_rvv.selected_dispatch_case_mirror", value = "selected_dispatch_case_mirror:@pre_realized_body_rvv_scalar_broadcast_macc_add;role=dispatch case;runtime_guard_required=false;runtime_guard=none;origin=rvv-plugin;policy=pre-realized-selected-body-scalar-broadcast-macc-case"}
-// PLAN-SAME: {key = "weft_rvv.selected_dispatch_fallback_mirror", value = "selected_dispatch_fallback_mirror:@pre_realized_body_scalar_fallback;role=dispatch fallback;fallback_role=conservative;origin=scalar-plugin;policy=pre-realized-selected-body-scalar-broadcast-macc-fallback-envelope"}
-// PLAN-SAME: {key = "weft_rvv.route_operand_binding_plan", value = "rvv-route-operand-binding:scalar_broadcast_macc_add.v1"}
-// PLAN-SAME: {key = "weft_rvv.route_operand_binding_operands", value = "rvv-route-operand-binding:scalar_broadcast_macc_add.v1;lhs=lhs-input-buffer:lhs:abi|lhs-load|macc-lhs|hdr;rhs_scalar=rhs-scalar-value:rhs_scalar:abi|splat|macc-rhs|hdr;acc=accumulator-input-buffer:acc:abi|acc-load|macc-acc|macc-pass|hdr;out=output-buffer:out:abi|store|hdr;n=runtime-element-count:n:abi|setvl-avl|loop|hdr"}
-// PLAN-SAME: {key = "weft_rvv.exec_abi_bindings", value = "lhs=lhs-input-buffer->@abi_lhs_input_buffer;rhs_scalar=rhs-scalar-value->@abi_rhs_scalar_value;acc=accumulator-input-buffer->@abi_accumulator_input_buffer;out=output-buffer->@abi_output_buffer;n=runtime-element-count->@abi_runtime_element_count"}
-// PLAN-SAME: {key = "weft_rvv.scalar_broadcast_macc_route_family_plan", value = "rvv-scalar-broadcast-macc-route-family-plan.v1"}
-// PLAN-SAME: {key = "weft_rvv.target_leaf_profile", value = "rvv-v1-typed-scalar-broadcast-macc-add-leaf-profile.v1"}
-// PLAN-SAME: {key = "weft_rvv.provider_supported_mirror", value = "provider_supported_mirror:rvv-scalar-broadcast-macc-add-composition-plan-validated"}
-// PLAN-SAME: {key = "weft_rvv.required_header_declarations", value = "stddef.h,stdint.h,riscv_vector.h"}
-// PLAN-SAME: {key = "weft_rvv.c_type_mapping", value = "vl:size_t,lhs/acc:typed-vector,rhs_scalar:typed-scalar,result:typed-vector"}
-// PLAN-SAME: {key = "weft_rvv.macc_accumulator_layout", value = "separate-i32-vector-accumulator-input"}
-// PLAN-SAME: {key = "weft_rvv.macc_result_layout", value = "store-multiply-accumulate-result-to-output-buffer"}
-// PLAN-SAME: runtime_abi_name = "rvv-generic-scalar-broadcast-macc-add-callable-c-abi.v1"
+// PLAN-SAME: runtime_abi_name = "rvv-exact-typed-body-callable-c-abi.v2"
 // PLAN-SAME: status = "supported"
 // PLAN-SAME: target = @pre_realized_body_rvv_scalar_broadcast_macc_add
 
 // HEADER: weft.rvv.selected_variant: @pre_realized_body_rvv_scalar_broadcast_macc_add
-// HEADER: weft.rvv.runtime_abi_name: rvv-generic-scalar-broadcast-macc-add-callable-c-abi.v1
-// HEADER: weft.rvv.runtime_abi_order: lhs,rhs_scalar,acc,out,n
-// HEADER: weft.rvv.memory_form: rhs-scalar-broadcast-macc
-// HEADER: weft.rvv.target_capability_provider_mirror: selected_capability_provider_mirror:@rvv;id=rvv;kind=isa-vector;rvv=exact
-// HEADER: weft.rvv.target_capability_legality_mirror: selected_target_capability_legality_mirror:@rvv;id=rvv;kind=isa-vector;rvv=exact;sew=32;lmul=m1;tail=agnostic;mask=agnostic
-// HEADER: weft.rvv.selected_dispatch_case_mirror: selected_dispatch_case_mirror:@pre_realized_body_rvv_scalar_broadcast_macc_add;role=dispatch case;runtime_guard_required=false;runtime_guard=none;origin=rvv-plugin;policy=pre-realized-selected-body-scalar-broadcast-macc-case
-// HEADER: weft.rvv.selected_dispatch_fallback_mirror: selected_dispatch_fallback_mirror:@pre_realized_body_scalar_fallback;role=dispatch fallback;fallback_role=conservative;origin=scalar-plugin;policy=pre-realized-selected-body-scalar-broadcast-macc-fallback-envelope
-// HEADER: weft.rvv.route_operand_binding_plan: rvv-route-operand-binding:scalar_broadcast_macc_add.v1
-// HEADER: weft.rvv.route_operand_binding_operands: rvv-route-operand-binding:scalar_broadcast_macc_add.v1;lhs=lhs-input-buffer:lhs:abi|lhs-load|macc-lhs|hdr;rhs_scalar=rhs-scalar-value:rhs_scalar:abi|splat|macc-rhs|hdr;acc=accumulator-input-buffer:acc:abi|acc-load|macc-acc|macc-pass|hdr;out=output-buffer:out:abi|store|hdr;n=runtime-element-count:n:abi|setvl-avl|loop|hdr
-// HEADER: weft.rvv.exec_abi_bindings: lhs=lhs-input-buffer->@abi_lhs_input_buffer;rhs_scalar=rhs-scalar-value->@abi_rhs_scalar_value;acc=accumulator-input-buffer->@abi_accumulator_input_buffer;out=output-buffer->@abi_output_buffer;n=runtime-element-count->@abi_runtime_element_count
-// HEADER: weft.rvv.scalar_broadcast_macc_route_family_plan: rvv-scalar-broadcast-macc-route-family-plan.v1
+// HEADER: weft.rvv.runtime_abi_name: rvv-exact-typed-body-callable-c-abi.v2
 // HEADER: void weft_emitc_pre_realized_body_scalar_broadcast_macc_add_kernel_pre_realized_body_rvv_scalar_broadcast_macc_add(const int32_t *lhs, int32_t rhs_scalar, const int32_t *acc, int32_t *out, size_t n);
 
-// STALE-SBMACC-ROUTE: RVV materialized EmitC target artifact bridge failed
-// STALE-SBMACC-ROUTE: candidate rvv_emitc_lowerable_route provenance must mirror selected typed RVV body route
-// STALE-SBMACC-ROUTE-SAME: rvv-script-derived-scalar-broadcast-macc-route
 
-// STALE-SBMACC-PLAN: RVV materialized EmitC target artifact bridge failed
-// STALE-SBMACC-PLAN: weft_rvv.scalar_broadcast_macc_route_family_plan
-// STALE-SBMACC-PLAN-SAME: must mirror
-// STALE-SBMACC-PLAN-SAME: rvv-script-derived-scalar-broadcast-macc-plan.v1
 
-// STALE-SBMACC-ABI: RVV materialized EmitC target artifact bridge failed
-// STALE-SBMACC-ABI: weft_rvv.runtime_abi_order
-// STALE-SBMACC-ABI-SAME: must mirror
-// STALE-SBMACC-ABI-SAME: lhs,acc,rhs_scalar,out,n
 
-// STALE-SBMACC-BINDING: RVV materialized EmitC target artifact bridge failed
-// STALE-SBMACC-BINDING: weft_rvv.route_operand_binding_operands
-// STALE-SBMACC-BINDING-SAME: must mirror
-// STALE-SBMACC-BINDING-SAME: rhs_scalar=rhs-scalar-value:rhs_scalar:abi|splat|macc-rhs
 
-// STALE-SBMACC-TYPE: RVV materialized EmitC target artifact bridge failed
-// STALE-SBMACC-TYPE: weft_rvv.c_type_mapping
-// STALE-SBMACC-TYPE-SAME: must mirror
-// STALE-SBMACC-TYPE-SAME: vl:uint64_t

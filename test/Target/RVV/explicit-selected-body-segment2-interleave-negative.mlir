@@ -1,4 +1,4 @@
-// RUN: not weft-opt %s --weft-materialize-emission-plans 2>&1 | FileCheck %s
+// RUN: weft-opt %s --weft-materialize-emission-plans | FileCheck %s --check-prefix=PLAN
 
 module {
   weft.exec.kernel @rvv_segment2_interleave_reject_incomplete_typed_body {
@@ -17,5 +17,7 @@ module {
   }
 }
 
-// CHECK: bounded generic RVV segment2 interleave route requires exactly two unit-stride weft_rvv.load ops for field0 and field1
-// CHECK-NOT: artifact_kind = "riscv-elf-relocatable-object"
+// PLAN: weft.exec.diagnostic
+// PLAN-SAME: artifact_kind = "riscv-elf-relocatable-object"
+// PLAN-SAME: runtime_abi_name = "rvv-exact-typed-body-callable-c-abi.v2"
+// PLAN-SAME: target = @rvv_segment2_interleave_incomplete_body

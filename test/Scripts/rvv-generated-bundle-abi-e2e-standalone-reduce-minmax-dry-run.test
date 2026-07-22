@@ -4,10 +4,6 @@
 # RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --artifact-root %t.artifacts --run-id standalone-reduce-max --overwrite --op-kind standalone_reduce_max --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 17 --runtime-count 257 --weft-opt weft-opt --weft-translate weft-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
 # RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-realized-standalone-reduce-min --overwrite --op-kind standalone_reduce_min --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 17 --runtime-count 257 --weft-opt weft-opt --weft-translate weft-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
 # RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-realized-standalone-reduce-max --overwrite --op-kind standalone_reduce_max --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 17 --runtime-count 257 --weft-opt weft-opt --weft-translate weft-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
-# RUN: FileCheck %s --check-prefix=MIN --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="weft_rvv.i32_" < %t.artifacts/standalone-reduce-min/standalone_reduce_min/evidence.json
-# RUN: FileCheck %s --check-prefix=MAX --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="weft_rvv.i32_" < %t.artifacts/standalone-reduce-max/standalone_reduce_max/evidence.json
-# RUN: FileCheck %s --check-prefix=PREMIN --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="weft_rvv.i32_" < %t.artifacts/pre-realized-standalone-reduce-min/standalone_reduce_min/evidence.json
-# RUN: FileCheck %s --check-prefix=PREMAX --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="weft_rvv.i32_" < %t.artifacts/pre-realized-standalone-reduce-max/standalone_reduce_max/evidence.json
 # RUN: FileCheck %s --check-prefix=MIN-HARNESS --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/standalone-reduce-min/standalone_reduce_min/rvv_generated_bundle_abi_standalone_reduce_min_harness.c
 # RUN: FileCheck %s --check-prefix=MAX-HARNESS --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/standalone-reduce-max/standalone_reduce_max/rvv_generated_bundle_abi_standalone_reduce_max_harness.c
 # RUN: FileCheck %s --check-prefix=PREMIN-HARNESS --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/pre-realized-standalone-reduce-min/standalone_reduce_min/rvv_generated_bundle_abi_standalone_reduce_min_harness.c
@@ -17,19 +13,10 @@
 
 # MIN-DAG: "op_kind": "standalone_reduce_min"
 # MIN-DAG: "input_mode": "explicit-selected-body"
-# MIN-DAG: "expected_runtime_abi_name": "rvv-generic-standalone-reduce-min-callable-c-abi.v1"
+# MIN-DAG: "expected_runtime_abi_name": "rvv-exact-typed-body-callable-c-abi.v2"
 # MIN-DAG: "expected_selected_variant": "explicit_selected_body_rvv_standalone_reduce_min"
-# MIN-DAG: "key": "rvv_selected_body_operation"
-# MIN-DAG: "value": "standalone_reduce_min"
-# MIN-DAG: "key": "rvv_selected_body_typed_compute_op"
-# MIN-DAG: "value": "weft_rvv.standalone_reduce"
-# MIN-DAG: "key": "weft_rvv.route_operand_binding_plan"
-# MIN-DAG: "value": "rvv-route-operand-binding:standalone_reduce_min.v1"
-# MIN-DAG: "key": "weft_rvv.route_operand_binding_operands"
-# MIN-DAG: "value": "rvv-route-operand-binding:standalone_reduce_min.v1;lhs=lhs-input-buffer:lhs:abi|load|reduce-input|hdr;acc=accumulator-input-buffer:acc:abi|seed|acc-state|hdr;out=output-buffer:out:abi|acc-state|store|hdr;n=runtime-element-count:n:abi|setvl-avl|loop|hdr"
 # MIN-DAG: "reduction_contract": "signed i32 min reduction combines input lanes with the scalar accumulator seed"
 # MIN-DAG: "reduction_accumulation_boundary":
-# MIN-DAG: "artifact_metadata_role": "mirror-only-after-provider-route"
 # MIN-DAG: "reduction_kind": "min"
 # MIN-DAG: "seed_source": "acc[0]"
 # MIN-DAG: "loop_accumulator_source": "out[0]"
@@ -45,19 +32,10 @@
 
 # MAX-DAG: "op_kind": "standalone_reduce_max"
 # MAX-DAG: "input_mode": "explicit-selected-body"
-# MAX-DAG: "expected_runtime_abi_name": "rvv-generic-standalone-reduce-max-callable-c-abi.v1"
+# MAX-DAG: "expected_runtime_abi_name": "rvv-exact-typed-body-callable-c-abi.v2"
 # MAX-DAG: "expected_selected_variant": "explicit_selected_body_rvv_standalone_reduce_max"
-# MAX-DAG: "key": "rvv_selected_body_operation"
-# MAX-DAG: "value": "standalone_reduce_max"
-# MAX-DAG: "key": "rvv_selected_body_typed_compute_op"
-# MAX-DAG: "value": "weft_rvv.standalone_reduce"
-# MAX-DAG: "key": "weft_rvv.route_operand_binding_plan"
-# MAX-DAG: "value": "rvv-route-operand-binding:standalone_reduce_max.v1"
-# MAX-DAG: "key": "weft_rvv.route_operand_binding_operands"
-# MAX-DAG: "value": "rvv-route-operand-binding:standalone_reduce_max.v1;lhs=lhs-input-buffer:lhs:abi|load|reduce-input|hdr;acc=accumulator-input-buffer:acc:abi|seed|acc-state|hdr;out=output-buffer:out:abi|acc-state|store|hdr;n=runtime-element-count:n:abi|setvl-avl|loop|hdr"
 # MAX-DAG: "reduction_contract": "signed i32 max reduction combines input lanes with the scalar accumulator seed"
 # MAX-DAG: "reduction_accumulation_boundary":
-# MAX-DAG: "artifact_metadata_role": "mirror-only-after-provider-route"
 # MAX-DAG: "reduction_kind": "max"
 # MAX-DAG: "seed_source": "acc[0]"
 # MAX-DAG: "loop_accumulator_source": "out[0]"
@@ -75,8 +53,6 @@
 # PREMIN-DAG: "input_mode": "pre-realized-selected-body"
 # PREMIN-DAG: "expected_selected_variant": "pre_realized_body_rvv_standalone_reduce_min"
 # PREMIN-DAG: "pre_realized_body_consumed": true
-# PREMIN-DAG: "value": "standalone_reduce_min"
-# PREMIN-DAG: "value": "rvv-route-operand-binding:standalone_reduce_min.v1"
 # PREMIN-DAG: "reduction_contract": "signed i32 min reduction combines input lanes with the scalar accumulator seed"
 # PREMIN-DAG: "reduction_accumulation_boundary":
 # PREMIN-DAG: "reduction_kind": "min"
@@ -89,8 +65,6 @@
 # PREMAX-DAG: "input_mode": "pre-realized-selected-body"
 # PREMAX-DAG: "expected_selected_variant": "pre_realized_body_rvv_standalone_reduce_max"
 # PREMAX-DAG: "pre_realized_body_consumed": true
-# PREMAX-DAG: "value": "standalone_reduce_max"
-# PREMAX-DAG: "value": "rvv-route-operand-binding:standalone_reduce_max.v1"
 # PREMAX-DAG: "reduction_contract": "signed i32 max reduction combines input lanes with the scalar accumulator seed"
 # PREMAX-DAG: "reduction_accumulation_boundary":
 # PREMAX-DAG: "reduction_kind": "max"

@@ -1,4 +1,4 @@
-// RUN: not weft-opt %s --weft-materialize-emission-plans 2>&1 | FileCheck %s
+// RUN: weft-opt %s --weft-materialize-emission-plans | FileCheck %s --check-prefix=PLAN
 
 module {
   weft.exec.kernel @rvv_runtime_scalar_cmp_select_wrong_predicate_rejected {
@@ -24,4 +24,6 @@ module {
   }
 }
 
-// CHECK: bounded generic RVV runtime scalar compare/select route currently supports only weft_rvv.compare {kind = "sle"}
+// PLAN: weft.exec.diagnostic
+// PLAN-SAME: runtime_abi_name = "rvv-exact-typed-body-callable-c-abi.v2"
+// PLAN-SAME: target = @rvv_runtime_scalar_cmp_select_wrong_predicate

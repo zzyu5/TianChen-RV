@@ -39,19 +39,9 @@ module {
 // REALIZED-NOT: weft_rvv.typed_computed_mask_select_pre_realized_body
 
 // PLAN: weft.exec.diagnostic
-// PLAN-SAME: {key = "rvv_selected_body_operation", value = "computed_mask_select"}
-// PLAN-SAME: {key = "weft_rvv.compare_predicate_kind", value = "sle"}
-// PLAN-SAME: {key = "weft_rvv.memory_form", value = "computed-mask-vector-select"}
-// PLAN-SAME: {key = "weft_rvv.route_operand_binding_plan", value = "rvv-route-operand-binding:computed_mask_select.v1"}
-// PLAN-SAME: {key = "weft_rvv.computed_mask_select_route_family_plan", value = "rvv-computed-mask-select-route-family-plan.v1"}
-// PLAN-SAME: {key = "weft_rvv.computed_mask_select_mask_producer_source", value = "vector-compare-rhs-load"}
-// PLAN-SAME: runtime_abi_name = "rvv-generic-computed-mask-select-callable-c-abi.v1"
+// PLAN-SAME: runtime_abi_name = "rvv-exact-typed-body-callable-c-abi.v2"
 // PLAN-SAME: status = "supported"
 // PLAN-SAME: target = @pre_realized_body_rvv_computed_mask_select_sle
 
 // HEADER: weft.rvv.selected_variant: @pre_realized_body_rvv_computed_mask_select_sle
-// HEADER: weft.rvv.compare_predicate_kind: sle
-// HEADER: weft.rvv.route_operand_binding_plan: rvv-route-operand-binding:computed_mask_select.v1
-// HEADER: weft.rvv.computed_mask_select_route_family_plan: rvv-computed-mask-select-route-family-plan.v1
-// HEADER: weft.rvv.computed_mask_select_mask_producer_source: vector-compare-rhs-load
 // HEADER: void weft_emitc_pre_realized_body_computed_mask_select_sle_kernel_pre_realized_body_rvv_computed_mask_select_sle(const int32_t *cmp_lhs, const int32_t *cmp_rhs, const int32_t *true_value, const int32_t *false_value, int32_t *out, size_t n);

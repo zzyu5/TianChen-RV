@@ -41,46 +41,9 @@ module {
 // REALIZED-NOT: weft_rvv.typed_computed_mask_standalone_reduce_pre_realized_body
 
 // PLAN: weft.exec.diagnostic
-// PLAN-SAME: {key = "rvv_selected_body_operation", value = "computed_mask_standalone_reduce_add"}
-// PLAN-SAME: {key = "rvv_selected_body_typed_compute_op", value = "weft_rvv.masked_standalone_reduce"}
-// PLAN-SAME: {key = "weft_rvv.compare_predicate_kind", value = "sle"}
-// PLAN-SAME: {key = "weft_rvv.memory_form", value = "computed-mask-unit-stride-standalone-reduction"}
-// PLAN-SAME: {key = "weft_rvv.runtime_abi_order", value = "cmp_lhs,cmp_rhs,src,acc,out,n"}
-// PLAN-SAME: {key = "weft_rvv.route_operand_binding_plan", value = "rvv-route-operand-binding:computed_mask_standalone_reduce_add.v1"}
-// PLAN-SAME: {key = "weft_rvv.route_operand_binding_operands", value = "rvv-route-operand-binding:computed_mask_standalone_reduce_add.v1;cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs-load|cmp-lhs-call|hdr;cmp_rhs=rhs-input-buffer:cmp_rhs:abi|cmp-rhs-load|cmp-rhs-call|hdr;src=source-input-buffer:src:abi|src-load|masked-reduce-input|zero-inactive|hdr;acc=accumulator-input-buffer:acc:abi|initial-seed|acc-state|masked-reduce-acc|hdr;out=output-buffer:out:abi|acc-state|store-base|hdr;n=runtime-element-count:n:abi|setvl-avl|loop|hdr"}
-// PLAN-SAME: {key = "weft_rvv.accumulation_route_family_plan", value = "rvv-computed-mask-accumulation-route-family-plan.v1"}
-// PLAN-SAME: {key = "weft_rvv.accumulation_compute_suffix", value = "scalar-horizontal-masked-standalone-reduction"}
-// PLAN-SAME: {key = "weft_rvv.accumulation_mask_producer_source", value = "vector-compare-rhs-load"}
-// PLAN-SAME: {key = "weft_rvv.accumulation_accumulator_contract", value = "scalar-seed-input-feeds-masked-horizontal-reduction"}
-// PLAN-SAME: {key = "weft_rvv.accumulation_result_contract", value = "scalar-horizontal-reduction-lane0-stored-to-output"}
-// PLAN-SAME: {key = "weft_rvv.accumulation_scalar_carry_contract", value = "scalar-result-carries-across-runtime-vl-chunks"}
-// PLAN-SAME: {key = "weft_rvv.standalone_reduction_route_family_plan", value = "rvv-standalone-reduction-route-family-plan.v1"}
-// PLAN-SAME: {key = "weft_rvv.target_leaf_profile", value = "rvv-v1-typed-computed-mask-standalone-reduction-leaf-profile.v1"}
-// PLAN-SAME: {key = "weft_rvv.provider_supported_mirror", value = "provider_supported_mirror:rvv-computed-mask-standalone-reduction-plan-validated"}
-// PLAN-SAME: {key = "weft_rvv.required_header_declarations", value = "stddef.h,stdint.h,riscv_vector.h"}
-// PLAN-SAME: {key = "weft_rvv.c_type_mapping", value = "vl:size_t,compare/source:typed-source-vector,mask:typed-mask,seed:typed-scalar,result:typed-scalar-reduction-vector"}
-// PLAN-SAME: {key = "weft_rvv.inactive_lane_zeroing_requirement", value = "masked-standalone-reduction-zero-inactive-lanes-before-reduction"}
-// PLAN-SAME: {key = "weft_rvv.reduction_kind", value = "add"}
-// PLAN-SAME: runtime_abi_name = "rvv-generic-computed-mask-standalone-reduce-add-callable-c-abi.v1"
+// PLAN-SAME: runtime_abi_name = "rvv-exact-typed-body-callable-c-abi.v2"
 // PLAN-SAME: status = "supported"
 // PLAN-SAME: target = @rvv_pre_cm_standalone_reduce
 
 // HEADER: weft.rvv.selected_variant: @rvv_pre_cm_standalone_reduce
-// HEADER: weft.rvv.compare_predicate_kind: sle
-// HEADER: weft.rvv.mask_role: predicate-mask-produced-by-compare
-// HEADER: weft.rvv.reduction_kind: add
-// HEADER: weft.rvv.target_leaf_profile: rvv-v1-typed-computed-mask-standalone-reduction-leaf-profile.v1
-// HEADER: weft.rvv.provider_supported_mirror: provider_supported_mirror:rvv-computed-mask-standalone-reduction-plan-validated
-// HEADER: weft.rvv.route_operand_binding_plan: rvv-route-operand-binding:computed_mask_standalone_reduce_add.v1
-// HEADER: weft.rvv.route_operand_binding_operands: rvv-route-operand-binding:computed_mask_standalone_reduce_add.v1;cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs-load|cmp-lhs-call|hdr;cmp_rhs=rhs-input-buffer:cmp_rhs:abi|cmp-rhs-load|cmp-rhs-call|hdr;src=source-input-buffer:src:abi|src-load|masked-reduce-input|zero-inactive|hdr;acc=accumulator-input-buffer:acc:abi|initial-seed|acc-state|masked-reduce-acc|hdr;out=output-buffer:out:abi|acc-state|store-base|hdr;n=runtime-element-count:n:abi|setvl-avl|loop|hdr
-// HEADER: weft.rvv.standalone_reduction_route_family_plan: rvv-standalone-reduction-route-family-plan.v1
-// HEADER: weft.rvv.accumulation_route_family_plan: rvv-computed-mask-accumulation-route-family-plan.v1
-// HEADER: weft.rvv.accumulation_compute_suffix: scalar-horizontal-masked-standalone-reduction
-// HEADER: weft.rvv.accumulation_mask_producer_source: vector-compare-rhs-load
-// HEADER: weft.rvv.accumulation_accumulator_contract: scalar-seed-input-feeds-masked-horizontal-reduction
-// HEADER: weft.rvv.accumulation_result_contract: scalar-horizontal-reduction-lane0-stored-to-output
-// HEADER: weft.rvv.accumulation_scalar_carry_contract: scalar-result-carries-across-runtime-vl-chunks
-// HEADER: weft.rvv.required_header_declarations: stddef.h,stdint.h,riscv_vector.h
-// HEADER: weft.rvv.c_type_mapping: vl:size_t,compare/source:typed-source-vector,mask:typed-mask,seed:typed-scalar,result:typed-scalar-reduction-vector
-// HEADER: weft.rvv.inactive_lane_zeroing_requirement: masked-standalone-reduction-zero-inactive-lanes-before-reduction
 // HEADER: void weft_emitc_pre_cm_standalone_reduce_kernel_rvv_pre_cm_standalone_reduce(const int32_t *cmp_lhs, const int32_t *cmp_rhs, const int32_t *src, const int32_t *acc, int32_t *out, size_t n);

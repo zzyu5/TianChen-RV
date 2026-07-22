@@ -4,21 +4,19 @@
 #include "Weft/Dialect/RVV/IR/RVVConfigContract.h"
 #include "Weft/Dialect/RVV/IR/RVVDialect.h"
 #include "Weft/Plugin/ExtensionBundle.h"
+#include "Weft/Plugin/RVV/RVVArtifactContract.h"
 #include "Weft/Plugin/RVV/RVVCapabilityProfile.h"
-#include "Weft/Plugin/RVV/RVVConstructionProtocol.h"
-#include "Weft/Plugin/RVV/RVVEmitCRouteProvider.h"
 #include "Weft/Plugin/RVV/RVVFormulaCatalog.h"
 #include "Weft/Plugin/RVV/RVVFormulaConstruction.h"
+#include "Weft/Plugin/RVV/RVVMonolithicBlockDotFamily.h"
 #include "Weft/Plugin/RVV/RVVDequantDotSourceFrontDoor.h"
 #include "Weft/Plugin/RVV/RVVDequantizeRowStreamFrontDoor.h"
 #include "Weft/Plugin/RVV/RVVElementwiseStreamFrontDoor.h"
 #include "Weft/Plugin/RVV/RVVQuantizeRowStreamFrontDoor.h"
 #include "Weft/Plugin/RVV/RVVQuantizeFormula.h"
-#include "Weft/Plugin/RVV/RVVEmitCRoutePlanning.h"
 #include "Weft/Plugin/RVV/RVVCodebookDotSourceFrontDoor.h"
 #include "Weft/Plugin/RVV/RVVCompositeGatherMAccScatterFormula.h"
 #include "Weft/Plugin/RVV/RVVFlatBlockDotFormula.h"
-#include "Weft/Plugin/RVV/RVVMonolithicBlockDotFamily.h"
 #include "Weft/Plugin/RVV/RVVMonolithicBlockDotSourceFrontDoor.h"
 #include "Weft/Plugin/RVV/RVVPackedI4DotSourceFrontDoor.h"
 #include "Weft/Plugin/RVV/RVVReductionSourceFrontDoor.h"
@@ -49,8 +47,6 @@
 
 namespace weft::plugin {
 namespace {
-
-namespace construction = weft::plugin::construction;
 
 constexpr llvm::StringLiteral kRVVPluginName("rvv-plugin");
 constexpr llvm::StringLiteral kRVVPluginVersion("0.1.0");
@@ -101,20 +97,6 @@ llvm::Error requireExplicitTypedRVVBody(weft::exec::VariantOp variant) {
       "extension-family body");
 }
 
-llvm::Error requireRVVSelectedVariant(weft::exec::VariantOp variant) {
-  if (!variant)
-    return makeRVVPluginError(
-        "selected RVV lowering boundary requires a materialized "
-        "weft.exec.variant");
-
-  auto originAttr = variant->getAttrOfType<mlir::StringAttr>(kOriginAttrName);
-  if (!originAttr || originAttr.getValue() != kRVVPluginName)
-    return makeRVVPluginError(
-        "materialized RVV variant must be owned by origin 'rvv-plugin'");
-
-  return requireExplicitTypedRVVBody(variant);
-}
-
 llvm::Expected<weft::rvv::WithVLOp>
 findSelectedRVVSelectedBodyBoundary(weft::exec::VariantOp variant) {
   if (!variant)
@@ -150,70 +132,6 @@ findSelectedRVVSelectedBodyBoundary(weft::exec::VariantOp variant) {
   return selectedWithVL;
 }
 
-llvm::Expected<weft::rvv::WithVLOp>
-requireRVVSelectedBodyRouteBoundaryForRouteConstruction(
-    const VariantLoweringBoundaryRequest &request) {
-  llvm::Expected<weft::rvv::WithVLOp> boundary =
-      findSelectedRVVSelectedBodyBoundary(request.getVariant());
-  std::optional<rvv::RVVPreRealizedSelectedBodyMatch> preRealizedBody =
-      rvv::findFirstPreRealizedRVVSelectedBodyMatch(request.getVariant());
-  if (boundary) {
-    if (preRealizedBody)
-      return makeRVVPluginError(
-          llvm::Twine("pre-realized RVV selected body '") +
-          preRealizedBody->bodyOp->getName().getStringRef() +
-          "' owned by selected-body realization owner '" +
-          preRealizedBody->familyName +
-          "' must not be mixed with an already realized setvl/with_vl body "
-          "before route construction");
-    return *boundary;
-  }
-
-  llvm::Error boundaryError = boundary.takeError();
-  if (!preRealizedBody)
-    return std::move(boundaryError);
-  llvm::consumeError(std::move(boundaryError));
-
-  return makeRVVPluginError(
-      llvm::Twine("pre-realized RVV selected body '") +
-      preRealizedBody->bodyOp->getName().getStringRef() +
-      "' owned by selected-body realization owner '" +
-      preRealizedBody->familyName +
-      "' must use public selected lowering-boundary materialization before "
-      "provider route construction");
-}
-
-llvm::Error verifySelectedRVVLoweringBoundaryConformance(
-    weft::exec::KernelOp kernel, weft::exec::VariantOp variant,
-    VariantEmissionRole role, weft::rvv::WithVLOp boundary) {
-  auto variantRequires = variant->getAttrOfType<mlir::ArrayAttr>("requires");
-  if (!variantRequires || variantRequires.empty())
-    return makeRVVPluginError(
-        "selected RVV lowering-boundary validation requires non-empty "
-        "selected variant requires metadata");
-
-  const construction::SelectedBoundaryStringAttrExpectation extraAttributes[] =
-      {{rvv::getRVVConstructionProtocolMetadataName(),
-        rvv::getRVVConstructionProtocolVersion()}};
-  construction::SelectedLoweringBoundaryConformanceSpec spec;
-  spec.boundaryDescription = "selected RVV lowering-boundary validation";
-  spec.selectedVariantSymbol = variant.getSymName();
-  spec.sourceKernelSymbol = kernel.getSymName();
-  spec.originPlugin = kRVVPluginName;
-  spec.pathRole = stringifyVariantEmissionRole(role);
-  spec.status = rvv::getRVVLoweringBoundaryStatus();
-  spec.requiredCapabilities = variantRequires;
-  spec.extraStringAttributes = extraAttributes;
-  spec.sourceKernelAttrName = rvv::getRVVSourceKernelAttrName();
-  spec.selectedVariantAttrName = rvv::getRVVSelectedVariantAttrName();
-  spec.originAttrName = rvv::getRVVOriginAttrName();
-  spec.roleAttrName = rvv::getRVVSelectedPathRoleAttrName();
-  spec.statusAttrName = rvv::getRVVStatusAttrName();
-  spec.requiredCapabilitiesAttrName = rvv::getRVVRequiredCapabilitiesAttrName();
-  return construction::verifySelectedLoweringBoundaryConformance(
-      boundary.getOperation(), spec);
-}
-
 llvm::Error validateSelectedRVVSelectedBodyBoundary(
     const VariantLoweringBoundaryValidationRequest &request) {
   weft::exec::VariantOp variant = request.getVariant();
@@ -226,15 +144,6 @@ llvm::Error validateSelectedRVVSelectedBodyBoundary(
         "selected RVV lowering-boundary validation requires an enclosing "
         "weft.exec.kernel");
 
-  if (llvm::Error error = requireRVVSelectedVariant(variant))
-    return error;
-  llvm::Expected<rvv::RVVSelectedTargetCapabilityFacts> targetCapabilityFacts =
-      rvv::collectRVVSelectedTargetCapabilityFacts(
-          variant, request.getCapabilities(),
-          "selected RVV lowering-boundary validation");
-  if (!targetCapabilityFacts)
-    return targetCapabilityFacts.takeError();
-
   auto boundary =
       llvm::dyn_cast_if_present<weft::rvv::WithVLOp>(request.getBoundary());
   if (!boundary)
@@ -242,33 +151,16 @@ llvm::Error validateSelectedRVVSelectedBodyBoundary(
         "selected RVV typed lowering boundary must be the existing "
         "weft_rvv.with_vl operation");
 
-  llvm::Expected<weft::rvv::WithVLOp> expectedBoundary =
-      findSelectedRVVSelectedBodyBoundary(variant);
-  if (!expectedBoundary)
-    return expectedBoundary.takeError();
-  if (expectedBoundary->getOperation() != boundary.getOperation())
+  if (!isOperationSelectedForVariant(boundary.getOperation(), variant))
     return makeRVVPluginError(
-        "selected RVV typed lowering boundary must be the unique "
-        "weft_rvv.with_vl operation in the selected variant body");
-  if (llvm::Error error = verifySelectedRVVLoweringBoundaryConformance(
-          request.getKernel(), variant, request.getRole(), boundary))
-    return error;
-
-  // Stage 3 换心 decouple (PATH B, boundary can-build gate). This validator
-  // builds a throwaway string route purely as a "can this selected body lower"
-  // gate. For a converted family that capability is guaranteed — and proven
-  // more directly — by the real RVV->emitc DialectConversion fully legalizing
-  // the body, so the redundant string-route can-build check (and the legacy
-  // statement-plan owner it dispatches into) is skipped. A not-yet-converted
-  // family keeps firing the string can-build gate so its owner still validates
-  // lowerability. Zero family-name branch — purely "did the conversion
-  // legalize this body."
-  VariantEmitCLowerableRequest routeRequest(variant, request.getKernel(),
-                                            request.getCapabilities(),
-                                            request.getRole());
-  if (rvv::rvvSelectedBodyFullyConvertsToEmitC(routeRequest))
-    return llvm::Error::success();
-  return rvv::refuseRetiredRVVSelectedBodyStringRoute(routeRequest);
+        "selected RVV typed body is not the exact result bound to the "
+        "requested variant");
+  if (mlir::failed(boundary.verify()) ||
+      mlir::failed(rvv::validateRVVConstructedTypedBody(
+          boundary.getOperation())))
+    return makeRVVPluginError(
+        "selected RVV exact typed body failed structural validation");
+  return llvm::Error::success();
 }
 
 const rvv::RVVExtensionPlugin &getBuiltinRVVExtensionPlugin() {
@@ -279,158 +171,6 @@ const rvv::RVVExtensionPlugin &getBuiltinRVVExtensionPlugin() {
 } // namespace
 
 namespace rvv {
-
-namespace {
-
-// P2-b: monolithic ggml block-dot production-export wiring (super-block + flat).
-//
-// Unlike the decomposed contraction/elementwise/memory routes (whose selected
-// with_vl body is a straight-line of generic typed micro-ops the RVV route-slice
-// analysis walks), a monolithic ggml block-dot body is ONE plugin-local typed op
-// (weft_rvv.q4_k_q8_k_block_dot / q4_0_q8_0_block_dot / iq4_nl_q8_0_block_dot /
-// ...) that carries the whole block dot as first-class STRUCTURE and lowers
-// DIRECTLY through the RVV->EmitC DialectConversion. There is no decomposed route
-// slice to describe, so the slice-based describeRVVSelectedBodyEmitCRoute rejects
-// it fail-closed. This is the "proven-decomposable but not wired to production"
-// gap (README): the CORE emit (--weft-rvv-lower-to-emitc) already works, but the
-// production-export chain's --weft-materialize-emission-plans step could not build
-// a plan.
-//
-// The honest fix is a peer, monolithic-body emission plan: the plan says exactly
-// what is true -- a single plugin-owned typed body that materializes EmitC
-// through the common DialectConversion -- WITHOUT faking the product-reduction
-// operand-binding / low-precision-resource metadata the decomposed routes carry
-// (the block-dot is not a widening product-reduction). The real emitted bytes
-// come from the existing block-dot emitter unchanged; materialize-emission-plans
-// only APPENDS the diagnostic mirror, so every existing route stays byte-exact
-// (they never carry a single-block-dot body and never reach this branch).
-//
-// The recognition (findSelectedMonolithicBlockDotBody), the super-block/flat
-// route-family split, and the per-op ABI table all live in the shared
-// RVVMonolithicBlockDotFamily.h mechanism: this branch keys off the family
-// predicate, not any one op type, and reads its per-op data from that table.
-
-// Build the honest runtime-ABI parameter list from the selected variant's
-// weft_rvv.runtime_abi_value bindings (the ggml vec_dot ABI: n/s/vx/vy for the
-// 4-role ops, n/s/bs/vx/bx/vy/by/nrc for the strided q4_0 op). Each binding
-// carries the role/c_name/c_type/ownership the coherence check validates.
-llvm::Error collectMonolithicBlockDotRuntimeABIParameters(
-    weft::exec::VariantOp variant,
-    llvm::SmallVectorImpl<support::RuntimeABIParameter> &out) {
-  llvm::Error error = llvm::Error::success();
-  variant.getBody().walk([&](weft::rvv::RuntimeABIValueOp binding) {
-    if (error)
-      return;
-    std::optional<support::RuntimeABIParameterRole> role =
-        support::symbolizeRuntimeABIParameterRole(binding.getRole());
-    std::optional<support::RuntimeABIParameterOwnership> ownership =
-        support::symbolizeRuntimeABIParameterOwnership(binding.getOwnership());
-    if (!role || !ownership) {
-      error = makeRVVPluginError(
-          llvm::Twine("monolithic block-dot runtime ABI binding '") +
-          binding.getCName() +
-          "' carries an unsupported role/ownership for emission planning");
-      return;
-    }
-    // The internal per-block reduce seed (the typed flat block-dot loop body's
-    // zero_seed, role accumulator-input-buffer) is NOT part of ggml's public
-    // vec_dot prototype and never appears in the exported strided ABI. Skip it so
-    // the ordered ABI stays the exact 4/8-role ggml vec_dot parameter list.
-    if (*role == support::RuntimeABIParameterRole::AccumulatorInputBuffer)
-      return;
-    out.push_back(support::RuntimeABIParameter(binding.getCName(),
-                                               binding.getCType(), *role,
-                                               *ownership));
-  });
-  return error;
-}
-
-// Build the monolithic-body emission plan for a recognized block-dot variant,
-// mirroring the fields the emission-plan diagnostic + coherence check require, but
-// describing the body honestly as a single plugin-owned typed body. The route id /
-// runtime-ABI name / archetype / op-derived metadata keys are selected by the op's
-// route family (super-block vs flat) from the shared mechanism; the kind /
-// scale_model values + the ordered ABI parameters are read from the op itself.
-llvm::Error buildMonolithicBlockDotEmissionPlan(
-    const VariantEmissionRequest &request, mlir::Operation *blockDot,
-    VariantEmissionPlan &out) {
-  const MonolithicBlockDotOpEntry *entry =
-      resolveSelectedMonolithicBlockDotBodyEntry(blockDot);
-  if (!entry)
-    return makeRVVPluginError(
-        "internal: buildMonolithicBlockDotEmissionPlan requires a recognized "
-        "monolithic block-dot op");
-  const MonolithicBlockDotFamilyConstants &fc =
-      getMonolithicBlockDotFamilyConstants(entry->routeFamily);
-  // The compound single-op block-dot bodies stamp kind/scale_model FROM the entry
-  // (createBlockDot), so they carry them as op attributes read directly here. The
-  // generic typed flat block-dot loop body (q8_0 front door) instead carries the
-  // generic loop kind ("typed_flat_block_dot_loop_body") and NO scale_model attr;
-  // its export identity is the resolved shared q8_0 Flat entry, so kind/scale_model
-  // come from the entry (this also lets findMonolithicBlockDotOpEntryByKind resolve
-  // the kind target-side during export).
-  llvm::StringRef kindValue;
-  llvm::StringRef scaleModelValue;
-  llvm::StringRef bodyName = blockDot->getName().getStringRef();
-  if (bodyName == weft::rvv::TypedFlatBlockDotLoopBodyOp::getOperationName() ||
-      bodyName ==
-          weft::rvv::TypedSuperBlockBlockDotLoopBodyOp::getOperationName() ||
-      bodyName == weft::rvv::TypedRepackGemvLoopBodyOp::getOperationName() ||
-      bodyName == weft::rvv::TypedRepackGemmLoopBodyOp::getOperationName()) {
-    // The generic typed flat/super-block loop bodies carry the generic loop kind
-    // ("typed_*_block_dot_loop_body") and NO scale_model attr; the repacked
-    // GEVM/GEMM loop bodies carry the generic loop kind + a DYNAMIC scale_model. In
-    // every case the export identity is the resolved shared
-    // Flat/SuperBlock/RepackGemv/RepackGemm entry, so kind/scale_model come from the
-    // entry (this also lets findMonolithicBlockDotOpEntryByKind resolve the kind
-    // target-side during export).
-    kindValue = entry->kind;
-    scaleModelValue = entry->scaleModel;
-  } else {
-    auto kindAttr = blockDot->getAttrOfType<mlir::StringAttr>("kind");
-    auto scaleModelAttr =
-        blockDot->getAttrOfType<mlir::StringAttr>("scale_model");
-    if (!kindAttr || !scaleModelAttr)
-      return makeRVVPluginError(
-          "monolithic block-dot op is missing its bounded kind/scale_model "
-          "attributes for emission planning");
-    kindValue = kindAttr.getValue();
-    scaleModelValue = scaleModelAttr.getValue();
-  }
-
-  llvm::SmallVector<support::RuntimeABIParameter, 8> abiParameters;
-  if (llvm::Error error = collectMonolithicBlockDotRuntimeABIParameters(
-          request.getVariant(), abiParameters))
-    return error;
-
-  out = VariantEmissionPlan::getSupported(
-      kRVVPluginName, request.getKernel().getSymName(),
-      request.getVariant().getSymName(), request.getRole(),
-      getRVVSelectedBodyEmissionKind(), fc.routeID, fc.runtimeABIName,
-      monolithic_block_dot::kArtifactKind,
-      getMonolithicBlockDotPlanDescription(entry->routeFamily));
-  out.setRuntimeABIKind(getRVVSelectedBodyRuntimeABIKind());
-  out.setRuntimeABIName(fc.runtimeABIName);
-  out.setRuntimeGlueRole(getRVVSelectedBodyRuntimeGlueRole());
-  out.setLoweringBoundaryOpName(getRVVSelectedBodyLoweringBoundaryOpName());
-  out.addRuntimeABIParameters(abiParameters);
-  out.addArtifactMetadata(monolithic_block_dot::kRouteMetadataKey, fc.routeID);
-  out.addArtifactMetadata(monolithic_block_dot::kSourceOpInterfaceKey,
-                          monolithic_block_dot::kSourceOpInterfaceName);
-  out.addArtifactMetadata(monolithic_block_dot::kArchetypeKey, fc.archetype);
-  out.addArtifactMetadata(fc.kindMetadataKey, kindValue);
-  out.addArtifactMetadata(fc.scaleModelMetadataKey, scaleModelValue);
-  out.addArtifactMetadata(monolithic_block_dot::kTargetArtifactKindKey,
-                          monolithic_block_dot::kArtifactKind);
-  out.addArtifactMetadata(monolithic_block_dot::kConstructionProtocolKey,
-                          monolithic_block_dot::kConstructionProtocol);
-  if (llvm::Error error =
-          out.setRequiredCapabilitySymbolsFromVariant(request.getVariant()))
-    return error;
-  return llvm::Error::success();
-}
-
-} // namespace
 
 llvm::StringRef getRVVExtensionPluginName() { return kRVVPluginName; }
 
@@ -1032,26 +772,18 @@ llvm::Error RVVExtensionPlugin::checkVariantEmissionReadiness(
     return makeRVVPluginError(
         "emission readiness requires an enclosing weft.exec.kernel");
 
-  VariantLegalityRequest legality(request.getVariant(), request.getKernel(),
-                                  request.getCapabilities());
-  if (llvm::Error error = verifyVariantLegality(legality)) {
-    std::string diagnostic = llvm::toString(std::move(error));
-    out = VariantEmissionStatus::getUnsupported(
-        kRVVPluginName, request.getVariant().getSymName(), diagnostic);
-    return llvm::Error::success();
-  }
-
-  llvm::Expected<weft::rvv::WithVLOp> selectedBoundary =
-      findSelectedRVVSelectedBodyBoundary(request.getVariant());
+  auto selectedBoundary = llvm::dyn_cast_if_present<weft::rvv::WithVLOp>(
+      request.getConstructedOperation());
   if (!selectedBoundary) {
-    std::string diagnostic = llvm::toString(selectedBoundary.takeError());
     out = VariantEmissionStatus::getUnsupported(
-        kRVVPluginName, request.getVariant().getSymName(), diagnostic);
+        kRVVPluginName, request.getVariant().getSymName(),
+        "artifact query requires the exact weft_rvv.with_vl operation returned "
+        "by family construction");
     return llvm::Error::success();
   }
   VariantLoweringBoundaryValidationRequest boundaryRequest(
       request.getVariant(), request.getKernel(), request.getCapabilities(),
-      request.getRole(), selectedBoundary->getOperation());
+      request.getRole(), selectedBoundary.getOperation());
   if (llvm::Error error =
           validateSelectedRVVSelectedBodyBoundary(boundaryRequest)) {
     std::string diagnostic = llvm::toString(std::move(error));
@@ -1060,13 +792,10 @@ llvm::Error RVVExtensionPlugin::checkVariantEmissionReadiness(
     return llvm::Error::success();
   }
 
-  VariantEmitCLowerableRequest routeRequest(
-      request.getVariant(), request.getKernel(), request.getCapabilities(),
-      request.getRole());
-  llvm::Expected<RVVSelectedBodyEmitCRouteDescription> routeDescription =
-      describeRVVSelectedBodyEmitCRoute(routeRequest);
-  if (!routeDescription) {
-    std::string diagnostic = llvm::toString(routeDescription.takeError());
+  llvm::Expected<RVVArtifactContract> artifact =
+      deriveRVVArtifactContract(selectedBoundary);
+  if (!artifact) {
+    std::string diagnostic = llvm::toString(artifact.takeError());
     out = VariantEmissionStatus::getUnsupported(
         kRVVPluginName, request.getVariant().getSymName(), diagnostic);
     return llvm::Error::success();
@@ -1074,7 +803,7 @@ llvm::Error RVVExtensionPlugin::checkVariantEmissionReadiness(
 
   out = VariantEmissionStatus::getSupported(
       kRVVPluginName, request.getVariant().getSymName(),
-      routeDescription->targetArtifactRouteID);
+      getRVVExactBodyArtifactRouteID());
   return llvm::Error::success();
 }
 
@@ -1088,76 +817,36 @@ llvm::Error RVVExtensionPlugin::buildVariantEmissionPlan(
     return makeRVVPluginError(
         "emission planning requires an enclosing weft.exec.kernel");
 
-  VariantLegalityRequest legality(request.getVariant(), request.getKernel(),
-                                  request.getCapabilities());
-  if (llvm::Error error = verifyVariantLegality(legality))
-    return error;
-
-  mlir::OpBuilder builder(request.getVariant().getContext());
-  llvm::Expected<weft::rvv::WithVLOp> selectedBoundary =
-      requireRVVSelectedBodyRouteBoundaryForRouteConstruction(
-          VariantLoweringBoundaryRequest(
-              request.getVariant(), request.getKernel(),
-              request.getCapabilities(), request.getRole(), builder));
+  auto selectedBoundary = llvm::dyn_cast_if_present<weft::rvv::WithVLOp>(
+      request.getConstructedOperation());
   if (!selectedBoundary)
-    return selectedBoundary.takeError();
+    return makeRVVPluginError(
+        "emission planning requires the exact weft_rvv.with_vl operation "
+        "returned by family construction");
   VariantLoweringBoundaryValidationRequest boundaryRequest(
       request.getVariant(), request.getKernel(), request.getCapabilities(),
-      request.getRole(), selectedBoundary->getOperation());
+      request.getRole(), selectedBoundary.getOperation());
   if (llvm::Error error =
           validateSelectedRVVSelectedBodyBoundary(boundaryRequest))
     return error;
 
-  // P2-b monolithic block-dot body (super-block OR flat): a single plugin-owned
-  // typed op that lowers directly through the RVV->EmitC DialectConversion, with
-  // no decomposed route slice for the slice-based description path to walk. Build
-  // the honest monolithic-body emission plan here and return before that path.
-  // Decomposed route bodies (and unwired block-dot ops) never satisfy this
-  // family predicate and are untouched.
-  if (mlir::Operation *blockDot =
-          findSelectedMonolithicBlockDotBody(*selectedBoundary))
-    return buildMonolithicBlockDotEmissionPlan(request, blockDot, out);
-
-  // Stage 1 (description-engine retirement). The emission plan is built ENTIRELY
-  // from the route DESCRIPTION (runtimeABIName + the construction / config
-  // artifact metadata below); no string route is ever materialized. A
-  // not-yet-converted (retired legacy) body has already been refused
-  // fail-closed by validateSelectedRVVSelectedBodyBoundary above (its convert
-  // gate), so a body that reaches here is describable from the typed body alone.
-  VariantEmitCLowerableRequest routeRequest(
-      request.getVariant(), request.getKernel(), request.getCapabilities(),
-      request.getRole());
-  llvm::Expected<RVVSelectedBodyEmitCRouteDescription> routeDescription =
-      describeRVVSelectedBodyEmitCRoute(routeRequest);
-  if (!routeDescription)
-    return routeDescription.takeError();
-
-  llvm::StringRef runtimeABIName = routeDescription->runtimeABIName;
+  llvm::Expected<RVVArtifactContract> artifact =
+      deriveRVVArtifactContract(selectedBoundary);
+  if (!artifact)
+    return artifact.takeError();
   out = VariantEmissionPlan::getSupported(
       kRVVPluginName, request.getKernel().getSymName(),
       request.getVariant().getSymName(), request.getRole(),
-      getRVVSelectedBodyEmissionKind(), routeDescription->targetArtifactRouteID,
-      runtimeABIName, routeDescription->targetArtifactKind,
-      "RVV selected typed body route materializes a verified EmitC "
-      "module through the common WEFTEmitCLowerableRoute materializer, then "
-      "uses the MLIR EmitC C/C++ emitter before RISC-V object packaging");
-  out.setRuntimeABIKind(getRVVSelectedBodyRuntimeABIKind());
-  out.setRuntimeABIName(runtimeABIName);
-  out.setRuntimeGlueRole(getRVVSelectedBodyRuntimeGlueRole());
-  out.setLoweringBoundaryOpName(getRVVSelectedBodyLoweringBoundaryOpName());
-  out.addRuntimeABIParameters(routeDescription->runtimeABIParameters);
-  RVVSelectedBodyConstructionMetadataFacts constructionFacts =
-      getRVVSelectedBodyConstructionMetadataFacts(*routeDescription);
-  llvm::Expected<llvm::SmallVector<support::ArtifactMetadataEntry, 16>>
-      constructionMetadata = getRVVSelectedBodyConstructionArtifactMetadata(
-          constructionFacts);
-  if (!constructionMetadata)
-    return constructionMetadata.takeError();
-  for (const support::ArtifactMetadataEntry &entry : *constructionMetadata)
-    out.addArtifactMetadata(entry.key, entry.value);
-  for (const support::ArtifactMetadataEntry &entry :
-       getRVVSelectedBodyConfigArtifactMetadata(*routeDescription))
-    out.addArtifactMetadata(entry.key, entry.value);
+      getRVVExactBodyEmissionKind(), getRVVExactBodyArtifactRouteID(),
+      getRVVExactBodyRuntimeABIName(), getRVVExactBodyArtifactKind(),
+      "RVV artifact lowering consumes the exact family-constructed typed body "
+      "and its SSA-bound runtime ABI, then mechanically applies the registered "
+      "RVV DialectConversion");
+  out.setRuntimeABIKind(getRVVExactBodyRuntimeABIKind());
+  out.setRuntimeABIName(getRVVExactBodyRuntimeABIName());
+  out.setRuntimeGlueRole(getRVVExactBodyRuntimeGlueRole());
+  out.setLoweringBoundaryOpName(getRVVExactBodyLoweringBoundaryOpName());
+  out.addRuntimeABIParameters(artifact->runtimeABIParameters);
   if (llvm::Error error =
           out.setRequiredCapabilitySymbolsFromVariant(request.getVariant()))
     return error;

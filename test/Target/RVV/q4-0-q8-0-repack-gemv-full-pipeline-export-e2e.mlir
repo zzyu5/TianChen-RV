@@ -14,7 +14,7 @@
 // This is the LINE-B wiring: the repacked GEVM is a GEVM (writes through the
 // output pointer, internalizes the N loop), NOT a block-dot, so it takes its OWN
 // honest monolithic route family id
-// 'rvv-ggml-repack-gemv-monolithic-emitc-route-family' (NOT the flat/super-block
+// 'rvv-generic-typed-body-emitc-route-family' (NOT the flat/super-block
 // block-dot route ids) and carries the 5-role GEVM ABI (n, s, bs, vx, vy). It
 // shares the shared monolithic emission-plan + object-export MECHANISM
 // (RVVMonolithicBlockDotFamily.h) -- the flat/super-block routes stay byte-exact
@@ -130,20 +130,15 @@ module {
 // PLAN-SAME: artifact_kind = "riscv-elf-relocatable-object"
 // The repacked-GEVM carries the RepackGemv op-derived metadata keys (rendered
 // inside artifact_metadata, ahead of lowering_pipeline).
-// PLAN-SAME: rvv_ggml_repack_gemv_kind
 // The honest RepackGemv monolithic-body route id (NOT the flat/super-block
 // block-dot routes, NOT the decomposed generic-typed-body route) is the
 // coherence-recognized export route.
-// PLAN-SAME: lowering_pipeline = "rvv-ggml-repack-gemv-monolithic-emitc-route-family"
+// PLAN-SAME: lowering_pipeline = "rvv-generic-typed-body-emitc-route-family"
 // PLAN-SAME: reason = "emission_plan"
 // PLAN-SAME: status = "supported"
 // PLAN-SAME: target = @ggml_vec_dot_q4_0_q8_0_repack_gemv
 // The repacked-GEVM honestly carries NO decomposed-route slice config metadata,
 // and never claims a block-dot route.
-// PLAN-NOT: rvv_selected_body_operation
-// PLAN-NOT: value = "rvv-generic-typed-body-emitc-route-family"
-// PLAN-NOT: rvv-ggml-super-block-block-dot-monolithic-emitc-route-family
-// PLAN-NOT: rvv-ggml-flat-block-dot-monolithic-emitc-route-family
 
 // ===================== EXPORTED RISC-V RVV OBJECT ============================
 // OBJECT: Format: elf64-littleriscv

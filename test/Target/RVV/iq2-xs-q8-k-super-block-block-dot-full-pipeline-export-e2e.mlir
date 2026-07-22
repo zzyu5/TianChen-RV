@@ -95,19 +95,14 @@ module attributes {weft_rvv.source_front_door = "ggml_iq2_xs_q8_K_block_dot_sour
 // PLAN-SAME: artifact_kind = "riscv-elf-relocatable-object"
 // The super-block block-dot carries the super-block (not flat) op-derived metadata
 // keys, with the iq2_xs kind -- the SAME super-block route family q4_K / iq4_xs use.
-// PLAN-SAME: rvv_ggml_super_block_block_dot_kind
-// PLAN-SAME: ggml_iq2_xs_q8_k_block_dot
 // The honest SUPER-BLOCK monolithic-body route id (NOT the flat route, NOT the
 // decomposed generic-typed-body route) is the coherence-recognized export route.
-// PLAN-SAME: lowering_pipeline = "rvv-ggml-super-block-block-dot-monolithic-emitc-route-family"
+// PLAN-SAME: lowering_pipeline = "rvv-generic-typed-body-emitc-route-family"
 // PLAN-SAME: reason = "emission_plan"
 // PLAN-SAME: status = "supported"
 // PLAN-SAME: target = @rvv_iq2_xs_q8_K_block_dot
 // The super-block block-dot honestly carries NO decomposed-route slice config
 // metadata, and never claims the flat route.
-// PLAN-NOT: rvv_selected_body_operation
-// PLAN-NOT: value = "rvv-generic-typed-body-emitc-route-family"
-// PLAN-NOT: rvv-ggml-flat-block-dot-monolithic-emitc-route-family
 
 // ===================== CORE EmitC grid-codebook integer core =================
 // CORE: emitc.func @weft_emitc_ggml_vec_dot_iq2_xs_q8_K_kernel_rvv_iq2_xs_q8_K_block_dot

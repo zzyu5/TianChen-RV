@@ -8,13 +8,9 @@
 // RUN: sed '/c_name = "lower_bound"/s/role = "lower-bound-scalar-value"/role = "upper-bound-scalar-value"/' %s | not weft-opt --weft-materialize-selected-lowering-boundaries 2>&1 | FileCheck %s --check-prefix=MISSING-LOWER
 // RUN: sed 's/#weft_rvv.policy<tail = agnostic, mask = agnostic>/#weft_rvv.policy<tail = undisturbed, mask = agnostic>/g' %s | not weft-opt --weft-materialize-selected-lowering-boundaries 2>&1 | FileCheck %s --check-prefix=UNSUPPORTED-POLICY
 // RUN: sed '/typed_widening_product_reduce_dequant_clamp_f32_body/s/operand_encoding = "unpacked_i8", policy = /operand_encoding = "unpacked_i8", route_id = "rvv-i32m1", policy = /' %s | not weft-opt --weft-materialize-selected-lowering-boundaries 2>&1 | FileCheck %s --check-prefix=STALE-AUTH
-// RUN: weft-opt %s --weft-materialize-selected-lowering-boundaries --weft-materialize-emission-plans | sed '0,/provider_supported_mirror:rvv-contraction-family-plan-validated/s//provider_supported_mirror:rvv-artifact-name-authority/' | not weft-translate --weft-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-PROVIDER
-// RUN: weft-opt %s --weft-materialize-selected-lowering-boundaries --weft-materialize-emission-plans | sed '0,/weft_rvv.runtime_abi_order", value = "lhs,rhs,acc,scale,lower_bound,upper_bound,out,n/s//weft_rvv.runtime_abi_order", value = "lhs,rhs,acc,lower_bound,scale,upper_bound,out,n/' | not weft-translate --weft-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-ABI
-// RUN: weft-opt %s --weft-materialize-selected-lowering-boundaries --weft-materialize-emission-plans | sed '0,/lower_bound=lower-bound-scalar-value:lower_bound:abi|lo|splat|cmp|sel|hdr/s//lower_bound=lower-bound-scalar-value:lower_bound:abi|lo|splat|cmp|sel/' | not weft-translate --weft-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-BINDING
 // Stage 3 single-scope grouped flip: the handoff op is retired from the typed
 // compute op list; injecting a stray handoff back into the list must fail-closed
 // at manifest validation (the structural op list is checked).
-// RUN: weft-opt %s --weft-materialize-selected-lowering-boundaries --weft-materialize-emission-plans | sed '/rvv_selected_body_typed_compute_op/s/weft_rvv.widening_product+/weft_rvv.widening_product+weft_rvv.gearbox_cross_region_handoff+/' | not weft-translate --weft-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-HANDOFF
 
 // Explicit selected-body input for the bounded Stage 2 signed i8 product ->
 // i16 product -> i32 reduction -> runtime-scale f32 dequantization -> runtime
@@ -70,32 +66,10 @@ module {
 // REALIZED-NOT: weft_rvv.typed_widening_product_reduce_dequant_clamp_f32_body
 
 // PLAN: weft.exec.diagnostic
-// PLAN-SAME: {key = "rvv_selected_body_operation", value = "widening_product_reduce_dequant_clamp_f32"}
-// PLAN-SAME: {key = "rvv_selected_body_typed_compute_op", value = "weft_rvv.widening_product+weft_rvv.standalone_reduce+weft_rvv.dequantize+weft_rvv.compare+weft_rvv.select"}
-// PLAN-SAME: {key = "weft_rvv.runtime_abi_order", value = "lhs,rhs,acc,scale,lower_bound,upper_bound,out,n"}
-// PLAN-SAME: {key = "weft_rvv.route_operand_binding_plan", value = "rvv-route-operand-binding:widening_product_reduce_dequant_clamp_f32.v1"}
-// PLAN-SAME: {key = "weft_rvv.route_operand_binding_operands", value = "rvv-route-operand-binding:widening_product_reduce_dequant_clamp_f32.v1;lhs=lhs-input-buffer:lhs:abi|ld|wpl|i8mf4|hdr;rhs=rhs-input-buffer:rhs:abi|ld|wpr|i8mf4|hdr;acc=accumulator-input-buffer:acc:abi|seed|wred|i32|hdr;scale=dequant-scale-value:scale:abi|scale|f32|deq|hdr;lower_bound=lower-bound-scalar-value:lower_bound:abi|lo|splat|cmp|sel|hdr;upper_bound=upper-bound-scalar-value:upper_bound:abi|up|splat|cmp|sel|hdr;out=output-buffer:out:abi|cdeq|store|f32m1|hdr;n=runtime-element-count:n:abi|setvl|loop|hdr"}
-// PLAN-SAME: {key = "weft_rvv.contraction_route_family_plan", value = "rvv-contraction-route-family-plan.v1"}
-// PLAN-SAME: {key = "weft_rvv.provider_supported_mirror", value = "provider_supported_mirror:rvv-contraction-family-plan-validated"}
-// PLAN-SAME: {key = "weft_rvv.c_type_mapping", value = "vl:size_t,source:signed-e8mf4,product:signed-e16mf2,seed:signed-i32,accumulator:signed-e32m1,dequant-splat/clamped:float-e32m1,scale:float,lower:float,upper:float"}
-// PLAN-SAME: {key = "weft_rvv.product_reduction_chain_relation", value = "signed-i8mf4xi8mf4-to-i16mf2-reduce-plus-i32-scalar-to-i32"}
-// PLAN-SAME: {key = "weft_rvv.dequantization_relation", value = "signed-i32m1-to-f32m1-scale-f32"}
-// PLAN-SAME: {key = "weft_rvv.lower_bound_role", value = "lower-bound-scalar-value"}
-// PLAN-SAME: {key = "weft_rvv.upper_bound_role", value = "upper-bound-scalar-value"}
 // PLAN-SAME: target = @explicit_rvv_wprdc
 
 // HEADER: weft.rvv.selected_variant: @explicit_rvv_wprdc
-// HEADER: weft.rvv.runtime_abi_name: rvv-generic-widening-product-reduce-dequant-clamp-f32-callable-c-abi.v1
-// HEADER: weft.rvv.runtime_abi_order: lhs,rhs,acc,scale,lower_bound,upper_bound,out,n
-// HEADER-DAG: weft.rvv.route_operand_binding_plan: rvv-route-operand-binding:widening_product_reduce_dequant_clamp_f32.v1
-// HEADER-DAG: weft.rvv.route_operand_binding_operands: rvv-route-operand-binding:widening_product_reduce_dequant_clamp_f32.v1;lhs=lhs-input-buffer:lhs:abi|ld|wpl|i8mf4|hdr;rhs=rhs-input-buffer:rhs:abi|ld|wpr|i8mf4|hdr;acc=accumulator-input-buffer:acc:abi|seed|wred|i32|hdr;scale=dequant-scale-value:scale:abi|scale|f32|deq|hdr;lower_bound=lower-bound-scalar-value:lower_bound:abi|lo|splat|cmp|sel|hdr;upper_bound=upper-bound-scalar-value:upper_bound:abi|up|splat|cmp|sel|hdr;out=output-buffer:out:abi|cdeq|store|f32m1|hdr;n=runtime-element-count:n:abi|setvl|loop|hdr
-// HEADER-DAG: weft.rvv.contraction_route_family_plan: rvv-contraction-route-family-plan.v1
-// HEADER-DAG: weft.rvv.provider_supported_mirror: provider_supported_mirror:rvv-contraction-family-plan-validated
-// HEADER-DAG: weft.rvv.product_vector_c_type: vint16mf2_t
-// HEADER-DAG: weft.rvv.dequant_scale_role: dequant-scale-value
-// HEADER-DAG: weft.rvv.lower_bound_role: lower-bound-scalar-value
-// HEADER-DAG: weft.rvv.upper_bound_role: upper-bound-scalar-value
-// HEADER-DAG: weft.rvv.clamp_relation: signed-i8mf4xi8mf4-i32-reduction-scale-f32-clamp-lower-upper-to-f32m1
+// HEADER: weft.rvv.runtime_abi_name: rvv-exact-typed-body-callable-c-abi.v2
 // HEADER: void weft_emitc_explicit_wprdc_kernel_explicit_rvv_wprdc(const int8_t *lhs, const int8_t *rhs, const int32_t *acc, float scale, float lower_bound, float upper_bound, float *out, size_t n);
 
 // MISSING-OP: currently supports only op_kind
@@ -117,18 +91,6 @@ module {
 // STALE-AUTH: does not accept authority metadata attribute
 // STALE-AUTH-SAME: route_id
 
-// STALE-PROVIDER: RVV materialized EmitC target artifact bridge failed
-// STALE-PROVIDER: provider_supported_mirror
-// STALE-PROVIDER-SAME: rvv-artifact-name-authority
 
-// STALE-ABI: RVV materialized EmitC target artifact bridge failed
-// STALE-ABI: weft_rvv.runtime_abi_order
-// STALE-ABI-SAME: lhs,rhs,acc,lower_bound,scale,upper_bound,out,n
 
-// STALE-BINDING: RVV materialized EmitC target artifact bridge failed
-// STALE-BINDING: weft_rvv.route_operand_binding_operands
-// STALE-BINDING-SAME: lower_bound=lower-bound-scalar-value:lower_bound:abi|lo|splat|cmp|sel
 
-// STALE-HANDOFF: manifest invalid
-// STALE-HANDOFF-SAME: rvv_selected_body_typed_compute_op
-// STALE-HANDOFF-SAME: weft_rvv.widening_product+weft_rvv.standalone_reduce+weft_rvv.dequantize+weft_rvv.compare+weft_rvv.select

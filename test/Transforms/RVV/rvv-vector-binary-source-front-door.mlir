@@ -117,40 +117,21 @@ module attributes {weft_rvv.source_front_door = "bounded_vector_source"} {
 // MATERIALIZED-SAME: policy = "rvv-vector-binary-source-front-door-case"
 // MATERIALIZED: weft.exec.fallback @rvv_vector_mul_scalar_fallback
 
-// PLAN: {key = "rvv_selected_body_operation", value = "add"}
-// PLAN-SAME: {key = "rvv_selected_body_typed_compute_op", value = "weft_rvv.binary"}
-// PLAN-SAME: emission_kind = "materialized-emitc-cpp-rvv-intrinsic-object"
-// PLAN-SAME: reason = "emission_plan"
-// PLAN-SAME: runtime_abi_name = "rvv-generic-binary-add-callable-c-abi.v1"
-// PLAN-SAME: status = "supported"
-// PLAN-SAME: target = @rvv_vector_add
-// PLAN: {key = "rvv_selected_body_operation", value = "sub"}
-// PLAN-SAME: {key = "rvv_selected_body_typed_compute_op", value = "weft_rvv.binary"}
-// PLAN-SAME: emission_kind = "materialized-emitc-cpp-rvv-intrinsic-object"
-// PLAN-SAME: runtime_abi_name = "rvv-generic-binary-sub-callable-c-abi.v1"
-// PLAN-SAME: status = "supported"
-// PLAN-SAME: target = @rvv_vector_sub
-// PLAN: {key = "rvv_selected_body_operation", value = "mul"}
-// PLAN-SAME: {key = "rvv_selected_body_typed_compute_op", value = "weft_rvv.binary"}
-// PLAN-SAME: emission_kind = "materialized-emitc-cpp-rvv-intrinsic-object"
-// PLAN-SAME: runtime_abi_name = "rvv-generic-binary-mul-callable-c-abi.v1"
-// PLAN-SAME: status = "supported"
-// PLAN-SAME: target = @rvv_vector_mul
+// PLAN: weft.exec.diagnostic {{.*}}runtime_abi_name = "rvv-exact-typed-body-callable-c-abi.v2"{{.*}}target = @rvv_vector_add
+// PLAN: weft.exec.diagnostic {{.*}}runtime_abi_name = "rvv-exact-typed-body-callable-c-abi.v2"{{.*}}target = @rvv_vector_sub
+// PLAN: weft.exec.diagnostic {{.*}}runtime_abi_name = "rvv-exact-typed-body-callable-c-abi.v2"{{.*}}target = @rvv_vector_mul
 
 // PIPELINE-FAIL: Weft-RV execution plan coherence check failed for kernel <missing>
 // PIPELINE-FAIL-SAME: requires at least one weft.exec.kernel
 
 // HEADER-ADD: weft.rvv.selected_variant: @rvv_vector_add
-// HEADER-ADD: weft.rvv.runtime_abi_name: rvv-generic-binary-add-callable-c-abi.v1
-// HEADER-ADD: weft.rvv.emitc_route_mapping: rvv-generic-typed-body-emitc-route-family
+// HEADER-ADD: weft.rvv.runtime_abi_name: rvv-exact-typed-body-callable-c-abi.v2
 // HEADER-ADD: void weft_emitc_rvv_vector_add_from_vector_source_rvv_vector_add(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n);
 
 // HEADER-SUB: weft.rvv.selected_variant: @rvv_vector_sub
-// HEADER-SUB: weft.rvv.runtime_abi_name: rvv-generic-binary-sub-callable-c-abi.v1
-// HEADER-SUB: weft.rvv.emitc_route_mapping: rvv-generic-typed-body-emitc-route-family
+// HEADER-SUB: weft.rvv.runtime_abi_name: rvv-exact-typed-body-callable-c-abi.v2
 // HEADER-SUB: void weft_emitc_rvv_vector_sub_from_vector_source_rvv_vector_sub(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n);
 
 // HEADER-MUL: weft.rvv.selected_variant: @rvv_vector_mul
-// HEADER-MUL: weft.rvv.runtime_abi_name: rvv-generic-binary-mul-callable-c-abi.v1
-// HEADER-MUL: weft.rvv.emitc_route_mapping: rvv-generic-typed-body-emitc-route-family
+// HEADER-MUL: weft.rvv.runtime_abi_name: rvv-exact-typed-body-callable-c-abi.v2
 // HEADER-MUL: void weft_emitc_rvv_vector_mul_from_vector_source_rvv_vector_mul(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n);
