@@ -699,9 +699,9 @@ void IMEExtensionPlugin::registerDialects(
   registry.insert<weft::ime::WEFTIMEDialect>();
 }
 
-llvm::Error
-IMEExtensionPlugin::constructFormulaPlans(mlir::ModuleOp module) const {
-  if (mlir::succeeded(constructIMEFormulaPlans(module)))
+llvm::Error IMEExtensionPlugin::constructFormulaPlans(
+    const FamilyConstructionRequest &request) const {
+  if (mlir::succeeded(constructIMEFormulaPlans(request.getModule())))
     return llvm::Error::success();
   return llvm::createStringError(
       llvm::inconvertibleErrorCode(),

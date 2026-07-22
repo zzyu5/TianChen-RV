@@ -363,9 +363,10 @@ void TemplateExtensionPlugin::registerDialects(
   registry.insert<weft::template_ext::WEFTTemplateDialect>();
 }
 
-llvm::Error
-TemplateExtensionPlugin::constructFormulaPlans(mlir::ModuleOp module) const {
-  if (mlir::succeeded(template_ext::constructTemplateFinalBody(module)))
+llvm::Error TemplateExtensionPlugin::constructFormulaPlans(
+    const FamilyConstructionRequest &request) const {
+  if (mlir::succeeded(
+          template_ext::constructTemplateFinalBody(request.getModule())))
     return llvm::Error::success();
   return makeTemplatePluginError(
       "artifact-neutral Template final-body construction failed");

@@ -382,9 +382,9 @@ void ToyExtensionPlugin::registerDialects(
   registry.insert<weft::toy::WEFTToyDialect>();
 }
 
-llvm::Error
-ToyExtensionPlugin::constructFormulaPlans(mlir::ModuleOp module) const {
-  if (mlir::succeeded(toy::constructToyFinalBody(module)))
+llvm::Error ToyExtensionPlugin::constructFormulaPlans(
+    const FamilyConstructionRequest &request) const {
+  if (mlir::succeeded(toy::constructToyFinalBody(request.getModule())))
     return llvm::Error::success();
   return makeToyPluginError(
       "artifact-neutral Toy final-body construction failed");

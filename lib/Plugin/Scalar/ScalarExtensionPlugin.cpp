@@ -137,9 +137,10 @@ void ScalarExtensionPlugin::registerDialects(
   registry.insert<weft::scalar::WEFTScalarDialect>();
 }
 
-llvm::Error
-ScalarExtensionPlugin::constructFormulaPlans(mlir::ModuleOp module) const {
-  if (mlir::succeeded(scalar::constructScalarFinalPlans(module)))
+llvm::Error ScalarExtensionPlugin::constructFormulaPlans(
+    const FamilyConstructionRequest &request) const {
+  if (mlir::succeeded(
+          scalar::constructScalarFinalPlans(request.getModule())))
     return llvm::Error::success();
   return makeScalarPluginError(
       "artifact-neutral Scalar final-plan construction failed");

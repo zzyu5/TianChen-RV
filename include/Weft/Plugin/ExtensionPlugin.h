@@ -7,6 +7,7 @@
 #include "Weft/Support/CapabilityModel.h"
 #include "Weft/Support/RuntimeABI.h"
 
+#include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/OperationSupport.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallVector.h"
@@ -21,7 +22,6 @@
 
 namespace mlir {
 class DialectRegistry;
-class ModuleOp;
 class Operation;
 class OpBuilder;
 class Pass;
@@ -126,6 +126,34 @@ public:
   }
 
 private:
+  weft::exec::VariantOp variant;
+  weft::exec::KernelOp kernel;
+  const support::TargetCapabilitySet &capabilities;
+};
+
+/// Artifact-neutral invocation of one family-owned construction entry.
+///
+/// The registry binds the selected variant to its enclosing canonical kernel
+/// and target capability set before entering family code.  Family
+/// construction may project a narrower typed c_f and recover its typed source
+/// problem from the bound kernel/variant, but it must not rediscover family
+/// identity from artifact routes or scan for an unrelated variant.
+class FamilyConstructionRequest {
+public:
+  FamilyConstructionRequest(
+      mlir::ModuleOp module, weft::exec::VariantOp variant,
+      weft::exec::KernelOp kernel,
+      const support::TargetCapabilitySet &capabilities);
+
+  mlir::ModuleOp getModule() const { return module; }
+  weft::exec::VariantOp getVariant() const { return variant; }
+  weft::exec::KernelOp getKernel() const { return kernel; }
+  const support::TargetCapabilitySet &getCapabilities() const {
+    return capabilities;
+  }
+
+private:
+  mlir::ModuleOp module;
   weft::exec::VariantOp variant;
   weft::exec::KernelOp kernel;
   const support::TargetCapabilitySet &capabilities;
@@ -679,14 +707,12 @@ public:
   virtual bool isEnabled() const { return true; }
   virtual void collectFormulaDescriptors(
       llvm::SmallVectorImpl<FormulaDescriptor> &out) const;
-  /// Construct or validate every family-owned final formula plan before
-  /// artifact lowering consumes the typed body. Candidate construction,
-  /// legality and bounded selection remain family-local and may already have
-  /// produced the selected typed carrier at this lifecycle cut. This is a
-  /// required production-family contract. The base implementation fails
-  /// closed so protocol-focused test plugins need not invent compute, but no
-  /// live family can obtain implicit construction success.
-  virtual llvm::Error constructFormulaPlans(mlir::ModuleOp module) const;
+  /// Construct the final family-owned computation plan/body for one explicitly
+  /// bound variant before artifact lowering. Candidate construction, legality
+  /// and bounded selection remain family-local. This is a required
+  /// production-family contract; the base implementation fails closed.
+  virtual llvm::Error
+  constructFormulaPlans(const FamilyConstructionRequest &request) const;
   /// True only when `variant` carries this family's construction-qualified
   /// typed final body/carrier.  This is an existence query, not a verifier or
   /// a formula replay; the family remains the sole compute authority.

@@ -22,6 +22,7 @@
 
 using weft::plugin::ExtensionPlugin;
 using weft::plugin::ExtensionPluginRegistry;
+using weft::plugin::FamilyConstructionRequest;
 using weft::plugin::PluginCapability;
 using weft::plugin::VariantEmissionPlan;
 using weft::plugin::VariantEmissionRequest;
@@ -88,7 +89,8 @@ public:
 
   bool isEnabled() const override { return enabled; }
 
-  llvm::Error constructFormulaPlans(mlir::ModuleOp) const override {
+  llvm::Error constructFormulaPlans(
+      const FamilyConstructionRequest &) const override {
     return llvm::Error::success();
   }
 

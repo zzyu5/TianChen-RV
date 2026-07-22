@@ -361,8 +361,8 @@ void OffloadExtensionPlugin::registerDialects(
   registry.insert<weft::offload::WEFTOffloadDialect>();
 }
 
-llvm::Error
-OffloadExtensionPlugin::constructFormulaPlans(mlir::ModuleOp) const {
+llvm::Error OffloadExtensionPlugin::constructFormulaPlans(
+    const FamilyConstructionRequest &) const {
   // Offload is deliberately a fail-closed metadata handoff placeholder in the
   // current system.  It has no executable kernel construction family yet.
   // Keeping this override explicit prevents the base class from silently

@@ -460,9 +460,9 @@ void RVVExtensionPlugin::registerDialects(
   registry.insert<weft::rvv::WEFTRVVDialect>();
 }
 
-llvm::Error
-RVVExtensionPlugin::constructFormulaPlans(mlir::ModuleOp module) const {
-  if (mlir::succeeded(constructRVVFormulaBodies(module)))
+llvm::Error RVVExtensionPlugin::constructFormulaPlans(
+    const FamilyConstructionRequest &request) const {
+  if (mlir::succeeded(constructRVVFormulaBodies(request.getModule())))
     return llvm::Error::success();
   return llvm::createStringError(
       llvm::inconvertibleErrorCode(),

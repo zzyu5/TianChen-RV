@@ -362,6 +362,13 @@ VariantLegalityRequest::VariantLegalityRequest(
     const support::TargetCapabilitySet &capabilities)
     : variant(variant), kernel(kernel), capabilities(capabilities) {}
 
+FamilyConstructionRequest::FamilyConstructionRequest(
+    mlir::ModuleOp module, weft::exec::VariantOp variant,
+    weft::exec::KernelOp kernel,
+    const support::TargetCapabilitySet &capabilities)
+    : module(module), variant(variant), kernel(kernel),
+      capabilities(capabilities) {}
+
 VariantCostRequest::VariantCostRequest(
     weft::exec::VariantOp variant, weft::exec::KernelOp kernel,
     const support::TargetCapabilitySet &capabilities)
@@ -606,8 +613,8 @@ void ExtensionPlugin::collectFormulaDescriptors(
   out.push_back(std::move(descriptor));
 }
 
-llvm::Error
-ExtensionPlugin::constructFormulaPlans(mlir::ModuleOp) const {
+llvm::Error ExtensionPlugin::constructFormulaPlans(
+    const FamilyConstructionRequest &) const {
   return llvm::createStringError(
       llvm::inconvertibleErrorCode(),
       "extension plugin has no artifact-neutral construction implementation");
@@ -1327,12 +1334,11 @@ ExtensionPluginRegistry::constructFormulaPlans(mlir::ModuleOp module) const {
     return llvm::createStringError(llvm::inconvertibleErrorCode(),
                                    "formula construction requires a module");
 
-  // A module may contain several pre-selection variants.  Bind each distinct
-  // origin family exactly once from the typed variant origin; never infer the
-  // family from an artifact driver, route id, or dialect-name switch.
+  // Bind every materialized variant explicitly. Family construction remains
+  // responsible for idempotence when several variants share one module; the
+  // registry never collapses distinct g/c bindings into one representative.
   llvm::SmallVector<weft::exec::VariantOp, 8> variants;
   module.walk([&](weft::exec::VariantOp variant) { variants.push_back(variant); });
-  llvm::StringSet<> constructedFamilies;
   for (weft::exec::VariantOp variant : variants) {
     auto originAttr =
         variant->getAttrOfType<mlir::StringAttr>(kOriginAttrName);
@@ -1363,9 +1369,8 @@ ExtensionPluginRegistry::constructFormulaPlans(mlir::ModuleOp module) const {
           llvm::Twine("formula construction for origin '") + origin +
           "' rejected target/profile capability projection: " +
           llvm::toString(capabilities.takeError()));
-    if (!constructedFamilies.insert(origin).second)
-      continue;
-    if (llvm::Error error = plugin->constructFormulaPlans(module))
+    FamilyConstructionRequest request(module, variant, kernel, *capabilities);
+    if (llvm::Error error = plugin->constructFormulaPlans(request))
       return llvm::createStringError(
           llvm::inconvertibleErrorCode(),
           "plugin '%s' formula construction failed: %s",
@@ -1424,7 +1429,8 @@ llvm::Error ExtensionPluginRegistry::constructFormulaPlansForVariant(
         "' rejected selected variant legality: " +
         llvm::toString(std::move(error)));
 
-  if (llvm::Error error = plugin->constructFormulaPlans(module))
+  FamilyConstructionRequest request(module, variant, kernel, *capabilities);
+  if (llvm::Error error = plugin->constructFormulaPlans(request))
     return makePluginRegistryError(
         llvm::Twine("bound family construction for origin '") + origin +
         "' failed: " + llvm::toString(std::move(error)));

@@ -363,9 +363,9 @@ void DemoExtensionPlugin::registerDialects(
   registry.insert<weft::demo_ext::WEFTDemoDialect>();
 }
 
-llvm::Error
-DemoExtensionPlugin::constructFormulaPlans(mlir::ModuleOp module) const {
-  if (mlir::succeeded(demo_ext::constructDemoFinalBody(module)))
+llvm::Error DemoExtensionPlugin::constructFormulaPlans(
+    const FamilyConstructionRequest &request) const {
+  if (mlir::succeeded(demo_ext::constructDemoFinalBody(request.getModule())))
     return llvm::Error::success();
   return makeDemoPluginError(
       "artifact-neutral Demo final-body construction failed");

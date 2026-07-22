@@ -554,9 +554,10 @@ void TensorExtLiteExtensionPlugin::registerDialects(
 }
 
 llvm::Error TensorExtLiteExtensionPlugin::constructFormulaPlans(
-    mlir::ModuleOp module) const {
+    const FamilyConstructionRequest &request) const {
   if (mlir::succeeded(
-          tensorext_lite::constructTensorExtLiteFinalBody(module)))
+          tensorext_lite::constructTensorExtLiteFinalBody(
+              request.getModule())))
     return llvm::Error::success();
   return makeTensorExtLitePluginError(
       "artifact-neutral TensorExtLite final-body construction failed");
