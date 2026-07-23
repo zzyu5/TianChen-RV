@@ -1,6 +1,6 @@
 "# T1d dual-instance demonstration -- ONE schema, TWO board fact instances, core diff = 0. Structural evidence (C1); NO perf claim."
 # generator,tools/visibility/t1d_dual_instance.py,regenerate,python3 tools/visibility/t1d_dual_instance.py,verify,python3 tools/visibility/t1d_dual_instance.py --check
-# schema,schema/capability.schema.v1.json,schema_sha256[:16],12444c02005527fd,HEAD,5151db31d,weft_opt_sha256[:16],acaf2a37d63207b6
+# schema,schema/capability.schema.v1.json,schema_sha256[:16],12444c02005527fd,HEAD,4099f3ac6,weft_opt_sha256[:16],acaf2a37d63207b6
 
 "# SECTION 1 -- fact instances (in-IR weft.exec.capability rows) and what the SAME core derives from each, driven through ONE byte-identical two-variant body"
 instance_id,board,fact_vlen_bits,fact_isa_vector_hints,fact_spacemit_ime_status,declared_instance_hash,legal_variant_set_size,legal_variant_set,infeasible_variant_set,guard_keys_evaluated,selection_chosen,selection_reason,core_diff,attribution_jsonl_sample

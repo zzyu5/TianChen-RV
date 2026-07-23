@@ -88,6 +88,16 @@
         "commit": "b949b3c86",
         "state": "completed",
         "summary": "preserved exact P/C_d through proposal, legality, cost and construction; moved IME problem facts out of capability mirrors; made selection explicit for deterministic RVV front doors; bound artifact conversion to the selected owner's exact root; 985/985 local tests"
+      },
+      {
+        "commit": "5151db31d",
+        "state": "completed",
+        "summary": "made explicit module target/profile the unique BindDomain authority for registered source kernels and added a test-only second-domain/owner seam; source exact-P forward construction remained open"
+      },
+      {
+        "commit": "4099f3ac6",
+        "state": "completed",
+        "summary": "moved registered RVV, Toy and TensorExtLite source adapters to exact-P-only output; selected owners construct typed bodies after selection from the same P+c_o; preserved formula-produced flat_* emitter authority; 987/987 local tests"
       }
     ]
   }
