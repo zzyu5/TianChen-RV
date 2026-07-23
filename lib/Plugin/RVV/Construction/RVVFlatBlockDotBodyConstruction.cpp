@@ -348,7 +348,8 @@ void createTypedFlatBlockDotLoopChain(mlir::OpBuilder &builder,
                                       mlir::Value weight, mlir::Value activation,
                                       mlir::Value out, mlir::Value n,
                                       mlir::Value vl, mlir::Value zeroSeed,
-                                      llvm::StringRef lmul) {
+                                      llvm::StringRef lmul,
+                                      RVVBlockDotBodyMechanism mechanism) {
   auto factByName = [&](llvm::StringRef name) -> std::int64_t {
     for (const MonolithicBlockDotI64Attr &fact : entry.facts)
       if (fact.name == name)
@@ -360,33 +361,33 @@ void createTypedFlatBlockDotLoopChain(mlir::OpBuilder &builder,
   std::int64_t activationStride = factByName("activation_block_stride");
   std::int64_t quantByteOffset = factByName("quant_byte_offset");
 
-  // Format branch: q8_0 (plain signed i8xi8 whole-block, m2 anchor, sumi-first
+  // Mechanism branch: plain signed i8xi8 whole-block (m2 anchor, sumi-first
   // fold) vs q4_0 (asymmetric offset-binary packed-i4 x i8 HALF-block, m1 anchor,
   // left-assoc fold + the q8 high-half activation strip). Only these two flat ops
   // take the typed loop path; everything else stays the monolith op. q8_0's chain
   // is byte-unchanged from before the branch.
-  const bool isQ40 =
-      entry.opName == weftrvv::GgmlBlockDotQ40Q80Op::getOperationName();
+  const bool isOffsetBinaryNibble =
+      mechanism == RVVBlockDotBodyMechanism::FlatOffsetBinaryNibble;
   // q4_1 (Family-B): shares q4_0's HALF-block m1 packed-i4 shape (3 loads, m1
   // core), diverging only in {u8 weight load, unsigned-nibble product op, the
   // added MIN brick, the scale_plus_min fold}. Every q4_0-guarded knob below is
-  // shared (isQ40 || isQ41) EXCEPT the three-way fold_model.
-  const bool isQ41 =
-      entry.opName == "weft_rvv.q4_1_q8_1_block_dot";
+  // shared (isOffsetBinaryNibble || isUnsignedNibbleScaleMin) EXCEPT the three-way fold_model.
+  const bool isUnsignedNibbleScaleMin =
+      mechanism == RVVBlockDotBodyMechanism::FlatUnsignedNibbleScaleMin;
   // q5_0 (five-bit): shares the HALF-block m1 packed-i4 shape (3 loads, m1 core,
   // u8 weight load like q4_1), diverging in {the qh 5th-bit source brick, the
   // five-bit offset-binary product with the `-16` bias, the ScalesTimesSumi fold,
   // and a DISTINCT activation quant offset (weight qs@6, activation qs@2)}.
-  const bool isQ50 =
-      entry.opName == "weft_rvv.q5_0_q8_0_block_dot";
+  const bool isFiveBitOffsetBinary =
+      mechanism == RVVBlockDotBodyMechanism::FlatFiveBitOffsetBinary;
   // q5_1 (Family-B five-bit, M-FLAT cohort LAST cell): the UNION of q5_0's
   // five-bit integer core (qh 5th-bit brick + five-bit product) and q4_1's MIN
   // term (min brick + scale_plus_min fold). Every knob is shared with EITHER q5_0
   // (qh brick, u8 weight, five-bit product, divergent quant offsets) OR q4_1 (min
   // brick, scale_plus_min fold) -- no q5_1-only knob. The ONE arithmetic delta vs
   // q5_0 (applyOffsetBias=false) lives entirely in the emit driver.
-  const bool isQ51 =
-      entry.opName == "weft_rvv.q5_1_q8_1_block_dot";
+  const bool isFiveBitScaleMin =
+      mechanism == RVVBlockDotBodyMechanism::FlatFiveBitScaleMin;
   // iq4_nl (CODEBOOK class, 2nd primitive class): shares the q4_1 HALF-block m1
   // 3-load shape (a u8 packed-i4 weight + the two plain-i8 q8 halves), but the
   // weight nibble is a codebook INDEX (vrgather through the 16-entry kvalues
@@ -396,10 +397,11 @@ void createTypedFlatBlockDotLoopChain(mlir::OpBuilder &builder,
   // to q8_0). It is NOT in isHalfBlock (that flag gates the offset-binary/unsigned
   // packed-i4 product branch); its high-half activation offset is sourced the SAME
   // way (activation_high_byte_offset).
-  const bool isIq4Nl = entry.opName == "weft_rvv.iq4_nl_q8_0_block_dot";
-  const bool isHalfBlock = isQ40 || isQ41 || isQ50 || isQ51;
+  const bool isCodebookGather =
+      mechanism == RVVBlockDotBodyMechanism::FlatCodebookGather;
+  const bool isHalfBlock = isOffsetBinaryNibble || isUnsignedNibbleScaleMin || isFiveBitOffsetBinary || isFiveBitScaleMin;
   std::int64_t activationHighOffset =
-      (isHalfBlock || isIq4Nl) ? factByName("activation_high_byte_offset") : 0;
+      (isHalfBlock || isCodebookGather) ? factByName("activation_high_byte_offset") : 0;
 
   mlir::OperationState loopState(
       loc, weftrvv::TypedFlatBlockDotLoopBodyOp::getOperationName());
@@ -413,9 +415,9 @@ void createTypedFlatBlockDotLoopChain(mlir::OpBuilder &builder,
                          builder.getI64IntegerAttr(activationStride));
   loopState.addAttribute(
       "fold_model",
-      builder.getStringAttr(isQ50 ? "scales_times_sumi"
-                                   : ((isQ41 || isQ51) ? "scale_plus_min"
-                                            : (isQ40 ? "left_assoc"
+      builder.getStringAttr(isFiveBitOffsetBinary ? "scales_times_sumi"
+                                   : ((isUnsignedNibbleScaleMin || isFiveBitScaleMin) ? "scale_plus_min"
+                                            : (isOffsetBinaryNibble ? "left_assoc"
                                                      : "sumi_times_scales"))));
   loopState.addAttribute("integer_core_lmul", builder.getStringAttr(lmul));
   // strip_elision is a VLEN-legality knob, not free. The elided single-cover emits
@@ -433,7 +435,7 @@ void createTypedFlatBlockDotLoopChain(mlir::OpBuilder &builder,
   // needs the VLEN-robust re-strip.
   loopState.addAttribute(
       "strip_elision",
-      builder.getStringAttr((!isHalfBlock && !isIq4Nl && lmul == "m1") ? "robust"
+      builder.getStringAttr((!isHalfBlock && !isCodebookGather && lmul == "m1") ? "robust"
                                                                        : "elided"));
   // Deterministic final schedule fields are constructed explicitly.  The
   // emitter never interprets absence as a code-shape choice.
@@ -463,7 +465,7 @@ void createTypedFlatBlockDotLoopChain(mlir::OpBuilder &builder,
       weftrvv::VectorType::get(ctx, builder.getI8Type(), coreLmul);
   // q4_1's packed weight strip is UNSIGNED (the nibble value IS the weight, the
   // `-8` folded into the block minimum), so the region weight LoadOp carries a
-  // u8-m1 vector type (cf. the codebook front door). q4_0's weight strip stays
+  // u8-m1 vector type (as in the codebook-gather sibling). q4_0's weight strip stays
   // signed i8.
   mlir::Type ui8VecType = weftrvv::VectorType::get(
       ctx, builder.getIntegerType(8, /*isSigned=*/false), coreLmul);
@@ -483,7 +485,7 @@ void createTypedFlatBlockDotLoopChain(mlir::OpBuilder &builder,
   // per-block base memo hits; the min/sum headers sit at weight_min_byte_offset /
   // activation_sum_byte_offset. Null (no brick) for q8_0/q4_0.
   mlir::Value minTerm;
-  if (isQ41 || isQ51)
+  if (isUnsignedNibbleScaleMin || isFiveBitScaleMin)
     minTerm = createBlockFp16MinProduct(
         builder, loc, weight, activation, blockIndex, weightStride,
         activationStride, factByName("weight_min_byte_offset"),
@@ -494,7 +496,7 @@ void createTypedFlatBlockDotLoopChain(mlir::OpBuilder &builder,
   // (the qh header lives WITHIN the weight block), so the emitter per-block base
   // memo hits. Null (no brick) for q8_0/q4_0/q4_1.
   mlir::Value qhSource;
-  if (isQ50 || isQ51)
+  if (isFiveBitOffsetBinary || isFiveBitScaleMin)
     qhSource = createBlockFiveBitQhSource(builder, loc, weight, blockIndex,
                                           weightStride,
                                           factByName("weight_qh_byte_offset"));
@@ -512,11 +514,11 @@ void createTypedFlatBlockDotLoopChain(mlir::OpBuilder &builder,
   // quant_byte_offset). Keeping this = quantByteOffset off the q5_0 path leaves the
   // q4_0/q4_1 loads byte-identical.
   std::int64_t activationQuantByteOffset =
-      (isQ50 || isQ51) ? factByName("activation_quant_byte_offset")
+      (isFiveBitOffsetBinary || isFiveBitScaleMin) ? factByName("activation_quant_byte_offset")
                        : quantByteOffset;
 
   mlir::Value prod;
-  if (isIq4Nl) {
+  if (isCodebookGather) {
     // iq4_nl CODEBOOK integer core (2nd primitive class): the 16-entry non-linear
     // int8 kvalues table broadcast ONCE + the u8 packed-i4 weight strip + the two
     // plain-i8 q8 halves -> the asymmetric codebook-gather product. The weight and
@@ -544,7 +546,7 @@ void createTypedFlatBlockDotLoopChain(mlir::OpBuilder &builder,
     // nibble decode is UNSIGNED), q4_0 = signed i8.
     mlir::Value wv = createRVVBlockLoad(
         builder, loc, weight, vl, blockIndex, weightStride, quantByteOffset,
-        (isQ41 || isQ50 || isQ51) ? ui8VecType : i8VecType);
+        (isUnsignedNibbleScaleMin || isFiveBitOffsetBinary || isFiveBitScaleMin) ? ui8VecType : i8VecType);
     // q8 low half (activation quant_off) and high half (+ activation_high_offset).
     mlir::Value avLow = createRVVBlockLoad(builder, loc, activation, vl, blockIndex,
                                            activationStride,
@@ -552,7 +554,7 @@ void createTypedFlatBlockDotLoopChain(mlir::OpBuilder &builder,
     mlir::Value avHigh = createRVVBlockLoad(
         builder, loc, activation, vl, blockIndex, activationStride,
         activationQuantByteOffset + activationHighOffset, i8VecType);
-    if (isQ50 || isQ51)
+    if (isFiveBitOffsetBinary || isFiveBitScaleMin)
       // asymmetric FIVE-BIT offset-binary packed-i4 (+ qh 5th bit) x i8 product
       // (i4m1 + qh x i8m1x2 -> i16m2). The qh 5th-bit source is the qh brick's
       // gate-only token, NOT a byte offset on this product op. The `-16` bias is a
@@ -561,7 +563,7 @@ void createTypedFlatBlockDotLoopChain(mlir::OpBuilder &builder,
       prod = createFiveBitOffsetBinaryXI8Product(
           builder, loc, wv, qhSource, avLow, avHigh, vl, i16VecType,
           "five-bit-offset-binary-i4m1-x-i8m1x2-to-i16m2");
-    else if (isQ41)
+    else if (isUnsignedNibbleScaleMin)
       // asymmetric UNSIGNED-nibble packed-i4 x i8 product (i4m1 x i8m1x2 -> i16m2).
       prod = createUnsignedNibbleXI8Product(
           builder, loc, wv, avLow, avHigh, vl, i16VecType,
@@ -601,9 +603,8 @@ void createTypedFlatBlockDotLoopChain(mlir::OpBuilder &builder,
 }
 
 // ---------------------------------------------------------------------------
-// The q1_0 (BINARY {-1,+1}-sign class) sibling of createTypedFlatBlockDotLoopChain
-// -- the LAST flat block-dot family member, the genuine structural-special case
-// (C_construct 26->27). Unlike q8_0/q4_0/q4_1/q5_0/q5_1/iq4_nl (a single per-block
+// The q1_0 (BINARY {-1,+1}-sign class) sibling of createTypedFlatBlockDotLoopChain.
+// Unlike q8_0/q4_0/q4_1/q5_0/q5_1/iq4_nl (a single per-block
 // integer core folded by the shared brick 1 (scale) -> brick 2 (dequant) -> brick 3
 // (cross-block accumulate) chain), q1_0's per-super-block contribution is a
 // FOUR-sub-block binary sign decode with a DISTINCT TWO-LEVEL fp32 fold
@@ -649,9 +650,10 @@ void createTypedFlatBlockDotLoopChainQ10(
                          builder.getI64IntegerAttr(weightStride));
   loopState.addAttribute("activation_block_stride",
                          builder.getI64IntegerAttr(activationStride));
-  // fold_model "flat_binary_two_level" KEYS the emitter dispatch (the q1_0 branch)
-  // + the two-level scalar fold; the emitter disambiguates q1_0 by the in-region
-  // binary-sign integer-core brick op TYPE. integer_core_lmul / multi_block_factor /
+  // fold_model describes the constructed two-level scalar topology;
+  // RVVFlatBlockDotFormula later produces the complete flat_* plan consumed by the
+  // emitter. The in-region binary-sign brick supplies typed geometry, not a second
+  // selection key. integer_core_lmul / multi_block_factor /
   // strip_elision are LEFT OFF (attr-less = the default m2 anchor, byte-exact target).
   loopState.addAttribute("fold_model",
                          builder.getStringAttr("flat_binary_two_level"));
@@ -705,8 +707,7 @@ void createTypedFlatBlockDotLoopChainQ10(
 
 // ---------------------------------------------------------------------------
 // The nvfp4 (SECOND FP4-CODEBOOK class, NVIDIA's FP4) sibling of
-// createTypedFlatBlockDotLoopChainQ10 -- the LAST dispatch-wired vec_dot to flip
-// (C_construct 27->28, closing the ① G1 literal-block-dot zoo). nvfp4 is a
+// createTypedFlatBlockDotLoopChainQ10. nvfp4 is a
 // SUPER-BLOCK codebook quant (block_nvfp4 = {uint8_t d[4]; uint8_t qs[32]}, QK=64,
 // four 16-element sub-blocks) whose 64 elements span TWO block_q8_0 activation
 // blocks -- a FLAT block_q8_0 stream (like q1_0's four-block stream), so it uses the

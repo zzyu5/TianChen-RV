@@ -135,6 +135,13 @@ it does not recover a second decision from `kind`, `format`, or historical
 [formula/construction architecture](.trellis/spec/architecture/公式层与覆盖.md) and
 [ISSUE-128](.trellis/spec/issues/发射器与架构.md).
 
+Quantized block-dot selected-body construction is likewise table-driven without
+an `opName`/`kind` dispatch: each exact formula row carries a typed body mechanism,
+and the canonical-problem dispatcher consumes it through separate flat,
+super-block, and grid/codebook construction modules. This construction field is
+not visible to artifact lowering; flat EmitC still consumes only the final
+formula-produced `flat_*` plan.
+
 This authority convergence is not strong reconstruction. Entries marked
 `ConstructedWeak` still depend on complete mechanical leaves and must not be counted
 as passing the delete-leaf criterion: after deleting a point implementation,

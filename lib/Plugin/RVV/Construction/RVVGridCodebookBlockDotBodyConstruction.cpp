@@ -398,7 +398,7 @@ void createTypedSuperBlockScalarDeltaGridLoopChainIq3xxs(
 }
 
 // The iq3_s sibling of createTypedSuperBlockScalarDeltaGridLoopChainIq3xxs -- the
-// C_construct 22->23 payoff (EXPLICIT-SIGNS variant). iq3_s is the iq3_xxs GRID-of-4
+// Explicit-signs GRID-of-4 mechanism. iq3_s is the iq3_xxs GRID-of-4
 // sibling -- a super-block GRID/codebook quant whose whole fold is the SAME SINGLE
 // per-super-block SCALAR accumulator arity as iq1_s/iq3_xxs (fold_model
 // "scalar_delta_grid", single `sumf` scalar, emitter-inlined fold), REUSING the whole
@@ -538,7 +538,7 @@ void createTypedSuperBlockScalarDeltaGridLoopChainIq3s(
   }
 }
 
-// The iq4_xs sibling of the scalar-delta-grid chain builders -- the C_construct 23->24
+// The iq4_xs sibling of the scalar-delta-grid chain builders: a
 // payoff (the FIRST super-block CODEBOOK member vs the grid siblings). iq4_xs is the
 // SUPER-BLOCK rung of the flat iq4_nl codebook -- a super-block CODEBOOK quant whose whole
 // fold is the SAME SINGLE per-super-block SCALAR accumulator arity as iq1_s/iq3_s
@@ -671,7 +671,7 @@ void createTypedSuperBlockScalarDeltaGridLoopChainIq4xs(
 }
 
 // The tq2_0 sibling of createTypedSuperBlockScalarDeltaGridLoopChain -- the FIRST TQ-family
-// member (C_construct 24->25). tq2_0 is the 2-bit TERNARY ({-1,0,+1}) TriLM K-quant whose
+// member. tq2_0 is the 2-bit TERNARY ({-1,0,+1}) TriLM K-quant whose
 // whole fold is the SAME SINGLE per-super-block SCALAR accumulator arity as iq1_s/iq3_s
 // (fold_model "scalar_delta_grid", single `sumf` scalar, emitter-inlined fold), REUSING the
 // whole iq1_s super-block SCALAR-accumulator scaffold (the SAME loop op
@@ -786,7 +786,7 @@ void createTypedSuperBlockScalarDeltaGridLoopChainTq20(
 }
 
 // The tq1_0 sibling of createTypedSuperBlockScalarDeltaGridLoopChain -- the SECOND TQ-family
-// member (C_construct 25->26), the base-3-packed sibling of tq2_0. tq1_0 is the BASE-3
+// member, the base-3-packed sibling of tq2_0. tq1_0 is the BASE-3
 // TERNARY ({-1,0,+1}) TriLM K-quant whose whole fold is the SAME SINGLE per-super-block
 // SCALAR accumulator arity as tq2_0/iq1_s (fold_model "scalar_delta_grid", single `sumf`
 // scalar, emitter-inlined fold), REUSING the WHOLE tq2_0 ternary scaffold at C2 marginal cost
@@ -901,7 +901,7 @@ void createTypedSuperBlockScalarDeltaGridLoopChainTq10(
   }
 }
 
-// The iq2_xxs sibling of createTypedSuperBlockScalarDeltaGridLoopChain -- the L3 coverage
+// The iq2_xxs sibling of createTypedSuperBlockScalarDeltaGridLoopChain: the
 // payoff (SIGN-PLANE signs64 variant). iq2_xxs is another iq1_s grid sibling -- a
 // super-block GRID/codebook quant whose whole fold is the SAME SINGLE per-super-block
 // SCALAR accumulator arity as iq1_s (fold_model "scalar_delta_grid", single `sumf`
@@ -1023,7 +1023,7 @@ void createTypedSuperBlockScalarDeltaGridLoopChainIq2xxs(
   }
 }
 
-// The iq2_xs sibling of createTypedSuperBlockScalarDeltaGridLoopChain -- the L3 coverage
+// The iq2_xs sibling of createTypedSuperBlockScalarDeltaGridLoopChain: the
 // payoff (SIGN-PLANE signs64 variant, PER-HALF explicit scale). iq2_xs is the iq2_xxs grid
 // sibling -- a super-block GRID/codebook quant whose whole fold is the SAME SINGLE
 // per-super-block SCALAR accumulator arity as iq1_s (fold_model "scalar_delta_grid", single
@@ -1147,7 +1147,7 @@ void createTypedSuperBlockScalarDeltaGridLoopChainIq2xs(
   }
 }
 
-// The iq2_s sibling of createTypedSuperBlockScalarDeltaGridLoopChain -- the L3 coverage
+// The iq2_s sibling of createTypedSuperBlockScalarDeltaGridLoopChain: the
 // payoff (SIGN-PLANE explicit-signs variant, PER-HALF explicit scale). iq2_s is the iq2_xs
 // grid sibling -- a super-block GRID/codebook quant whose whole fold is the SAME SINGLE
 // per-super-block SCALAR accumulator arity as iq1_s (fold_model "scalar_delta_grid", single

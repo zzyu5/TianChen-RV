@@ -8,6 +8,7 @@
 #include "Weft/Plugin/RVV/RVVDequantFormula.h"
 #include "Weft/Plugin/RVV/RVVFlatBlockDotFormula.h"
 #include "Weft/Plugin/RVV/RVVFormulaCatalog.h"
+#include "Weft/Plugin/RVV/RVVMonolithicBlockDotFamily.h"
 #include "Weft/Plugin/RVV/RVVQuantizeFormula.h"
 #include "Weft/Plugin/RVV/RVVScheduleFormula.h"
 #include "Weft/Plugin/RVV/RVVIntegerCoreScheduleFormula.h"
@@ -217,6 +218,49 @@ int main() {
             FormulaConstructionStrength::ConstructedWeak)
       return fail(llvm::Twine("RVV exact-P source descriptor is incomplete: ") +
                   id);
+  }
+
+  for (const rvv::MonolithicBlockDotOpEntry &entry :
+       rvv::monolithicBlockDotOpTable()) {
+    bool topologyMatchesMechanism = false;
+    switch (entry.bodyMechanism) {
+    case rvv::RVVBlockDotBodyMechanism::FlatSignedWidening:
+    case rvv::RVVBlockDotBodyMechanism::FlatOffsetBinaryNibble:
+    case rvv::RVVBlockDotBodyMechanism::FlatUnsignedNibbleScaleMin:
+    case rvv::RVVBlockDotBodyMechanism::FlatFiveBitOffsetBinary:
+    case rvv::RVVBlockDotBodyMechanism::FlatFiveBitScaleMin:
+    case rvv::RVVBlockDotBodyMechanism::FlatCodebookGather:
+    case rvv::RVVBlockDotBodyMechanism::FlatBinarySign:
+    case rvv::RVVBlockDotBodyMechanism::FlatNVFP4Codebook:
+    case rvv::RVVBlockDotBodyMechanism::CompoundBlockDot:
+      topologyMatchesMechanism =
+          entry.topology == rvv::MonolithicBlockDotTopology::Flat;
+      break;
+    case rvv::RVVBlockDotBodyMechanism::SuperBlockScaleMin:
+    case rvv::RVVBlockDotBodyMechanism::SuperBlockScalesTimesSumiQ6:
+    case rvv::RVVBlockDotBodyMechanism::SuperBlockScalesTimesSumiQ3:
+    case rvv::RVVBlockDotBodyMechanism::SuperBlockScalarScaleMin:
+    case rvv::RVVBlockDotBodyMechanism::SuperBlockTernaryGridDelta:
+    case rvv::RVVBlockDotBodyMechanism::SuperBlockPackedTernaryGridDelta:
+    case rvv::RVVBlockDotBodyMechanism::SuperBlockGrid8DerivedSigns:
+    case rvv::RVVBlockDotBodyMechanism::
+        SuperBlockGrid8DerivedSignsExplicitScale:
+    case rvv::RVVBlockDotBodyMechanism::SuperBlockGrid8ExplicitSignsScale:
+    case rvv::RVVBlockDotBodyMechanism::SuperBlockGrid4KSigns:
+    case rvv::RVVBlockDotBodyMechanism::SuperBlockGrid4ExplicitSigns:
+    case rvv::RVVBlockDotBodyMechanism::SuperBlockCodebookScale:
+    case rvv::RVVBlockDotBodyMechanism::SuperBlockBase3Ternary:
+    case rvv::RVVBlockDotBodyMechanism::SuperBlockFused2BitTernary:
+      topologyMatchesMechanism =
+          entry.topology == rvv::MonolithicBlockDotTopology::SuperBlock;
+      break;
+    case rvv::RVVBlockDotBodyMechanism::NotApplicable:
+      break;
+    }
+    if (!topologyMatchesMechanism)
+      return fail(llvm::Twine("RVV exact-P block-dot row lacks a topology-owned "
+                              "construction mechanism: ") +
+                  entry.opName);
   }
 
   const FormulaDescriptor *canonicalBody =

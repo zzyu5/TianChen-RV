@@ -248,7 +248,8 @@ void createTypedSuperBlockBlockDotLoopChain(
 void createTypedSuperBlockScalesTimesSumiLoopChain(
     mlir::OpBuilder &builder, mlir::Location loc,
     const MonolithicBlockDotOpEntry &entry, mlir::Value weight,
-    mlir::Value activation, mlir::Value out, mlir::Value n, mlir::Value vl) {
+    mlir::Value activation, mlir::Value out, mlir::Value n, mlir::Value vl,
+    RVVBlockDotBodyMechanism mechanism) {
   auto factByName = [&](llvm::StringRef name) -> std::int64_t {
     for (const MonolithicBlockDotI64Attr &fact : entry.facts)
       if (fact.name == name)
@@ -269,7 +270,8 @@ void createTypedSuperBlockScalesTimesSumiLoopChain(
   // weight sub-plane offsets. q6_K reads the qh 5th/6th-bit plane @128; q3_K reads
   // the hmask high-bit plane @0 + the 2-bit qs plane @32. The reused positive fold
   // + single `sums` yield are IDENTICAL.
-  const bool isQ3K = entry.opName == "weft_rvv.q3_k_q8_k_block_dot";
+  const bool isQ3K =
+      mechanism == RVVBlockDotBodyMechanism::SuperBlockScalesTimesSumiQ3;
   std::int64_t weightQhOffset = isQ3K ? 0 : factByName("weight_qh_byte_offset");
   std::int64_t weightHmaskOffset =
       isQ3K ? factByName("weight_hmask_byte_offset") : 0;      //   0

@@ -1442,6 +1442,36 @@ enum class TypedFlatBlockDotLoopSelector {
   SuperBlockScalarDeltaGrid,
 };
 
+// Formula-row result consumed only by RVV selected-body construction. This is
+// the typed mechanism chosen after exact P and target capability binding; it is
+// not an artifact route key and the emitter never consults it.
+enum class RVVBlockDotBodyMechanism {
+  NotApplicable,
+  CompoundBlockDot,
+  FlatSignedWidening,
+  FlatOffsetBinaryNibble,
+  FlatUnsignedNibbleScaleMin,
+  FlatFiveBitOffsetBinary,
+  FlatFiveBitScaleMin,
+  FlatCodebookGather,
+  FlatBinarySign,
+  FlatNVFP4Codebook,
+  SuperBlockScaleMin,
+  SuperBlockScalesTimesSumiQ6,
+  SuperBlockScalesTimesSumiQ3,
+  SuperBlockScalarScaleMin,
+  SuperBlockTernaryGridDelta,
+  SuperBlockPackedTernaryGridDelta,
+  SuperBlockGrid8DerivedSigns,
+  SuperBlockGrid8DerivedSignsExplicitScale,
+  SuperBlockGrid8ExplicitSignsScale,
+  SuperBlockGrid4KSigns,
+  SuperBlockGrid4ExplicitSigns,
+  SuperBlockCodebookScale,
+  SuperBlockBase3Ternary,
+  SuperBlockFused2BitTernary,
+};
+
 // The per-op family table (the "small per-op table"): every monolithic block-dot
 // op that is production-reachable (front door + brick witness + byte-exact CORE
 // emit). Its route family selects the route id; its kind keys the target-side ABI
@@ -1474,6 +1504,8 @@ struct MonolithicBlockDotOpEntry {
   // Schema-native typed flat block-dot LOOP body binding (None for entries only
   // reached by the compound monolith op-name; see TypedFlatBlockDotLoopSelector).
   TypedFlatBlockDotLoopSelector typedFlatLoopSelector;
+  RVVBlockDotBodyMechanism bodyMechanism =
+      RVVBlockDotBodyMechanism::NotApplicable;
 };
 
 inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
@@ -1487,7 +1519,8 @@ inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
        "per-sub-block-uint6-scale-i32-domain-deferred-fp32-fold-min",
        "ggml Q4_K x Q8_K super-block block-dot source front door failed: ", "q4-weight", "q8-act",
        "", kQ4KFacts, {}, {}, {}, {},
-       TypedFlatBlockDotLoopSelector::SuperBlockTwoLevelScaleMin},
+       TypedFlatBlockDotLoopSelector::SuperBlockTwoLevelScaleMin,
+       RVVBlockDotBodyMechanism::SuperBlockScaleMin},
       {"weft_rvv.iq4_xs_q8_k_block_dot",
        MonolithicBlockDotTopology::SuperBlock, "ggml_iq4_xs_q8_k_block_dot",
        &monolithicBlockDotABI4, "ggml_iq4_xs_q8_K_block_dot_source",
@@ -1513,7 +1546,8 @@ inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
        // selector for export resolution). The FIRST super-block CODEBOOK member (vs the
        // grid siblings) reuses the whole iq1_s scaffold and only adds a variant codebook
        // integer-core brick (NO gearbox -- the codebook gather pins m1).
-       TypedFlatBlockDotLoopSelector::SuperBlockScalarDeltaGrid},
+       TypedFlatBlockDotLoopSelector::SuperBlockScalarDeltaGrid,
+       RVVBlockDotBodyMechanism::SuperBlockCodebookScale},
       {"weft_rvv.iq1_s_q8_k_block_dot",
        MonolithicBlockDotTopology::SuperBlock, "ggml_iq1_s_q8_k_block_dot",
        &monolithicBlockDotABI4, "ggml_iq1_s_q8_K_block_dot_source",
@@ -1532,7 +1566,8 @@ inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
        // weft_rvv.iq1_s_q8_k_block_dot is RETIRED (this opName is now a dead string --
        // no op carries it; the row is reached by the marker for construction and by
        // this selector for export resolution).
-       TypedFlatBlockDotLoopSelector::SuperBlockScalarDeltaGrid},
+       TypedFlatBlockDotLoopSelector::SuperBlockScalarDeltaGrid,
+       RVVBlockDotBodyMechanism::SuperBlockTernaryGridDelta},
       {"weft_rvv.iq1_m_q8_k_block_dot",
        MonolithicBlockDotTopology::SuperBlock, "ggml_iq1_m_q8_k_block_dot",
        &monolithicBlockDotABI4, "ggml_iq1_m_q8_K_block_dot_source",
@@ -1552,7 +1587,8 @@ inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
        // reached by the marker for construction and by this selector for export
        // resolution). The C2 marginal-cost payoff: the SECOND GRID/codebook member
        // reuses the whole iq1_s scaffold and only adds a variant integer-core brick.
-       TypedFlatBlockDotLoopSelector::SuperBlockScalarDeltaGrid},
+       TypedFlatBlockDotLoopSelector::SuperBlockScalarDeltaGrid,
+       RVVBlockDotBodyMechanism::SuperBlockPackedTernaryGridDelta},
       {"weft_rvv.iq2_xxs_q8_k_block_dot",
        MonolithicBlockDotTopology::SuperBlock, "ggml_iq2_xxs_q8_k_block_dot",
        &monolithicBlockDotABI4, "ggml_iq2_xxs_q8_K_block_dot_source",
@@ -1574,7 +1610,8 @@ inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
        // by this selector for export resolution). The FOURTH GRID/codebook member reuses
        // the whole iq1_s scaffold and only adds a variant integer-core brick that
        // PRESERVES iq2_xxs's Win-A integer_core_lmul m2/m1 gearbox (kernel key "iq2_xxs").
-       TypedFlatBlockDotLoopSelector::SuperBlockScalarDeltaGrid},
+       TypedFlatBlockDotLoopSelector::SuperBlockScalarDeltaGrid,
+       RVVBlockDotBodyMechanism::SuperBlockGrid8DerivedSigns},
       {"weft_rvv.iq2_xs_q8_k_block_dot",
        MonolithicBlockDotTopology::SuperBlock, "ggml_iq2_xs_q8_k_block_dot",
        &monolithicBlockDotABI4, "ggml_iq2_xs_q8_K_block_dot_source",
@@ -1597,7 +1634,8 @@ inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
        // selector for export resolution). The FIFTH GRID/codebook member reuses the whole
        // iq1_s scaffold and only adds a variant integer-core brick (NO gearbox -- fixed
        // 16-lane per-half shape, unlike iq2_xxs's m2/m1).
-       TypedFlatBlockDotLoopSelector::SuperBlockScalarDeltaGrid},
+       TypedFlatBlockDotLoopSelector::SuperBlockScalarDeltaGrid,
+       RVVBlockDotBodyMechanism::SuperBlockGrid8DerivedSignsExplicitScale},
       {"weft_rvv.iq2_s_q8_k_block_dot",
        MonolithicBlockDotTopology::SuperBlock, "ggml_iq2_s_q8_k_block_dot",
        &monolithicBlockDotABI4, "ggml_iq2_s_q8_K_block_dot_source",
@@ -1620,7 +1658,8 @@ inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
        // selector for export resolution). The SIXTH GRID/codebook member reuses the whole
        // iq1_s scaffold and only adds a variant integer-core brick (NO gearbox -- fixed
        // 16-lane per-half shape, like iq2_xs; unlike iq2_xxs's m2/m1).
-       TypedFlatBlockDotLoopSelector::SuperBlockScalarDeltaGrid},
+       TypedFlatBlockDotLoopSelector::SuperBlockScalarDeltaGrid,
+       RVVBlockDotBodyMechanism::SuperBlockGrid8ExplicitSignsScale},
       {"weft_rvv.iq3_xxs_q8_k_block_dot",
        MonolithicBlockDotTopology::SuperBlock, "ggml_iq3_xxs_q8_k_block_dot",
        &monolithicBlockDotABI4, "ggml_iq3_xxs_q8_K_block_dot_source",
@@ -1641,7 +1680,8 @@ inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
        // no op carries it; the row is reached by the marker for construction and by this
        // selector for export resolution). The third GRID/codebook member reuses the
        // whole iq1_s scaffold and only adds a variant integer-core brick.
-       TypedFlatBlockDotLoopSelector::SuperBlockScalarDeltaGrid},
+       TypedFlatBlockDotLoopSelector::SuperBlockScalarDeltaGrid,
+       RVVBlockDotBodyMechanism::SuperBlockGrid4KSigns},
       {"weft_rvv.iq3_s_q8_k_block_dot",
        MonolithicBlockDotTopology::SuperBlock, "ggml_iq3_s_q8_k_block_dot",
        &monolithicBlockDotABI4, "ggml_iq3_s_q8_K_block_dot_source",
@@ -1664,7 +1704,8 @@ inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
        // carries it; the row is reached by the marker for construction and by this selector
        // for export resolution). The SEVENTH GRID/codebook member reuses the whole iq1_s
        // scaffold and only adds a variant integer-core brick (NO gearbox, NO ksigns plane).
-       TypedFlatBlockDotLoopSelector::SuperBlockScalarDeltaGrid},
+       TypedFlatBlockDotLoopSelector::SuperBlockScalarDeltaGrid,
+       RVVBlockDotBodyMechanism::SuperBlockGrid4ExplicitSigns},
       {"weft_rvv.q2_k_q8_k_block_dot",
        MonolithicBlockDotTopology::SuperBlock, "ggml_q2_k_q8_k_block_dot",
        &monolithicBlockDotABI4, "ggml_q2_K_q8_K_block_dot_source",
@@ -1680,7 +1721,8 @@ inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
        // vector; NO deferred sums vector, NO post-loop horizontal add). The
        // resolver disambiguates it from q4_K/q5_K (dual) / q6_K (single-vector) by
        // fold_model, then by the loop op's weight_block_stride (84).
-       TypedFlatBlockDotLoopSelector::SuperBlockScalarScaleMin},
+       TypedFlatBlockDotLoopSelector::SuperBlockScalarScaleMin,
+       RVVBlockDotBodyMechanism::SuperBlockScalarScaleMin},
       {"weft_rvv.q3_k_q8_k_block_dot",
        MonolithicBlockDotTopology::SuperBlock, "ggml_q3_k_q8_k_block_dot",
        &monolithicBlockDotABI4, "ggml_q3_K_q8_K_block_dot_source",
@@ -1695,7 +1737,8 @@ inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
        // fold is identical -- q3_K's integer-core brick is the ONLY difference). The
        // resolver disambiguates q3_K (stride 110) vs q6_K (stride 210) by the loop
        // op's weight_block_stride so each exports its own entry.
-       TypedFlatBlockDotLoopSelector::SuperBlockScalesTimesSumi},
+       TypedFlatBlockDotLoopSelector::SuperBlockScalesTimesSumi,
+       RVVBlockDotBodyMechanism::SuperBlockScalesTimesSumiQ3},
       {"weft_rvv.q5_k_q8_k_block_dot",
        MonolithicBlockDotTopology::SuperBlock, "ggml_q5_k_q8_k_block_dot",
        &monolithicBlockDotABI4, "ggml_q5_K_q8_K_block_dot_source",
@@ -1709,7 +1752,8 @@ inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
        // with q4_K (the fold model is identical -- q5_K is q4_K + the qh 5th-bit
        // plane). The resolver disambiguates q4_K (stride 144) vs q5_K (stride 176)
        // by the loop op's weight_block_stride so each exports its own entry.
-       TypedFlatBlockDotLoopSelector::SuperBlockTwoLevelScaleMin},
+       TypedFlatBlockDotLoopSelector::SuperBlockTwoLevelScaleMin,
+       RVVBlockDotBodyMechanism::SuperBlockScaleMin},
       {"weft_rvv.q6_k_q8_k_block_dot",
        MonolithicBlockDotTopology::SuperBlock, "ggml_q6_k_q8_k_block_dot",
        &monolithicBlockDotABI4, "ggml_q6_K_q8_K_block_dot_source",
@@ -1724,7 +1768,8 @@ inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
        // no-min positive fold + post-loop horizontal add is the whole fold). The
        // resolver disambiguates it from q4_K/q5_K (dual) by fold_model, then by the
        // loop op's weight_block_stride (210 vs q4_K 144 / q5_K 176).
-       TypedFlatBlockDotLoopSelector::SuperBlockScalesTimesSumi},
+       TypedFlatBlockDotLoopSelector::SuperBlockScalesTimesSumi,
+       RVVBlockDotBodyMechanism::SuperBlockScalesTimesSumiQ6},
       {"weft_rvv.tq1_0_q8_k_block_dot",
        MonolithicBlockDotTopology::SuperBlock, "ggml_tq1_0_q8_k_block_dot",
        &monolithicBlockDotABI4, "ggml_tq1_0_q8_K_block_dot_source",
@@ -1747,7 +1792,8 @@ inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
        // for export resolution). The SECOND TQ member REUSES the whole tq2_0 ternary scaffold
        // at C2 marginal cost and only adds a variant integer-core brick (base-3 unpack) that
        // has one VLEN-universal vector body and no inert LMUL schedule field.
-       TypedFlatBlockDotLoopSelector::SuperBlockScalarDeltaGrid},
+       TypedFlatBlockDotLoopSelector::SuperBlockScalarDeltaGrid,
+       RVVBlockDotBodyMechanism::SuperBlockBase3Ternary},
       {"weft_rvv.tq2_0_q8_k_block_dot",
        MonolithicBlockDotTopology::SuperBlock, "ggml_tq2_0_q8_k_block_dot",
        &monolithicBlockDotABI4, "ggml_tq2_0_q8_K_block_dot_source",
@@ -1770,7 +1816,8 @@ inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
        // scaffold and only adds a variant integer-core brick that PRESERVES tq2_0's Win-A
        // integer_core_lmul m2/m1 gearbox (kernel key "tq2_0"); tq1_0 (base-3) reuses the
        // ternary scaffold with its own fixed VLEN-universal body.
-       TypedFlatBlockDotLoopSelector::SuperBlockScalarDeltaGrid},
+       TypedFlatBlockDotLoopSelector::SuperBlockScalarDeltaGrid,
+       RVVBlockDotBodyMechanism::SuperBlockFused2BitTernary},
       {weft::rvv::GgmlBlockDotQ40Q80Op::getOperationName(),
        MonolithicBlockDotTopology::Flat, "ggml_q4_0_q8_0_block_dot",
        &monolithicBlockDotABI8Strided, "ggml_q4_0_q8_0_block_dot_source",
@@ -1779,7 +1826,9 @@ inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
        "rvv_q4_0_q8_0_block_dot", "rvv_q4_0_q8_0_block_dot_from_vector_source",
        "dual-fp16-per-block-d_x.d_y",
        "ggml Q4_0 x Q8_0 block-dot source front door failed: ", "q4-weight", "q8-act",
-       "", kQ40Facts, {}, {}, {}, {}},
+       "", kQ40Facts, {}, {}, {}, {},
+       TypedFlatBlockDotLoopSelector::None,
+       RVVBlockDotBodyMechanism::FlatOffsetBinaryNibble},
       {"weft_rvv.q8_0_q8_0_block_dot",
        MonolithicBlockDotTopology::Flat, "ggml_q8_0_q8_0_block_dot",
        &monolithicBlockDotABI8Strided, "ggml_q8_0_q8_0_block_dot_source",
@@ -1788,7 +1837,8 @@ inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
        "rvv_q8_0_q8_0_block_dot", "rvv_q8_0_q8_0_block_dot_from_vector_source",
        "dual-fp16-per-block-d_x.d_y",
        "ggml Q8_0 x Q8_0 block-dot source front door failed: ", "q8-lhs", "q8-rhs",
-       "", kQ80Facts, {}, {}, {}, {}, TypedFlatBlockDotLoopSelector::Q8Default},
+       "", kQ80Facts, {}, {}, {}, {}, TypedFlatBlockDotLoopSelector::Q8Default,
+       RVVBlockDotBodyMechanism::FlatSignedWidening},
       {"weft_rvv.iq4_nl_q8_0_block_dot",
        MonolithicBlockDotTopology::Flat, "ggml_iq4_nl_q8_0_block_dot",
        &monolithicBlockDotABI4, "ggml_iq4_nl_q8_0_block_dot_source",
@@ -1798,7 +1848,8 @@ inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
        "dual-fp16-per-block-d_x.d_y",
        "ggml IQ4_NL x Q8_0 codebook block-dot source front door failed: ", "iq4-weight", "q8-act",
        "", kIQ4NLFacts, kIQ4NLCodebook, {}, {}, {},
-       TypedFlatBlockDotLoopSelector::Iq4NlCodebook},
+       TypedFlatBlockDotLoopSelector::Iq4NlCodebook,
+       RVVBlockDotBodyMechanism::FlatCodebookGather},
       {"weft_rvv.q4_1_q8_1_block_dot",
        MonolithicBlockDotTopology::Flat, "ggml_q4_1_q8_1_block_dot",
        &monolithicBlockDotABI4, "ggml_q4_1_q8_1_block_dot_source",
@@ -1807,7 +1858,8 @@ inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
        "rvv_q4_1_q8_1_block_dot", "rvv_q4_1_q8_1_block_dot_from_vector_source",
        "dual-fp16-per-block-d_x.d_y-plus-min",
        "ggml Q4_1 x Q8_1 block-dot source front door failed: ", "q4-weight", "q8-act",
-       "", kQ41Facts, {}, {}, {}, {}, TypedFlatBlockDotLoopSelector::ScalePlusMin},
+       "", kQ41Facts, {}, {}, {}, {}, TypedFlatBlockDotLoopSelector::ScalePlusMin,
+       RVVBlockDotBodyMechanism::FlatUnsignedNibbleScaleMin},
       {"weft_rvv.q5_0_q8_0_block_dot",
        MonolithicBlockDotTopology::Flat, "ggml_q5_0_q8_0_block_dot",
        &monolithicBlockDotABI4, "ggml_q5_0_q8_0_block_dot_source",
@@ -1816,7 +1868,8 @@ inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
        "rvv_q5_0_q8_0_block_dot", "rvv_q5_0_q8_0_block_dot_from_vector_source",
        "dual-fp16-per-block-d_x.d_y",
        "ggml Q5_0 x Q8_0 block-dot source front door failed: ", "q5-weight", "q8-act",
-       "", kQ50Facts, {}, {}, {}, {}, TypedFlatBlockDotLoopSelector::ScalesTimesSumi},
+       "", kQ50Facts, {}, {}, {}, {}, TypedFlatBlockDotLoopSelector::ScalesTimesSumi,
+       RVVBlockDotBodyMechanism::FlatFiveBitOffsetBinary},
       {"weft_rvv.q5_1_q8_1_block_dot",
        MonolithicBlockDotTopology::Flat, "ggml_q5_1_q8_1_block_dot",
        &monolithicBlockDotABI4, "ggml_q5_1_q8_1_block_dot_source",
@@ -1825,7 +1878,8 @@ inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
        "rvv_q5_1_q8_1_block_dot", "rvv_q5_1_q8_1_block_dot_from_vector_source",
        "dual-fp16-per-block-d_x.d_y-plus-min",
        "ggml Q5_1 x Q8_1 block-dot source front door failed: ", "q5-weight", "q8-act",
-       "", kQ51Facts, {}, {}, {}, {}, TypedFlatBlockDotLoopSelector::ScalePlusMinFiveBitQh},
+       "", kQ51Facts, {}, {}, {}, {}, TypedFlatBlockDotLoopSelector::ScalePlusMinFiveBitQh,
+       RVVBlockDotBodyMechanism::FlatFiveBitScaleMin},
       {weft::rvv::GgmlBlockDotMXFP4Q80Op::getOperationName(),
        MonolithicBlockDotTopology::Flat, "ggml_mxfp4_q8_0_block_dot",
        &monolithicBlockDotABI4, "ggml_mxfp4_q8_0_block_dot_source",
@@ -1834,7 +1888,9 @@ inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
        "rvv_mxfp4_q8_0_block_dot", "rvv_mxfp4_q8_0_block_dot_from_vector_source",
        "e8m0-half-shared-exponent-per-block",
        "ggml MXFP4 x Q8_0 codebook block-dot source front door failed: ", "mxfp4-weight", "q8-act",
-       "", kMXFP4Facts, kMXFP4Codebook, {}, {}, {}},
+       "", kMXFP4Facts, kMXFP4Codebook, {}, {}, {},
+       TypedFlatBlockDotLoopSelector::None,
+       RVVBlockDotBodyMechanism::CompoundBlockDot},
       {"weft_rvv.nvfp4_q8_0_block_dot",
        MonolithicBlockDotTopology::Flat, "ggml_nvfp4_q8_0_block_dot",
        &monolithicBlockDotABI4, "ggml_nvfp4_q8_0_block_dot_source",
@@ -1844,7 +1900,8 @@ inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
        "ue4m3-half-per-sub-block",
        "ggml NVFP4 x Q8_0 codebook block-dot source front door failed: ", "nvfp4-weight", "q8-act",
        "m1", kNVFP4Facts, kNVFP4Codebook, {}, {}, {},
-       TypedFlatBlockDotLoopSelector::NVFP4Codebook},
+       TypedFlatBlockDotLoopSelector::NVFP4Codebook,
+       RVVBlockDotBodyMechanism::FlatNVFP4Codebook},
       {// Source identity retained for typed front-door ingestion; no registered
        // whole-kernel op, verifier, recognizer, or emitter survives.
        "weft_rvv.q1_0_q8_0_block_dot",
@@ -1856,7 +1913,8 @@ inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
        "binary-sign-per-bit",
        "ggml Q1_0 x Q8_0 block-dot source front door failed: ", "q1-weight", "q8-act",
        "", kQ10Facts, {}, {}, {}, {},
-       TypedFlatBlockDotLoopSelector::Q10BinarySign}};
+       TypedFlatBlockDotLoopSelector::Q10BinarySign,
+       RVVBlockDotBodyMechanism::FlatBinarySign}};
   return kTable;
 }
 

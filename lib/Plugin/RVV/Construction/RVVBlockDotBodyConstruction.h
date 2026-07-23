@@ -11,7 +11,8 @@ void createTypedFlatBlockDotLoopChain(
     mlir::OpBuilder &builder, mlir::Location loc,
     const MonolithicBlockDotOpEntry &entry, mlir::Value weight,
     mlir::Value activation, mlir::Value out, mlir::Value n, mlir::Value vl,
-    mlir::Value zeroSeed, llvm::StringRef lmul);
+    mlir::Value zeroSeed, llvm::StringRef lmul,
+    RVVBlockDotBodyMechanism mechanism);
 
 void createTypedFlatBlockDotLoopChainQ10(
     mlir::OpBuilder &builder, mlir::Location loc,
@@ -31,7 +32,8 @@ void createTypedSuperBlockBlockDotLoopChain(
 void createTypedSuperBlockScalesTimesSumiLoopChain(
     mlir::OpBuilder &builder, mlir::Location loc,
     const MonolithicBlockDotOpEntry &entry, mlir::Value weight,
-    mlir::Value activation, mlir::Value out, mlir::Value n, mlir::Value vl);
+    mlir::Value activation, mlir::Value out, mlir::Value n, mlir::Value vl,
+    RVVBlockDotBodyMechanism mechanism);
 
 void createTypedSuperBlockScalarScaleMinLoopChain(
     mlir::OpBuilder &builder, mlir::Location loc,
