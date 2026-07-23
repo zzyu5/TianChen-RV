@@ -3,7 +3,7 @@
   "name": "rvv-physical-module-horizontal-cutover",
   "title": "RVV 构造代码物理模块横向收敛",
   "description": "在 exact-P、artifact-neutral owner construction 与 flat_* 单一计算权威已经成立的基础上，横向收敛 RVV 的物理代码职责：FrontDoor 只识别并规范化 source problem，Construction 拥有公式、mechanism、schedule 与 selected typed-body construction，Artifact/Conversion 只机械消费 final typed body/plan；同时补齐仍可达 source-origin entry 的 canonical problem 边界，消除历史 FrontDoor、schedule 与 monolithic leaf 的混合实现。",
-  "status": "in_progress",
+  "status": "completed",
   "dev_type": "refactor",
   "scope": "rvv-horizontal-physical-architecture",
   "package": null,
@@ -11,11 +11,11 @@
   "creator": "codex",
   "assignee": "codex",
   "createdAt": "2026-07-23",
-  "completedAt": null,
+  "completedAt": "2026-07-23",
   "branch": "refactor/full-refactor-m1",
   "base_branch": "refactor/full-refactor-m1",
   "worktree_path": "/home/kingdom/phdworks/TianchenRV",
-  "commit": null,
+  "commit": "28e393f01",
   "pr_url": null,
   "subtasks": [],
   "children": [],
@@ -38,5 +38,5 @@
     "test/Transforms/VariantMaterialization",
     "test/Scripts/project-construction-authority.test"
   ],
-  "notes": "基线提交 fb1d6d04c。当前逻辑主链已经是 source exact P -> selected RVV owner construction -> exact typed root -> mechanical artifact，且 flat_* 是 formula 产生、emitter 直接消费的 final computation plan；本 task 不重做这条主链，而是让物理目录/API/caller 与它一致。禁止按单一格式或单一 operator 做纵向样例后结项；禁止用 wrapper 把 FrontDoor 内旧 constructor 伪装成 Construction；禁止引入 universal provider/verifier/provenance/Formula IR、兼容双轨、GPU 实现或 artifact-side redecision。必要的 typed IR verifier 与 legality 保留，但不为结构焦虑额外发明治理层。"
+  "notes": "基线提交 fb1d6d04c；最终代码检查点 28e393f01。已完成 source/body、schedule、block-dot mechanism、quant-contraction 与 artifact consumer 的横向物理收敛；flat_* 仍是 formula 产生且由 emitter 直接消费的 final computation plan。完整 check-weft 985/985 通过。本 task 不声称 strong reconstruction、真硬件 A/B 或 GPU 已完成。"
 }

@@ -12,7 +12,7 @@ canonical problem P=(S,g,ω)
   → artifact lowerer 机械消费 exact root
 ```
 
-本轮不重新定义这条链，而是让代码的物理组织真正服从它。现在六类 exact-P body 的公共
+本轮不重新定义这条链，而是让代码的物理组织真正服从它。本 task 启动时，六类 exact-P body 的公共
 入口虽然位于 `Construction/RVVCanonicalProblemConstruction.cpp`，真正 constructor 与大量
 body helper 却仍定义在 `FrontDoor/*.cpp`；若干 stream front door 也直接 materialize RVV
 typed body；schedule 的 formula、source formula 与 materialization 分散在多个目录；
@@ -110,20 +110,44 @@ construction owner、每个 downstream caller直接消费最终结果”为判�
 - 不按 q5_1、单个 format、单个 source pass做纵向样例后宣告完成；
 - 不把代码搬文件而保留同样混合职责，也不为追求小文件机械拆碎真实机制。
 
+## 完成结果（2026-07-23）
+
+- 六类 exact-P constructor 与共享 body builder 已全部进入 `Construction/`；当前
+  `FrontDoor/` 只剩六个 source adapter，目录内无 typed-body constructor、schedule selector
+  或 artifact lowering。
+- quantize/dequantize/elementwise 的三个伪 source stream wrapper 已删除，mandatory
+  `RVVFormulaConstruction` lifecycle 直接构造 typed body；catalog 不再把它们计作 canonical-P
+  source entry。
+- 原 `RVVSourceScheduleFormula` 已按真实职责收口为
+  `RVVIntegerCoreScheduleFormula`；generic schedule formula 与显式 inspection pass 的职责、文件
+  和 production caller 已分开。
+- quantized block-dot formula row 显式产生 typed `bodyMechanism`，construction dispatcher 不再
+  以 `opName`/`kind`/`scaleModel` 选择 builder；flat、普通 super-block、grid/codebook super-block
+  builder 分属 topology/mechanism 模块。
+- family-local quant contraction pass 与 contraction algorithm formula 已移入 Construction target，
+  清除了 FrontDoor→外层 Plugin 的反向链接依赖。
+- artifact 侧将 flat plan reader、flat shared/typed-loop/primitives、ternary、codebook、grid、
+  colgroup 与 K-quant consumer 按真实 typed mechanism/topology 拆开；`flat_*` 仍由 formula 产生，
+  Conversion 中的 `bodyMechanism` 引用为零。
+- 行为验证：RVV Conversion/Target 514/514 通过；仓库完整 `check-weft` 985/985 通过。本地结果只
+  证明编译器/工具链行为，不替代真硬件 correctness/performance evidence。
+- 代码检查点：`f195fa47d`、`dd5802ef3`、`724f05a04`、`65c005070`、`577444c7f`、
+  `6143c47b2`、`eeecbea51`、`28e393f01`。
+
 ## 完成门
 
-- [ ] 六类 exact-P selected-body constructor 与 body-only helper 全部物理住在 Construction/
+- [x] 六类 exact-P selected-body constructor 与 body-only helper 全部物理住在 Construction/
   mechanism owner 中；FrontDoor 无 selected typed-body constructor 或 forwarding wrapper；
-- [ ] 所有可达 RVV source-origin production entry 的身份明确：source entry 只产生 exact P，
+- [x] 所有可达 RVV source-origin production entry 的身份明确：source entry 只产生 exact P，
   pre-realized/debug entry 结构隔离且不能成为 production fallback；
-- [ ] FrontDoor 目录只保留 source matching、normalization、problem creation 与 pass registration；
-- [ ] schedule/formula/materialization 的真实 caller 已审计并收敛，每个 code-affecting决定只有
+- [x] FrontDoor 目录只保留 source matching、normalization、problem creation 与 pass registration；
+- [x] schedule/formula/materialization 的真实 caller 已审计并收敛，每个 code-affecting决定只有
   一个 typed construction authority；
-- [ ] monolithic block-dot 按机制/topology 而非 format 物理解耦，source 与 body construction
+- [x] monolithic block-dot 按机制/topology 而非 format 物理解耦，source 与 body construction
   不再同文件；
-- [ ] artifact conversion 直接消费完整 formula-produced plan/body，`flat_*` no-redecision 保持；
-- [ ] 无新增 provider/replay/verifier/provenance/compat 层，无 core/common family-name branch；
-- [ ] 相关 catalog、source/direct/construction/artifact tests 和完整 `check-weft` 通过；
-- [ ] README/spec/task 按最终代码事实更新，形成提交，工作区干净；
-- [ ] 本 task 不声称 strong reconstruction、真硬件 A/B 或 GPU 已完成；这些继续由父任务各自
+- [x] artifact conversion 直接消费完整 formula-produced plan/body，`flat_*` no-redecision 保持；
+- [x] 无新增 provider/replay/verifier/provenance/compat 层，无 core/common family-name branch；
+- [x] 相关 catalog、source/direct/construction/artifact tests 和完整 `check-weft` 通过；
+- [x] README/spec/task 按最终代码事实更新，形成提交，工作区干净；
+- [x] 本 task 不声称 strong reconstruction、真硬件 A/B 或 GPU 已完成；这些继续由父任务各自
   的直接证据闭合。

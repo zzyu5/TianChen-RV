@@ -13,3 +13,8 @@
 {"file":"lib/Plugin/RVV/CMakeLists.txt","reason":"原子迁移 source/constructor 文件与依赖"}
 {"file":"test/Conversion/RVV","reason":"真实 source→exact P→selected construction→artifact 行为回归"}
 {"file":"test/Transforms/VariantMaterialization","reason":"exact P 与 owner construction 集成回归"}
+{"file":"lib/Plugin/RVV/Construction/RVVBlockDotBodyConstruction.h","reason":"用 formula-owned body mechanism 连接 exact formula row 与 selected-body constructor，消除按 kind/format 重新解释"}
+{"file":"lib/Plugin/RVV/Construction/RVVQuantContractionConstructionPass.cpp","reason":"将 quant contraction 从 FrontDoor 迁入 construction owner，保留原有 pass 接口"}
+{"file":"lib/Conversion/RVV/RVVToEmitCFlatPlan.cpp","reason":"集中机械读取 formula 产生的 final flat plan，形成 artifact consumer 的公共 plan 投影"}
+{"file":"lib/Conversion/RVV/RVVToEmitCTypedFlatBlockDot.cpp","reason":"typed flat block-dot artifact consumer 独立成物理模块，直接消费 construction 结果"}
+{"file":"lib/Conversion/RVV/CMakeLists.txt","reason":"按真实 artifact mechanism 注册拆分后的 RVV consumer，而非恢复 kind/format 发射分派"}

@@ -6,3 +6,8 @@
 {"file":"test/Plugin/formula-catalog.test","reason":"construction entry 与 owner/catalog 完整性"}
 {"file":"build/test","reason":"触及面与完整 check-weft；只证明本地编译器行为"}
 {"file":".trellis/tasks/07-23-executable-knowledge-ab-horizontal-closure/prd.md","reason":"父任务的 strong reconstruction 与真硬件 A/B 不被本任务越界冒充"}
+{"file":"lib/Plugin/RVV/FrontDoor","reason":"rg 确认不再含 typed-body constructor、VL/schedule 构造或 artifact compute"}
+{"file":"lib/Plugin/RVV/Construction","reason":"rg 确认 block-dot construction 不按 entry.opName/kind/scaleModel 二次决定机制"}
+{"file":"lib/Conversion/RVV","reason":"rg 确认 artifact conversion 不读取 bodyMechanism；flat_* 仍是直接消费的 final computation plan"}
+{"file":"build/test/Conversion/RVV","reason":"RVV Conversion/Target 相关测试 514/514 通过"}
+{"file":"build/test","reason":"完整 check-weft 985/985 通过；未据此声称真硬件、GPU 或 strong reconstruction 完成"}
