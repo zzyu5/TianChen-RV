@@ -10,8 +10,13 @@ add_mlir_library(WeftConversionRVV
   RVVToEmitCGridCodebook.cpp
   RVVToEmitCKQuant.cpp
   RVVToEmitCRepackCodebook.cpp
+  RVVToEmitCRepackColgroup.cpp
   RVVToEmitCRepackGrid.cpp
   RVVToEmitCRepackGridFamilies.cpp
+  RVVToEmitCRepackKQuantQ2.cpp
+  RVVToEmitCRepackKQuantQ4.cpp
+  RVVToEmitCRepackKQuantQ5.cpp
+  RVVToEmitCRepackKQuantSymmetric.cpp
   RVVToEmitCRepackTernary.cpp
   RVVToEmitCTernaryBinary.cpp
   RVVToEmitCTypedFlatBlockDot.cpp

@@ -34,10 +34,10 @@
 # RUN: python3 %S/../../tools/visibility/e6_descriptor_cost.py flat-formula --worktree | FileCheck %s --check-prefix=FLAT-COMPOSITION
 # RUN: not rg -n 'weft-rvv-materialize-(q4-0|gemm)-schedule|MaterializeRVV(Q40|Gemm)Schedule' %S/../../include %S/../../lib %S/../../tools
 # RUN: not rg -n 'selectGenericSchedule|chooseFillOptimalLMUL' %S/../../lib/Plugin/RVV/FrontDoor
-# RUN: sed -n '/VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(/,/^}/p' %S/../../lib/Conversion/RVV/RVVToEmitCBlockQuantLinear.cpp | rg 'readFinalFlatBlockDotComputePlan' | FileCheck %s --check-prefix=FLAT-PLAN-READ
-# RUN: sed -n '/VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(/,/^}/p' %S/../../lib/Conversion/RVV/RVVToEmitCBlockQuantLinear.cpp | not rg 'getFoldModel\(|getAttr(OfType)?<[^>]+>\("(kind|format|fold_model)"\)|getAttr\("(kind|format|fold_model)"\)|skeleton loop body lowers'
-# RUN: not rg -n 'descriptor\.(decodePrimitive|foldModel|applyOffsetBias)[[:space:]]*=[[:space:]]*(Flat|true|false)' %S/../../lib/Conversion/RVV/RVVToEmitCBlockQuantLinear.cpp
-# RUN: rg -n 'descriptor\.(decodePrimitive|foldModel|applyOffsetBias)[[:space:]]*=[[:space:]]*plan\.' %S/../../lib/Conversion/RVV/RVVToEmitCBlockQuantLinear.cpp | FileCheck %s --check-prefix=FLAT-PLAN-PROJECTION
+# RUN: sed -n '/VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(/,/^}/p' %S/../../lib/Conversion/RVV/RVVToEmitCTypedFlatBlockDot.cpp | rg 'readFinalFlatBlockDotComputePlan' | FileCheck %s --check-prefix=FLAT-PLAN-READ
+# RUN: sed -n '/VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(/,/^}/p' %S/../../lib/Conversion/RVV/RVVToEmitCTypedFlatBlockDot.cpp | not rg 'getFoldModel\(|getAttr(OfType)?<[^>]+>\("(kind|format|fold_model)"\)|getAttr\("(kind|format|fold_model)"\)|skeleton loop body lowers'
+# RUN: not rg -n 'descriptor\.(decodePrimitive|foldModel|applyOffsetBias)[[:space:]]*=[[:space:]]*(Flat|true|false)' %S/../../lib/Conversion/RVV/RVVToEmitCFlatPlan.cpp
+# RUN: rg -n 'descriptor\.(decodePrimitive|foldModel|applyOffsetBias)[[:space:]]*=[[:space:]]*plan\.' %S/../../lib/Conversion/RVV/RVVToEmitCFlatPlan.cpp | FileCheck %s --check-prefix=FLAT-PLAN-PROJECTION
 # RUN: sed -n '/llvm::Error collectKernelEmissionPlans(/,/^}/p' %S/../../lib/Transforms/EmissionReadiness.cpp | FileCheck %s --check-prefix=CONSTRUCTION-ORDER
 
 # DEQUANT-OWNER: constructRVVStandaloneDequantScheduleFormula(

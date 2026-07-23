@@ -59,8 +59,8 @@
 # RUN: not rg -n '#include .*RVV(EmitC|ConstructionProtocol)' %S/../../lib/Plugin/RVV/BodyRealization
 # RUN: sed -n '/constructRVVFormulaPlansForVariant(/,/^}/p' %S/../../lib/Plugin/RVV/Construction/RVVFormulaConstruction.cpp | FileCheck %s --check-prefix=RVV-DIRECTION-SYMMETRY
 # RUN: not rg -n 'Ggml(QuantizeRowQ80|QuantizeRowQ81|QuantizeRowQ8K|DequantizeRow)Op' %S/../../lib/Conversion/RVV
-# RUN: sed -n '/VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(/,/^}/p' %S/../../lib/Conversion/RVV/RVVToEmitCBlockQuantLinear.cpp | rg 'readFinalFlatBlockDotComputePlan' | FileCheck %s --check-prefix=FLAT
-# RUN: sed -n '/VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(/,/^}/p' %S/../../lib/Conversion/RVV/RVVToEmitCBlockQuantLinear.cpp | not rg 'getFoldModel\(|getAttr(OfType)?<[^>]+>\("(kind|format|fold_model)"\)|getAttr\("(kind|format|fold_model)"\)'
+# RUN: sed -n '/VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(/,/^}/p' %S/../../lib/Conversion/RVV/RVVToEmitCTypedFlatBlockDot.cpp | rg 'readFinalFlatBlockDotComputePlan' | FileCheck %s --check-prefix=FLAT
+# RUN: sed -n '/VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(/,/^}/p' %S/../../lib/Conversion/RVV/RVVToEmitCTypedFlatBlockDot.cpp | not rg 'getFoldModel\(|getAttr(OfType)?<[^>]+>\("(kind|format|fold_model)"\)|getAttr\("(kind|format|fold_model)"\)'
 
 # FAIL-CLOSED-BASE: extension plugin has no artifact-neutral construction implementation
 # PLUGIN-COUNT: 8
