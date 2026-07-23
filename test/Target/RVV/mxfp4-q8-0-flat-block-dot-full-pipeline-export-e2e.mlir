@@ -42,21 +42,21 @@
 // schedule gearbox stamps the integer-core shape (rv64gcv -> m1), the
 // weft-source-artifact-front-door-pipeline materializes the emission plan AND passes
 // --weft-check-execution-plan-coherence.
-// RUN: weft-opt %s --weft-rvv-materialize-mxfp4-q8-0-block-dot-source-front-door --weft-rvv-materialize-schedule=march=rv64gcv --weft-source-artifact-front-door-pipeline | FileCheck %s --check-prefix=PLAN
+// RUN: weft-opt %s --weft-rvv-materialize-mxfp4-q8-0-block-dot-source-front-door=march=rv64gcv --weft-source-artifact-front-door-pipeline | FileCheck %s --check-prefix=PLAN
 
 // BYTE-EXACT @ VLEN128 (m1): --weft-materialize-emission-plans only APPENDS the
 // emission-plan diagnostic mirror; the block-dot body is untouched, so the
 // production-export EmitC is byte-for-byte the CORE --weft-rvv-lower-to-emitc emit.
-// RUN: weft-opt %s --weft-rvv-materialize-mxfp4-q8-0-block-dot-source-front-door --weft-rvv-materialize-schedule=march=rv64gcv --weft-rvv-lower-to-emitc > %t.core.mlir
-// RUN: weft-opt %s --weft-rvv-materialize-mxfp4-q8-0-block-dot-source-front-door --weft-rvv-materialize-schedule=march=rv64gcv --weft-materialize-emission-plans --weft-rvv-lower-to-emitc > %t.prod.mlir
+// RUN: weft-opt %s --weft-rvv-materialize-mxfp4-q8-0-block-dot-source-front-door=march=rv64gcv --weft-execution-planning-pipeline --weft-rvv-lower-to-emitc > %t.core.mlir
+// RUN: weft-opt %s --weft-rvv-materialize-mxfp4-q8-0-block-dot-source-front-door=march=rv64gcv --weft-execution-planning-pipeline --weft-rvv-lower-to-emitc > %t.prod.mlir
 // RUN: diff %t.core.mlir %t.prod.mlir
 // RUN: FileCheck %s --check-prefix=CORE < %t.core.mlir
 
 // BYTE-EXACT @ VLEN256 (the mf2 FLIP): the SAME auto-constructed attr-less op stamps
 // mf2 at rv64gcv_zvl256b and lowers to a byte-different codebook core; the
 // emission-plan mirror is still byte-exact vs the CORE emit at THIS anchor.
-// RUN: weft-opt %s --weft-rvv-materialize-mxfp4-q8-0-block-dot-source-front-door --weft-rvv-materialize-schedule=march=rv64gcv_zvl256b --weft-rvv-lower-to-emitc > %t.core256.mlir
-// RUN: weft-opt %s --weft-rvv-materialize-mxfp4-q8-0-block-dot-source-front-door --weft-rvv-materialize-schedule=march=rv64gcv_zvl256b --weft-materialize-emission-plans --weft-rvv-lower-to-emitc > %t.prod256.mlir
+// RUN: weft-opt %s --weft-rvv-materialize-mxfp4-q8-0-block-dot-source-front-door=march=rv64gcv_zvl256b --weft-execution-planning-pipeline --weft-rvv-lower-to-emitc > %t.core256.mlir
+// RUN: weft-opt %s --weft-rvv-materialize-mxfp4-q8-0-block-dot-source-front-door=march=rv64gcv_zvl256b --weft-execution-planning-pipeline --weft-rvv-lower-to-emitc > %t.prod256.mlir
 // RUN: diff %t.core256.mlir %t.prod256.mlir
 // RUN: FileCheck %s --check-prefix=CORE256 < %t.core256.mlir
 
@@ -64,7 +64,7 @@
 // exports a real RISC-V RVV relocatable object through the registered peer object
 // exporter.
 // RUN: rm -f %t.o
-// RUN: weft-opt %s --weft-rvv-materialize-mxfp4-q8-0-block-dot-source-front-door --weft-rvv-materialize-schedule=march=rv64gcv --weft-select-variants --weft-materialize-emission-plans | weft-translate --weft-export-target-artifact > %t.o
+// RUN: weft-opt %s --weft-rvv-materialize-mxfp4-q8-0-block-dot-source-front-door=march=rv64gcv --weft-execution-planning-pipeline | weft-translate --weft-export-target-artifact > %t.o
 // RUN: llvm-readobj -h %t.o | FileCheck %s --check-prefix=OBJECT
 // RUN: llvm-readobj --symbols %t.o | FileCheck %s --check-prefix=SYMBOL
 
@@ -72,7 +72,7 @@
 // packages to a real RISC-V RVV relocatable object under the same registered
 // exporter and the same exported handoff symbol.
 // RUN: rm -f %t256.o
-// RUN: weft-opt %s --weft-rvv-materialize-mxfp4-q8-0-block-dot-source-front-door --weft-rvv-materialize-schedule=march=rv64gcv_zvl256b --weft-select-variants --weft-materialize-emission-plans | weft-translate --weft-export-target-artifact > %t256.o
+// RUN: weft-opt %s --weft-rvv-materialize-mxfp4-q8-0-block-dot-source-front-door=march=rv64gcv_zvl256b --weft-execution-planning-pipeline | weft-translate --weft-export-target-artifact > %t256.o
 // RUN: llvm-readobj -h %t256.o | FileCheck %s --check-prefix=OBJECT
 // RUN: llvm-readobj --symbols %t256.o | FileCheck %s --check-prefix=SYMBOL
 

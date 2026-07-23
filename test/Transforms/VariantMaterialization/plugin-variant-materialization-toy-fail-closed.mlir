@@ -10,7 +10,7 @@ module {
   }
   weft.exec.target @malformed_toy_profile {id = "malformed.toy.profile", target_kind = "profile", construction_domain = "riscv-execution", capability_providers = [@toy_template]}
   weft.exec.kernel @malformed_toy_template attributes {target = @malformed_toy_profile, problem = @problem} {
-    weft.exec.int8_mac_problem @problem {lhs_signedness = #weft<integer_signedness signed>, rhs_signedness = #weft<integer_signedness signed>, m = 4 : i64, n = 4 : i64, k = 8 : i64}
+    weft.exec.template_compute_problem @problem {template_kind = "compute-skeleton"}
   }
 }
 

@@ -1,7 +1,6 @@
 #include "Weft/Plugin/Toy/ToySourceFrontDoor.h"
 
 #include "Weft/Dialect/Exec/IR/ExecOps.h"
-#include "Weft/Dialect/Toy/IR/ToyDialect.h"
 #include "Weft/Plugin/ExtensionPlugin.h"
 #include "Weft/Plugin/Toy/ToyExtensionPlugin.h"
 #include "Weft/Target/RISCVTargetProfile.h"
@@ -31,15 +30,7 @@ constexpr llvm::StringLiteral kAcceptedSourceFrontDoorValue(
     "template_compute");
 constexpr llvm::StringLiteral kDefaultKernelName("toy_source_front_door");
 constexpr llvm::StringLiteral kToyCapabilitySymbol("toy_template");
-constexpr llvm::StringLiteral kOriginAttrName("origin");
-constexpr llvm::StringLiteral kRequiresAttrName("requires");
-constexpr llvm::StringLiteral kSourceKernelBoundaryAttrName("source_kernel");
-constexpr llvm::StringLiteral kSelectedVariantAttrName("selected_variant");
-constexpr llvm::StringLiteral kTemplateReasonAttrName("template_reason");
-constexpr llvm::StringLiteral kSelectedDiagnosticMessage(
-    "selected Toy source front-door route");
-constexpr llvm::StringLiteral kTemplateReason(
-    "toy-source-front-door-template-compute");
+constexpr llvm::StringLiteral kCanonicalProblemSymbol("canonical_problem");
 
 mlir::LogicalResult failMaterializer(mlir::Operation *op,
                                      llvm::StringRef message) {
@@ -161,50 +152,6 @@ void createToyCapability(mlir::OpBuilder &builder, mlir::Location loc) {
   (void)builder.create(state);
 }
 
-void createToyTemplateVariant(mlir::OpBuilder &builder, mlir::Location loc,
-                              mlir::ArrayAttr requires) {
-  mlir::OperationState state(loc, "weft.exec.variant");
-  state.addAttribute(
-      "sym_name", builder.getStringAttr(getToyTemplateFirstSliceVariantName()));
-  state.addAttribute(kOriginAttrName,
-                     builder.getStringAttr(getToyExtensionPluginName()));
-  state.addAttribute(kRequiresAttrName, requires);
-  state.addAttribute(getToyTemplateABIAttrName(),
-                     builder.getStringAttr(getToyExpectedTemplateABI()));
-  state.addAttribute(getToyHandoffKindAttrName(),
-                     builder.getStringAttr(getToyExpectedHandoffKind()));
-  state.addRegion();
-  auto variant = llvm::cast<weft::exec::VariantOp>(builder.create(state));
-  variant.getBody().emplaceBlock();
-}
-
-void createToyComputeSkeletonBoundary(mlir::OpBuilder &builder,
-                                      mlir::Location loc,
-                                      llvm::StringRef kernelName) {
-  mlir::OperationState state(loc, "weft_toy.compute_skeleton");
-  state.addAttribute(kSourceKernelBoundaryAttrName,
-                     builder.getStringAttr(kernelName));
-  state.addAttribute(kSelectedVariantAttrName,
-                     symbolRef(builder, getToyTemplateFirstSliceVariantName()));
-  state.addAttribute(kTemplateReasonAttrName,
-                     builder.getStringAttr(kTemplateReason));
-  (void)builder.create(state);
-}
-
-void createSelectedToyDiagnostic(mlir::OpBuilder &builder,
-                                 mlir::Location loc) {
-  mlir::OperationState state(loc, "weft.exec.diagnostic");
-  state.addAttribute("message",
-                     builder.getStringAttr(kSelectedDiagnosticMessage));
-  state.addAttribute("reason", builder.getStringAttr("variant-selected"));
-  state.addAttribute("selection_kind", builder.getStringAttr("static-variant"));
-  state.addAttribute("severity", builder.getStringAttr("note"));
-  state.addAttribute("status", builder.getStringAttr("selected"));
-  state.addAttribute("target",
-                     symbolRef(builder, getToyTemplateFirstSliceVariantName()));
-  (void)builder.create(state);
-}
-
 mlir::LogicalResult materializeToySourceKernel(mlir::OpBuilder &builder,
                                                mlir::ModuleOp module,
                                                llvm::StringRef kernelName) {
@@ -226,6 +173,8 @@ mlir::LogicalResult materializeToySourceKernel(mlir::OpBuilder &builder,
   mlir::OperationState kernelState(loc, "weft.exec.kernel");
   kernelState.addAttribute("sym_name", builder.getStringAttr(kernelName));
   kernelState.addAttribute("target", symbolRef(builder, targetSymbol));
+  kernelState.addAttribute("problem",
+                           symbolRef(builder, kCanonicalProblemSymbol));
   kernelState.addRegion();
   auto kernel =
       llvm::cast<weft::exec::KernelOp>(builder.create(kernelState));
@@ -234,11 +183,13 @@ mlir::LogicalResult materializeToySourceKernel(mlir::OpBuilder &builder,
   mlir::OpBuilder::InsertionGuard kernelGuard(builder);
   builder.setInsertionPointToStart(&kernel.getBody().front());
 
-  mlir::ArrayAttr requires =
-      builder.getArrayAttr({symbolRef(builder, kToyCapabilitySymbol)});
-  createToyTemplateVariant(builder, loc, requires);
-  createToyComputeSkeletonBoundary(builder, loc, kernelName);
-  createSelectedToyDiagnostic(builder, loc);
+  mlir::OperationState problemState(
+      loc, weft::exec::TemplateComputeProblemOp::getOperationName());
+  problemState.addAttribute("sym_name",
+                            builder.getStringAttr(kCanonicalProblemSymbol));
+  problemState.addAttribute("template_kind",
+                            builder.getStringAttr("compute-skeleton"));
+  (void)builder.create(problemState);
   return mlir::success();
 }
 
@@ -251,12 +202,12 @@ public:
   }
 
   llvm::StringRef getDescription() const final {
-    return "Materialize one bounded Toy construction-template source marker "
-           "into the Toy selected compute_skeleton front door";
+    return "Adapt one bounded Toy template source into target-bound exact "
+           "TemplateCompute canonical P";
   }
 
   void getDependentDialects(mlir::DialectRegistry &registry) const final {
-    registry.insert<weft::exec::WEFTExecDialect, weft::toy::WEFTToyDialect>();
+    registry.insert<weft::exec::WEFTExecDialect>();
   }
 
   void runOnOperation() final {

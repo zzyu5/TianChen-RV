@@ -25,17 +25,16 @@
 // Only FLIPPING the VLEN reveals the 改判.
 
 // (A) BODY-level flip: the setvl integer-core anchor the closed form threaded in.
-// RUN: weft-opt %s --weft-rvv-materialize-widening-dot-reduce-source-front-door=march=rv64gcv | FileCheck %s --check-prefix=BODY128
-// RUN: weft-opt %s --weft-rvv-materialize-widening-dot-reduce-source-front-door=march=rv64gcv_zvl256b | FileCheck %s --check-prefix=BODY256
+// RUN: weft-opt %s --weft-rvv-materialize-widening-dot-reduce-source-front-door=march=rv64gcv --weft-execution-planning-pipeline | FileCheck %s --check-prefix=BODY128
+// RUN: weft-opt %s --weft-rvv-materialize-widening-dot-reduce-source-front-door=march=rv64gcv_zvl256b --weft-execution-planning-pipeline | FileCheck %s --check-prefix=BODY256
 //
 // (B) EMITTED-INTRINSIC flip: the width-invariant anchor carries to the emitted C.
-// RUN: weft-opt %s --weft-rvv-materialize-widening-dot-reduce-source-front-door=march=rv64gcv --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=EMITC128
-// RUN: weft-opt %s --weft-rvv-materialize-widening-dot-reduce-source-front-door=march=rv64gcv_zvl256b --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=EMITC256
+// RUN: weft-opt %s --weft-rvv-materialize-widening-dot-reduce-source-front-door=march=rv64gcv --weft-execution-planning-pipeline --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=EMITC128
+// RUN: weft-opt %s --weft-rvv-materialize-widening-dot-reduce-source-front-door=march=rv64gcv_zvl256b --weft-execution-planning-pipeline --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=EMITC256
 //
-// (C) NO-capability zero-regression: with no guaranteed VLEN>=128 fact (rv64gc, no
-// V) the closed form returns the WIDEST default (m2), reason=fallback_widest -- the
-// byte-exact no-march path, NOT a spurious m1.
-// RUN: weft-opt %s --weft-rvv-materialize-widening-dot-reduce-source-front-door=march=rv64gc | FileCheck %s --check-prefix=NOCAP
+// (C) NO-capability fail-closed: source construction still produces exact P, but
+// selected owner construction cannot invent a final plan without c_o.
+// RUN: not weft-opt %s --weft-rvv-materialize-widening-dot-reduce-source-front-door=march=rv64gc --weft-execution-planning-pipeline 2>&1 | FileCheck %s --check-prefix=NOCAP
 
 module attributes {weft_rvv.source_front_door = "bounded_widening_dot_reduce_source"} {
   func.func @source_widening_dot_reduce(%lhs: memref<?xi8>, %rhs: memref<?xi8>, %out: memref<?xi32>, %acc: memref<?xi32>, %n: index) {
@@ -85,8 +84,5 @@ module attributes {weft_rvv.source_front_door = "bounded_widening_dot_reduce_sou
 // EMITC256-NOT: call_opaque "__riscv_vwredsum_vs_i16m4_i32m1"
 
 // ===================== (C) NO-capability zero-regression ==================
-// rv64gc (no V, no guaranteed VLEN>=128): the widest sufficient default (m2), NOT a
-// spurious m1 -- the fallback_widest, byte-exact with the historical no-march pick.
-// NOCAP: weft_rvv.setvl
-// NOCAP-SAME: lmul = "m2"
-// NOCAP-NOT: lmul = "m1"
+// rv64gc (no V, no guaranteed VLEN>=128): no final typed plan is invented.
+// NOCAP: reduction formula requires minimum_vlen and vreg_count in c_o

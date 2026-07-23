@@ -1,5 +1,6 @@
 #include "Weft/Plugin/RVV/RVVVectorSourceFrontDoor.h"
 #include "Weft/Plugin/RVV/RVVFormulaCatalog.h"
+#include "Weft/Plugin/RVV/RVVCanonicalProblemConstruction.h"
 
 #include "Weft/Dialect/Exec/IR/ExecOps.h"
 #include "Weft/Dialect/RVV/IR/RVVDialect.h"
@@ -41,9 +42,6 @@ constexpr llvm::StringLiteral kAcceptedVectorCompareSelectSourceFrontDoorValue(
 constexpr llvm::StringLiteral
     kAcceptedVectorRuntimeScalarCompareSelectSourceFrontDoorValue(
         "bounded_vector_runtime_scalar_cmp_select_source");
-constexpr llvm::StringLiteral kOriginAttrName("origin");
-constexpr llvm::StringLiteral kRequiresAttrName("requires");
-
 mlir::LogicalResult failVectorMaterializer(mlir::Operation *op,
                                            llvm::Twine message) {
   op->emitError() << "bounded RVV vector-binary source front door failed: "
@@ -93,9 +91,7 @@ struct RVVVectorSourceFrontDoorFamilyDescriptor {
   llvm::StringLiteral passArgument;
   llvm::StringLiteral passDescription;
   llvm::StringLiteral sourceFunctionCandidateDescription;
-  llvm::StringLiteral selectedVariantPrefix;
-  llvm::StringLiteral runtimePurposePrefix;
-  llvm::StringLiteral dispatchPolicy;
+  llvm::StringLiteral kernelNamePrefix;
   SourceFrontDoorPassRegistration::DefaultArtifactFrontDoorPolicy
       defaultArtifactPolicy;
   RVVVectorSourceFrontDoorFailFn fail;
@@ -108,11 +104,9 @@ getRVVVectorSourceFrontDoorFamilyRegistry() {
        "bounded-vector-binary-source-front-door",
        kAcceptedVectorBinarySourceFrontDoorValue,
        "weft-rvv-materialize-vector-binary-source-front-door",
-       "Materialize one bounded MLIR Vector-like i32 binary source pattern "
-       "into a selected generic typed RVV body",
+       "Adapt one bounded MLIR Vector-like i32 binary source pattern into "
+       "target-bound exact canonical P",
        "RVV vector-binary source function candidate", "rvv_vector_",
-       "rvv-vector-binary-source-front-door",
-       "rvv-vector-binary-source-front-door-case",
        SourceFrontDoorPassRegistration::DefaultArtifactFrontDoorPolicy::
            ExplicitOnly,
        failVectorMaterializer},
@@ -120,12 +114,10 @@ getRVVVectorSourceFrontDoorFamilyRegistry() {
        "bounded-vector-compare-select-source-front-door",
        kAcceptedVectorCompareSelectSourceFrontDoorValue,
        "weft-rvv-materialize-vector-compare-select-source-front-door",
-       "Materialize one bounded MLIR Vector-like i32 compare/select source "
-       "pattern into a selected generic typed RVV body",
+       "Adapt one bounded MLIR Vector-like i32 compare/select source pattern "
+       "into target-bound exact canonical P",
        "RVV vector-compare-select source function candidate",
        "rvv_vector_cmp_select_",
-       "rvv-vector-compare-select-source-front-door",
-       "rvv-vector-compare-select-source-front-door-case",
        SourceFrontDoorPassRegistration::DefaultArtifactFrontDoorPolicy::
            ExplicitOnly,
        failVectorCompareSelectMaterializer},
@@ -133,12 +125,10 @@ getRVVVectorSourceFrontDoorFamilyRegistry() {
        "bounded-vector-runtime-scalar-cmp-select-source-front-door",
        kAcceptedVectorRuntimeScalarCompareSelectSourceFrontDoorValue,
        "weft-rvv-materialize-vector-runtime-scalar-cmp-select-source-front-door",
-       "Materialize one bounded MLIR Vector-like i32 runtime-scalar "
-       "compare/select source pattern into a selected generic typed RVV body",
+       "Adapt one bounded MLIR Vector-like i32 runtime-scalar compare/select "
+       "source pattern into target-bound exact canonical P",
        "RVV vector-runtime-scalar-cmp-select source function candidate",
        "rvv_vector_runtime_scalar_cmp_select_",
-       "rvv-vector-runtime-scalar-cmp-select-source-front-door",
-       "rvv-vector-runtime-scalar-cmp-select-source-front-door-case",
        SourceFrontDoorPassRegistration::DefaultArtifactFrontDoorPolicy::
            ExplicitOnly,
        failVectorRuntimeScalarCompareSelectMaterializer},
@@ -244,21 +234,9 @@ mlir::LogicalResult requireRVVVectorSourceOnlyModule(
 std::string getDefaultRVVVectorSourceKernelName(
     const RVVVectorSourceFrontDoorFamilyDescriptor &family,
     llvm::StringRef operationKind) {
-  return (llvm::Twine(family.selectedVariantPrefix) + operationKind +
+  return (llvm::Twine(family.kernelNamePrefix) + operationKind +
           "_from_vector_source")
       .str();
-}
-
-std::string getRVVVectorSourceVariantSymbol(
-    const RVVVectorSourceFrontDoorFamilyDescriptor &family,
-    llvm::StringRef operationKind) {
-  return (llvm::Twine(family.selectedVariantPrefix) + operationKind).str();
-}
-
-std::string getRVVVectorSourceRuntimePurpose(
-    const RVVVectorSourceFrontDoorFamilyDescriptor &family,
-    llvm::StringRef role) {
-  return (llvm::Twine(family.runtimePurposePrefix) + ":" + role).str();
 }
 
 mlir::FailureOr<std::string> getRVVVectorSourceKernelName(
@@ -1053,17 +1031,6 @@ mlir::FlatSymbolRefAttr symbolRef(mlir::OpBuilder &builder,
   return mlir::FlatSymbolRefAttr::get(builder.getContext(), symbol);
 }
 
-mlir::ArrayAttr createRequires(mlir::OpBuilder &builder,
-                               llvm::StringRef symbol) {
-  return builder.getArrayAttr({symbolRef(builder, symbol)});
-}
-
-weft::rvv::PolicyAttr createAgnosticPolicy(mlir::OpBuilder &builder) {
-  return weft::rvv::PolicyAttr::get(builder.getContext(),
-                                    weft::rvv::TailPolicy::Agnostic,
-                                    weft::rvv::MaskPolicy::Agnostic);
-}
-
 weft::rvv::RuntimeABIValueOp
 createRuntimeABIValue(mlir::OpBuilder &builder, mlir::Location loc,
                       llvm::StringRef role, llvm::StringRef cName,
@@ -1164,30 +1131,10 @@ void createRVVStore(mlir::OpBuilder &builder, mlir::Location loc,
   (void)builder.create(state);
 }
 
-weft::exec::VariantOp createRVVVectorSourceVariant(
-    mlir::OpBuilder &builder, mlir::Location loc,
-    llvm::StringRef selectedVariantSymbol, mlir::ArrayAttr requires,
-    weft::rvv::PolicyAttr policy) {
-  mlir::OperationState state(loc, weft::exec::VariantOp::getOperationName());
-  state.addAttribute("sym_name", builder.getStringAttr(selectedVariantSymbol));
-  state.addAttribute(kOriginAttrName, builder.getStringAttr(getRVVExtensionPluginName()));
-  state.addAttribute(kRequiresAttrName, requires);
-  state.addAttribute("weft_rvv.policy", policy);
-  state.addRegion();
-  auto variant = llvm::cast<weft::exec::VariantOp>(builder.create(state));
-  variant.getBody().emplaceBlock();
-  return variant;
-}
-
 mlir::LogicalResult materializeRVVVectorBinarySourceKernel(
     mlir::OpBuilder &builder, llvm::StringRef kernelName,
-    const RVVVectorSourceFrontDoorFamilyDescriptor &family,
-    const ExtensionPluginRegistry &registry, VectorBinarySourceMatch source) {
-  (void)registry;
+    VectorBinarySourceMatch source) {
   mlir::Location loc = source.func.getLoc();
-  weft::rvv::PolicyAttr policy = createAgnosticPolicy(builder);
-  std::string selectedVariantSymbol =
-      getRVVVectorSourceVariantSymbol(family, source.binaryKind);
 
   mlir::ModuleOp module = source.func->getParentOfType<mlir::ModuleOp>();
   llvm::Expected<weft::exec::TargetOp> target =
@@ -1220,64 +1167,15 @@ mlir::LogicalResult materializeRVVVectorBinarySourceKernel(
       builder.getI64IntegerAttr(source.sourceVectorType.getDimSize(0)));
   (void)builder.create(problemState);
 
-  mlir::ArrayAttr rvvRequires = createRequires(
-      builder, weft::target::rvv::getRVVSourceCapabilitySymbol(kernelName));
-
-  weft::exec::VariantOp rvvVariant = createRVVVectorSourceVariant(
-      builder, loc, selectedVariantSymbol, rvvRequires, policy);
-  mlir::OpBuilder::InsertionGuard variantGuard(builder);
-  builder.setInsertionPointToStart(&rvvVariant.getBody().front());
-
-  mlir::Type runtimeABIType =
-      weft::rvv::RuntimeABIValueType::get(builder.getContext());
-  std::string lhsPurpose = getRVVVectorSourceRuntimePurpose(family, "lhs");
-  std::string rhsPurpose = getRVVVectorSourceRuntimePurpose(family, "rhs");
-  std::string outPurpose = getRVVVectorSourceRuntimePurpose(family, "out");
-  std::string nPurpose = getRVVVectorSourceRuntimePurpose(family, "n");
-  auto lhs = createRuntimeABIValue(
-      builder, loc, "lhs-input-buffer", "lhs", "const int32_t *", lhsPurpose,
-      runtimeABIType);
-  auto rhs = createRuntimeABIValue(
-      builder, loc, "rhs-input-buffer", "rhs", "const int32_t *", rhsPurpose,
-      runtimeABIType);
-  auto out = createRuntimeABIValue(builder, loc, "output-buffer", "out",
-                                   "int32_t *", outPurpose,
-                                   runtimeABIType);
-  auto n = createRuntimeABIValue(builder, loc, "runtime-element-count", "n",
-                                 "size_t", nPurpose,
-                                 builder.getIndexType());
-
-  weft::rvv::SetVLOp setvl = createSetVL(builder, loc, n.getResult(), policy);
-  weft::rvv::WithVLOp withVL =
-      createWithVL(builder, loc, setvl.getVl(), policy);
-
-  mlir::OpBuilder::InsertionGuard withVLGuard(builder);
-  builder.setInsertionPointToStart(&withVL.getBody().front());
-  mlir::Type vectorType =
-      weft::rvv::VectorType::get(builder.getContext(), builder.getI32Type(),
-                                 "m1");
-  mlir::Value loadedLHS =
-      createRVVLoad(builder, loc, lhs.getResult(), setvl.getVl(), vectorType);
-  mlir::Value loadedRHS =
-      createRVVLoad(builder, loc, rhs.getResult(), setvl.getVl(), vectorType);
-  mlir::Value result =
-      createRVVBinary(builder, loc, source.binaryKind, loadedLHS, loadedRHS,
-                      setvl.getVl(), vectorType);
-  createRVVStore(builder, loc, out.getResult(), result, setvl.getVl());
-
+  // Source adaptation stops at exact P + target binding. Candidate creation,
+  // selection, and typed-body construction belong to the RVV owner lifecycle.
   return mlir::success();
 }
 
 mlir::LogicalResult materializeRVVVectorCompareSelectSourceKernel(
     mlir::OpBuilder &builder, llvm::StringRef kernelName,
-    const RVVVectorSourceFrontDoorFamilyDescriptor &family,
-    const ExtensionPluginRegistry &registry,
     VectorCompareSelectSourceMatch source) {
-  (void)registry;
   mlir::Location loc = source.func.getLoc();
-  weft::rvv::PolicyAttr policy = createAgnosticPolicy(builder);
-  std::string selectedVariantSymbol =
-      getRVVVectorSourceVariantSymbol(family, source.predicateKind);
 
   mlir::ModuleOp module = source.func->getParentOfType<mlir::ModuleOp>();
   llvm::Expected<weft::exec::TargetOp> target =
@@ -1312,70 +1210,14 @@ mlir::LogicalResult materializeRVVVectorCompareSelectSourceKernel(
       builder.getI64IntegerAttr(source.sourceVectorType.getDimSize(0)));
   (void)builder.create(problemState);
 
-  mlir::ArrayAttr rvvRequires = createRequires(
-      builder, weft::target::rvv::getRVVSourceCapabilitySymbol(kernelName));
-
-  weft::exec::VariantOp rvvVariant = createRVVVectorSourceVariant(
-      builder, loc, selectedVariantSymbol, rvvRequires, policy);
-  mlir::OpBuilder::InsertionGuard variantGuard(builder);
-  builder.setInsertionPointToStart(&rvvVariant.getBody().front());
-
-  mlir::Type runtimeABIType =
-      weft::rvv::RuntimeABIValueType::get(builder.getContext());
-  std::string lhsPurpose = getRVVVectorSourceRuntimePurpose(family, "lhs");
-  std::string rhsPurpose = getRVVVectorSourceRuntimePurpose(family, "rhs");
-  std::string outPurpose = getRVVVectorSourceRuntimePurpose(family, "out");
-  std::string nPurpose = getRVVVectorSourceRuntimePurpose(family, "n");
-  auto lhs = createRuntimeABIValue(
-      builder, loc, "lhs-input-buffer", "lhs", "const int32_t *", lhsPurpose,
-      runtimeABIType);
-  auto rhs = createRuntimeABIValue(
-      builder, loc, "rhs-input-buffer", "rhs", "const int32_t *", rhsPurpose,
-      runtimeABIType);
-  auto out = createRuntimeABIValue(
-      builder, loc, "output-buffer", "out", "int32_t *", outPurpose,
-      runtimeABIType);
-  auto n = createRuntimeABIValue(
-      builder, loc, "runtime-element-count", "n", "size_t", nPurpose,
-      builder.getIndexType());
-
-  weft::rvv::SetVLOp setvl = createSetVL(builder, loc, n.getResult(), policy);
-  weft::rvv::WithVLOp withVL =
-      createWithVL(builder, loc, setvl.getVl(), policy);
-
-  mlir::OpBuilder::InsertionGuard withVLGuard(builder);
-  builder.setInsertionPointToStart(&withVL.getBody().front());
-  mlir::Type vectorType =
-      weft::rvv::VectorType::get(builder.getContext(), builder.getI32Type(),
-                                 "m1");
-  mlir::Type maskType =
-      weft::rvv::MaskType::get(builder.getContext(), builder.getI32Type(),
-                               "m1");
-  mlir::Value loadedLHS =
-      createRVVLoad(builder, loc, lhs.getResult(), setvl.getVl(), vectorType);
-  mlir::Value loadedRHS =
-      createRVVLoad(builder, loc, rhs.getResult(), setvl.getVl(), vectorType);
-  mlir::Value mask =
-      createRVVCompare(builder, loc, source.predicateKind, loadedLHS,
-                       loadedRHS, setvl.getVl(), maskType);
-  mlir::Value selected =
-      createRVVSelect(builder, loc, mask, loadedLHS, loadedRHS, setvl.getVl(),
-                      vectorType);
-  createRVVStore(builder, loc, out.getResult(), selected, setvl.getVl());
-
+  // Source adaptation stops at exact P + target binding.
   return mlir::success();
 }
 
 mlir::LogicalResult materializeRVVVectorRuntimeScalarCompareSelectSourceKernel(
     mlir::OpBuilder &builder, llvm::StringRef kernelName,
-    const RVVVectorSourceFrontDoorFamilyDescriptor &family,
-    const ExtensionPluginRegistry &registry,
     VectorRuntimeScalarCompareSelectSourceMatch source) {
-  (void)registry;
   mlir::Location loc = source.func.getLoc();
-  weft::rvv::PolicyAttr policy = createAgnosticPolicy(builder);
-  std::string selectedVariantSymbol =
-      getRVVVectorSourceVariantSymbol(family, source.predicateKind);
 
   mlir::ModuleOp module = source.func->getParentOfType<mlir::ModuleOp>();
   llvm::Expected<weft::exec::TargetOp> target =
@@ -1411,72 +1253,7 @@ mlir::LogicalResult materializeRVVVectorRuntimeScalarCompareSelectSourceKernel(
       builder.getI64IntegerAttr(source.sourceVectorType.getDimSize(0)));
   (void)builder.create(problemState);
 
-  mlir::ArrayAttr rvvRequires = createRequires(
-      builder, weft::target::rvv::getRVVSourceCapabilitySymbol(kernelName));
-
-  weft::exec::VariantOp rvvVariant = createRVVVectorSourceVariant(
-      builder, loc, selectedVariantSymbol, rvvRequires, policy);
-  mlir::OpBuilder::InsertionGuard variantGuard(builder);
-  builder.setInsertionPointToStart(&rvvVariant.getBody().front());
-
-  mlir::Type runtimeABIType =
-      weft::rvv::RuntimeABIValueType::get(builder.getContext());
-  std::string lhsPurpose = getRVVVectorSourceRuntimePurpose(family, "lhs");
-  std::string rhsScalarPurpose =
-      getRVVVectorSourceRuntimePurpose(family, "rhs_scalar");
-  std::string trueValuePurpose =
-      getRVVVectorSourceRuntimePurpose(family, "true_value");
-  std::string falseValuePurpose =
-      getRVVVectorSourceRuntimePurpose(family, "false_value");
-  std::string outPurpose = getRVVVectorSourceRuntimePurpose(family, "out");
-  std::string nPurpose = getRVVVectorSourceRuntimePurpose(family, "n");
-  auto lhs = createRuntimeABIValue(
-      builder, loc, "lhs-input-buffer", "lhs", "const int32_t *", lhsPurpose,
-      runtimeABIType);
-  auto rhsScalar =
-      createRuntimeABIValue(builder, loc, "rhs-scalar-value", "rhs_scalar",
-                            "int32_t", rhsScalarPurpose, builder.getI32Type());
-  auto trueValue = createRuntimeABIValue(
-      builder, loc, "true-value-input-buffer", "true_value",
-      "const int32_t *", trueValuePurpose, runtimeABIType);
-  auto falseValue = createRuntimeABIValue(
-      builder, loc, "false-value-input-buffer", "false_value",
-      "const int32_t *", falseValuePurpose, runtimeABIType);
-  auto out = createRuntimeABIValue(
-      builder, loc, "output-buffer", "out", "int32_t *", outPurpose,
-      runtimeABIType);
-  auto n = createRuntimeABIValue(
-      builder, loc, "runtime-element-count", "n", "size_t", nPurpose,
-      builder.getIndexType());
-
-  weft::rvv::SetVLOp setvl = createSetVL(builder, loc, n.getResult(), policy);
-  weft::rvv::WithVLOp withVL =
-      createWithVL(builder, loc, setvl.getVl(), policy);
-
-  mlir::OpBuilder::InsertionGuard withVLGuard(builder);
-  builder.setInsertionPointToStart(&withVL.getBody().front());
-  mlir::Type vectorType =
-      weft::rvv::VectorType::get(builder.getContext(), builder.getI32Type(),
-                                 "m1");
-  mlir::Type maskType =
-      weft::rvv::MaskType::get(builder.getContext(), builder.getI32Type(),
-                               "m1");
-  mlir::Value loadedLHS =
-      createRVVLoad(builder, loc, lhs.getResult(), setvl.getVl(), vectorType);
-  mlir::Value splattedRHS = createRVVSplat(
-      builder, loc, rhsScalar.getResult(), setvl.getVl(), vectorType);
-  mlir::Value loadedTrueValue = createRVVLoad(
-      builder, loc, trueValue.getResult(), setvl.getVl(), vectorType);
-  mlir::Value loadedFalseValue = createRVVLoad(
-      builder, loc, falseValue.getResult(), setvl.getVl(), vectorType);
-  mlir::Value mask =
-      createRVVCompare(builder, loc, source.predicateKind, loadedLHS,
-                       splattedRHS, setvl.getVl(), maskType);
-  mlir::Value selected =
-      createRVVSelect(builder, loc, mask, loadedTrueValue, loadedFalseValue,
-                      setvl.getVl(), vectorType);
-  createRVVStore(builder, loc, out.getResult(), selected, setvl.getVl());
-
+  // Source adaptation stops at exact P + target binding.
   return mlir::success();
 }
 
@@ -1490,8 +1267,7 @@ void populateRVVVectorSourceFrontDoorDependentDialects(
 
 mlir::LogicalResult materializeRVVVectorSourceFrontDoorFamily(
     mlir::ModuleOp module,
-    const RVVVectorSourceFrontDoorFamilyDescriptor &family,
-    const ExtensionPluginRegistry &registry) {
+    const RVVVectorSourceFrontDoorFamilyDescriptor &family) {
   std::string kernelName;
   mlir::OpBuilder builder(module.getContext());
 
@@ -1506,7 +1282,7 @@ mlir::LogicalResult materializeRVVVectorSourceFrontDoorFamily(
 
     builder.setInsertionPointToStart(module.getBody());
     if (mlir::failed(materializeRVVVectorBinarySourceKernel(
-            builder, kernelName, family, registry, *source)))
+            builder, kernelName, *source)))
       return mlir::failure();
     break;
   }
@@ -1520,7 +1296,7 @@ mlir::LogicalResult materializeRVVVectorSourceFrontDoorFamily(
 
     builder.setInsertionPointToStart(module.getBody());
     if (mlir::failed(materializeRVVVectorCompareSelectSourceKernel(
-            builder, kernelName, family, registry, *source)))
+            builder, kernelName, *source)))
       return mlir::failure();
     break;
   }
@@ -1535,7 +1311,7 @@ mlir::LogicalResult materializeRVVVectorSourceFrontDoorFamily(
 
     builder.setInsertionPointToStart(module.getBody());
     if (mlir::failed(materializeRVVVectorRuntimeScalarCompareSelectSourceKernel(
-            builder, kernelName, family, registry, *source)))
+            builder, kernelName, *source)))
       return mlir::failure();
     break;
   }
@@ -1552,9 +1328,8 @@ class MaterializeRVVVectorSourceFrontDoorFamilyPass final
           mlir::OperationPass<mlir::ModuleOp>> {
 public:
   MaterializeRVVVectorSourceFrontDoorFamilyPass(
-      RVVVectorSourceFrontDoorFamilyID familyID,
-      const ExtensionPluginRegistry *registry)
-      : familyID(familyID), registry(registry) {}
+      RVVVectorSourceFrontDoorFamilyID familyID)
+      : familyID(familyID) {}
 
   llvm::StringRef getArgument() const final {
     return getRVVVectorSourceFrontDoorFamily(familyID).passArgument;
@@ -1572,16 +1347,8 @@ public:
     mlir::ModuleOp module = getOperation();
     const RVVVectorSourceFrontDoorFamilyDescriptor &family =
         getRVVVectorSourceFrontDoorFamily(familyID);
-    if (!registry) {
-      module.emitError()
-          << "RVV vector source-front-door family pass requires an injected "
-             "extension-plugin registry to dispatch the conservative fallback "
-             "variant to its owning plugin";
-      signalPassFailure();
-      return;
-    }
-    if (mlir::failed(materializeRVVVectorSourceFrontDoorFamily(module, family,
-                                                              *registry))) {
+    if (mlir::failed(
+            materializeRVVVectorSourceFrontDoorFamily(module, family))) {
       signalPassFailure();
       return;
     }
@@ -1589,53 +1356,205 @@ public:
 
 private:
   RVVVectorSourceFrontDoorFamilyID familyID;
-  const ExtensionPluginRegistry *registry = nullptr;
 };
 
 std::unique_ptr<::mlir::Pass>
 createMaterializeRVVVectorSourceFrontDoorFamilyPass(
-    RVVVectorSourceFrontDoorFamilyID familyID,
-    const ExtensionPluginRegistry *registry) {
+    RVVVectorSourceFrontDoorFamilyID familyID) {
   return std::make_unique<MaterializeRVVVectorSourceFrontDoorFamilyPass>(
-      familyID, registry);
+      familyID);
 }
 
 } // namespace
 
+llvm::Error constructRVVVectorProblemBody(
+    weft::exec::VariantOp variant, mlir::Operation *problem,
+    const RVVSelectedTargetCapabilityFacts &capability) {
+  (void)capability; // Candidate availability is decisive; current body shape is c-null.
+  if (!variant || !problem)
+    return llvm::createStringError(llvm::inconvertibleErrorCode(),
+                                   "RVV vector construction requires variant and exact P");
+  if (variant.getBody().empty())
+    return llvm::createStringError(llvm::inconvertibleErrorCode(),
+                                   "RVV vector candidate has no body region");
+  if (!variant.getBody().front().empty())
+    return llvm::createStringError(
+        llvm::inconvertibleErrorCode(),
+        "RVV vector forward construction requires an empty selected candidate");
+
+  auto policy = variant->getAttrOfType<weft::rvv::PolicyAttr>(
+      "weft_rvv.policy");
+  if (!policy)
+    return llvm::createStringError(
+        llvm::inconvertibleErrorCode(),
+        "RVV vector candidate requires formula-owned weft_rvv.policy");
+
+  mlir::OpBuilder builder(variant.getContext());
+  builder.setInsertionPointToStart(&variant.getBody().front());
+  mlir::Location loc = problem->getLoc();
+  mlir::Type runtimeABIType =
+      weft::rvv::RuntimeABIValueType::get(builder.getContext());
+  mlir::Type vectorType = weft::rvv::VectorType::get(
+      builder.getContext(), builder.getI32Type(), "m1");
+  mlir::Type maskType = weft::rvv::MaskType::get(
+      builder.getContext(), builder.getI32Type(), "m1");
+
+  auto purpose = [](llvm::StringRef prefix, llvm::StringRef role) {
+    return (llvm::Twine(prefix) + ":" + role).str();
+  };
+
+  if (auto binary =
+          llvm::dyn_cast<weft::exec::I32VectorBinaryProblemOp>(problem)) {
+    constexpr llvm::StringLiteral prefix(
+        "rvv-vector-binary-source-front-door");
+    auto lhs = createRuntimeABIValue(
+        builder, loc, "lhs-input-buffer", "lhs", "const int32_t *",
+        purpose(prefix, "lhs"), runtimeABIType);
+    auto rhs = createRuntimeABIValue(
+        builder, loc, "rhs-input-buffer", "rhs", "const int32_t *",
+        purpose(prefix, "rhs"), runtimeABIType);
+    auto out = createRuntimeABIValue(
+        builder, loc, "output-buffer", "out", "int32_t *",
+        purpose(prefix, "out"), runtimeABIType);
+    auto n = createRuntimeABIValue(
+        builder, loc, "runtime-element-count", "n", "size_t",
+        purpose(prefix, "n"), builder.getIndexType());
+    weft::rvv::SetVLOp setvl =
+        createSetVL(builder, loc, n.getResult(), policy);
+    weft::rvv::WithVLOp withVL =
+        createWithVL(builder, loc, setvl.getVl(), policy);
+    mlir::OpBuilder::InsertionGuard guard(builder);
+    builder.setInsertionPointToStart(&withVL.getBody().front());
+    mlir::Value loadedLHS = createRVVLoad(
+        builder, loc, lhs.getResult(), setvl.getVl(), vectorType);
+    mlir::Value loadedRHS = createRVVLoad(
+        builder, loc, rhs.getResult(), setvl.getVl(), vectorType);
+    mlir::Value result = createRVVBinary(
+        builder, loc, binary.getKind(), loadedLHS, loadedRHS, setvl.getVl(),
+        vectorType);
+    createRVVStore(builder, loc, out.getResult(), result, setvl.getVl());
+    return llvm::Error::success();
+  }
+
+  auto compare =
+      llvm::dyn_cast<weft::exec::I32VectorCompareSelectProblemOp>(problem);
+  if (!compare)
+    return llvm::createStringError(
+        llvm::inconvertibleErrorCode(),
+        "RVV vector construction received a non-vector canonical problem");
+
+  const bool runtimeScalar = compare.getRhsForm() == "runtime-scalar";
+  llvm::StringRef prefix =
+      runtimeScalar ? "rvv-vector-runtime-scalar-cmp-select-source-front-door"
+                    : "rvv-vector-compare-select-source-front-door";
+  auto lhs = createRuntimeABIValue(
+      builder, loc, "lhs-input-buffer", "lhs", "const int32_t *",
+      purpose(prefix, "lhs"), runtimeABIType);
+  weft::rvv::RuntimeABIValueOp out;
+  weft::rvv::RuntimeABIValueOp n;
+  weft::rvv::SetVLOp setvl;
+  weft::rvv::WithVLOp withVL;
+
+  if (!runtimeScalar) {
+    auto rhs = createRuntimeABIValue(
+        builder, loc, "rhs-input-buffer", "rhs", "const int32_t *",
+        purpose(prefix, "rhs"), runtimeABIType);
+    out = createRuntimeABIValue(builder, loc, "output-buffer", "out",
+                                "int32_t *", purpose(prefix, "out"),
+                                runtimeABIType);
+    n = createRuntimeABIValue(builder, loc, "runtime-element-count", "n",
+                              "size_t", purpose(prefix, "n"),
+                              builder.getIndexType());
+    setvl = createSetVL(builder, loc, n.getResult(), policy);
+    withVL = createWithVL(builder, loc, setvl.getVl(), policy);
+    mlir::OpBuilder::InsertionGuard guard(builder);
+    builder.setInsertionPointToStart(&withVL.getBody().front());
+    mlir::Value loadedLHS = createRVVLoad(
+        builder, loc, lhs.getResult(), setvl.getVl(), vectorType);
+    mlir::Value loadedRHS = createRVVLoad(
+        builder, loc, rhs.getResult(), setvl.getVl(), vectorType);
+    mlir::Value mask = createRVVCompare(
+        builder, loc, compare.getPredicate(), loadedLHS, loadedRHS,
+        setvl.getVl(), maskType);
+    mlir::Value selected = createRVVSelect(
+        builder, loc, mask, loadedLHS, loadedRHS, setvl.getVl(), vectorType);
+    createRVVStore(builder, loc, out.getResult(), selected, setvl.getVl());
+    return llvm::Error::success();
+  }
+
+  auto rhsScalar = createRuntimeABIValue(
+      builder, loc, "rhs-scalar-value", "rhs_scalar", "int32_t",
+      purpose(prefix, "rhs_scalar"), builder.getI32Type());
+  auto trueValue = createRuntimeABIValue(
+      builder, loc, "true-value-input-buffer", "true_value",
+      "const int32_t *", purpose(prefix, "true_value"), runtimeABIType);
+  auto falseValue = createRuntimeABIValue(
+      builder, loc, "false-value-input-buffer", "false_value",
+      "const int32_t *", purpose(prefix, "false_value"), runtimeABIType);
+  out = createRuntimeABIValue(builder, loc, "output-buffer", "out",
+                              "int32_t *", purpose(prefix, "out"),
+                              runtimeABIType);
+  n = createRuntimeABIValue(builder, loc, "runtime-element-count", "n",
+                            "size_t", purpose(prefix, "n"),
+                            builder.getIndexType());
+  setvl = createSetVL(builder, loc, n.getResult(), policy);
+  withVL = createWithVL(builder, loc, setvl.getVl(), policy);
+  mlir::OpBuilder::InsertionGuard guard(builder);
+  builder.setInsertionPointToStart(&withVL.getBody().front());
+  mlir::Value loadedLHS =
+      createRVVLoad(builder, loc, lhs.getResult(), setvl.getVl(), vectorType);
+  mlir::Value splattedRHS = createRVVSplat(
+      builder, loc, rhsScalar.getResult(), setvl.getVl(), vectorType);
+  mlir::Value loadedTrueValue = createRVVLoad(
+      builder, loc, trueValue.getResult(), setvl.getVl(), vectorType);
+  mlir::Value loadedFalseValue = createRVVLoad(
+      builder, loc, falseValue.getResult(), setvl.getVl(), vectorType);
+  mlir::Value mask = createRVVCompare(
+      builder, loc, compare.getPredicate(), loadedLHS, splattedRHS,
+      setvl.getVl(), maskType);
+  mlir::Value selected = createRVVSelect(
+      builder, loc, mask, loadedTrueValue, loadedFalseValue, setvl.getVl(),
+      vectorType);
+  createRVVStore(builder, loc, out.getResult(), selected, setvl.getVl());
+  return llvm::Error::success();
+}
+
 std::unique_ptr<::mlir::Pass>
 createMaterializeRVVVectorBinarySourceFrontDoorPass(
     const ExtensionPluginRegistry &registry) {
+  (void)registry;
   return createMaterializeRVVVectorSourceFrontDoorFamilyPass(
-      RVVVectorSourceFrontDoorFamilyID::Binary, &registry);
+      RVVVectorSourceFrontDoorFamilyID::Binary);
 }
 
 std::unique_ptr<::mlir::Pass>
 createMaterializeRVVVectorCompareSelectSourceFrontDoorPass(
     const ExtensionPluginRegistry &registry) {
+  (void)registry;
   return createMaterializeRVVVectorSourceFrontDoorFamilyPass(
-      RVVVectorSourceFrontDoorFamilyID::CompareSelect, &registry);
+      RVVVectorSourceFrontDoorFamilyID::CompareSelect);
 }
 
 std::unique_ptr<::mlir::Pass>
 createMaterializeRVVVectorRuntimeScalarCompareSelectSourceFrontDoorPass(
     const ExtensionPluginRegistry &registry) {
+  (void)registry;
   return createMaterializeRVVVectorSourceFrontDoorFamilyPass(
-      RVVVectorSourceFrontDoorFamilyID::RuntimeScalarCompareSelect, &registry);
+      RVVVectorSourceFrontDoorFamilyID::RuntimeScalarCompareSelect);
 }
 
 llvm::Error registerRVVVectorSourceFrontDoorFamilyPasses(
     llvm::StringRef ownerPlugin, const ExtensionPluginRegistry &registry,
     llvm::SmallVectorImpl<SourceFrontDoorPassRegistration> &out) {
-  const ExtensionPluginRegistry *registryPtr = &registry;
+  (void)registry;
   for (const RVVVectorSourceFrontDoorFamilyDescriptor &family :
        getRVVVectorSourceFrontDoorFamilyRegistry()) {
     RVVVectorSourceFrontDoorFamilyID familyID = family.id;
     out.push_back(SourceFrontDoorPassRegistration(
         ownerPlugin, family.passArgument, family.passDescription,
         formula_catalog::kVectorSourceConstruction,
-        [familyID, registryPtr] {
-          return createMaterializeRVVVectorSourceFrontDoorFamilyPass(
-              familyID, registryPtr);
+        [familyID] {
+          return createMaterializeRVVVectorSourceFrontDoorFamilyPass(familyID);
         },
         family.defaultArtifactPolicy));
   }

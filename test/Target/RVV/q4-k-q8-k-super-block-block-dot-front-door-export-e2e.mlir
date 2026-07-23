@@ -40,7 +40,7 @@
 
 // Production-export: front door auto-constructs the monolithic block-dot body,
 // materializes the emission plan, lowers to EmitC.
-// RUN: weft-opt %s --weft-rvv-materialize-q4-k-q8-k-block-dot-source-front-door --weft-materialize-emission-plans --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=EMITC
+// RUN: weft-opt %s --weft-rvv-materialize-q4-k-q8-k-block-dot-source-front-door=march=rv64gcv --weft-execution-planning-pipeline --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=EMITC
 
 module attributes {weft_rvv.source_front_door = "ggml_q4_K_q8_K_block_dot_source",
                    weft_rvv.source_kernel = "ggml_vec_dot_q4_K_q8_K_kernel"} {

@@ -21,14 +21,15 @@
 // lowered block, not a general dot-reduce auto-tuner.
 
 // The auto-constructed body (the e8m2 VLEN128 anchor).
-// RUN: weft-opt %s --weft-rvv-materialize-widening-dot-reduce-source-front-door=march=rv64gcv | FileCheck %s --check-prefix=BODY --implicit-check-not="scalar_fallback" --implicit-check-not="weft.exec.dispatch"
+// RUN: weft-opt %s --weft-rvv-materialize-widening-dot-reduce-source-front-door=march=rv64gcv | FileCheck %s --check-prefix=SOURCE --implicit-check-not="weft.exec.variant" --implicit-check-not="weft_rvv."
+// RUN: weft-opt %s --weft-rvv-materialize-widening-dot-reduce-source-front-door=march=rv64gcv --weft-execution-planning-pipeline | FileCheck %s --check-prefix=BODY --implicit-check-not="scalar_fallback" --implicit-check-not="weft.exec.dispatch @"
 //
 // The BAR-A byte-anchor FLIP: the SAME generic source emits e8m2 at VLEN128 and
 // e8m1 at VLEN256 -- a BYTE-DIFFERENT emitted kernel driven by the deriveMinimumVLEN
 // capability fact through the gearbox authority. Asserted on the INTRINSICS (not a
 // metadata mirror), mirroring the q8_0 divergence lit.
-// RUN: weft-opt %s --weft-rvv-materialize-widening-dot-reduce-source-front-door=march=rv64gcv --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=VLEN128
-// RUN: weft-opt %s --weft-rvv-materialize-widening-dot-reduce-source-front-door=march=rv64gcv_zvl256b --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=VLEN256
+// RUN: weft-opt %s --weft-rvv-materialize-widening-dot-reduce-source-front-door=march=rv64gcv --weft-execution-planning-pipeline --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=VLEN128
+// RUN: weft-opt %s --weft-rvv-materialize-widening-dot-reduce-source-front-door=march=rv64gcv_zvl256b --weft-execution-planning-pipeline --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=VLEN256
 
 module attributes {weft_rvv.source_front_door = "bounded_widening_dot_reduce_source"} {
   func.func @source_widening_dot_reduce(%lhs: memref<?xi8>, %rhs: memref<?xi8>, %out: memref<?xi32>, %acc: memref<?xi32>, %n: index) {
@@ -51,6 +52,11 @@ module attributes {weft_rvv.source_front_door = "bounded_widening_dot_reduce_sou
 // load/widening_product/standalone_reduce/store dot-reduce body. NO per-kernel
 // emitter authored this -- the front-door matcher constructed it from the VLEN128
 // gearbox-selected m2 byte anchor.
+// SOURCE: weft.exec.kernel @rvv_widening_dot_reduce_i8_from_vector_source
+// SOURCE-SAME: problem = @canonical_problem
+// SOURCE: weft.exec.i8_widening_dot_reduce_problem @canonical_problem
+// SOURCE-SAME: block_length = 32
+// SOURCE-SAME: dequantize_to_f32 = false
 // BODY: weft.exec.kernel @rvv_widening_dot_reduce_i8_from_vector_source
 // BODY: weft.exec.i8_widening_dot_reduce_problem @canonical_problem
 // BODY-SAME: block_length = 32

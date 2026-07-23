@@ -2013,6 +2013,7 @@ bool isSupportedBoundedRuntimeABIValueCType(
   switch (role) {
   case Role::LHSInputBuffer:
   case Role::RHSInputBuffer:
+  case Role::RHSSecondaryInputBuffer:
     return cType == "const int8_t *" || cType == "const uint8_t *" ||
            cType == "const int16_t *" || cType == "const int32_t *" ||
            cType == "const int64_t *" || cType == "const float *" ||
@@ -2073,6 +2074,7 @@ llvm::StringRef getBoundedRuntimeABIValueCTypeDescription(
   switch (role) {
   case Role::LHSInputBuffer:
   case Role::RHSInputBuffer:
+  case Role::RHSSecondaryInputBuffer:
     return "'const int8_t *', 'const uint8_t *', 'const int16_t *', "
            "'const int32_t *', 'const int64_t *', 'const float *', or "
            "'const double *'";
@@ -2123,6 +2125,7 @@ bool isBoundedInputBufferRole(
     weft::support::RuntimeABIParameterRole role) {
   using Role = weft::support::RuntimeABIParameterRole;
   return role == Role::LHSInputBuffer || role == Role::RHSInputBuffer ||
+         role == Role::RHSSecondaryInputBuffer ||
          role == Role::SourceInputBuffer || role == Role::MaskInputBuffer ||
          role == Role::TrueValueInputBuffer ||
          role == Role::FalseValueInputBuffer ||

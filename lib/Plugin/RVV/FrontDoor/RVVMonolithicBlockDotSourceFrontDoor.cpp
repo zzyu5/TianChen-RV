@@ -1,27 +1,15 @@
 //===- RVVMonolithicBlockDotSourceFrontDoor.cpp -------------------------===//
 //
-// The ONE table-driven monolithic ggml block-dot source front door -- the collapse
-// of the 24 former per-op scaffold-constructor passes into a single generic pass
-// driven by `monolithicBlockDotOpTable()`. Each table row carries the per-op
-// construction DATA; this file carries the ONE shared construction MECHANISM.
+// Table-driven ggml/llama.cpp block-dot source adaptation plus the RVV owner's
+// selected-body mechanism composition. The source pass recognizes one bounded
+// operator identity and creates only target/profile + kernel + exact
+// QuantizedBlockDotProblemOp. Candidate creation, legality, selection, and body
+// construction are downstream owner responsibilities.
 //
-// For a marked GENERIC source carrying a ggml `ggml_vec_dot_<op>` OPERATOR IDENTITY
-// (the vec_dot ABI roles), the pass auto-constructs the complete weft.exec.kernel +
-// variant + dispatch/fallback scaffold around ONE attr-less (modulo the row's
-// integer_core_lmul) weft_rvv.<op>_block_dot op, instead of a per-kernel
-// hand-authored block-dot emitter input. The per-block scale model, the integer
-// decode/product/reduce core, the super-block bit-dance, the codebook gather, and
-// the deferred fold are FIRST-CLASS STRUCTURE inside that op and its existing
-// emitter; the front door supplies only the block-format CONSTANTS + codebook/grid
-// DATA a generic source cannot derive (the values the op verifier pins). Shape
-// selection (where a gearbox exists) is DEFERRED to the unmodified schedule
-// autotuner -- the constructed op is byte-identical to the hand-authored emitter
-// input, so any capability flip rides the existing gearbox byte-for-byte.
-//
-// One pass class parameterized by a table-row pointer registers ONE CLI front-door
-// argument per row; each instance early-returns unless the module marker matches its
-// row, so the family of front doors stays mutually exclusive and every sibling lit
-// is byte-unchanged.
+// After selection, constructSelectedBlockDotBody consumes exact P, selected RVV
+// c_o, and the matching RVV-local mechanism row. It cannot inspect a source op or
+// create a candidate. Formula planning then produces flat_* as the final compute
+// plan mechanically consumed by emission.
 //
 //===----------------------------------------------------------------------===//
 
@@ -32,12 +20,10 @@
 #include "Weft/Dialect/RVV/IR/RVVDialect.h"
 #include "Weft/Plugin/ExtensionPlugin.h"
 #include "Weft/Plugin/RVV/RVVCapabilityProfile.h"
-#include "Weft/Plugin/RVV/RVVExtensionPlugin.h"
+#include "Weft/Plugin/RVV/RVVCanonicalProblemConstruction.h"
 #include "Weft/Plugin/RVV/RVVGearboxSchedule.h"
 #include "Weft/Plugin/RVV/RVVSourceScheduleFormula.h"
 #include "Weft/Plugin/RVV/RVVMonolithicBlockDotFamily.h"
-#include "Weft/Support/CapabilityModel.h"
-#include "Weft/Support/DeclaredInstanceHash.h"
 #include "Weft/Support/RuntimeABI.h"
 #include "Weft/Target/RVV/RVVTargetProfileBinding.h"
 
@@ -56,12 +42,8 @@
 #include "llvm/ADT/Twine.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/CommandLine.h"
-#include "llvm/Support/FileSystem.h"
-#include "llvm/Support/JSON.h"
-#include "llvm/Support/raw_ostream.h"
 
 #include <cstdint>
-#include <ctime>
 #include <memory>
 #include <optional>
 #include <string>
@@ -79,18 +61,11 @@ constexpr llvm::StringLiteral kSourceFrontDoorAttrName(
 constexpr llvm::StringLiteral kSourceKernelAttrName("weft_rvv.source_kernel");
 constexpr llvm::StringLiteral kSeedAttrName("weft_rvv.lowering_seed");
 
-constexpr llvm::StringLiteral kOriginAttrName("origin");
-constexpr llvm::StringLiteral kRequiresAttrName("requires");
-
 // The single generic pass description (shown in --help for every family front door;
 // not a byte-exact-gated string, so it is shared rather than per-op prose).
 constexpr llvm::StringLiteral kPassDescription(
-    "Auto-construct the attr-less weft_rvv.<op>_block_dot op + "
-    "kernel/variant/dispatch/fallback scaffold from a marked ggml vec_dot "
-    "operator-identity source (the block loop, scale model, integer core, "
-    "super-block bit-dance, codebook gather, and deferred fold are first-class op "
-    "structure); shape selection is left to the existing capability-driven schedule "
-    "autotuner (one table-driven front door across the whole ggml block-dot family)");
+    "Adapt one bounded ggml vec_dot operator identity into target-bound exact "
+    "QuantizedBlockDot canonical P");
 
 mlir::LogicalResult fail(const MonolithicBlockDotOpEntry &entry,
                          mlir::Operation *op, llvm::Twine message) {
@@ -157,16 +132,6 @@ matchBlockDotSourceFunc(const MonolithicBlockDotOpEntry &entry,
 mlir::FlatSymbolRefAttr symbolRef(mlir::OpBuilder &builder,
                                   llvm::StringRef symbol) {
   return mlir::FlatSymbolRefAttr::get(builder.getContext(), symbol);
-}
-
-mlir::ArrayAttr createRequires(mlir::OpBuilder &builder, llvm::StringRef symbol) {
-  return builder.getArrayAttr({symbolRef(builder, symbol)});
-}
-
-weftrvv::PolicyAttr createAgnosticPolicy(mlir::OpBuilder &builder) {
-  return weftrvv::PolicyAttr::get(builder.getContext(),
-                                  weftrvv::TailPolicy::Agnostic,
-                                  weftrvv::MaskPolicy::Agnostic);
 }
 
 mlir::Value createRuntimeABIValue(mlir::OpBuilder &builder, mlir::Location loc,
@@ -2824,118 +2789,12 @@ mlir::Value createBlockDot(mlir::OpBuilder &builder, mlir::Location loc,
   return builder.create(state)->getResult(0);
 }
 
-weftexec::VariantOp createVariant(mlir::OpBuilder &builder, mlir::Location loc,
-                                  llvm::StringRef selectedVariantSymbol,
-                                  mlir::ArrayAttr requires,
-                                  weftrvv::PolicyAttr policy) {
-  mlir::OperationState state(loc, weftexec::VariantOp::getOperationName());
-  state.addAttribute("sym_name", builder.getStringAttr(selectedVariantSymbol));
-  state.addAttribute(kOriginAttrName,
-                     builder.getStringAttr(getRVVExtensionPluginName()));
-  state.addAttribute(kRequiresAttrName, requires);
-  state.addAttribute("weft_rvv.policy", policy);
-  state.addRegion();
-  auto variant = llvm::cast<weftexec::VariantOp>(builder.create(state));
-  variant.getBody().emplaceBlock();
-  return variant;
-}
-
-// ---------------------------------------------------------------------------
-// [D-4] SCHEDULE-STAGE fill-LMUL attribution sink. A canonical-JSON side channel
-// mirroring the exec-stage buildSelectionAttributionRecord FORM (sorted keys,
-// deterministic escaping via llvm::json::Value) but NOT routed through it -- this
-// is a DIFFERENT stage with DIFFERENT keys (candidates/chosen/minimum_vlen, no
-// keys_evaluated). The sink is a pure side effect: option-gated OFF by default and
-// writes to a stream only, so it NEVER touches the constructed IR or the exported
-// object -- the byte-identity of the untuned construction is preserved. reason
-// mirrors only the already-constructed RVVSourceScheduleFormula result.
-// ---------------------------------------------------------------------------
-
-void appendScheduleAttributionTimestamp(llvm::raw_ostream &os, bool noTimestamp) {
-  if (noTimestamp) {
-    // Fixed sentinel keeps lit/FileCheck output byte-deterministic.
-    os << llvm::json::Value("0");
-    return;
-  }
-  std::time_t now = std::time(nullptr);
-  std::tm utc{};
-  gmtime_r(&now, &utc);
-  char buffer[32];
-  std::strftime(buffer, sizeof(buffer), "%Y-%m-%dT%H:%M:%SZ", &utc);
-  os << llvm::json::Value(buffer);
-}
-
-std::string buildScheduleFillAttributionRecord(
-    llvm::StringRef kernelName, llvm::ArrayRef<std::string> candidates,
-    llvm::StringRef chosen, llvm::StringRef reason, std::int64_t minimumVLEN,
-    const RVVNumericsTierChoice &numericsChoice,
-    llvm::StringRef declaredInstanceHash, bool noTimestamp) {
-  std::string line;
-  llvm::raw_string_ostream os(line);
-  // Canonical top-level key order (sorted): candidates, chosen,
-  // declared_instance_hash, kernel, minimum_vlen, numerics_reason,
-  // numerics_tier, reason, ts. numerics_reason/numerics_tier ride ONLY on the
-  // chooseNumericsTier output (they cannot be forged here), exactly as the
-  // fill-LMUL attribution mirrors the formula result. The [GAP-NUM] tier is a
-  // schedule-stage policy pick attributed at the SAME sink.
-  os << '{';
-  os << "\"candidates\":[";
-  for (std::size_t index = 0; index < candidates.size(); ++index) {
-    if (index)
-      os << ',';
-    os << llvm::json::Value(candidates[index]);
-  }
-  os << ']';
-  os << ",\"chosen\":" << llvm::json::Value(chosen.str());
-  os << ",\"declared_instance_hash\":"
-     << llvm::json::Value(declaredInstanceHash.str());
-  os << ",\"kernel\":" << llvm::json::Value(kernelName.str());
-  os << ",\"minimum_vlen\":" << minimumVLEN;
-  os << ",\"numerics_reason\":"
-     << llvm::json::Value(
-            stringifyRVVNumericsTierReason(numericsChoice.reason).str());
-  os << ",\"numerics_tier\":"
-     << llvm::json::Value(stringifyRVVNumericsTier(numericsChoice.tier).str());
-  os << ",\"reason\":" << llvm::json::Value(reason.str());
-  os << ",\"ts\":";
-  appendScheduleAttributionTimestamp(os, noTimestamp);
-  os << '}';
-  os.flush();
-  return line;
-}
-
 mlir::LogicalResult
-materializeKernel(mlir::OpBuilder &builder, llvm::StringRef kernelName,
-                  const ExtensionPluginRegistry &registry,
-                  const MonolithicBlockDotOpEntry &entry,
-                  BlockDotSourceMatch source, llvm::StringRef march,
-                  llvm::StringRef isaVectorHints, bool numericsReassocOk,
-                  llvm::raw_ostream *attributionStream,
-                  bool attributionNoTimestamp) {
-  (void)registry;
-  mlir::Location loc = source.func.getLoc();
-  weftrvv::PolicyAttr policy = createAgnosticPolicy(builder);
-  std::string selectedVariantSymbol = entry.variantSymbol.str();
-
-  mlir::ModuleOp module = source.func->getParentOfType<mlir::ModuleOp>();
-  llvm::Expected<weftexec::TargetOp> target =
-      weft::target::rvv::materializeRVVSourceTargetProfile(
-          builder, module, loc, kernelName, march, isaVectorHints);
-  if (!target)
-    return fail(entry, source.func, llvm::toString(target.takeError()));
-
-  mlir::OperationState kernelState(loc, weftexec::KernelOp::getOperationName());
-  kernelState.addAttribute("sym_name", builder.getStringAttr(kernelName));
-  kernelState.addAttribute("target",
-                           symbolRef(builder, target->getSymName()));
-  kernelState.addAttribute("problem", symbolRef(builder, "canonical_problem"));
-  kernelState.addRegion();
-  auto kernel = llvm::cast<weftexec::KernelOp>(builder.create(kernelState));
-  kernel.getBody().emplaceBlock();
-
-  mlir::OpBuilder::InsertionGuard kernelGuard(builder);
-  builder.setInsertionPointToStart(&kernel.getBody().front());
-
+constructSelectedBlockDotBody(
+    mlir::OpBuilder &builder, const MonolithicBlockDotOpEntry &entry,
+    weftexec::VariantOp variant,
+    weftexec::QuantizedBlockDotProblemOp problem,
+    const RVVSelectedTargetCapabilityFacts &capability) {
   auto requiredProblemFact = [&](llvm::StringRef name)
       -> std::optional<std::int64_t> {
     for (const MonolithicBlockDotI64Attr &fact : entry.facts)
@@ -2949,32 +2808,32 @@ materializeKernel(mlir::OpBuilder &builder, llvm::StringRef kernelName,
   std::optional<std::int64_t> activationStride =
       requiredProblemFact("activation_block_stride");
   if (!qk || !weightStride || !activationStride)
-    return fail(entry, source.func,
+    return fail(entry, problem,
                 "formula row lacks required canonical problem block geometry");
-  mlir::OperationState problemState(
-      loc, weftexec::QuantizedBlockDotProblemOp::getOperationName());
-  problemState.addAttribute("sym_name",
-                            builder.getStringAttr("canonical_problem"));
-  problemState.addAttribute("weight_encoding",
-                            builder.getStringAttr(entry.kind));
-  problemState.addAttribute("activation_encoding",
-                            builder.getStringAttr(entry.activationPurpose));
-  problemState.addAttribute("topology",
-                            builder.getStringAttr(entry.scaleModel));
-  problemState.addAttribute("qk", builder.getI64IntegerAttr(*qk));
-  problemState.addAttribute("weight_block_stride",
-                            builder.getI64IntegerAttr(*weightStride));
-  problemState.addAttribute("activation_block_stride",
-                            builder.getI64IntegerAttr(*activationStride));
-  (void)builder.create(problemState);
+  if (variant.getBody().empty() || !variant.getBody().front().empty())
+    return fail(entry, variant,
+                "forward construction requires an empty selected candidate");
+  if (problem.getWeightEncoding() !=
+          getMonolithicBlockDotProblemWeightEncoding(entry) ||
+      problem.getActivationEncoding() !=
+          getMonolithicBlockDotProblemActivationEncoding(entry) ||
+      problem.getTopology() != entry.scaleModel ||
+      static_cast<std::int64_t>(problem.getQk()) != *qk ||
+      static_cast<std::int64_t>(problem.getWeightBlockStride()) !=
+          *weightStride ||
+      static_cast<std::int64_t>(problem.getActivationBlockStride()) !=
+          *activationStride)
+    return fail(entry, problem,
+                "canonical P conflicts with the selected block-dot formula row");
+  auto policy =
+      variant->getAttrOfType<weftrvv::PolicyAttr>("weft_rvv.policy");
+  if (!policy)
+    return fail(entry, variant,
+                "selected candidate lacks formula-owned weft_rvv.policy");
 
-  mlir::ArrayAttr rvvRequires = createRequires(
-      builder, weft::target::rvv::getRVVSourceCapabilitySymbol(kernelName));
-
-  weftexec::VariantOp rvvVariant =
-      createVariant(builder, loc, selectedVariantSymbol, rvvRequires, policy);
+  mlir::Location loc = problem.getLoc();
+  builder.setInsertionPointToStart(&variant.getBody().front());
   mlir::OpBuilder::InsertionGuard variantGuard(builder);
-  builder.setInsertionPointToStart(&rvvVariant.getBody().front());
 
   mlir::Type runtimeABIType =
       weftrvv::RuntimeABIValueType::get(builder.getContext());
@@ -3282,18 +3141,21 @@ materializeKernel(mlir::OpBuilder &builder, llvm::StringRef kernelName,
     typedFlatLMULCandidates = {"m1", "m2"};
   else
     typedFlatLMULCandidates = {"m1"};
-  const std::int64_t minimumVLEN = resolveRVVMinimumVLEN(
-      source.func->getParentOfType<mlir::ModuleOp>(), march, isaVectorHints);
+  if (!capability.minimumVLEN || !capability.vectorRegisterCount)
+    return fail(entry, problem,
+                "block-dot formula requires minimum_vlen and vreg_count in "
+                "the selected c_o");
+  const std::int64_t minimumVLEN = *capability.minimumVLEN;
+  const std::int64_t vectorRegisterBudget =
+      *capability.vectorRegisterCount;
   llvm::Expected<RVVSourceSchedulePlan> sourceSchedule =
       constructRVVSourceScheduleFormula(
           {RVVSourceScheduleMechanism::FillOptimal,
            /*sew=*/8, typedFlatBlockLen, typedFlatLMULCandidates},
-          {minimumVLEN,
-           resolveRVVVectorRegisterBudget(
-               source.func->getParentOfType<mlir::ModuleOp>())},
+          {minimumVLEN, vectorRegisterBudget},
           RVVSourceScheduleNoStaticContext{});
   if (!sourceSchedule) {
-    source.func.emitError() << llvm::toString(sourceSchedule.takeError());
+    problem.emitError() << llvm::toString(sourceSchedule.takeError());
     return mlir::failure();
   }
   const llvm::StringRef typedFlatLmul = sourceSchedule->integerCoreLMUL;
@@ -3513,33 +3375,69 @@ materializeKernel(mlir::OpBuilder &builder, llvm::StringRef kernelName,
                          setvl.getVl());
   }
 
-  // [D-4] schedule-stage fill-LMUL attribution (side channel, option-gated OFF by
-  // default). Emit ONE record for the typed-flat LMUL decision after the kernel is
-  // fully built. Pure side effect: no IR / object change, so byte-identity holds.
-  // declared_instance_hash mirrors the exec sink: the SHA-256 of the constructed
-  // kernel's declared capability instance.
-  if (attributionStream && typedFlatLoopPath) {
-    std::string declaredInstanceHash;
-    if (llvm::Expected<support::TargetCapabilitySet> capabilities =
-            support::TargetCapabilitySet::buildFromKernelChecked(kernel))
-      declaredInstanceHash =
-          support::computeDeclaredInstanceHash(*capabilities);
-    else
-      llvm::consumeError(capabilities.takeError());
-    // [GAP-NUM] the schedule-stage numerics-tier pick, attributed alongside the
-    // fill-LMUL pick. The typed-flat block-dots all carry an fp cross-block fold,
-    // so they ARE fp-order-sensitive; the tier is then keyed by the
-    // `numerics.reassoc_ok` policy fact (fail-closed: absent => strict).
-    const RVVNumericsTierChoice numericsChoice = chooseNumericsTier(
-        numericsReassocOk, /*kernelIsFpOrderSensitive=*/true);
-    *attributionStream << buildScheduleFillAttributionRecord(
-                              kernelName, typedFlatLMULCandidates,
-                              sourceSchedule->integerCoreLMUL,
-                              sourceSchedule->analyticReason, minimumVLEN,
-                              numericsChoice, declaredInstanceHash,
-                              attributionNoTimestamp)
-                       << "\n";
-  }
+  return mlir::success();
+}
+
+mlir::LogicalResult materializeCanonicalProblem(
+    mlir::OpBuilder &builder, llvm::StringRef kernelName,
+    const MonolithicBlockDotOpEntry &entry, BlockDotSourceMatch source,
+    llvm::StringRef march, llvm::StringRef isaVectorHints,
+    bool numericsReassocOk) {
+  auto requiredProblemFact = [&](llvm::StringRef name)
+      -> std::optional<std::int64_t> {
+    for (const MonolithicBlockDotI64Attr &fact : entry.facts)
+      if (fact.name == name)
+        return fact.value;
+    return std::nullopt;
+  };
+  std::optional<std::int64_t> qk = requiredProblemFact("qk");
+  std::optional<std::int64_t> weightStride =
+      requiredProblemFact("weight_block_stride");
+  std::optional<std::int64_t> activationStride =
+      requiredProblemFact("activation_block_stride");
+  if (!qk || !weightStride || !activationStride)
+    return fail(entry, source.func,
+                "formula row lacks required canonical problem block geometry");
+
+  mlir::Location loc = source.func.getLoc();
+  mlir::ModuleOp module = source.func->getParentOfType<mlir::ModuleOp>();
+  llvm::Expected<weftexec::TargetOp> target =
+      weft::target::rvv::materializeRVVSourceTargetProfile(
+          builder, module, loc, kernelName, march, isaVectorHints);
+  if (!target)
+    return fail(entry, source.func, llvm::toString(target.takeError()));
+  mlir::OperationState kernelState(loc,
+                                   weftexec::KernelOp::getOperationName());
+  kernelState.addAttribute("sym_name", builder.getStringAttr(kernelName));
+  kernelState.addAttribute("target", symbolRef(builder, target->getSymName()));
+  kernelState.addAttribute("problem", symbolRef(builder, "canonical_problem"));
+  kernelState.addRegion();
+  auto kernel = llvm::cast<weftexec::KernelOp>(builder.create(kernelState));
+  kernel.getBody().emplaceBlock();
+  mlir::OpBuilder::InsertionGuard guard(builder);
+  builder.setInsertionPointToStart(&kernel.getBody().front());
+  mlir::OperationState problemState(
+      loc, weftexec::QuantizedBlockDotProblemOp::getOperationName());
+  problemState.addAttribute("sym_name",
+                            builder.getStringAttr("canonical_problem"));
+  problemState.addAttribute("weight_encoding",
+                            builder.getStringAttr(
+                                getMonolithicBlockDotProblemWeightEncoding(
+                                    entry)));
+  problemState.addAttribute("activation_encoding",
+                            builder.getStringAttr(
+                                getMonolithicBlockDotProblemActivationEncoding(
+                                    entry)));
+  problemState.addAttribute("topology",
+                            builder.getStringAttr(entry.scaleModel));
+  problemState.addAttribute("qk", builder.getI64IntegerAttr(*qk));
+  problemState.addAttribute("weight_block_stride",
+                            builder.getI64IntegerAttr(*weightStride));
+  problemState.addAttribute("activation_block_stride",
+                            builder.getI64IntegerAttr(*activationStride));
+  problemState.addAttribute("numerics_reassoc_ok",
+                            builder.getBoolAttr(numericsReassocOk));
+  (void)builder.create(problemState);
   return mlir::success();
 }
 
@@ -3592,9 +3490,8 @@ class MaterializeRVVMonolithicBlockDotSourceFrontDoorPass final
           mlir::OperationPass<mlir::ModuleOp>> {
 public:
   MaterializeRVVMonolithicBlockDotSourceFrontDoorPass(
-      const MonolithicBlockDotOpEntry *entry,
-      const ExtensionPluginRegistry *registry)
-      : entry(entry), registry(registry) {}
+      const MonolithicBlockDotOpEntry *entry)
+      : entry(entry) {}
 
   // PassWrapper::clonePass copy-constructs the pass; the cl::opt-backed options are
   // NOT copyable, so the option members are re-registered against the new *this
@@ -3604,53 +3501,29 @@ public:
       const MaterializeRVVMonolithicBlockDotSourceFrontDoorPass &other)
       : mlir::PassWrapper<MaterializeRVVMonolithicBlockDotSourceFrontDoorPass,
                           mlir::OperationPass<mlir::ModuleOp>>(other),
-        entry(other.entry), registry(other.registry) {}
+        entry(other.entry) {}
 
   llvm::StringRef getArgument() const final { return entry->passArgument; }
   llvm::StringRef getDescription() const final { return kPassDescription; }
 
-  // [SEL-1] the selected -march whose guaranteed minimum VLEN keys the
-  // fill-optimal integer-core LMUL of the constructed typed-flat block-dot (e.g.
-  // rv64gcv => VLEN 128 => q8_0 m2; rv64gcv_zvl256b => VLEN 256 => q8_0 m1). Empty
-  // / sub-128 => the widest sufficient default (byte-identical to the untuned
-  // construction). This is the ONLY input that flips the constructed LMUL.
+  // Target-profile input only. The adapter records c_o; the RVV owner consumes
+  // the resulting typed capability facts after candidate selection.
   ::mlir::Pass::Option<std::string> march{
       *this, "march",
       llvm::cl::desc(
-          "Selected RISC-V -march whose guaranteed minimum VLEN keys the "
-          "[SEL-1] fill-optimal integer-core LMUL of the constructed typed-flat "
-          "block-dot. Empty / sub-128 => the widest sufficient default "
-          "(byte-identical to the untuned construction)."),
+          "RISC-V -march used to populate the target-bound RVV capability "
+          "profile consumed by downstream legality and construction."),
       llvm::cl::init("")};
   ::mlir::Pass::Option<std::string> isaVectorHints{
       *this, "isa-vector-hints",
       llvm::cl::desc("Optional probed isa/vector-hint string augmenting the "
                      "-march evidence for the minimum-VLEN derivation."),
       llvm::cl::init("")};
-  ::mlir::Pass::Option<std::string> attributionJsonl{
-      *this, "attribution-jsonl",
-      llvm::cl::desc(
-          "Optional path to a [D-4] schedule-stage attribution JSONL sink. When "
-          "set, one canonical-JSON record of the typed-flat fill-LMUL decision "
-          "(candidates, chosen, reason, minimum_vlen, declared_instance_hash) is "
-          "written. Pure side channel: OFF by default, never touches the "
-          "constructed IR or the exported object."),
-      llvm::cl::init("")};
-  ::mlir::Pass::Option<bool> attributionJsonlNoTimestamp{
-      *this, "attribution-jsonl-no-timestamp",
-      llvm::cl::desc("Emit a fixed sentinel ts instead of the wall-clock time so "
-                     "the attribution record is byte-deterministic for lit."),
-      llvm::cl::init(false)};
   ::mlir::Pass::Option<bool> numericsReassocOk{
       *this, "numerics-reassoc-ok",
       llvm::cl::desc(
-          "[GAP-NUM] the `numerics.reassoc_ok` (kind=policy) capability fact: a "
-          "build/permission gate authorizing the [flat-block-dot-fp-fold-oracle "
-          "§5] reassociation (relaxed) numerics tier. FAIL-CLOSED: OFF by default "
-          "=> the strict §1 byte-exact tier (the paper headline). When ON the "
-          "chooseNumericsTier selector unlocks the relaxed tier for fp-order "
-          "sensitive kernels; the relaxed body is verified against a declared ULP "
-          "upper bound, never §1, and never a headline."),
+          "Record numerics.reassoc_ok in exact P. OFF by default; this source "
+          "adapter does not select or realize a numerics tier."),
       llvm::cl::init(false)};
 
   void getDependentDialects(mlir::DialectRegistry &registry) const final {
@@ -3662,15 +3535,6 @@ public:
 
   void runOnOperation() final {
     mlir::ModuleOp module = getOperation();
-    if (!registry) {
-      module.emitError()
-          << "RVV monolithic ggml block-dot source front door requires an "
-             "injected extension-plugin registry to dispatch the conservative "
-             "fallback";
-      signalPassFailure();
-      return;
-    }
-
     auto marker =
         module->getAttrOfType<mlir::StringAttr>(kSourceFrontDoorAttrName);
     if (!marker || marker.getValue().trim() != entry->markerValue)
@@ -3705,41 +3569,18 @@ public:
       return;
     }
 
-    // [D-4] schedule-stage attribution sink: open ONCE, option-gated OFF by
-    // default (empty --attribution-jsonl leaves the stream null => no record =>
-    // byte-identical construction). Mirrors the exec-stage sink's file handling.
-    std::optional<llvm::raw_fd_ostream> attributionFile;
-    llvm::raw_ostream *attributionStream = nullptr;
-    if (!attributionJsonl.empty()) {
-      std::error_code ec;
-      attributionFile.emplace(attributionJsonl, ec, llvm::sys::fs::OF_Text);
-      if (ec) {
-        module.emitError()
-            << "RVV block-dot source front door could not open the [D-4] "
-               "attribution JSONL sink '"
-            << attributionJsonl << "': " << ec.message();
-        signalPassFailure();
-        return;
-      }
-      attributionStream = &*attributionFile;
-    }
-
     std::string kernelName = getKernelName(*entry, module);
     mlir::OpBuilder builder(module.getContext());
     builder.setInsertionPointToStart(module.getBody());
-    if (mlir::failed(materializeKernel(builder, kernelName, *registry, *entry,
-                                       *source, march, isaVectorHints,
-                                       numericsReassocOk, attributionStream,
-                                       attributionJsonlNoTimestamp))) {
+    if (mlir::failed(materializeCanonicalProblem(
+            builder, kernelName, *entry, *source, march, isaVectorHints,
+            numericsReassocOk))) {
       signalPassFailure();
       return;
     }
 
-    // W2 §(1) B: the constructed body now carries an RVV provider op; materialize
-    // the c facts (typed minimum_vlen + support axes) onto it through the ONE
-    // shared producer, so a downstream resolveRVVMinimumVLEN reads the provider
-    // fact instead of re-parsing -march (I1/I4). This closes the "constructed
-    // empty provider" debt: the front door is the legitimate producer.
+    // Fill target-bound c_o through the shared producer. The selected RVV owner
+    // later constructs the body from exact P + c_o; this adapter stops at P.
     (void)materializeRVVProviderCapabilityAxes(module, march, isaVectorHints);
 
     module->removeAttr(kSourceFrontDoorAttrName);
@@ -3748,31 +3589,54 @@ public:
 
 private:
   const MonolithicBlockDotOpEntry *entry = nullptr;
-  const ExtensionPluginRegistry *registry = nullptr;
 };
 
 std::unique_ptr<::mlir::Pass>
 createMaterializeRVVMonolithicBlockDotSourceFrontDoorPass(
-    const MonolithicBlockDotOpEntry *entry,
-    const ExtensionPluginRegistry *registry) {
+    const MonolithicBlockDotOpEntry *entry) {
   return std::make_unique<MaterializeRVVMonolithicBlockDotSourceFrontDoorPass>(
-      entry, registry);
+      entry);
 }
 
 } // namespace
 
+llvm::Error constructRVVQuantizedBlockDotProblemBody(
+  weftexec::VariantOp variant,
+    weftexec::QuantizedBlockDotProblemOp problem,
+    const RVVSelectedTargetCapabilityFacts &capability) {
+  const MonolithicBlockDotOpEntry *selectedEntry =
+      findMonolithicBlockDotProblemEntry(
+          problem.getWeightEncoding(), problem.getActivationEncoding(),
+          problem.getTopology(), static_cast<std::int64_t>(problem.getQk()),
+          static_cast<std::int64_t>(problem.getWeightBlockStride()),
+          static_cast<std::int64_t>(problem.getActivationBlockStride()));
+  if (!selectedEntry)
+    return llvm::createStringError(
+        llvm::inconvertibleErrorCode(),
+        "quantized block-dot P has no exact RVV formula/mechanism row");
+
+  mlir::OpBuilder builder(variant.getContext());
+  builder.setInsertionPointToStart(&variant.getBody().front());
+  if (mlir::failed(constructSelectedBlockDotBody(
+          builder, *selectedEntry, variant, problem, capability)))
+    return llvm::createStringError(
+        llvm::inconvertibleErrorCode(),
+        "quantized block-dot formula failed to construct the selected RVV body");
+  return llvm::Error::success();
+}
+
 llvm::Error registerRVVMonolithicBlockDotSourceFrontDoorPasses(
     llvm::StringRef ownerPlugin, const ExtensionPluginRegistry &registry,
     llvm::SmallVectorImpl<SourceFrontDoorPassRegistration> &out) {
-  const ExtensionPluginRegistry *registryPtr = &registry;
+  (void)registry;
   for (const MonolithicBlockDotOpEntry &entry : monolithicBlockDotOpTable()) {
     const MonolithicBlockDotOpEntry *entryPtr = &entry;
     out.push_back(SourceFrontDoorPassRegistration(
         ownerPlugin, entry.passArgument, kPassDescription,
         formula_catalog::kMonolithicBlockDotConstruction,
-        [entryPtr, registryPtr] {
+        [entryPtr] {
           return createMaterializeRVVMonolithicBlockDotSourceFrontDoorPass(
-              entryPtr, registryPtr);
+              entryPtr);
         },
         SourceFrontDoorPassRegistration::DefaultArtifactFrontDoorPolicy::
             ExplicitOnly));

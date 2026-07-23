@@ -6,6 +6,7 @@
 {"file":"tools/bench/bench","reason":"验证 current compiler output、correctness 与正式测量入口"}
 {"file":"experiments/master","reason":"B 线正式结果与 current deployed/strong-opponent/e2e 归因"}
 {"file":"experiments/runs.log","reason":"正式 run lineage、qualification 与 paired regression"}
-{"file":"build/weft/bin/weft-opt","reason":"本地 compiler 构建检查已通过；不等于真硬件证据"}
-{"file":"build/weft/bin/weft-translate","reason":"本地 artifact toolchain 构建检查已通过；不等于真硬件证据"}
-{"file":"build/weft/test","reason":"完整 check-weft 已通过 979/979；只证明本地编译器与工具链行为"}
+{"file":"build/bin/weft-opt","reason":"本地 compiler 构建检查已通过；不等于真硬件证据"}
+{"file":"build/bin/weft-translate","reason":"本地 artifact toolchain 构建检查已通过；不等于真硬件证据"}
+{"file":"build/test","reason":"exact-P forward-construction、negative near-miss、source-only boundary、owner construction、artifact export 与完整 check-weft 已通过 987/987；只证明本地编译器与工具链行为"}
+{"file":"tools/visibility/t1d_dual_instance.py --check","reason":"7 个结构探针与 3 个 core-diff check 全绿；P4 明确证明 selector 保持同一 exact-P candidate，m2/m1 差异由 selected owner 消费不同 c_o 后构造，不构成性能证据"}

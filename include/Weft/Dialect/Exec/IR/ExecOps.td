@@ -189,6 +189,34 @@ def Int8SlidingMACProblemOp
   let hasVerifier = 1;
 }
 
+def TemplateComputeProblemOp
+    : WEFTExec_Op<"exec.template_compute_problem",
+                  [Symbol, WEFTExec_CanonicalProblem]> {
+  let summary = "bounded extension-template compute problem";
+  let description = [{
+    Canonical problem used by the non-production Toy integration template.
+    `template_kind` identifies its synthetic compute semantics; target ABI,
+    handoff metadata, selected variants and artifact routes remain outside P.
+  }];
+  let arguments = (ins SymbolNameAttr:$sym_name, StrAttr:$template_kind);
+  let assemblyFormat = "$sym_name attr-dict";
+  let hasVerifier = 1;
+}
+
+def FragmentMMAProblemOp
+    : WEFTExec_Op<"exec.fragment_mma_problem",
+                  [Symbol, WEFTExec_CanonicalProblem]> {
+  let summary = "bounded fragment-MMA integration problem";
+  let description = [{
+    Canonical problem for the TensorExtLite fragment-MMA integration surface.
+    `role_count` is source semantic structure, not a selected owner sequence,
+    capability ABI or lowering route.
+  }];
+  let arguments = (ins SymbolNameAttr:$sym_name, I64Attr:$role_count);
+  let assemblyFormat = "$sym_name attr-dict";
+  let hasVerifier = 1;
+}
+
 def I32VectorBinaryProblemOp
     : WEFTExec_Op<"exec.i32_vector_binary_problem",
                   [Symbol, WEFTExec_CanonicalProblem]> {
@@ -256,7 +284,8 @@ def QuantizedBlockDotProblemOp
                        StrAttr:$topology,
                        I64Attr:$qk,
                        I64Attr:$weight_block_stride,
-                       I64Attr:$activation_block_stride);
+                       I64Attr:$activation_block_stride,
+                       OptionalAttr<BoolAttr>:$numerics_reassoc_ok);
   let assemblyFormat = "$sym_name attr-dict";
   let hasVerifier = 1;
 }

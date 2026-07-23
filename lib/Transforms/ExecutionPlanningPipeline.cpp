@@ -73,11 +73,13 @@ void buildSourceArtifactFrontDoorPipeline(
     pm.addPass(sourceFrontDoorPass.getFactory()());
   }
 
+  pm.addPass(createMaterializePluginVariantsPass(registry));
   pm.addPass(createCheckHartParallelCapabilitiesPass());
   pm.addPass(createVerifyPluginVariantLegalityPass(registry));
   pm.addPass(createSelectVariantsPass(registry));
   pm.addPass(createMaterializeDispatchRuntimeGuardsPass());
   pm.addPass(createCheckCapabilityRequiresPass());
+  pm.addPass(createMaterializeSelectedLoweringBoundariesPass(registry));
   pm.addPass(createMaterializeEmissionPlansPass(registry));
   pm.addPass(createCheckExecutionPlanCoherencePass(registry, targetExporters));
 }

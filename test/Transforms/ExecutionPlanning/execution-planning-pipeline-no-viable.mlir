@@ -12,5 +12,4 @@ module {
   }
 }
 
-// CHECK: error: Weft-RV plugin variant materialization for kernel @pipeline_no_viable_after_rvv_decline collected no viable plugin proposals; recoverable plugin declines in registration order: rvv-plugin:
-// CHECK-SAME: explicit typed weft_rvv extension-family IR
+// CHECK: error: Weft-RV plugin variant materialization for kernel @pipeline_no_viable_after_rvv_decline collected no viable plugin proposals; no enabled extension plugin produced a viable proposal

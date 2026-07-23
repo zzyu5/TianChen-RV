@@ -15,44 +15,31 @@
 // e8m1-vs-e8m2 lowering divergence. NO perf claim: this is a STRUCTURAL fill
 // argument (utilization); the perf verdict is a later step.
 //
-// The prior is HONEST. reason=prior lands in the [D-4] schedule-stage attribution
-// side channel (a pure JSONL side effect that NEVER touches the constructed IR or
-// the exported object) ONLY on the capability-DERIVED choice. With NO -march the
-// construction fails safe to the widest default (m2) and is byte-identical to the
-// untuned q8_0 e2e -- and the attribution honestly reads reason=fallback_widest,
-// NEVER prior. Numerical bit-exact-vs-ggml is pending-hardware (ssh rvv).
+// The source adapter itself is capability-independent: it produces the same exact
+// q8_0 x q8_0 P.  Only after candidate selection does the RVV owner consume bound
+// c_o and construct the final typed plan.  With no usable c_o, construction fails
+// closed instead of inventing a widest-default plan.  Numerical bit-exact-vs-ggml
+// remains pending hardware evidence.
 
 // --- VLEN256: the fill rule constructs the m1 fill-optimal core. ---
-// RUN: weft-opt %s --weft-rvv-materialize-q8-0-q8-0-block-dot-source-front-door=march=rv64gcv_zvl256b | FileCheck %s --check-prefix=M1
+// RUN: weft-opt %s --weft-rvv-materialize-q8-0-q8-0-block-dot-source-front-door=march=rv64gcv_zvl256b --weft-execution-planning-pipeline | FileCheck %s --check-prefix=M1
 
 // --- VLEN128: m1/m2 tie at full utilization, tiebreak widest -> the m2 core. ---
-// RUN: weft-opt %s --weft-rvv-materialize-q8-0-q8-0-block-dot-source-front-door=march=rv64gcv | FileCheck %s --check-prefix=M2
+// RUN: weft-opt %s --weft-rvv-materialize-q8-0-q8-0-block-dot-source-front-door=march=rv64gcv --weft-execution-planning-pipeline | FileCheck %s --check-prefix=M2
 
 // --- The fill LMUL rides to a REAL emit divergence: e8m1 / vwmul.i16m2 at VLEN256..
-// RUN: weft-opt %s --weft-rvv-materialize-q8-0-q8-0-block-dot-source-front-door=march=rv64gcv_zvl256b --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=M1EMIT --implicit-check-not=i8m2 --implicit-check-not=i16m4
+// RUN: weft-opt %s --weft-rvv-materialize-q8-0-q8-0-block-dot-source-front-door=march=rv64gcv_zvl256b --weft-execution-planning-pipeline --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=M1EMIT --implicit-check-not=i8m2 --implicit-check-not=i16m4
 // --- ..vs e8m2 / vwmul.i16m4 at VLEN128. ---
-// RUN: weft-opt %s --weft-rvv-materialize-q8-0-q8-0-block-dot-source-front-door=march=rv64gcv --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=M2EMIT
+// RUN: weft-opt %s --weft-rvv-materialize-q8-0-q8-0-block-dot-source-front-door=march=rv64gcv --weft-execution-planning-pipeline --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=M2EMIT
 
-// --- [D-4] reason=prior lands ONLY on the capability-derived pick. Same schema,
-// --- two instances keyed on the VLEN fact: VLEN256->m1/prior, VLEN128->m2/prior. ---
-// RUN: weft-opt %s "--weft-rvv-materialize-q8-0-q8-0-block-dot-source-front-door=march=rv64gcv_zvl256b attribution-jsonl=%t.256.jsonl attribution-jsonl-no-timestamp=true" -o /dev/null
-// RUN: FileCheck %s --check-prefix=PRIOR256 < %t.256.jsonl
-// RUN: weft-opt %s "--weft-rvv-materialize-q8-0-q8-0-block-dot-source-front-door=march=rv64gcv attribution-jsonl=%t.128.jsonl attribution-jsonl-no-timestamp=true" -o /dev/null
-// RUN: FileCheck %s --check-prefix=PRIOR128 < %t.128.jsonl
+// --- With no march the adapter still emits exact P and no candidate/body.  The
+// --- owner then fails closed because the bound c_o lacks minimum_vlen/vreg_count. ---
+// RUN: weft-opt %s --weft-rvv-materialize-q8-0-q8-0-block-dot-source-front-door | FileCheck %s --check-prefix=NOMARCH --implicit-check-not="weft.exec.variant" --implicit-check-not="weft_rvv."
+// RUN: not weft-opt %s --weft-rvv-materialize-q8-0-q8-0-block-dot-source-front-door --weft-execution-planning-pipeline 2>&1 | FileCheck %s --check-prefix=MISSING-C
 
-// --- Zero-regression: NO -march fails safe to the widest default (m2), and the
-// --- honest attribution reason is fallback_widest, NEVER prior. ---
-// RUN: weft-opt %s --weft-rvv-materialize-q8-0-q8-0-block-dot-source-front-door | FileCheck %s --check-prefix=NOMARCH
-// RUN: weft-opt %s "--weft-rvv-materialize-q8-0-q8-0-block-dot-source-front-door=attribution-jsonl=%t.none.jsonl attribution-jsonl-no-timestamp=true" -o /dev/null
-// RUN: FileCheck %s --check-prefix=NOMARKREC < %t.none.jsonl
-
-// --- [GAP-NUM] the numerics-tier policy pick is attributed at the SAME schedule
-// --- sink. FAIL-CLOSED: with NO --numerics-reassoc-ok the record reads
-// --- strict/strict_default (the §1 headline). With the policy gate ON the SAME
-// --- schema flips to relaxed/relaxed_by_reassoc_ok_policy -- keyed on the policy
-// --- fact alone, NOT the VLEN fact. ---
-// RUN: weft-opt %s "--weft-rvv-materialize-q8-0-q8-0-block-dot-source-front-door=march=rv64gcv numerics-reassoc-ok=true attribution-jsonl=%t.relaxed.jsonl attribution-jsonl-no-timestamp=true" -o /dev/null
-// RUN: FileCheck %s --check-prefix=RELAXEDREC < %t.relaxed.jsonl
+// --- [GAP-NUM] the source policy fact is preserved in P; it is not a hidden
+// --- emitter flag or source-local selection side channel. ---
+// RUN: weft-opt %s "--weft-rvv-materialize-q8-0-q8-0-block-dot-source-front-door=march=rv64gcv numerics-reassoc-ok=true" | FileCheck %s --check-prefix=RELAXED-P --implicit-check-not="weft.exec.variant" --implicit-check-not="weft_rvv."
 
 module attributes {weft_rvv.source_front_door = "ggml_q8_0_q8_0_block_dot_source",
                    weft_rvv.source_kernel = "ggml_vec_dot_q8_0_q8_0_kernel"} {
@@ -87,42 +74,13 @@ module attributes {weft_rvv.source_front_door = "ggml_q8_0_q8_0_block_dot_source
 // M2EMIT: call_opaque "__riscv_vwmul_vv_i16m4"
 // M2EMIT: call_opaque "__riscv_vwredsum_vs_i16m4_i32m1"
 
-// [D-4] canonical-JSON record (sorted keys: candidates, chosen,
-// declared_instance_hash, kernel, minimum_vlen, numerics_reason, numerics_tier,
-// reason, ts). Same schema, two instances: identical candidate set + kernel, the
-// VLEN fact flips chosen + drives reason=prior. The [GAP-NUM] numerics tier is
-// fail-closed strict (no --numerics-reassoc-ok policy gate), independent of VLEN.
-// PRIOR256: "candidates":["m1","m2"]
-// PRIOR256-SAME: "chosen":"m1"
-// PRIOR256-SAME: "kernel":"ggml_vec_dot_q8_0_q8_0_kernel"
-// PRIOR256-SAME: "minimum_vlen":256
-// PRIOR256-SAME: "numerics_reason":"strict_default"
-// PRIOR256-SAME: "numerics_tier":"strict"
-// PRIOR256-SAME: "reason":"prior"
+// No capability means exact P only; there is no fallback compute plan.
+// NOMARCH: weft.exec.quantized_block_dot_problem @canonical_problem
+// NOMARCH-SAME: activation_encoding = "q8_0"
+// NOMARCH-SAME: numerics_reassoc_ok = false
+// NOMARCH-SAME: weight_encoding = "q8_0"
+// MISSING-C: block-dot formula requires minimum_vlen and vreg_count in the selected c_o
 
-// PRIOR128: "candidates":["m1","m2"]
-// PRIOR128-SAME: "chosen":"m2"
-// PRIOR128-SAME: "kernel":"ggml_vec_dot_q8_0_q8_0_kernel"
-// PRIOR128-SAME: "minimum_vlen":128
-// PRIOR128-SAME: "numerics_reason":"strict_default"
-// PRIOR128-SAME: "numerics_tier":"strict"
-// PRIOR128-SAME: "reason":"prior"
-
-// NO -march -> the widest default core = today's untuned m2 (byte-identical).
-// NOMARCH: integer_core_lmul = "m2"
-// NOMARCH: product_relation = "signed-i8m2xi8m2-to-i16m4"
-
-// The no-capability path is HONESTLY not a prior: reason=fallback_widest, vlen 0.
-// NOMARKREC: "chosen":"m2"
-// NOMARKREC-SAME: "minimum_vlen":0
-// NOMARKREC-SAME: "numerics_tier":"strict"
-// NOMARKREC-SAME: "reason":"fallback_widest"
-// NOMARKREC-NOT: "reason":"prior"
-
-// [GAP-NUM] the policy gate ON flips ONLY the numerics tier (the fill LMUL still
-// keys on VLEN128 -> m2/prior): relaxed/relaxed_by_reassoc_ok_policy.
-// RELAXEDREC: "chosen":"m2"
-// RELAXEDREC-SAME: "minimum_vlen":128
-// RELAXEDREC-SAME: "numerics_reason":"relaxed_by_reassoc_ok_policy"
-// RELAXEDREC-SAME: "numerics_tier":"relaxed"
-// RELAXEDREC-SAME: "reason":"prior"
+// The reassociation policy is an explicit canonical problem fact.
+// RELAXED-P: weft.exec.quantized_block_dot_problem @canonical_problem
+// RELAXED-P-SAME: numerics_reassoc_ok = true

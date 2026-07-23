@@ -41,11 +41,11 @@
 
 // VLEN128 production-export: front door auto-constructs the body, materializes the
 // emission plan, lowers to EmitC.
-// RUN: weft-opt %s --weft-rvv-materialize-packed-i4-offset-binary-dot-source-front-door=march=rv64gcv --weft-materialize-emission-plans --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=EMITC
+// RUN: weft-opt %s --weft-rvv-materialize-packed-i4-offset-binary-dot-source-front-door=march=rv64gcv --weft-execution-planning-pipeline --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=EMITC
 
 // VLEN256 production-export: the SAME generic source, capability tier rv64gcv_zvl256b.
 // The offset-binary integer core does NOT flip -- byte-identical to VLEN128.
-// RUN: weft-opt %s --weft-rvv-materialize-packed-i4-offset-binary-dot-source-front-door=march=rv64gcv_zvl256b --weft-materialize-emission-plans --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=EMITC256
+// RUN: weft-opt %s --weft-rvv-materialize-packed-i4-offset-binary-dot-source-front-door=march=rv64gcv_zvl256b --weft-execution-planning-pipeline --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=EMITC256
 
 // ===================== VLEN128 EMITTED C3 (N=3) CHAIN ========================
 // The 6-arg EmitC signature: w / qlo / qhi = const int8_t*, acc = const int32_t*,

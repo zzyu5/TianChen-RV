@@ -246,7 +246,7 @@ const toy::ToyExtensionPlugin &getBuiltinToyExtensionPlugin() {
   return plugin;
 }
 
-mlir::Operation *materializeToyComputeSkeletonBoundary(
+mlir::Operation *findToyComputeSkeletonBoundary(
     const VariantLoweringBoundaryRequest &request) {
   if (!request.getKernel().getBody().empty()) {
     for (mlir::Operation &op : request.getKernel().getBody().front()) {
@@ -255,6 +255,14 @@ mlir::Operation *materializeToyComputeSkeletonBoundary(
         return &op;
     }
   }
+
+  return nullptr;
+}
+
+mlir::Operation *materializeToyComputeSkeletonBoundary(
+    const VariantLoweringBoundaryRequest &request) {
+  if (mlir::Operation *body = findToyComputeSkeletonBoundary(request))
+    return body;
 
   mlir::OpBuilder &builder = request.getBuilder();
   mlir::MLIRContext *context = builder.getContext();
@@ -340,11 +348,18 @@ llvm::Error ToyExtensionPlugin::constructFormulaPlans(
     const FamilyConstructionRequest &request,
     FamilyConstructionResult &out) const {
   mlir::OpBuilder builder(request.getModule().getContext());
-  builder.setInsertionPointToEnd(&request.getKernel().getBody().front());
   VariantLoweringBoundaryRequest bodyRequest(
       request.getVariant(), request.getKernel(), request.getProblem(),
       request.getCapabilities(), request.getRole(), builder, nullptr);
-  mlir::Operation *body = materializeToyComputeSkeletonBoundary(bodyRequest);
+  mlir::Operation *body = findToyComputeSkeletonBoundary(bodyRequest);
+  if (!body && !llvm::isa_and_nonnull<weft::exec::TemplateComputeProblemOp>(
+                   request.getProblem()))
+    return makeToyPluginError(
+        "construction requires exact TemplateCompute canonical P unless an "
+        "explicit typed Toy debug body is already present");
+  builder.setInsertionPointToEnd(&request.getKernel().getBody().front());
+  if (!body)
+    body = materializeToyComputeSkeletonBoundary(bodyRequest);
   VariantLoweringBoundaryValidationRequest validation(
       request.getVariant(), request.getKernel(), request.getCapabilities(),
       request.getRole(), body);
@@ -394,7 +409,9 @@ void ToyExtensionPlugin::collectFormulaDescriptors(
 
 bool ToyExtensionPlugin::supportsOperation(
     const VariantProposalRequest &request) const {
-  return request.getProblem() && hasAvailableToyTemplateCapability(request);
+  return llvm::isa_and_nonnull<weft::exec::TemplateComputeProblemOp>(
+             request.getProblem()) &&
+         hasAvailableToyTemplateCapability(request);
 }
 
 llvm::Error ToyExtensionPlugin::proposeVariants(
@@ -437,8 +454,8 @@ llvm::Error ToyExtensionPlugin::registerSourceFrontDoorPasses(
   (void)registry;
   out.push_back(SourceFrontDoorPassRegistration(
       getName(), kToySourceFrontDoorArgument,
-      "Materialize one bounded Toy construction-template source marker into "
-      "the Toy selected compute_skeleton front door",
+      "Adapt one bounded Toy construction-template source marker into "
+      "target-bound exact TemplateCompute canonical P",
       kToyConstructionFormulaID,
       [] { return createMaterializeToyTemplateSourceFrontDoorPass(); },
       SourceFrontDoorPassRegistration::DefaultArtifactFrontDoorPolicy::
@@ -448,11 +465,9 @@ llvm::Error ToyExtensionPlugin::registerSourceFrontDoorPasses(
 
 llvm::Error ToyExtensionPlugin::verifyVariantLegality(
     const VariantLegalityRequest &request) const {
-  // The legality predicate (capability conformance + variant
-  // metadata-vs-manifest) is owned by the construction-protocol lib so the
-  // typed-emission backend driver can share the EXACT authority (its
-  // convert-set must equal this success-set). This emits the fail-closed
-  // diagnostic; the driver declines on the same error.
+  // Family-local legality owns capability and selected-variant conformance.
+  // Artifact projection receives only the already-qualified exact body and
+  // must not replay this predicate as a second construction authority.
   return toy::verifyToySelectedVariantLegality(
       request.getVariant(), request.getKernel(), request.getCapabilities());
 }

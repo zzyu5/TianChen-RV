@@ -13,3 +13,12 @@
 {"file":"lib/Plugin/IME/IMEFormulaConstruction.cpp","reason":"IME family-local computation-plan owner"}
 {"file":"lib/Plugin/Scalar/ScalarFormulaConstruction.cpp","reason":"Scalar family-local computation-plan owner"}
 {"file":"tools/bench/bench","reason":"B 线 current artifact official measurement 入口"}
+{"file":"include/Weft/Dialect/Exec/IR/ExecOps.td","reason":"六类 RVV exact P 以及 Toy/Fragment exact P 的 canonical problem contract"}
+{"file":"include/Weft/Plugin/RVV/RVVCanonicalProblemConstruction.h","reason":"selected RVV owner 从 exact P + c_o 正向构造 typed body 的唯一入口"}
+{"file":"lib/Plugin/RVV/Construction/RVVCanonicalProblemConstruction.cpp","reason":"exact P candidate identity、严格行匹配与 family-local selected-body construction"}
+{"file":"lib/Plugin/RVV/FrontDoor","reason":"source adapters 只建立 target/profile、capability、kernel 与 exact P，不预构造 variant/body"}
+{"file":"lib/Plugin/Toy/ToySourceFrontDoor.cpp","reason":"Toy source 只建立 TemplateComputeProblem，selected owner 后续构造 compute root"}
+{"file":"lib/Plugin/TensorExtLite/TensorExtLiteSourceFrontDoor.cpp","reason":"TensorExtLite source 只建立 FragmentMMAProblem，selected owner 后续构造 role sequence"}
+{"file":"tools/bench/export_current_artifact.py","reason":"source artifact export 显式经过 execution-planning 后再机械 LowerToEmitC"}
+{"file":"tools/visibility/t1d_dual_instance.py","reason":"P4 从已淘汰的 source-local LMUL/selector 假设迁到 exact P + bound c_o 的 selected-owner flat_* construction 见证"}
+{"file":"experiments/active/result-tables/T1d_dual_instance.csv","reason":"重生后的结构探针表记录相同 exact-P candidate、不同 capability instance 与 m2/m1 owner construction；无性能主张"}

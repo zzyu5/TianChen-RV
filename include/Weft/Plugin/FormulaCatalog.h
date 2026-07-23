@@ -19,6 +19,7 @@ enum class FormulaAxisUse {
 };
 
 enum class FormulaResultKind {
+  CanonicalProblem,
   CandidateSet,
   TypedPlan,
   ResourceSchedule,

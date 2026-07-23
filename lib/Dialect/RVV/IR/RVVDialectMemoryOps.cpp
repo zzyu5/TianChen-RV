@@ -68,6 +68,8 @@ mlir::LogicalResult LoadOp::verify() {
           {weft::support::RuntimeABIParameterRole::LHSInputBuffer,
            weft::support::RuntimeABIParameterRole::RHSInputBuffer,
            weft::support::RuntimeABIParameterRole::
+               RHSSecondaryInputBuffer,
+           weft::support::RuntimeABIParameterRole::
                AccumulatorInputBuffer,
            weft::support::RuntimeABIParameterRole::DotLHSInputBuffer,
            weft::support::RuntimeABIParameterRole::DotRHSInputBuffer,

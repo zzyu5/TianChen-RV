@@ -31,19 +31,20 @@
 // is MECHANISM/parity, NOT a speed beat (deferred to G5).
 
 // The auto-constructed codebook integer-core body @ VLEN128 (m1 anchor).
-// RUN: weft-opt %s --weft-rvv-materialize-codebook-gather-dot-source-front-door=march=rv64gcv | FileCheck %s --check-prefix=BODY128 --implicit-check-not="scalar_fallback" --implicit-check-not="weft.exec.dispatch"
+// RUN: weft-opt %s --weft-rvv-materialize-codebook-gather-dot-source-front-door=march=rv64gcv | FileCheck %s --check-prefix=SOURCE --implicit-check-not="weft.exec.variant" --implicit-check-not="weft_rvv."
+// RUN: weft-opt %s --weft-rvv-materialize-codebook-gather-dot-source-front-door=march=rv64gcv --weft-execution-planning-pipeline | FileCheck %s --check-prefix=BODY128 --implicit-check-not="scalar_fallback" --implicit-check-not="weft.exec.dispatch @"
 //
 // The VLEN128 body lowered to EmitC: the codebook decode chain at the m1 anchor.
-// RUN: weft-opt %s --weft-rvv-materialize-codebook-gather-dot-source-front-door=march=rv64gcv --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=CORE128
+// RUN: weft-opt %s --weft-rvv-materialize-codebook-gather-dot-source-front-door=march=rv64gcv --weft-execution-planning-pipeline --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=CORE128
 //
 // The capability FLIP @ VLEN256 (mf2 anchor): the SAME generic source materializes
 // a byte-DIFFERENT codebook core (mf2 gather + i16m1 product).
-// RUN: weft-opt %s --weft-rvv-materialize-codebook-gather-dot-source-front-door=march=rv64gcv_zvl256b | FileCheck %s --check-prefix=BODY256 --implicit-check-not="scalar_fallback" --implicit-check-not="weft.exec.dispatch"
-// RUN: weft-opt %s --weft-rvv-materialize-codebook-gather-dot-source-front-door=march=rv64gcv_zvl256b --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=CORE256
+// RUN: weft-opt %s --weft-rvv-materialize-codebook-gather-dot-source-front-door=march=rv64gcv_zvl256b --weft-execution-planning-pipeline | FileCheck %s --check-prefix=BODY256 --implicit-check-not="scalar_fallback" --implicit-check-not="weft.exec.dispatch @"
+// RUN: weft-opt %s --weft-rvv-materialize-codebook-gather-dot-source-front-door=march=rv64gcv_zvl256b --weft-execution-planning-pipeline --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=CORE256
 //
 // FAIL-CLOSED (I7), no guaranteed VLEN tier: the codebook gather needs VLMAX >= 16
 // to index the 16-entry table; a zve32x profile prunes EVERY anchor.
-// RUN: not weft-opt %s --weft-rvv-materialize-codebook-gather-dot-source-front-door=march=rv64gc_zve32x 2>&1 | FileCheck %s --check-prefix=NOVLEN
+// RUN: not weft-opt %s --weft-rvv-materialize-codebook-gather-dot-source-front-door=march=rv64gc_zve32x --weft-execution-planning-pipeline 2>&1 | FileCheck %s --check-prefix=NOVLEN
 //
 // FAIL-CLOSED (I7): a marker-carrying source with the WRONG (4-arg) signature is
 // REJECTED, not silently lowered.
@@ -59,6 +60,10 @@ module attributes {weft_rvv.source_front_door = "bounded_codebook_gather_dot_sou
 // The generic codebook-core source becomes a weft.exec.kernel with the auto-built
 // codebook_table_broadcast / load x3 / codebook_gather_x_i8_product /
 // standalone_reduce / store body. NO per-kernel emitter authored this body.
+// SOURCE: weft.exec.kernel @rvv_codebook_gather_dot_i8_from_source
+// SOURCE-SAME: problem = @canonical_problem
+// SOURCE: weft.exec.codebook_i4_q8_dot_problem @canonical_problem
+// SOURCE-SAME: block_length = 16
 // BODY128: weft.exec.kernel @rvv_codebook_gather_dot_i8_from_source
 // BODY128: weft.exec.codebook_i4_q8_dot_problem @canonical_problem
 // BODY128-SAME: block_length = 16
@@ -128,7 +133,6 @@ module attributes {weft_rvv.source_front_door = "bounded_codebook_gather_dot_sou
 // CORE256: call_opaque "__riscv_vwredsum_vs_i16m1_i32m1"
 
 // ===================== FAIL-CLOSED diagnostics (I7) =========================
-// NOVLEN: prunes every legal codebook i8 gather anchor
-// NOVLEN-SAME: VLMAX < 16
+// NOVLEN: codebook formula requires minimum_vlen and vreg_count in c_o
 // WRONGSIG: bounded RVV codebook-gather dot source front door failed
 // WRONGSIG-SAME: exactly six inputs

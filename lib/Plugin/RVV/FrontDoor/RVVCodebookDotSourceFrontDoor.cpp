@@ -49,6 +49,7 @@
 #include "Weft/Dialect/RVV/IR/RVVDialect.h"
 #include "Weft/Plugin/ExtensionPlugin.h"
 #include "Weft/Plugin/RVV/RVVCapabilityProfile.h"
+#include "Weft/Plugin/RVV/RVVCanonicalProblemConstruction.h"
 #include "Weft/Plugin/RVV/RVVExtensionPlugin.h"
 #include "Weft/Plugin/RVV/RVVGearboxSchedule.h"
 #include "Weft/Plugin/RVV/RVVSourceScheduleFormula.h"
@@ -93,9 +94,6 @@ constexpr llvm::StringLiteral kSourceKernelAttrName("weft_rvv.source_kernel");
 constexpr llvm::StringLiteral kAcceptedMarkerValue(
     "bounded_codebook_gather_dot_source");
 constexpr llvm::StringLiteral kSeedAttrName("weft_rvv.lowering_seed");
-
-constexpr llvm::StringLiteral kOriginAttrName("origin");
-constexpr llvm::StringLiteral kRequiresAttrName("requires");
 
 // The codebook-gather product op's pinned bounded-surface attrs (the verifier
 // requires these exact strings; the LMUL is NOT pinned -- it flips with VLEN).
@@ -180,48 +178,12 @@ matchCodebookDotSourceFunc(mlir::func::FuncOp func) {
 }
 
 //===----------------------------------------------------------------------===//
-// (2) The capability-fact-driven codebook integer-core ANCHOR selection (FLIP).
-//===----------------------------------------------------------------------===//
-
-// Run the SHARED codebook schedule authority to select the codebook i8 gather
-// anchor at this VLEN tier. enumerateRVVCodebookShapeCandidates enumerates the
-// {m1, mf2} anchor set and PRUNES any whose strip VLMAX < 16 (the gather must
-// index the whole 16-entry table). The RETURN VALUE is THREADED into the body
-// types (the genuine flip): m1 at VLEN128 (mf2 pruned, VLMAX 8 < 16), mf2 at
-// VLEN256 (both legal, the lighter footprint wins). Fail-closed (nullopt -> I7)
-// at VLEN0 where every candidate is pruned (the codebook class is Zvl128b-gated).
-std::optional<std::string>
-selectCodebookCoreLMUL(mlir::ModuleOp module, llvm::StringRef march,
-                       llvm::StringRef isaVectorHints) {
-  std::int64_t minimumVLEN = resolveRVVMinimumVLEN(module, march, isaVectorHints);
-  llvm::Expected<RVVSourceSchedulePlan> plan =
-      constructRVVSourceScheduleFormula(
-          {RVVSourceScheduleMechanism::CodebookGather,
-           /*sew=*/8, /*blockLength=*/16, {"m1", "mf2"}},
-          {minimumVLEN, resolveRVVVectorRegisterBudget(module)},
-          RVVSourceScheduleNoStaticContext{});
-  if (!plan)
-    return std::nullopt;
-  return plan->integerCoreLMUL;
-}
-
-//===----------------------------------------------------------------------===//
-// (3) Body builder: auto-construct the weft_rvv codebook integer-core body.
+// (2) Shared typed RVV body-building primitives.
 //===----------------------------------------------------------------------===//
 
 mlir::FlatSymbolRefAttr symbolRef(mlir::OpBuilder &builder,
                                   llvm::StringRef symbol) {
   return mlir::FlatSymbolRefAttr::get(builder.getContext(), symbol);
-}
-
-mlir::ArrayAttr createRequires(mlir::OpBuilder &builder, llvm::StringRef symbol) {
-  return builder.getArrayAttr({symbolRef(builder, symbol)});
-}
-
-weftrvv::PolicyAttr createAgnosticPolicy(mlir::OpBuilder &builder) {
-  return weftrvv::PolicyAttr::get(builder.getContext(),
-                                  weftrvv::TailPolicy::Agnostic,
-                                  weftrvv::MaskPolicy::Agnostic);
 }
 
 weftrvv::RuntimeABIValueOp
@@ -341,66 +303,27 @@ void createRVVStore(mlir::OpBuilder &builder, mlir::Location loc,
   (void)builder.create(state);
 }
 
-weftexec::VariantOp
-createVariant(mlir::OpBuilder &builder, mlir::Location loc,
-              llvm::StringRef selectedVariantSymbol, mlir::ArrayAttr requires,
-              weftrvv::PolicyAttr policy) {
-  mlir::OperationState state(loc, weftexec::VariantOp::getOperationName());
-  state.addAttribute("sym_name", builder.getStringAttr(selectedVariantSymbol));
-  state.addAttribute(kOriginAttrName,
-                     builder.getStringAttr(getRVVExtensionPluginName()));
-  state.addAttribute(kRequiresAttrName, requires);
-  state.addAttribute("weft_rvv.policy", policy);
-  state.addRegion();
-  auto variant = llvm::cast<weftexec::VariantOp>(builder.create(state));
-  variant.getBody().emplaceBlock();
-  return variant;
-}
-
-mlir::LogicalResult
-materializeKernel(mlir::OpBuilder &builder, llvm::StringRef kernelName,
-                  const ExtensionPluginRegistry &registry,
-                  CodebookDotSourceMatch source, llvm::StringRef coreLMUL,
-                  llvm::StringRef march, llvm::StringRef isaVectorHints) {
-  (void)registry;
+mlir::LogicalResult materializeCanonicalProblem(
+    mlir::OpBuilder &builder, llvm::StringRef kernelName,
+    CodebookDotSourceMatch source, llvm::StringRef march,
+    llvm::StringRef isaVectorHints) {
   mlir::Location loc = source.func.getLoc();
-  weftrvv::PolicyAttr policy = createAgnosticPolicy(builder);
-  std::string selectedVariantSymbol = "rvv_codebook_gather_dot_i8";
-
-  // The THREADED codebook integer-core widening ladder: the UNSIGNED packed-i4
-  // weight + the codebook table + the plain-i8 activation halves load at the
-  // gearbox-selected i8 anchor (coreLMUL: m1 at VLEN128, mf2 at VLEN256), the
-  // asymmetric widening product is the next-wider i16 rung (m2 / m1 -- the flip),
-  // and the signed widening reduce is the fixed i32 m1 accumulator. The strip
-  // vsetvl the reduction issues is e32m1 (the i32m1 standalone-reduction framing,
-  // unchanged across tiers; the flip is in the i8 gather / i16 product).
-  llvm::StringRef loadLMUL = coreLMUL;
-  llvm::StringRef productLMUL = getRVVNextWiderLMUL(loadLMUL);
-  if (productLMUL.empty())
-    return fail(source.func,
-                llvm::Twine("no wider i16 LMUL rung for codebook integer-core i8 "
-                            "anchor '") +
-                    loadLMUL + "'");
-
   mlir::ModuleOp module = source.func->getParentOfType<mlir::ModuleOp>();
   llvm::Expected<weftexec::TargetOp> target =
       weft::target::rvv::materializeRVVSourceTargetProfile(
           builder, module, loc, kernelName, march, isaVectorHints);
   if (!target)
     return fail(source.func, llvm::toString(target.takeError()));
-
-  mlir::OperationState kernelState(loc, weftexec::KernelOp::getOperationName());
+  mlir::OperationState kernelState(loc,
+                                   weftexec::KernelOp::getOperationName());
   kernelState.addAttribute("sym_name", builder.getStringAttr(kernelName));
-  kernelState.addAttribute("target",
-                           symbolRef(builder, target->getSymName()));
+  kernelState.addAttribute("target", symbolRef(builder, target->getSymName()));
   kernelState.addAttribute("problem", symbolRef(builder, "canonical_problem"));
   kernelState.addRegion();
   auto kernel = llvm::cast<weftexec::KernelOp>(builder.create(kernelState));
   kernel.getBody().emplaceBlock();
-
-  mlir::OpBuilder::InsertionGuard kernelGuard(builder);
+  mlir::OpBuilder::InsertionGuard guard(builder);
   builder.setInsertionPointToStart(&kernel.getBody().front());
-
   mlir::OperationState problemState(
       loc, weftexec::CodebookI4Q8DotProblemOp::getOperationName());
   problemState.addAttribute("sym_name",
@@ -411,87 +334,6 @@ materializeKernel(mlir::OpBuilder &builder, llvm::StringRef kernelName,
   problemState.addAttribute("table_symbol",
                             builder.getStringAttr(kCodebookTableSymbol));
   (void)builder.create(problemState);
-
-  mlir::ArrayAttr rvvRequires = createRequires(
-      builder, weft::target::rvv::getRVVSourceCapabilitySymbol(kernelName));
-
-  weftexec::VariantOp rvvVariant =
-      createVariant(builder, loc, selectedVariantSymbol, rvvRequires, policy);
-  // AUDIT-ONLY provenance (NOT the route/dtype authority): the THREADED codebook
-  // integer-core anchor the body realizes -- the genuine flip form (i8m1-i16m2 at
-  // VLEN128, i8mf2-i16m1 at VLEN256).
-  rvvVariant->setAttr(
-      "weft_rvv.codebook_integer_core_anchor",
-      builder.getStringAttr(
-          ("i8" + loadLMUL + "-i16" + productLMUL + "-i32m1-vlen-flip").str()));
-  mlir::OpBuilder::InsertionGuard variantGuard(builder);
-  builder.setInsertionPointToStart(&rvvVariant.getBody().front());
-
-  mlir::Type runtimeABIType =
-      weftrvv::RuntimeABIValueType::get(builder.getContext());
-  // The six codebook integer-core ABI roles, in the order the emitted C signature
-  // pins (so the output buffer is arg4): the UNSIGNED packed-i4 weight, the two
-  // plain-i8 q8 activation halves, the i32 acc seed, the i32 out, and the runtime
-  // element count. The weight C type is `const uint8_t *` (the gather index lanes
-  // run on the u8 lane).
-  auto weight = createRuntimeABIValue(builder, loc, "lhs-input-buffer", "w",
-                                      "const uint8_t *", "q4-weight",
-                                      runtimeABIType);
-  auto qlo =
-      createRuntimeABIValue(builder, loc, "rhs-input-buffer", "qlo",
-                            "const int8_t *", "q8-low", runtimeABIType);
-  auto qhi =
-      createRuntimeABIValue(builder, loc, "rhs-input-buffer", "qhi",
-                            "const int8_t *", "q8-high", runtimeABIType);
-  auto acc =
-      createRuntimeABIValue(builder, loc, "accumulator-input-buffer", "acc",
-                            "const int32_t *", "acc", runtimeABIType);
-  auto out = createRuntimeABIValue(builder, loc, "output-buffer", "out",
-                                   "int32_t *", "out", runtimeABIType);
-  auto n = createRuntimeABIValue(builder, loc, "runtime-element-count", "n",
-                                 "size_t", "n", builder.getIndexType());
-
-  weftrvv::SetVLOp setvl =
-      createSetVL(builder, loc, n.getResult(), kReductionStripSEW,
-                  kReductionStripLMUL, policy);
-  weftrvv::WithVLOp withVL =
-      createWithVL(builder, loc, setvl.getVl(), kReductionStripSEW,
-                   kReductionStripLMUL, policy);
-
-  mlir::OpBuilder::InsertionGuard withVLGuard(builder);
-  builder.setInsertionPointToStart(&withVL.getBody().front());
-
-  mlir::Type ui8VecType = weftrvv::VectorType::get(
-      builder.getContext(), builder.getIntegerType(8, /*isSigned=*/false),
-      loadLMUL);
-  mlir::Type i8VecType = weftrvv::VectorType::get(
-      builder.getContext(), builder.getI8Type(), loadLMUL);
-  mlir::Type i16VecType = weftrvv::VectorType::get(
-      builder.getContext(), builder.getI16Type(), productLMUL);
-  mlir::Type i32VecType = weftrvv::VectorType::get(
-      builder.getContext(), builder.getI32Type(), kReductionLMUL);
-
-  // The codebook table broadcast (the 16-entry kvalues -> i8 values vreg), then
-  // the three source loads: the UNSIGNED packed-i4 weight + the two plain-i8 q8
-  // activation halves (NOT codebook-decoded -- only the weight is).
-  mlir::Value table = createCodebookTableBroadcast(
-      builder, loc, kIQ4NLCodebook, kCodebookTableSymbol, i8VecType);
-  mlir::Value loadedWeight =
-      createRVVLoad(builder, loc, weight.getResult(), setvl.getVl(), ui8VecType);
-  mlir::Value loadedQLow =
-      createRVVLoad(builder, loc, qlo.getResult(), setvl.getVl(), i8VecType);
-  mlir::Value loadedQHigh =
-      createRVVLoad(builder, loc, qhi.getResult(), setvl.getVl(), i8VecType);
-  // The auto-constructed codebook nibble split + vrgather decode + asymmetric
-  // widening product -> i16/wider.
-  mlir::Value product = createCodebookGatherProduct(
-      builder, loc, loadedWeight, loadedQLow, loadedQHigh, table, setvl.getVl(),
-      i16VecType);
-  // The signed widening reduce -> i32/m1, carrying the i32 acc seed.
-  mlir::Value reduced = createStandaloneReduce(
-      builder, loc, product, acc.getResult(), setvl.getVl(), i32VecType);
-  createRVVStore(builder, loc, out.getResult(), reduced, setvl.getVl());
-
   return mlir::success();
 }
 
@@ -543,23 +385,14 @@ public:
   MaterializeRVVCodebookDotSourceFrontDoorPass(
       const MaterializeRVVCodebookDotSourceFrontDoorPass &other)
       : mlir::PassWrapper<MaterializeRVVCodebookDotSourceFrontDoorPass,
-                          mlir::OperationPass<mlir::ModuleOp>>(other),
-        registry(other.registry) {}
-  explicit MaterializeRVVCodebookDotSourceFrontDoorPass(
-      const ExtensionPluginRegistry *registry)
-      : registry(registry) {}
+                          mlir::OperationPass<mlir::ModuleOp>>(other) {}
 
   llvm::StringRef getArgument() const final {
     return "weft-rvv-materialize-codebook-gather-dot-source-front-door";
   }
   llvm::StringRef getDescription() const final {
-    return "Auto-construct the weft_rvv codebook (vrgather) integer-CORE body "
-           "(codebook_table_broadcast + load x3 + codebook_gather_x_i8_product "
-           "+ standalone_reduce + store) from a marked generic codebook-core "
-           "source, with the codebook i8 gather anchor SELECTED (m1/mf2 VLEN "
-           "flip) by the shared codebook schedule authority from the "
-           "resolveRVVMinimumVLEN capability fact. BOUNDED Track B G2 step: the "
-           "codebook integer CORE only (no block loop / fp16 scale / fp32 fold).";
+    return "Adapt one bounded codebook-i4/q8 dot source into target-bound "
+           "CodebookI4Q8Dot canonical P";
   }
 
   void getDependentDialects(mlir::DialectRegistry &registry) const final {
@@ -571,14 +404,6 @@ public:
 
   void runOnOperation() final {
     mlir::ModuleOp module = getOperation();
-    if (!registry) {
-      module.emitError()
-          << "RVV codebook-gather dot source front door requires an injected "
-             "extension-plugin registry to dispatch the conservative fallback";
-      signalPassFailure();
-      return;
-    }
-
     auto marker =
         module->getAttrOfType<mlir::StringAttr>(kSourceFrontDoorAttrName);
     if (!marker || marker.getValue().trim() != kAcceptedMarkerValue)
@@ -611,34 +436,17 @@ public:
       return;
     }
 
-    // The capability-fact-driven codebook anchor SELECTION (the flip): m1 at
-    // VLEN128, mf2 at VLEN256, fail-closed (I7) at VLEN0 where every codebook
-    // candidate is pruned (the codebook gather needs VLMAX >= 16).
-    std::optional<std::string> coreLMUL =
-        selectCodebookCoreLMUL(module, march, isaVectorHints);
-    if (!coreLMUL) {
-      (void)fail(module, llvm::Twine("the capability profile (march='") + march +
-                             "') prunes every legal codebook i8 gather anchor "
-                             "(VLMAX < 16 for the 16-entry table); no schedule "
-                             "is selectable (fail-closed)");
-      signalPassFailure();
-      return;
-    }
-
     std::string kernelName = getKernelName(module);
     mlir::OpBuilder builder(module.getContext());
     builder.setInsertionPointToStart(module.getBody());
-    if (mlir::failed(materializeKernel(builder, kernelName, *registry, *source,
-                                       *coreLMUL, march, isaVectorHints))) {
+    if (mlir::failed(materializeCanonicalProblem(
+            builder, kernelName, *source, march, isaVectorHints))) {
       signalPassFailure();
       return;
     }
 
-    // W2 §(1) B: the constructed body now carries an RVV provider op; materialize
-    // the c facts (typed minimum_vlen + support axes) onto it through the ONE
-    // shared producer, so a downstream resolveRVVMinimumVLEN reads the provider
-    // fact instead of re-parsing -march (I1/I4). This closes the "constructed
-    // empty provider" debt: the front door is the legitimate producer.
+    // Fill target-bound c_o through the shared producer. The owner later derives
+    // the codebook schedule; the adapter does not preselect or prebuild it.
     (void)materializeRVVProviderCapabilityAxes(module, march, isaVectorHints);
 
     module->removeAttr(kSourceFrontDoorAttrName);
@@ -646,13 +454,12 @@ public:
   }
 
 private:
-  const ExtensionPluginRegistry *registry = nullptr;
-
   Pass::Option<std::string> march{
       *this, "march",
-      llvm::cl::desc("The capability-derivation -march the codebook i8 gather "
-                     "anchor is selected from (e.g. rv64gcv, rv64gcv_zvl256b). "
-                     "Empty => no guaranteed VLEN tier => fail-closed."),
+      llvm::cl::desc("RISC-V -march used only to populate the target-bound "
+                     "RVV capability profile; downstream owner construction "
+                     "derives the codebook gather plan. Empty leaves required "
+                     "VLEN facts absent and later construction fails closed."),
       llvm::cl::init("")};
   Pass::Option<std::string> isaVectorHints{
       *this, "isa-vector-hints",
@@ -663,27 +470,114 @@ private:
 
 } // namespace
 
+llvm::Error constructRVVCodebookI4Q8DotProblemBody(
+    weftexec::VariantOp variant, weftexec::CodebookI4Q8DotProblemOp problem,
+    const RVVSelectedTargetCapabilityFacts &capability) {
+  if (!capability.minimumVLEN || !capability.vectorRegisterCount)
+    return llvm::createStringError(
+        llvm::inconvertibleErrorCode(),
+        "codebook formula requires minimum_vlen and vreg_count in c_o");
+  llvm::Expected<RVVSourceSchedulePlan> schedule =
+      constructRVVSourceScheduleFormula(
+          {RVVSourceScheduleMechanism::CodebookGather,
+           /*sew=*/8, static_cast<std::int64_t>(problem.getBlockLength()),
+           {"m1", "mf2"}},
+          {*capability.minimumVLEN, *capability.vectorRegisterCount},
+          RVVSourceScheduleNoStaticContext{});
+  if (!schedule)
+    return schedule.takeError();
+  llvm::StringRef loadLMUL = schedule->integerCoreLMUL;
+  llvm::StringRef productLMUL = getRVVNextWiderLMUL(loadLMUL);
+  if (productLMUL.empty())
+    return llvm::createStringError(llvm::inconvertibleErrorCode(),
+                                   "codebook mechanism has no wider i16 LMUL");
+  if (variant.getBody().empty() || !variant.getBody().front().empty())
+    return llvm::createStringError(
+        llvm::inconvertibleErrorCode(),
+        "codebook construction requires an empty selected candidate");
+  auto policy = variant->getAttrOfType<weftrvv::PolicyAttr>("weft_rvv.policy");
+  if (!policy)
+    return llvm::createStringError(llvm::inconvertibleErrorCode(),
+                                   "codebook candidate lacks typed policy");
+
+  mlir::OpBuilder builder(variant.getContext());
+  builder.setInsertionPointToStart(&variant.getBody().front());
+  mlir::Location loc = problem.getLoc();
+  variant->setAttr(
+      "weft_rvv.codebook_integer_core_anchor",
+      builder.getStringAttr(
+          ("i8" + loadLMUL + "-i16" + productLMUL + "-i32m1-vlen-flip")
+              .str()));
+  mlir::Type runtimeABIType =
+      weftrvv::RuntimeABIValueType::get(builder.getContext());
+  auto weight = createRuntimeABIValue(builder, loc, "lhs-input-buffer", "w",
+                                      "const uint8_t *", "q4-weight",
+                                      runtimeABIType);
+  auto qlo = createRuntimeABIValue(builder, loc, "rhs-input-buffer", "qlo",
+                                   "const int8_t *", "q8-low",
+                                   runtimeABIType);
+  auto qhi = createRuntimeABIValue(builder, loc, "rhs-secondary-input-buffer", "qhi",
+                                   "const int8_t *", "q8-high",
+                                   runtimeABIType);
+  auto acc = createRuntimeABIValue(builder, loc, "accumulator-input-buffer",
+                                   "acc", "const int32_t *", "acc",
+                                   runtimeABIType);
+  auto out = createRuntimeABIValue(builder, loc, "output-buffer", "out",
+                                   "int32_t *", "out", runtimeABIType);
+  auto n = createRuntimeABIValue(builder, loc, "runtime-element-count", "n",
+                                 "size_t", "n", builder.getIndexType());
+  weftrvv::SetVLOp setvl = createSetVL(
+      builder, loc, n.getResult(), kReductionStripSEW, kReductionStripLMUL,
+      policy);
+  weftrvv::WithVLOp withVL = createWithVL(
+      builder, loc, setvl.getVl(), kReductionStripSEW, kReductionStripLMUL,
+      policy);
+  mlir::OpBuilder::InsertionGuard guard(builder);
+  builder.setInsertionPointToStart(&withVL.getBody().front());
+  mlir::Type ui8VecType = weftrvv::VectorType::get(
+      builder.getContext(), builder.getIntegerType(8, /*isSigned=*/false),
+      loadLMUL);
+  mlir::Type i8VecType = weftrvv::VectorType::get(
+      builder.getContext(), builder.getI8Type(), loadLMUL);
+  mlir::Type i16VecType = weftrvv::VectorType::get(
+      builder.getContext(), builder.getI16Type(), productLMUL);
+  mlir::Type i32VecType = weftrvv::VectorType::get(
+      builder.getContext(), builder.getI32Type(), kReductionLMUL);
+  mlir::Value table = createCodebookTableBroadcast(
+      builder, loc, problem.getCodebook(), problem.getTableSymbol(), i8VecType);
+  mlir::Value loadedWeight = createRVVLoad(
+      builder, loc, weight.getResult(), setvl.getVl(), ui8VecType);
+  mlir::Value loadedQLow = createRVVLoad(
+      builder, loc, qlo.getResult(), setvl.getVl(), i8VecType);
+  mlir::Value loadedQHigh = createRVVLoad(
+      builder, loc, qhi.getResult(), setvl.getVl(), i8VecType);
+  mlir::Value product = createCodebookGatherProduct(
+      builder, loc, loadedWeight, loadedQLow, loadedQHigh, table,
+      setvl.getVl(), i16VecType);
+  mlir::Value reduced = createStandaloneReduce(
+      builder, loc, product, acc.getResult(), setvl.getVl(), i32VecType);
+  createRVVStore(builder, loc, out.getResult(), reduced, setvl.getVl());
+  return llvm::Error::success();
+}
+
 std::unique_ptr<::mlir::Pass>
 createMaterializeRVVCodebookDotSourceFrontDoorPass(
     const ExtensionPluginRegistry &registry) {
-  return std::make_unique<MaterializeRVVCodebookDotSourceFrontDoorPass>(
-      &registry);
+  (void)registry;
+  return std::make_unique<MaterializeRVVCodebookDotSourceFrontDoorPass>();
 }
 
 llvm::Error registerRVVCodebookDotSourceFrontDoorPasses(
     llvm::StringRef ownerPlugin, const ExtensionPluginRegistry &registry,
     llvm::SmallVectorImpl<SourceFrontDoorPassRegistration> &out) {
-  const ExtensionPluginRegistry *registryPtr = &registry;
+  (void)registry;
   out.push_back(SourceFrontDoorPassRegistration(
       ownerPlugin, formula_catalog::kCodebookDotSourceEntry,
-      "Auto-construct the weft_rvv codebook (vrgather) integer-CORE body "
-      "(codebook_table_broadcast + load x3 + codebook_gather_x_i8_product + "
-      "standalone_reduce + store) from a marked generic codebook-core source "
-      "(BOUNDED Track B G2: the codebook integer core only, the i8 gather anchor "
-      "SELECTED with the m1/mf2 VLEN flip)",
+      "Adapt one bounded codebook-i4/q8 dot source into target-bound exact "
+      "canonical P",
       formula_catalog::kCodebookDotConstruction,
-      [registryPtr] {
-        return createMaterializeRVVCodebookDotSourceFrontDoorPass(*registryPtr);
+      [] {
+        return std::make_unique<MaterializeRVVCodebookDotSourceFrontDoorPass>();
       },
       SourceFrontDoorPassRegistration::DefaultArtifactFrontDoorPolicy::
           ExplicitOnly));

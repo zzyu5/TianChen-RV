@@ -10,15 +10,15 @@
 // Its 32-lane sub-block requires m2 at VLEN128, while m1 is legal and lighter at
 // VLEN256.
 //
-// Decision-level proof: the source front door constructs the typed body and the
-// unified scheduler stamps different anchors from only the target capability.
-// RUN: weft-opt %s --weft-rvv-materialize-q1-0-q8-0-block-dot-source-front-door --weft-rvv-materialize-schedule=march=rv64gcv | FileCheck %s --check-prefix=STAMP-VLEN128
-// RUN: weft-opt %s --weft-rvv-materialize-q1-0-q8-0-block-dot-source-front-door --weft-rvv-materialize-schedule=march=rv64gcv_zvl256b | FileCheck %s --check-prefix=STAMP-VLEN256
+// Decision-level proof: the source front door constructs exact P; after generic
+// selection, the RVV owner constructs different final plans from only c_o.
+// RUN: weft-opt %s --weft-rvv-materialize-q1-0-q8-0-block-dot-source-front-door=march=rv64gcv --weft-execution-planning-pipeline | FileCheck %s --check-prefix=STAMP-VLEN128
+// RUN: weft-opt %s --weft-rvv-materialize-q1-0-q8-0-block-dot-source-front-door=march=rv64gcv_zvl256b --weft-execution-planning-pipeline | FileCheck %s --check-prefix=STAMP-VLEN256
 //
 // Emission-level non-NULL proof: the typed-loop emitter consumes those stamped
 // choices and produces byte-different intrinsic shapes.
-// RUN: weft-opt %s --weft-rvv-materialize-q1-0-q8-0-block-dot-source-front-door --weft-rvv-materialize-schedule=march=rv64gcv --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=VLEN128
-// RUN: weft-opt %s --weft-rvv-materialize-q1-0-q8-0-block-dot-source-front-door --weft-rvv-materialize-schedule=march=rv64gcv_zvl256b --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=VLEN256
+// RUN: weft-opt %s --weft-rvv-materialize-q1-0-q8-0-block-dot-source-front-door=march=rv64gcv --weft-execution-planning-pipeline --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=VLEN128
+// RUN: weft-opt %s --weft-rvv-materialize-q1-0-q8-0-block-dot-source-front-door=march=rv64gcv_zvl256b --weft-execution-planning-pipeline --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=VLEN256
 
 module attributes {
   weft_rvv.source_front_door = "ggml_q1_0_q8_0_block_dot_source",

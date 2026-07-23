@@ -5,6 +5,7 @@
 #include "Weft/Dialect/RVV/IR/RVVDialect.h"
 #include "Weft/Plugin/ExtensionBundle.h"
 #include "Weft/Plugin/RVV/RVVArtifactContract.h"
+#include "Weft/Plugin/RVV/RVVCanonicalProblemConstruction.h"
 #include "Weft/Plugin/RVV/RVVCapabilityProfile.h"
 #include "Weft/Plugin/RVV/RVVFormulaCatalog.h"
 #include "Weft/Plugin/RVV/RVVFormulaConstruction.h"
@@ -207,6 +208,13 @@ void RVVExtensionPlugin::registerDialects(
 llvm::Error RVVExtensionPlugin::constructFormulaPlans(
     const FamilyConstructionRequest &request,
     FamilyConstructionResult &out) const {
+  if (isRVVCanonicalProblemSupported(request.getProblem()) &&
+      !variantContainsExplicitTypedRVVBody(request.getVariant())) {
+    if (llvm::Error error = constructRVVCanonicalProblemBody(
+            request.getVariant(), request.getProblem(),
+            request.getCapabilities()))
+      return error;
+  }
   if (mlir::failed(constructRVVFormulaPlansForVariant(
           request.getVariant(), request.getCapabilities())))
     return llvm::createStringError(
@@ -282,14 +290,14 @@ void RVVExtensionPlugin::collectFormulaDescriptors(
       formula::kVariantConstruction, "operator/rvv-variant",
       FormulaResultKind::CandidateSet,
       FormulaConstructionStrength::ConstructedWeak,
-      "RVVVariantApplicabilityGeometry", {},
+      "ExactCanonicalProblem", {"problem-op", "semantic-fields"},
       FormulaAxisUse::Decisive, "RVVCapabilityProjection", {"rvv-available"},
       FormulaAxisUse::HonestNull, "RVVVariantNoStaticContext");
-  variant.getGeometryAxis().set(FormulaAxisUse::HonestNull,
-                                "RVVVariantApplicabilityGeometry");
-  variant.addSemanticCase("explicit-typed-rvv-input-required");
+  variant.addSemanticCase("exact-canonical-problem");
+  variant.addSemanticCase("explicit-typed-rvv-debug-input");
   variant.addSemanticCase("rvv-capability-unavailable");
   variant.addProductionEntry("plugin:variant-applicability");
+  variant.addProductionEntry("plugin:variant-proposal");
   out.push_back(std::move(variant));
 
   FormulaDescriptor cost = makeDescriptor(
@@ -303,19 +311,16 @@ void RVVExtensionPlugin::collectFormulaDescriptors(
   cost.addProductionEntry("plugin:analytic-cost");
   out.push_back(std::move(cost));
 
-  // Construction strength describes the complete production source
-  // construction, not just a reusable schedule decision that it happens to
-  // consume.  These front doors still own complete point-body builders and no
-  // point-authority erasure witness currently reconstructs those bodies, so
-  // they must remain honestly ConstructedWeak.  Internal schedule formulas
-  // below retain their independently justified strength.
+  // Source descriptors end at exact canonical P. Selected RVV body construction
+  // is separately catalogued below and remains honestly ConstructedWeak until
+  // delete-leaf reconstruction witnesses exist.
   FormulaDescriptor vector = makeDescriptor(
       formula::kVectorSourceConstruction, "operator/vector-elementwise",
-      FormulaResultKind::TypedPlan,
+      FormulaResultKind::CanonicalProblem,
       FormulaConstructionStrength::ConstructedWeak,
       "RVVVectorSourceGeometryFacts", {"opcode", "element-type", "predicate"},
-      FormulaAxisUse::Decisive, "RVVCapabilityProjection",
-      {"minimum-vlen", "supported-lmul"}, FormulaAxisUse::HonestNull,
+      FormulaAxisUse::HonestNull, "RVVSourceProblemNoCapability", {},
+      FormulaAxisUse::HonestNull,
       "RVVVectorNoStaticContext");
   vector.addSemanticCase("binary");
   vector.addSemanticCase("compare-select");
@@ -324,6 +329,7 @@ void RVVExtensionPlugin::collectFormulaDescriptors(
   out.push_back(std::move(vector));
 
   auto addSingleSource = [&](llvm::StringRef id, llvm::StringRef domain,
+                             FormulaResultKind resultKind,
                              llvm::StringRef gType,
                              std::initializer_list<llvm::StringRef> gFields,
                              FormulaAxisUse capabilityUse,
@@ -333,7 +339,7 @@ void RVVExtensionPlugin::collectFormulaDescriptors(
                              llvm::StringRef productionEntry,
                              FormulaConstructionStrength strength) {
     FormulaDescriptor descriptor = makeDescriptor(
-        id, domain, FormulaResultKind::TypedPlan, strength, gType, gFields,
+        id, domain, resultKind, strength, gType, gFields,
         capabilityUse, cType, cFields, FormulaAxisUse::HonestNull,
         "RVVNoStaticContext");
     descriptor.addSemanticCase(semanticCase);
@@ -343,22 +349,23 @@ void RVVExtensionPlugin::collectFormulaDescriptors(
   };
 
   addSingleSource(formula::kReductionSourceConstruction,
-                  "operator/reduction", "RVVReductionGeometryFacts",
+                  "operator/reduction", FormulaResultKind::CanonicalProblem,
+                  "RVVReductionGeometryFacts",
                   {"element-type", "reduction-kind", "shape"},
-                  FormulaAxisUse::Decisive, "RVVCapabilityProjection",
-                  {"supported-lmul", "vector-register-budget"},
+                  FormulaAxisUse::HonestNull, "RVVSourceProblemNoCapability", {},
                   "widening-dot-reduce", formula::kReductionSourceEntry,
                   FormulaConstructionStrength::ConstructedWeak);
   addSingleSource(formula::kDequantDotSourceConstruction,
-                  "operator/dequant-dot", "RVVDequantDotGeometryFacts",
+                  "operator/dequant-dot", FormulaResultKind::CanonicalProblem,
+                  "RVVDequantDotGeometryFacts",
                   {"scale-kind", "element-type", "shape"},
-                  FormulaAxisUse::Decisive, "RVVCapabilityProjection",
-                  {"supported-lmul", "vector-register-budget"},
+                  FormulaAxisUse::HonestNull, "RVVSourceProblemNoCapability", {},
                   "widening-dot-reduce-with-scale",
                   formula::kDequantDotSourceEntry,
                   FormulaConstructionStrength::ConstructedWeak);
   addSingleSource(formula::kDequantizeRowConstruction,
-                  "operator/dequantize-row", "DequantizeRowStreamFacts",
+                  "operator/dequantize-row", FormulaResultKind::TypedPlan,
+                  "DequantizeRowStreamFacts",
                   {"format", "qk", "layout", "decode-mechanism"},
                   FormulaAxisUse::Decisive,
                   "OptionalCodebookGatherCapabilityFacts",
@@ -380,43 +387,66 @@ void RVVExtensionPlugin::collectFormulaDescriptors(
   quantize.addProductionEntry(formula::kQuantizeRowSourceEntry);
   out.push_back(std::move(quantize));
   addSingleSource(formula::kElementwiseConstruction,
-                  "operator/elementwise", "ElementwiseStreamFacts",
+                  "operator/elementwise", FormulaResultKind::TypedPlan,
+                  "ElementwiseStreamFacts",
                   {"operation", "shape", "element-type"},
                   FormulaAxisUse::HonestNull,
                   "ElementwiseNoCapabilityInput", {},
                   "typed-streaming-elementwise", formula::kElementwiseSourceEntry,
                   FormulaConstructionStrength::ConstructedWeak);
   addSingleSource(formula::kPackedI4DotConstruction,
-                  "operator/packed-i4-dot", "PackedI4DotGeometryFacts",
+                  "operator/packed-i4-dot", FormulaResultKind::CanonicalProblem,
+                  "PackedI4DotGeometryFacts",
                   {"qk", "carrier", "offset-binary-bias"},
-                  FormulaAxisUse::Decisive, "RVVCapabilityProjection",
-                  {"minimum-vlen", "supported-lmul"},
+                  FormulaAxisUse::HonestNull, "RVVSourceProblemNoCapability", {},
                   "packed-i4-offset-binary-dot",
                   formula::kPackedI4DotSourceEntry,
                   FormulaConstructionStrength::ConstructedWeak);
   addSingleSource(formula::kCodebookDotConstruction,
-                  "operator/codebook-dot", "CodebookDotGeometryFacts",
+                  "operator/codebook-dot", FormulaResultKind::CanonicalProblem,
+                  "CodebookDotGeometryFacts",
                   {"qk", "codebook-entries", "layout"},
-                  FormulaAxisUse::Decisive, "RVVCapabilityProjection",
-                  {"minimum-vlen", "supported-lmul"},
+                  FormulaAxisUse::HonestNull, "RVVSourceProblemNoCapability", {},
                   "codebook-gather-dot", formula::kCodebookDotSourceEntry,
                   FormulaConstructionStrength::ConstructedWeak);
 
   FormulaDescriptor monolithic = makeDescriptor(
       formula::kMonolithicBlockDotConstruction, "operator/block-dot",
-      FormulaResultKind::TypedPlan,
+      FormulaResultKind::CanonicalProblem,
       FormulaConstructionStrength::ConstructedWeak,
       "MonolithicBlockDotGeometryFacts",
-      {"format", "scale-model", "qk", "block-layout", "runtime-abi"},
-      FormulaAxisUse::Decisive, "RVVCapabilityProjection",
-      {"minimum-vlen", "supported-lmul", "vector-register-budget"},
+      {"weight-encoding", "activation-encoding", "topology", "qk",
+       "block-layout", "runtime-abi"},
+      FormulaAxisUse::HonestNull, "RVVSourceProblemNoCapability", {},
       FormulaAxisUse::Decisive, "RVVBlockDotStaticContext");
-  monolithic.getStaticContextAxis().addConsumedField("gemv-or-gemm-regime");
+  monolithic.getStaticContextAxis().addConsumedField("numerics-reassoc-ok");
   for (const MonolithicBlockDotOpEntry &entry : monolithicBlockDotOpTable()) {
     monolithic.addSemanticCase(entry.kind);
     monolithic.addProductionEntry(entry.passArgument);
   }
   out.push_back(std::move(monolithic));
+
+  FormulaDescriptor canonicalBody = makeDescriptor(
+      formula::kCanonicalProblemBodyConstruction,
+      "operator/selected-rvv-body",
+      FormulaResultKind::DeterministicConstruction,
+      FormulaConstructionStrength::ConstructedWeak,
+      "ExactCanonicalProblem",
+      {"problem-op", "semantic-fields", "representation-fields",
+       "geometry-fields"},
+      FormulaAxisUse::Decisive, "RVVSelectedTargetCapabilityFacts",
+      {"minimum-vlen", "vector-register-count"},
+      FormulaAxisUse::HonestNull, "RVVCanonicalProblemNoStaticContext");
+  canonicalBody.addSemanticCase("i32-vector-binary");
+  canonicalBody.addSemanticCase("i32-vector-compare-select");
+  canonicalBody.addSemanticCase("i8-widening-dot-reduce");
+  canonicalBody.addSemanticCase("packed-i4-q8-dot");
+  canonicalBody.addSemanticCase("codebook-i4-q8-dot");
+  canonicalBody.addSemanticCase("quantized-block-dot");
+  canonicalBody.addSemanticCase("unsupported-or-illegal");
+  canonicalBody.addProductionEntry(
+      formula::kCanonicalProblemBodyConstructionEntry);
+  out.push_back(std::move(canonicalBody));
 
   FormulaDescriptor direct = makeDescriptor(
       formula::kLowerQuantContractionConstruction, "operator/contraction",
@@ -688,14 +718,37 @@ llvm::Error RVVExtensionPlugin::registerSourceFrontDoorPasses(
 
 bool RVVExtensionPlugin::supportsOperation(
     const VariantProposalRequest &request) const {
-  return hasAvailableRVVCapability(request);
+  return hasAvailableRVVCapability(request) &&
+         isRVVCanonicalProblemSupported(request.getProblem());
 }
 
 llvm::Error RVVExtensionPlugin::proposeVariants(
     const VariantProposalRequest &request,
     llvm::SmallVectorImpl<VariantProposal> &out) const {
-  (void)request;
-  (void)out;
+  if (!supportsOperation(request))
+    return llvm::Error::success();
+  llvm::Expected<std::string> variantName =
+      deriveRVVCanonicalProblemVariantName(request.getProblem());
+  if (!variantName)
+    return variantName.takeError();
+  const support::CapabilityDescriptor *rvvCapability =
+      request.getCapabilities().lookupProviderByID(rvv::getRVVCapabilityID());
+  if (!rvvCapability || !rvvCapability->isAvailable())
+    return makeRVVPluginError(
+        "canonical-problem proposal requires an available exact RVV provider");
+
+  VariantProposal proposal(*variantName, kRVVPluginName);
+  proposal.setFormulaID(formula::kVariantConstruction);
+  proposal.addRequiredCapabilityID(rvv::getRVVCapabilityID());
+  proposal.addRequiredCapabilitySymbol(rvvCapability->getSymbolName());
+  proposal.setCondition("rvv_capability_available");
+  mlir::Builder builder(request.getProblem()->getContext());
+  proposal.addPluginAttribute(
+      builder.getStringAttr(kRVVPolicyAttrName),
+      weft::rvv::PolicyAttr::get(builder.getContext(),
+                                 weft::rvv::TailPolicy::Agnostic,
+                                 weft::rvv::MaskPolicy::Agnostic));
+  out.push_back(std::move(proposal));
   return llvm::Error::success();
 }
 
@@ -705,10 +758,11 @@ llvm::Error RVVExtensionPlugin::collectVariantProposals(
   if (!supportsOperation(request))
     return llvm::Error::success();
 
-  out.addRecoverableDecline(
-      kRVVPluginName,
-      "RVV proposal requires explicit typed weft_rvv extension-family IR "
-      "before selecting an RVV variant");
+  llvm::SmallVector<VariantProposal, 1> proposals;
+  if (llvm::Error error = proposeVariants(request, proposals))
+    return error;
+  for (const VariantProposal &proposal : proposals)
+    out.addProposal(proposal);
   return llvm::Error::success();
 }
 
@@ -736,6 +790,14 @@ llvm::Error RVVExtensionPlugin::verifyVariantLegality(
   if (!targetCapabilityFacts)
     return targetCapabilityFacts.takeError();
 
+  if (isRVVCanonicalProblemSupported(request.getProblem())) {
+    if (llvm::Error error = verifyRVVCanonicalProblemCandidate(
+            variant, request.getProblem(), request.getCapabilities()))
+      return error;
+    if (!variantContainsExplicitTypedRVVBody(variant))
+      return llvm::Error::success();
+  }
+
   return requireExplicitTypedRVVBody(variant);
 }
 
@@ -745,8 +807,17 @@ RVVExtensionPlugin::estimateVariantCost(const VariantCostRequest &request,
   if (!request.getVariant())
     return makeRVVPluginError(
         "cost estimation requires a materialized weft.exec.variant");
-  if (llvm::Error error = requireExplicitTypedRVVBody(request.getVariant()))
+  const bool canonicalProblem =
+      isRVVCanonicalProblemSupported(request.getProblem());
+  if (canonicalProblem) {
+    if (llvm::Error error = verifyRVVCanonicalProblemCandidate(
+            request.getVariant(), request.getProblem(),
+            request.getCapabilities()))
+      return error;
+  } else if (llvm::Error error =
+                 requireExplicitTypedRVVBody(request.getVariant())) {
     return error;
+  }
 
   // Capability-DERIVED cost (SEL-1 exec-level capability prior). Anchor the
   // vector-paradigm base on an available RVV isa-vector capability FACT consulted
@@ -767,11 +838,13 @@ RVVExtensionPlugin::estimateVariantCost(const VariantCostRequest &request,
   out.setOriginPlugin(kRVVPluginName);
   out.setFormulaID(formula::kVariantAnalyticPrior);
   out.setVariantSymbol(request.getVariant().getSymName());
-  out.setExplanation("explicit typed RVV variant body; vector-paradigm base cost "
-                     "DERIVED from the available RVV isa-vector capability fact; "
-                     "no runtime performance claim");
-  out.setPolicy("plugin-local typed RVV extension-family IR; cost anchored on the "
-                "available RVV isa-vector capability fact");
+  out.setExplanation(
+      canonicalProblem
+          ? "exact-P-derived RVV candidate; vector-paradigm base cost derived "
+            "from the available RVV capability fact; no runtime claim"
+          : "explicit typed RVV debug candidate; vector-paradigm base cost "
+            "derived from the available RVV capability fact; no runtime claim");
+  out.setPolicy("owner-local RVV candidate and analytic capability prior");
   return llvm::Error::success();
 }
 

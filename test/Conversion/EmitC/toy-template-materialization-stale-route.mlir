@@ -1,7 +1,8 @@
 // RUN: weft-opt %s --weft-materialize-selected-lowering-boundaries --weft-materialize-emitc-lowerable-routes | FileCheck %s
 
 module {
-  weft.exec.kernel @toy_stale_route_mapping {
+  weft.exec.kernel @toy_stale_route_mapping attributes {problem = @canonical_problem} {
+    weft.exec.template_compute_problem @canonical_problem {template_kind = "compute-skeleton"}
     weft.exec.capability @toy_template {
       id = "toy.template",
       kind = "extension-template",

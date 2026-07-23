@@ -5,7 +5,8 @@
 // must reject the mixed module before Toy cleanup can erase the Scalar op and
 // incorrectly report a complete conversion.
 module {
-  weft.exec.kernel @mixed_backend_kernel {
+  weft.exec.kernel @mixed_backend_kernel attributes {problem = @canonical_problem} {
+    weft.exec.template_compute_problem @canonical_problem {template_kind = "compute-skeleton"}
     weft.exec.capability @toy_template {
       id = "toy.template",
       kind = "extension-template",

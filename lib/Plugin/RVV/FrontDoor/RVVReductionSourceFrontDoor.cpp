@@ -37,6 +37,7 @@
 #include "Weft/Dialect/RVV/IR/RVVDialect.h"
 #include "Weft/Plugin/ExtensionPlugin.h"
 #include "Weft/Plugin/RVV/RVVCapabilityProfile.h"
+#include "Weft/Plugin/RVV/RVVCanonicalProblemConstruction.h"
 #include "Weft/Plugin/RVV/RVVExtensionPlugin.h"
 #include "Weft/Plugin/RVV/RVVGearboxSchedule.h"
 #include "Weft/Plugin/RVV/RVVSourceScheduleFormula.h"
@@ -75,9 +76,6 @@ constexpr llvm::StringLiteral kSourceKernelAttrName("weft_rvv.source_kernel");
 constexpr llvm::StringLiteral kAcceptedMarkerValue(
     "bounded_widening_dot_reduce_source");
 constexpr llvm::StringLiteral kSeedAttrName("weft_rvv.lowering_seed");
-
-constexpr llvm::StringLiteral kOriginAttrName("origin");
-constexpr llvm::StringLiteral kRequiresAttrName("requires");
 
 // The single bounded contraction this first block auto-lowers: the K=32 signed
 // int8 dot-reduce. K=32 IS the schedule descriptor blockLen (one elided cover
@@ -303,58 +301,12 @@ matchBoundedWideningDotReduceSourceFunc(mlir::func::FuncOp func) {
 }
 
 //===----------------------------------------------------------------------===//
-// (2) The capability-fact-driven integer-core LMUL anchor.
-//===----------------------------------------------------------------------===//
-
-// The RVVSourceScheduleFormula owner constructs the integer-core LMUL anchor for
-// the K=32 signed-int8 dot-reduce from typed geometry and canonical capability.
-// The robust single-block body consumes only the returned
-// integer_core_lmul knob, so for this FIXED K=32 int8 block the resource-best legal
-// anchor is exactly the WIDTH-INVARIANT one: the LMUL whose per-strip VLMAX equals
-// the 32-block, so its vector register group holds a CONSTANT 256-bit effective
-// width (VLMAX*sew = 32*8) independent of VLEN. That IS the capability flip:
-//   * VLEN128: LMUL 2 (e8m2, VLMAX 32) -- one strip spans the 32-block.
-//   * VLEN256: LMUL 1 (e8m1, VLMAX 32) -- the SAME 256-bit group, one strip.
-// A wider VLEN pins the same group at a NARROWER LMUL, so the anchor FLIPS m2->m1
-// (the e8m2 vs e8m1 emitted-body divergence) -- byte-for-byte the old argmin's pick
-// (m2@VLEN128 / m1@VLEN256), now the RETURN VALUE of the explicit width-invariant
-// equation (reason `effective_width_invariant`, never a cost-model `static_order`)
-// instead of an enumerate+rank fallback.
-std::optional<std::string>
-selectIntegerCoreLMUL(mlir::ModuleOp module, llvm::StringRef march,
-                      llvm::StringRef isaVectorHints) {
-  std::int64_t minimumVLEN = resolveRVVMinimumVLEN(module, march, isaVectorHints);
-  llvm::Expected<RVVSourceSchedulePlan> plan =
-      constructRVVSourceScheduleFormula(
-          {RVVSourceScheduleMechanism::EffectiveWidthInvariant,
-           /*sew=*/8, /*blockLength=*/kContractionBlockLen, {"m1", "m2"}},
-          {minimumVLEN, resolveRVVVectorRegisterBudget(module)},
-          RVVSourceScheduleNoStaticContext{});
-  if (!plan)
-    return std::nullopt;
-  return plan->integerCoreLMUL;
-}
-
-//===----------------------------------------------------------------------===//
-// (3) Body builder: auto-construct the weft_rvv RVV-dialect body. The integer
-// source/product LMULs are VARIABLES threaded from the selected anchor, so the
-// scaffold (fixed anchor) and bar A (capability-selected anchor) differ by the
-// anchor value only -- not the construction.
+// (2) Shared typed RVV body-building primitives.
 //===----------------------------------------------------------------------===//
 
 mlir::FlatSymbolRefAttr symbolRef(mlir::OpBuilder &builder,
                                   llvm::StringRef symbol) {
   return mlir::FlatSymbolRefAttr::get(builder.getContext(), symbol);
-}
-
-mlir::ArrayAttr createRequires(mlir::OpBuilder &builder, llvm::StringRef symbol) {
-  return builder.getArrayAttr({symbolRef(builder, symbol)});
-}
-
-weftrvv::PolicyAttr createAgnosticPolicy(mlir::OpBuilder &builder) {
-  return weftrvv::PolicyAttr::get(builder.getContext(),
-                                  weftrvv::TailPolicy::Agnostic,
-                                  weftrvv::MaskPolicy::Agnostic);
 }
 
 weftrvv::RuntimeABIValueOp
@@ -451,48 +403,11 @@ void createRVVStore(mlir::OpBuilder &builder, mlir::Location loc,
   (void)builder.create(state);
 }
 
-weftexec::VariantOp
-createVariant(mlir::OpBuilder &builder, mlir::Location loc,
-              llvm::StringRef selectedVariantSymbol, mlir::ArrayAttr requires,
-              weftrvv::PolicyAttr policy) {
-  mlir::OperationState state(loc, weftexec::VariantOp::getOperationName());
-  state.addAttribute("sym_name", builder.getStringAttr(selectedVariantSymbol));
-  state.addAttribute(kOriginAttrName,
-                     builder.getStringAttr(getRVVExtensionPluginName()));
-  state.addAttribute(kRequiresAttrName, requires);
-  state.addAttribute("weft_rvv.policy", policy);
-  state.addRegion();
-  auto variant = llvm::cast<weftexec::VariantOp>(builder.create(state));
-  variant.getBody().emplaceBlock();
-  return variant;
-}
-
-mlir::LogicalResult materializeKernel(
+mlir::LogicalResult materializeCanonicalProblem(
     mlir::OpBuilder &builder, llvm::StringRef kernelName,
-    llvm::StringRef selectedIntegerCoreLMUL,
-    const ExtensionPluginRegistry &registry,
     WideningDotReduceSourceMatch source, llvm::StringRef march,
     llvm::StringRef isaVectorHints) {
-  (void)registry;
   mlir::Location loc = source.func.getLoc();
-  weftrvv::PolicyAttr policy = createAgnosticPolicy(builder);
-  std::string selectedVariantSymbol = "rvv_widening_dot_reduce_i8";
-
-  // BAR A: the BYTE-ANCHOR widening int8 dot-reduce. The integer-core anchor is
-  // the gearbox-selected LMUL (m2 at VLEN128, m1 at VLEN256), realized as a
-  // byte-strip config: SEW8/<anchor> with_vl, i8/<anchor> loads, the i16/<wider>
-  // widening product, the i32m1 widening reduce. The emitted bytes FLIP with the
-  // capability fact (vsetvl_e8m2 + vwredsum_i16m4 vs vsetvl_e8m1 + vwredsum_i16m2)
-  // -- the same e8m2/e8m1 divergence q8_0 brick #1 shows, but from a generic
-  // vector.multi_reduction source with no per-kernel emitter.
-  llvm::StringRef loadLMUL = selectedIntegerCoreLMUL;
-  llvm::StringRef productLMUL = getRVVNextWiderLMUL(loadLMUL);
-  if (productLMUL.empty())
-    return fail(source.func,
-                llvm::Twine("no wider LMUL rung for integer-core anchor '") +
-                    loadLMUL + "'");
-  std::int64_t anchorSEW = 8;
-
   mlir::ModuleOp module = source.func->getParentOfType<mlir::ModuleOp>();
   llvm::Expected<weftexec::TargetOp> target =
       weft::target::rvv::materializeRVVSourceTargetProfile(
@@ -503,16 +418,14 @@ mlir::LogicalResult materializeKernel(
   mlir::OperationState kernelState(loc,
                                    weftexec::KernelOp::getOperationName());
   kernelState.addAttribute("sym_name", builder.getStringAttr(kernelName));
-  kernelState.addAttribute("target",
-                           symbolRef(builder, target->getSymName()));
+  kernelState.addAttribute("target", symbolRef(builder, target->getSymName()));
   kernelState.addAttribute("problem", symbolRef(builder, "canonical_problem"));
   kernelState.addRegion();
   auto kernel = llvm::cast<weftexec::KernelOp>(builder.create(kernelState));
   kernel.getBody().emplaceBlock();
 
-  mlir::OpBuilder::InsertionGuard kernelGuard(builder);
+  mlir::OpBuilder::InsertionGuard guard(builder);
   builder.setInsertionPointToStart(&kernel.getBody().front());
-
   mlir::OperationState problemState(
       loc, weftexec::I8WideningDotReduceProblemOp::getOperationName());
   problemState.addAttribute("sym_name",
@@ -521,66 +434,6 @@ mlir::LogicalResult materializeKernel(
                             builder.getI64IntegerAttr(kContractionBlockLen));
   problemState.addAttribute("dequantize_to_f32", builder.getBoolAttr(false));
   (void)builder.create(problemState);
-
-  mlir::ArrayAttr rvvRequires = createRequires(
-      builder, weft::target::rvv::getRVVSourceCapabilitySymbol(kernelName));
-
-  weftexec::VariantOp rvvVariant = createVariant(
-      builder, loc, selectedVariantSymbol, rvvRequires, policy);
-  mlir::OpBuilder::InsertionGuard variantGuard(builder);
-  builder.setInsertionPointToStart(&rvvVariant.getBody().front());
-
-  mlir::Type runtimeABIType =
-      weftrvv::RuntimeABIValueType::get(builder.getContext());
-  auto lhs = createRuntimeABIValue(builder, loc, "lhs-input-buffer", "lhs",
-                                   "const int8_t *",
-                                   "widening-dot-reduce:lhs", runtimeABIType);
-  auto rhs = createRuntimeABIValue(builder, loc, "rhs-input-buffer", "rhs",
-                                   "const int8_t *",
-                                   "widening-dot-reduce:rhs", runtimeABIType);
-  auto acc = createRuntimeABIValue(builder, loc, "accumulator-input-buffer",
-                                   "acc", "const int32_t *",
-                                   "widening-dot-reduce:acc", runtimeABIType);
-  auto out = createRuntimeABIValue(builder, loc, "output-buffer", "out",
-                                   "int32_t *", "widening-dot-reduce:out",
-                                   runtimeABIType);
-  auto n = createRuntimeABIValue(builder, loc, "runtime-element-count", "n",
-                                 "size_t", "widening-dot-reduce:n",
-                                 builder.getIndexType());
-
-  weftrvv::SetVLOp setvl =
-      createSetVL(builder, loc, n.getResult(), anchorSEW, loadLMUL, policy);
-  weftrvv::WithVLOp withVL =
-      createWithVL(builder, loc, setvl.getVl(), anchorSEW, loadLMUL, policy);
-
-  mlir::OpBuilder::InsertionGuard withVLGuard(builder);
-  builder.setInsertionPointToStart(&withVL.getBody().front());
-
-  mlir::Type i8VecType = weftrvv::VectorType::get(
-      builder.getContext(), builder.getI8Type(), loadLMUL);
-  mlir::Type i16VecType = weftrvv::VectorType::get(
-      builder.getContext(), builder.getI16Type(), productLMUL);
-  mlir::Type i32VecType = weftrvv::VectorType::get(
-      builder.getContext(), builder.getI32Type(), "m1");
-
-  // The product relation fact encodes the realized i8<anchor> x i8<anchor> ->
-  // i16<wider> byte-strip chain (structural, NOT a route-id mirror).
-  std::string productRelation =
-      (llvm::Twine("signed-i8") + loadLMUL + "xi8" + loadLMUL + "-to-i16" +
-       productLMUL)
-          .str();
-
-  mlir::Value loadedLHS =
-      createRVVLoad(builder, loc, lhs.getResult(), setvl.getVl(), i8VecType);
-  mlir::Value loadedRHS =
-      createRVVLoad(builder, loc, rhs.getResult(), setvl.getVl(), i8VecType);
-  mlir::Value product = createWideningProduct(
-      builder, loc, loadedLHS, loadedRHS, setvl.getVl(), i16VecType,
-      productRelation);
-  mlir::Value reduced = createStandaloneReduce(
-      builder, loc, product, acc.getResult(), setvl.getVl(), i32VecType);
-  createRVVStore(builder, loc, out.getResult(), reduced, setvl.getVl());
-
   return mlir::success();
 }
 
@@ -632,20 +485,14 @@ public:
   MaterializeRVVReductionSourceFrontDoorPass(
       const MaterializeRVVReductionSourceFrontDoorPass &other)
       : mlir::PassWrapper<MaterializeRVVReductionSourceFrontDoorPass,
-                          mlir::OperationPass<mlir::ModuleOp>>(other),
-        registry(other.registry) {}
-  explicit MaterializeRVVReductionSourceFrontDoorPass(
-      const ExtensionPluginRegistry *registry)
-      : registry(registry) {}
+                          mlir::OperationPass<mlir::ModuleOp>>(other) {}
 
   llvm::StringRef getArgument() const final {
     return "weft-rvv-materialize-widening-dot-reduce-source-front-door";
   }
   llvm::StringRef getDescription() const final {
-    return "Auto-construct the weft_rvv widening int8 dot-reduce body from a "
-           "generic vector.multi_reduction source, with the integer-core LMUL "
-           "anchor selected by the shared block-dot schedule authority from the "
-           "resolveRVVMinimumVLEN capability fact";
+    return "Adapt one bounded vector.multi_reduction source into target-bound "
+           "I8WideningDotReduce canonical P";
   }
 
   void getDependentDialects(mlir::DialectRegistry &registry) const final {
@@ -657,14 +504,6 @@ public:
 
   void runOnOperation() final {
     mlir::ModuleOp module = getOperation();
-    if (!registry) {
-      module.emitError()
-          << "RVV widening-dot-reduce source front door requires an injected "
-             "extension-plugin registry to dispatch the conservative fallback";
-      signalPassFailure();
-      return;
-    }
-
     auto marker = module->getAttrOfType<mlir::StringAttr>(
         kSourceFrontDoorAttrName);
     if (!marker || marker.getValue().trim() != kAcceptedMarkerValue)
@@ -697,31 +536,17 @@ public:
       return;
     }
 
-    std::optional<std::string> integerCoreLMUL =
-        selectIntegerCoreLMUL(module, march, isaVectorHints);
-    if (!integerCoreLMUL) {
-      (void)fail(module, llvm::Twine("the capability profile (march='") + march +
-                             "') prunes every legal K=32 integer-core anchor; "
-                             "no schedule is selectable (fail-closed)");
-      signalPassFailure();
-      return;
-    }
-
     std::string kernelName = getKernelName(module);
     mlir::OpBuilder builder(module.getContext());
     builder.setInsertionPointToStart(module.getBody());
-    if (mlir::failed(materializeKernel(builder, kernelName, *integerCoreLMUL,
-                                       *registry, *source, march,
-                                       isaVectorHints))) {
+    if (mlir::failed(materializeCanonicalProblem(
+            builder, kernelName, *source, march, isaVectorHints))) {
       signalPassFailure();
       return;
     }
 
-    // W2 §(1) B: the constructed body now carries an RVV provider op; materialize
-    // the c facts (typed minimum_vlen + support axes) onto it through the ONE
-    // shared producer, so a downstream resolveRVVMinimumVLEN reads the provider
-    // fact instead of re-parsing -march (I1/I4). This closes the "constructed
-    // empty provider" debt: the front door is the legitimate producer.
+    // The source adapter also fills the target-bound c_o provider through the
+    // shared producer; it still does not construct a candidate or compute body.
     (void)materializeRVVProviderCapabilityAxes(module, march, isaVectorHints);
 
     module->removeAttr(kSourceFrontDoorAttrName);
@@ -729,13 +554,12 @@ public:
   }
 
 private:
-  const ExtensionPluginRegistry *registry = nullptr;
-
   Pass::Option<std::string> march{
       *this, "march",
-      llvm::cl::desc("The capability-derivation -march the integer-core LMUL "
-                     "anchor is selected from (e.g. rv64gcv, rv64gcv_zvl256b). "
-                     "Empty => no guaranteed VLEN tier => fail-closed."),
+      llvm::cl::desc("RISC-V -march used only to populate the target-bound "
+                     "RVV capability profile; downstream owner construction "
+                     "derives the integer-core plan. Empty leaves required "
+                     "VLEN facts absent and later construction fails closed."),
       llvm::cl::init("")};
   Pass::Option<std::string> isaVectorHints{
       *this, "isa-vector-hints",
@@ -746,23 +570,108 @@ private:
 
 } // namespace
 
+llvm::Error constructRVVReductionProblemBody(
+    weftexec::VariantOp variant,
+    weftexec::I8WideningDotReduceProblemOp problem,
+    const RVVSelectedTargetCapabilityFacts &capability) {
+  if (problem.getDequantizeToF32())
+    return llvm::createStringError(
+        llvm::inconvertibleErrorCode(),
+        "bare RVV reduction constructor received a dequantizing problem");
+  if (!capability.minimumVLEN || !capability.vectorRegisterCount)
+    return llvm::createStringError(
+        llvm::inconvertibleErrorCode(),
+        "RVV reduction formula requires minimum_vlen and vreg_count in c_o");
+  llvm::Expected<RVVSourceSchedulePlan> schedule =
+      constructRVVSourceScheduleFormula(
+          {RVVSourceScheduleMechanism::EffectiveWidthInvariant,
+           /*sew=*/8, static_cast<std::int64_t>(problem.getBlockLength()),
+           {"m1", "m2"}},
+          {*capability.minimumVLEN, *capability.vectorRegisterCount},
+          RVVSourceScheduleNoStaticContext{});
+  if (!schedule)
+    return schedule.takeError();
+  llvm::StringRef loadLMUL = schedule->integerCoreLMUL;
+  llvm::StringRef productLMUL = getRVVNextWiderLMUL(loadLMUL);
+  if (productLMUL.empty())
+    return llvm::createStringError(llvm::inconvertibleErrorCode(),
+                                   "RVV reduction has no wider product LMUL");
+  if (variant.getBody().empty() || !variant.getBody().front().empty())
+    return llvm::createStringError(
+        llvm::inconvertibleErrorCode(),
+        "RVV reduction construction requires an empty selected candidate");
+  auto policy = variant->getAttrOfType<weftrvv::PolicyAttr>("weft_rvv.policy");
+  if (!policy)
+    return llvm::createStringError(llvm::inconvertibleErrorCode(),
+                                   "RVV reduction candidate lacks typed policy");
+
+  mlir::OpBuilder builder(variant.getContext());
+  builder.setInsertionPointToStart(&variant.getBody().front());
+  mlir::Location loc = problem.getLoc();
+  mlir::Type runtimeABIType =
+      weftrvv::RuntimeABIValueType::get(builder.getContext());
+  auto lhs = createRuntimeABIValue(builder, loc, "lhs-input-buffer", "lhs",
+                                   "const int8_t *",
+                                   "widening-dot-reduce:lhs", runtimeABIType);
+  auto rhs = createRuntimeABIValue(builder, loc, "rhs-input-buffer", "rhs",
+                                   "const int8_t *",
+                                   "widening-dot-reduce:rhs", runtimeABIType);
+  auto acc = createRuntimeABIValue(builder, loc, "accumulator-input-buffer",
+                                   "acc", "const int32_t *",
+                                   "widening-dot-reduce:acc", runtimeABIType);
+  auto out = createRuntimeABIValue(builder, loc, "output-buffer", "out",
+                                   "int32_t *", "widening-dot-reduce:out",
+                                   runtimeABIType);
+  auto n = createRuntimeABIValue(builder, loc, "runtime-element-count", "n",
+                                 "size_t", "widening-dot-reduce:n",
+                                 builder.getIndexType());
+  weftrvv::SetVLOp setvl =
+      createSetVL(builder, loc, n.getResult(), 8, loadLMUL, policy);
+  weftrvv::WithVLOp withVL =
+      createWithVL(builder, loc, setvl.getVl(), 8, loadLMUL, policy);
+  mlir::OpBuilder::InsertionGuard guard(builder);
+  builder.setInsertionPointToStart(&withVL.getBody().front());
+  mlir::Type i8VecType = weftrvv::VectorType::get(
+      builder.getContext(), builder.getI8Type(), loadLMUL);
+  mlir::Type i16VecType = weftrvv::VectorType::get(
+      builder.getContext(), builder.getI16Type(), productLMUL);
+  mlir::Type i32VecType = weftrvv::VectorType::get(
+      builder.getContext(), builder.getI32Type(), "m1");
+  std::string productRelation =
+      (llvm::Twine("signed-i8") + loadLMUL + "xi8" + loadLMUL + "-to-i16" +
+       productLMUL)
+          .str();
+  mlir::Value loadedLHS =
+      createRVVLoad(builder, loc, lhs.getResult(), setvl.getVl(), i8VecType);
+  mlir::Value loadedRHS =
+      createRVVLoad(builder, loc, rhs.getResult(), setvl.getVl(), i8VecType);
+  mlir::Value product = createWideningProduct(
+      builder, loc, loadedLHS, loadedRHS, setvl.getVl(), i16VecType,
+      productRelation);
+  mlir::Value reduced = createStandaloneReduce(
+      builder, loc, product, acc.getResult(), setvl.getVl(), i32VecType);
+  createRVVStore(builder, loc, out.getResult(), reduced, setvl.getVl());
+  return llvm::Error::success();
+}
+
 std::unique_ptr<::mlir::Pass>
 createMaterializeRVVReductionSourceFrontDoorPass(
     const ExtensionPluginRegistry &registry) {
-  return std::make_unique<MaterializeRVVReductionSourceFrontDoorPass>(&registry);
+  (void)registry;
+  return std::make_unique<MaterializeRVVReductionSourceFrontDoorPass>();
 }
 
 llvm::Error registerRVVReductionSourceFrontDoorPasses(
     llvm::StringRef ownerPlugin, const ExtensionPluginRegistry &registry,
     llvm::SmallVectorImpl<SourceFrontDoorPassRegistration> &out) {
-  const ExtensionPluginRegistry *registryPtr = &registry;
+  (void)registry;
   out.push_back(SourceFrontDoorPassRegistration(
       ownerPlugin, formula_catalog::kReductionSourceEntry,
-      "Auto-construct the weft_rvv widening int8 dot-reduce body from a generic "
-      "vector.multi_reduction source (capability-selected integer-core LMUL)",
+      "Adapt one bounded vector.multi_reduction source into target-bound exact "
+      "canonical P",
       formula_catalog::kReductionSourceConstruction,
-      [registryPtr] {
-        return createMaterializeRVVReductionSourceFrontDoorPass(*registryPtr);
+      [] {
+        return std::make_unique<MaterializeRVVReductionSourceFrontDoorPass>();
       },
       SourceFrontDoorPassRegistration::DefaultArtifactFrontDoorPolicy::
           ExplicitOnly));

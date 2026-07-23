@@ -1860,6 +1860,72 @@ inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
   return kTable;
 }
 
+/// Project the RVV-local pair key into the target-neutral source encodings used
+/// by canonical P. The pair key remains owner-local metadata and never becomes a
+/// second problem or selection authority.
+inline llvm::StringRef getMonolithicBlockDotProblemActivationEncoding(
+    const MonolithicBlockDotOpEntry &entry) {
+  llvm::StringRef pair = entry.kind;
+  if (!pair.consume_front("ggml_"))
+    return {};
+  if (pair.ends_with("_q8_0_block_dot"))
+    return "q8_0";
+  if (pair.ends_with("_q8_1_block_dot"))
+    return "q8_1";
+  if (pair.ends_with("_q8_k_block_dot"))
+    return "q8_k";
+  return {};
+}
+
+inline llvm::StringRef getMonolithicBlockDotProblemWeightEncoding(
+    const MonolithicBlockDotOpEntry &entry) {
+  llvm::StringRef pair = entry.kind;
+  if (!pair.consume_front("ggml_"))
+    return {};
+  llvm::StringRef activation =
+      getMonolithicBlockDotProblemActivationEncoding(entry);
+  if (activation.empty())
+    return {};
+  return pair.drop_back(1 + activation.size() +
+                        llvm::StringRef("_block_dot").size());
+}
+
+inline bool hasMonolithicBlockDotProblemFact(
+    const MonolithicBlockDotOpEntry &entry, llvm::StringRef name,
+    std::int64_t expected) {
+  for (const MonolithicBlockDotI64Attr &fact : entry.facts)
+    if (fact.name == name)
+      return fact.value == expected;
+  return false;
+}
+
+/// Exact canonical-P -> RVV formula/mechanism-row lookup. All problem axes are
+/// consumed together; no kind/format fallback or first-row-by-type lookup exists.
+inline const MonolithicBlockDotOpEntry *
+findMonolithicBlockDotProblemEntry(llvm::StringRef weightEncoding,
+                                   llvm::StringRef activationEncoding,
+                                   llvm::StringRef topology, std::int64_t qk,
+                                   std::int64_t weightBlockStride,
+                                   std::int64_t activationBlockStride) {
+  const MonolithicBlockDotOpEntry *match = nullptr;
+  for (const MonolithicBlockDotOpEntry &entry : monolithicBlockDotOpTable()) {
+    if (getMonolithicBlockDotProblemWeightEncoding(entry) != weightEncoding ||
+        getMonolithicBlockDotProblemActivationEncoding(entry) !=
+            activationEncoding ||
+        entry.scaleModel != topology ||
+        !hasMonolithicBlockDotProblemFact(entry, "qk", qk) ||
+        !hasMonolithicBlockDotProblemFact(entry, "weight_block_stride",
+                                          weightBlockStride) ||
+        !hasMonolithicBlockDotProblemFact(entry, "activation_block_stride",
+                                          activationBlockStride))
+      continue;
+    if (match)
+      return nullptr;
+    match = &entry;
+  }
+  return match;
+}
+
 // The q4_0 16x1-repacked GEVM monolithic entry. It is deliberately NOT a row of
 // monolithicBlockDotOpTable(): that table is iterated to register a
 // source-front-door construction pass PER ROW, but the repacked GEVM is

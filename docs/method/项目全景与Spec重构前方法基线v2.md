@@ -492,14 +492,15 @@ Weft 决定执行结构；标准 MLIR/LLVM toolchain 负责目标指令和 artif
 
 ### 6.4 当前状态边界
 
-截至 2026-07-23 当前 exact-P / exact-root 横向 checkpoint：
+截至 2026-07-23 当前 exact-P forward-construction 横向 checkpoint：
 
 - 仓库没有 NVIDIA/AMD GPU selection/deployment domain 或 construction owner；
 - 没有 GPU typed body、GPU formula、GPU artifact/runtime 或 GPU 性能证据；
 - H100/5090D 是后续 implementation profile，不是当前 supported target；
-- GPU 前置的 artifact-neutral owner construction rebase 与显式 domain-identity membership
-  gate 已实施；从 target/profile 推导并校验 `(d,C_d)` 的完整 `BindDomain(t)` 仍在当前 A/B
-  横向任务中。本轮仍未实现任何 GPU owner 或 GPU artifact。
+- GPU 前置的 artifact-neutral owner construction rebase、显式 domain-identity membership
+  gate 与从 target/profile 唯一推导 `(d,C_d)` 的 `BindDomain(t)` 已实施；注册的
+  RVV/Toy/TensorExtLite source surface 也已停止预构造 body，改由 selected owner 从 exact
+  `P+c_o` 构造。本轮仍未实现任何 GPU owner 或 GPU artifact。
 
 因此可以说“V2 architecture 明确定义 GPU domain/owner 的接入位置”，不能说“Weft 已支持 GPU”。
 
@@ -580,9 +581,9 @@ measurement 只修正合法残差，artifact lowerer 无 compute authority。
 | owner / artifact authority | selected owner 先返回 exact typed body，artifact lowerer 机械消费 | 不代表所有 leaf 已能由 mechanisms/formula 重建 |
 | RVV body | `flat_*` 与 runtime control 由 construction 拥有，旧 route-provider/protocol 已退出 | 仍有 `ConstructedWeak` 完整 leaf |
 | verification | typed dialect 检查结构/类型，capability check 检查已绑定配置 | verifier 不得重放公式或重新选择 compute |
-| physical problem continuity | proposal、legality、cost、selection 与 construction 绑定同一 direct canonical problem；IME/Scalar 已消费 exact P | RVV source adapter 仍预构造完整 body，尚非 P 的 forward reconstruction |
-| domain membership gate | source proposal、selector 与 selected-owner construction 均校验 explicit domain identity/membership | 这只是字符串 identity gate，不等于 target/profile 已实现完整 `BindDomain(t)` |
-| target/profile binding | capability environment 可在 construction 前建立 | source front door 仍可直接写 `construction_domain`；target/profile→`d/C_d` 的唯一绑定与一致性负例尚未闭合 |
+| physical problem continuity | proposal、legality、cost、selection 与 construction 绑定同一 direct canonical problem；IME/Scalar 已消费 exact P；注册的 RVV/Toy/TensorExtLite source 只产生 exact P，并由 selected owner forward-construct body | 这仍不证明未适配 direct/source entry 已覆盖，也不证明逐点 leaf 可删除重建 |
+| domain membership gate | source proposal、selector 与 selected-owner construction 均校验 explicit domain identity/membership | identity membership 只限定 owner；它不替代 target/profile binding 或 selector |
+| target/profile binding | 正式 source 以 exact symbol 绑定 module-level target/profile，`TargetDomainBinding` 从同一 target 一次产生 `d/C_d` | targetless/pre-realized 输入仅属于显式 debug qualification，不得冒充 production source |
 | artifact exact root | backend driver 与 selected variant owner 必须一致，只克隆完整 selected slice并拒绝 competing roots | 不把 exact artifact root 冒充 strong reconstruction |
 | GPU | V2 lifecycle 已为独立 GPU domain/owner 留出正确工位 | 尚无 GPU domain、owner、body、artifact、runtime 或证据 |
 | evidence | 本地 compiler/build 路径可验证 | current-artifact 真硬件 A/B 尚未闭合 |
@@ -600,17 +601,21 @@ measurement 只修正合法残差，artifact lowerer 无 compute authority。
 - direct pass、registry、translate 与 artifact 路径 fail closed；
 - `ExtensionPlugin` base construction fail closed，所有 live production owners 显式实现
   variant-scoped `constructFormulaPlans(FamilyConstructionRequest, FamilyConstructionResult)`；
-- kernel `construction_domain` 已显式建立 domain identity membership gate；proposal 在调用
-  foreign owner 的 `supportsOperation` 前过滤，selector 与 selected-owner construction 再校验
-  membership。跨-origin ranking 只允许发生在同一声明 identity 内。当前该 identity 仍可由
-  source front door 直接写入，不能表述为 target/profile 已完成 `BindDomain(t)`；
+- target/profile 已成为正式 source 的唯一 domain binding authority；proposal 在调用 foreign
+  owner 的 `supportsOperation` 前过滤，selector 与 selected-owner construction 再校验
+  membership。跨-origin ranking 只允许发生在同一 bound domain 内；source front door 不再
+  向 kernel 写入 domain/capability；
 - request registry 解析 kernel direct canonical problem，并要求 proposal、legality、cost、
   selection 与 selected-owner construction 使用同一 exact pointer；public overload 同时拒绝
   与 kernel normalized capability environment 不一致的 `C_d`；
 - IME signedness、MNK、weight format、block layout 与 slide 已迁入 exact P；capability 只投影
   instruction envelope、VLEN 与 harts，旧 capability/variant problem mirrors fail closed；
-- deterministic RVV source front door 不再预造 Scalar fallback 或 dispatch；需要 artifact 的
-  路径显式经过公共 selector，但当前 RVV body 仍在 adapter 中预构造；
+- deterministic RVV source front door 不再预造 Scalar fallback、dispatch、variant 或 typed
+  body；adapter 只建立 module-level target/profile 与 exact P。RVV owner 根据 exact P 派生
+  candidate，在公共 legality/selector 后从同一 `P+c_o` 构造 body；
+- Toy/TensorExtLite source adapter 同样只产生 `TemplateComputeProblem`/
+  `FragmentMMAProblem`，selected owner 分别构造 compute root/typed role sequence；显式
+  pre-realized typed input 保留为独立 debug/qualification 路径；
 - owner construction 返回 exact typed operation/root 或 explicit unsupported；公共编排只
   检查结果存在、仍属于绑定 kernel/variant，并把该 exact result 传给 artifact query；
 - `TypedBackendEmissionDriver` 没有 construction hook，constructed-only API 不扫描 module
@@ -651,12 +656,12 @@ Artifact-neutral 主体切换、caller closure、旧 RVV provider/protocol 物�
 回归已经完成；剩余工作不能被误写成 construction 仍在 EmitC driver，也不能因此跳过
 RISC-V 旗舰 realization 的方法闭环：
 
-1. bounded physical canonical problem surface 与 request continuity 已落地，但尚未覆盖全部
-   source-origin entry；尤其 RVV adapter 仍先建完整 body，真实 code-affecting `g/c/ω` 与
-   mechanism/formula 仍分散在若干 owner leaf、front door、schedule 与 conversion 中；
+1. bounded physical canonical problem surface 与 request continuity 已落地，注册的
+   RVV/Toy/TensorExtLite source surface 已 forward-construct；尚未适配的 direct/source-origin
+   entry，以及若干 owner leaf、schedule 与 conversion 中的完整算法仍需继续因式分解；
 2. target/profile 唯一 `BindDomain(t)` authority 已闭合：正式 source 以 exact symbol 绑定
-   module-level profile，`d/C_d` 从同一 target 一次产生；该完成不使 adapter 预构造 body
-   自动成为 forward construction；
+   module-level profile，`d/C_d` 从同一 target 一次产生；source exact-P forward
+   construction 是另一条已单独闭合的数据流，但二者都不自动证明 strong reconstruction；
 3. `ConstructedWeak` final leaf 仍需多 topology 的 delete-leaf reconstruction 才能升级 strong
    construction；
 4. Scalar exact-P plan/body 仍须去除 structural ownership stamps并完成 delete-leaf witness；
@@ -676,7 +681,7 @@ RISC-V 旗舰 realization 的方法闭环：
 
 ---
 
-## 10. GPU 前置状态：artifact-neutral rebase 与 `BindDomain` 已完成，forward construction 未完成
+## 10. GPU 前置状态：artifact-neutral rebase、`BindDomain` 与首轮 forward construction 已完成
 
 首个 task 定义为 **artifact-neutral owner construction rebase**，而不是 GPU
 implementation；主体提交已完成 construction-before-artifact、caller closure 与完整回归。
@@ -685,8 +690,9 @@ implementation；主体提交已完成 construction-before-artifact、caller clo
 改称 binding。随后正式 source kernel 已改为绑定 module-level target/profile，公共
 `TargetDomainBinding` 从同一 target 一次产生 `(d,C_d)`；targetless direct/pre-realized
 只属于显式 non-target-bound debug qualification。test-only 第二 domain/owner 也已走通
-proposal→legality→selection→artifact-neutral construction。本节保留这些已完成结构切面；
-exact source coverage、forward construction、strong reconstruction 与 A/B 性能仍按各自门继续。
+proposal→legality→selection→artifact-neutral construction。注册的 RVV/Toy/TensorExtLite
+source surface 已由 exact P forward-construct body。本节保留这些已完成结构切面；尚未适配
+entry、delete-leaf strong reconstruction 与 A/B 性能仍按各自门继续。
 
 ### 10.1 重构目标
 
@@ -745,10 +751,12 @@ canonical problem/source entry
 
 GPU 前置结构最终必须同时满足：
 
-- `[进行中]` 每个 production source-origin entry 都有 exact typed `P=(S,g,ω)`；direct
+- `[进行中]` 注册的 RVV/Toy/TensorExtLite source surface 已有 exact typed `P=(S,g,ω)` 并
+  forward-construct；尚未适配的 production direct/source-origin entry 继续补齐。direct
   exact-body debug/qualification 另列，不冒充 source coverage；
 - `[已完成·request seam]` proposal、legality、cost、selection 与 construction 传递同一 exact
-  P，public overload 保持 normalized `C_d` continuity；这不等于每个 source 已 forward-construct；
+  P，public overload 保持 normalized `C_d` continuity；已迁移 source 的 owner 从该 P
+  forward-construct，但这不等于 strong reconstruction；
 - `[已完成·仅 identity gate]` kernel domain identity 与 owner membership 在
   proposal/selection/construction 前检查，common 不按具体 domain/owner 名分支，
   foreign-domain origin fail closed；

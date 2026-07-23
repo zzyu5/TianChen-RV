@@ -4,7 +4,8 @@
 // the Toy family, not synthesized by the artifact backend.
 
 module {
-  weft.exec.kernel @toy_missing_compute_boundary {
+  weft.exec.kernel @toy_missing_compute_boundary attributes {problem = @canonical_problem} {
+    weft.exec.template_compute_problem @canonical_problem {template_kind = "compute-skeleton"}
     weft.exec.capability @toy_template {
       id = "toy.template",
       kind = "extension-template",

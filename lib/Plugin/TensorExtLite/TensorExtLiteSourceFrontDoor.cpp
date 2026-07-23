@@ -1,9 +1,7 @@
 #include "Weft/Plugin/TensorExtLite/TensorExtLiteSourceFrontDoor.h"
 
 #include "Weft/Dialect/Exec/IR/ExecOps.h"
-#include "Weft/Dialect/TensorExtLite/IR/TensorExtLiteDialect.h"
 #include "Weft/Plugin/ExtensionPlugin.h"
-#include "Weft/Plugin/TensorExtLite/TensorExtLiteFamilyContract.h"
 #include "Weft/Plugin/TensorExtLite/TensorExtLiteExtensionPlugin.h"
 #include "Weft/Target/RISCVTargetProfile.h"
 
@@ -33,15 +31,7 @@ constexpr llvm::StringLiteral kAcceptedSourceFrontDoorValue(
     "fragment_mma_template");
 constexpr llvm::StringLiteral kDefaultKernelName(
     "tensorext_lite_source_front_door");
-constexpr llvm::StringLiteral kOriginAttrName("origin");
-constexpr llvm::StringLiteral kRequiresAttrName("requires");
-constexpr llvm::StringLiteral kSourceKernelBoundaryAttrName("source_kernel");
-constexpr llvm::StringLiteral kSelectedVariantAttrName("selected_variant");
-constexpr llvm::StringLiteral kFragmentReasonAttrName("fragment_reason");
-constexpr llvm::StringLiteral kSelectedDiagnosticMessage(
-    "selected TensorExtLite source front-door route");
-constexpr llvm::StringLiteral kFragmentReason(
-    "tensorext-lite-source-front-door-fragment-mma-template");
+constexpr llvm::StringLiteral kCanonicalProblemSymbol("canonical_problem");
 
 mlir::LogicalResult failMaterializer(mlir::Operation *op,
                                      llvm::StringRef message) {
@@ -173,54 +163,6 @@ void createTensorExtLiteCapability(mlir::OpBuilder &builder,
   (void)builder.create(state);
 }
 
-void createTensorExtLiteVariant(mlir::OpBuilder &builder, mlir::Location loc,
-                                mlir::ArrayAttr requires) {
-  mlir::OperationState state(loc, "weft.exec.variant");
-  state.addAttribute(
-      "sym_name",
-      builder.getStringAttr(getTensorExtLiteFragmentFirstSliceVariantName()));
-  state.addAttribute(kOriginAttrName,
-                     builder.getStringAttr(getTensorExtLiteExtensionPluginName()));
-  state.addAttribute(kRequiresAttrName, requires);
-  state.addAttribute(
-      getTensorExtLiteFragmentABIAttrName(),
-      builder.getStringAttr(getTensorExtLiteExpectedFragmentABI()));
-  state.addAttribute(
-      getTensorExtLiteHandoffKindAttrName(),
-      builder.getStringAttr(getTensorExtLiteExpectedHandoffKind()));
-  state.addRegion();
-  auto variant = llvm::cast<weft::exec::VariantOp>(builder.create(state));
-  variant.getBody().emplaceBlock();
-}
-
-void createTensorExtLiteRoleOp(mlir::OpBuilder &builder, mlir::Location loc,
-                               const TensorExtLiteConstructionStep &step,
-                               llvm::StringRef kernelName) {
-  mlir::OperationState state(loc, step.operationName);
-  state.addAttribute(kSourceKernelBoundaryAttrName,
-                     builder.getStringAttr(kernelName));
-  state.addAttribute(
-      kSelectedVariantAttrName,
-      symbolRef(builder, getTensorExtLiteFragmentFirstSliceVariantName()));
-  state.addAttribute(kFragmentReasonAttrName,
-                     builder.getStringAttr(kFragmentReason));
-  (void)builder.create(state);
-}
-
-void createSelectedTensorExtLiteDiagnostic(mlir::OpBuilder &builder,
-                                           mlir::Location loc) {
-  mlir::OperationState state(loc, "weft.exec.diagnostic");
-  state.addAttribute("message",
-                     builder.getStringAttr(kSelectedDiagnosticMessage));
-  state.addAttribute("reason", builder.getStringAttr("variant-selected"));
-  state.addAttribute("selection_kind", builder.getStringAttr("static-variant"));
-  state.addAttribute("severity", builder.getStringAttr("note"));
-  state.addAttribute("status", builder.getStringAttr("selected"));
-  state.addAttribute(
-      "target", symbolRef(builder, getTensorExtLiteFragmentFirstSliceVariantName()));
-  (void)builder.create(state);
-}
-
 mlir::LogicalResult
 materializeTensorExtLiteSourceKernel(mlir::OpBuilder &builder,
                                      mlir::ModuleOp module,
@@ -247,6 +189,8 @@ materializeTensorExtLiteSourceKernel(mlir::OpBuilder &builder,
   mlir::OperationState kernelState(loc, "weft.exec.kernel");
   kernelState.addAttribute("sym_name", builder.getStringAttr(kernelName));
   kernelState.addAttribute("target", symbolRef(builder, targetSymbol));
+  kernelState.addAttribute("problem",
+                           symbolRef(builder, kCanonicalProblemSymbol));
   kernelState.addRegion();
   auto kernel =
       llvm::cast<weft::exec::KernelOp>(builder.create(kernelState));
@@ -255,20 +199,12 @@ materializeTensorExtLiteSourceKernel(mlir::OpBuilder &builder,
   mlir::OpBuilder::InsertionGuard kernelGuard(builder);
   builder.setInsertionPointToStart(&kernel.getBody().front());
 
-  mlir::ArrayAttr requires = builder.getArrayAttr(
-      {symbolRef(builder, getTensorExtLiteFragmentPreferredCapabilitySymbol())});
-  createTensorExtLiteVariant(builder, loc, requires);
-
-  auto variant = llvm::cast<weft::exec::VariantOp>(
-      kernel.getBody().front().back());
-  mlir::OpBuilder::InsertionGuard variantGuard(builder);
-  builder.setInsertionPointToStart(&variant.getBody().front());
-  for (const TensorExtLiteConstructionStep &step :
-       getTensorExtLiteConstructionSteps())
-    createTensorExtLiteRoleOp(builder, loc, step, kernelName);
-
-  builder.setInsertionPointAfter(variant);
-  createSelectedTensorExtLiteDiagnostic(builder, loc);
+  mlir::OperationState problemState(
+      loc, weft::exec::FragmentMMAProblemOp::getOperationName());
+  problemState.addAttribute("sym_name",
+                            builder.getStringAttr(kCanonicalProblemSymbol));
+  problemState.addAttribute("role_count", builder.getI64IntegerAttr(4));
+  (void)builder.create(problemState);
   return mlir::success();
 }
 
@@ -282,13 +218,12 @@ public:
   }
 
   llvm::StringRef getDescription() const final {
-    return "Materialize one bounded TensorExtLite fragment-MMA source marker "
-           "into the selected TensorExtLite role-sequence front door";
+    return "Adapt one bounded TensorExtLite fragment-MMA source into "
+           "target-bound exact FragmentMMA canonical P";
   }
 
   void getDependentDialects(mlir::DialectRegistry &registry) const final {
-    registry.insert<weft::exec::WEFTExecDialect,
-                    weft::tensorext_lite::WEFTTensorExtLiteDialect>();
+    registry.insert<weft::exec::WEFTExecDialect>();
   }
 
   void runOnOperation() final {

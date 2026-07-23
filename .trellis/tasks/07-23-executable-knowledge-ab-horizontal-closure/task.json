@@ -34,6 +34,7 @@
     "include/Weft/Dialect/Exec/IR/ExecOps.td",
     "include/Weft/Plugin/ExtensionPlugin.h",
     "include/Weft/Plugin/FormulaCatalog.h",
+    "include/Weft/Plugin/RVV/RVVCanonicalProblemConstruction.h",
     "include/Weft/Plugin/RVV/RVVRuntimeAVLVLControl.h",
     "lib/Plugin/ExtensionPlugin.cpp",
     "lib/Plugin/RVV/Construction",
@@ -47,9 +48,11 @@
     "test/Transforms/VariantMaterialization",
     "test/Transforms/VariantSelection",
     "tools/bench/bench",
-    "tools/bench/export_current_artifact.py"
+    "tools/bench/export_current_artifact.py",
+    "tools/visibility/t1d_dual_instance.py",
+    "experiments/active/result-tables/T1d_dual_instance.csv"
   ],
-  "notes": "当前结构检查点已经完成 artifact-neutral owner lifecycle、construction-owned RVV runtime control、旧 RVV route-provider/protocol 物理退出、current-artifact runner 接线、bounded canonical-problem surface、exact P/C_d request continuity、IME problem/capability 解耦、target/profile 唯一 BindDomain、test-only 第二 domain/owner、thin selector 与 exact selected-root artifact contract。RVV source adapter 仍预构造 body，Scalar 仍有 structural stamps，因此这些切面不等于 complete forward construction、mechanism factorization、delete-leaf strong reconstruction、formula causal coverage 或真硬件 A/B。禁止纵向只完成一个 format/operator/formula 后宣告重构完成；q5_1 只能作为局部 reconstruction witness。禁止实现 GPU、改变两柱六律或主公式、建立 universal Formula IR/provider/verifier、恢复 compatibility/emitter 决策，或让 measurement 创造 compute。",
+  "notes": "当前结构检查点已经完成 artifact-neutral owner lifecycle、construction-owned RVV runtime control、旧 RVV route-provider/protocol 物理退出、current-artifact runner 接线、bounded canonical-problem surface、exact P/C_d request continuity、IME problem/capability 解耦、target/profile 唯一 BindDomain、test-only 第二 domain/owner、thin selector、exact selected-root artifact contract，以及注册的 RVV/Toy/TensorExtLite source exact-P forward construction。Source adapter 不再预构造 variant/body；RVV owner 从六类 exact P + c_o 在 selection 后构造 typed body，flat_* 仍是 formula 最终 plan并由 emitter 直接消费。Scalar 仍有 structural stamps，完整 family leaf 仍有 ConstructedWeak 债务，因此这些切面不等于 mechanism factorization、delete-leaf strong reconstruction、完整 formula causal coverage或真硬件 A/B。禁止纵向只完成一个 format/operator/formula 后宣告任务完成；q5_1 只能作为局部 reconstruction witness。禁止实现 GPU、改变两柱六律或主公式、建立 universal Formula IR/provider/verifier、恢复 compatibility/emitter 决策，或让 measurement 创造 compute。",
   "meta": {
     "predecessor": "01f55f3fab63ae923cb61109000f02ee6e7bad01",
     "method_baseline": "docs/method/README.md",

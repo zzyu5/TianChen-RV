@@ -216,7 +216,7 @@ readFinalFlatBlockDotDescriptor(mlir::Operation *op);
 
 // The shared per-block emit state the factored flat-block-dot core methods
 // (emitFlatBlockCore / emitFlatIntegerCore / emitFlatFold) read. It bundles the
-// block-format descriptor + the scheduled facts (coreLmul / wideLmul / elision)
+// formula plan plus typed geometry + the scheduled facts (coreLmul / wideLmul / elision)
 // + the interned emitc types + the ABI base pointers + the sumf accumulator
 // lvalue, so the per-block integer-core arithmetic + fp32-fold guts live as ONE
 // SHARED typed lowering that BOTH the monolithic emitFlatBlockDot AND the M-FLAT

@@ -30,12 +30,13 @@
 
 // The auto-constructed typed flat block-dot loop chain (mbf1/m1/elided, no shape
 // knobs -- shape-adaptivity is a later M-FLAT step).
-// RUN: weft-opt %s --weft-rvv-materialize-q4-0-q8-0-block-dot-source-front-door | FileCheck %s --check-prefix=BODY --implicit-check-not="scalar_fallback" --implicit-check-not="weft.exec.dispatch"
+// RUN: weft-opt %s --weft-rvv-materialize-q4-0-q8-0-block-dot-source-front-door | FileCheck %s --check-prefix=SOURCE --implicit-check-not="weft.exec.variant" --implicit-check-not="weft_rvv."
+// RUN: weft-opt %s --weft-rvv-materialize-q4-0-q8-0-block-dot-source-front-door=march=rv64gcv --weft-execution-planning-pipeline | FileCheck %s --check-prefix=BODY --implicit-check-not="scalar_fallback" --implicit-check-not="weft.exec.dispatch @"
 //
 // The constructed loop chain lowers to the q4_0 nibble core (op structure), a
 // light emit-presence check (byte-exactness is locked by the full-body /
 // full-pipeline lits).
-// RUN: weft-opt %s --weft-rvv-materialize-q4-0-q8-0-block-dot-source-front-door --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=EMIT
+// RUN: weft-opt %s --weft-rvv-materialize-q4-0-q8-0-block-dot-source-front-door=march=rv64gcv --weft-execution-planning-pipeline --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=EMIT
 //
 // FAIL-CLOSED (I7): a non-conforming operator-identity signature (the q8 activation
 // operand is an f32 memref, not the i8 memref the vec_dot identity requires) is
@@ -53,10 +54,16 @@ module attributes {weft_rvv.source_front_door = "ggml_q4_0_q8_0_block_dot_source
 // The marked operator-identity source becomes a weft.exec.kernel with the
 // auto-built typed flat block-dot loop chain + the full ABI value set + the
 // exact canonical problem. NO per-kernel emitter authored this.
+// SOURCE: weft.exec.kernel @ggml_vec_dot_q4_0_q8_0_kernel
+// SOURCE-SAME: problem = @canonical_problem
+// SOURCE: weft.exec.quantized_block_dot_problem @canonical_problem
+// SOURCE-SAME: activation_encoding = "q8_0"
+// SOURCE-SAME: qk = 32
+// SOURCE-SAME: weight_encoding = "q4_0"
 // BODY: weft.exec.kernel @ggml_vec_dot_q4_0_q8_0_kernel
 // BODY: weft.exec.quantized_block_dot_problem @canonical_problem
 // BODY-SAME: qk = 32
-// BODY-SAME: weight_encoding = "ggml_q4_0_q8_0_block_dot"
+// BODY-SAME: weight_encoding = "q4_0"
 // BODY: weft.exec.variant @rvv_q4_0_q8_0_block_dot
 // The ggml vec_dot ABI value set (n, s, bs, vx, bx, vy, by, nrc).
 // BODY: weft_rvv.runtime_abi_value {c_name = "vx", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "q4-weight", role = "lhs-input-buffer"}

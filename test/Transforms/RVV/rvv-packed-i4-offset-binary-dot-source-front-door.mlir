@@ -25,13 +25,14 @@
 // the LEGALITY GATE only (fail-closed if the integer-core path is pruned).
 
 // The auto-constructed nibble integer-core body (the materialized kernel scaffold).
-// RUN: weft-opt %s --weft-rvv-materialize-packed-i4-offset-binary-dot-source-front-door=march=rv64gcv | FileCheck %s --check-prefix=BODY --implicit-check-not="scalar_fallback" --implicit-check-not="weft.exec.dispatch"
+// RUN: weft-opt %s --weft-rvv-materialize-packed-i4-offset-binary-dot-source-front-door=march=rv64gcv | FileCheck %s --check-prefix=SOURCE --implicit-check-not="weft.exec.variant" --implicit-check-not="weft_rvv."
+// RUN: weft-opt %s --weft-rvv-materialize-packed-i4-offset-binary-dot-source-front-door=march=rv64gcv --weft-execution-planning-pipeline | FileCheck %s --check-prefix=BODY --implicit-check-not="scalar_fallback" --implicit-check-not="weft.exec.dispatch @"
 //
 // The auto-constructed body lowered to EmitC: the SAME offset-binary nibble decode
 // + asymmetric product + widening-reduce intrinsic chain the existing nibble-core
 // lit pins (vxor 0x88 -> vsll/vsra sign-extend -> vwmul/vwmacc -> vwredsum), proving
 // auto-construction reaches nibble-decode byte-for-byte.
-// RUN: weft-opt %s --weft-rvv-materialize-packed-i4-offset-binary-dot-source-front-door=march=rv64gcv --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=CORE
+// RUN: weft-opt %s --weft-rvv-materialize-packed-i4-offset-binary-dot-source-front-door=march=rv64gcv --weft-execution-planning-pipeline --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=CORE
 //
 // FAIL-CLOSED (I7): a marker-carrying source with the WRONG (4-arg, q4_0 KERNEL-
 // shaped) signature -- not the 6-role nibble integer-core operator identity -- is
@@ -48,6 +49,10 @@ module attributes {weft_rvv.source_front_door = "bounded_packed_i4_offset_binary
 // The generic nibble-core source becomes a weft.exec.kernel with the auto-built
 // load x3 / packed_i4_offset_binary_x_i8_product / standalone_reduce / store body.
 // NO per-kernel emitter authored this body.
+// SOURCE: weft.exec.kernel @rvv_packed_i4_offset_binary_dot_i8_from_source
+// SOURCE-SAME: problem = @canonical_problem
+// SOURCE: weft.exec.packed_i4_q8_dot_problem @canonical_problem
+// SOURCE-SAME: block_length = 32
 // BODY: weft.exec.kernel @rvv_packed_i4_offset_binary_dot_i8_from_source
 // BODY: weft.exec.packed_i4_q8_dot_problem @canonical_problem
 // BODY-SAME: block_length = 32

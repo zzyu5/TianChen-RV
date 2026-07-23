@@ -4,7 +4,8 @@
 // the complete typed sequence before the EmitC backend projects it.
 
 module {
-  weft.exec.kernel @tensorext_lite_missing_body {
+  weft.exec.kernel @tensorext_lite_missing_body attributes {problem = @canonical_problem} {
+    weft.exec.fragment_mma_problem @canonical_problem {role_count = 4 : i64}
     weft.exec.capability @tensorext_lite_tile_mma {
       id = "tensorext_lite.tile_mma",
       kind = "fragment-mma-like",

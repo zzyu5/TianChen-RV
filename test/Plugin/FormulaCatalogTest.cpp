@@ -155,11 +155,8 @@ int main() {
     if (formula->second->getOwnerPlugin() != frontDoor.getOwnerPlugin())
       return fail(llvm::Twine("front door/formula owner mismatch: ") +
                   frontDoor.getArgument());
-    // A registered RVV source front door is a complete production
-    // construction entry.  None currently has a point-authority erasure
-    // witness, even when it consumes an independently strong schedule formula;
-    // catalog strength must therefore remain honest about the full source
-    // construction boundary.
+    // RVV source/problem and body constructors without point-authority erasure
+    // witnesses must remain honestly ConstructedWeak.
     if (frontDoor.getOwnerPlugin() == rvv::getRVVExtensionPluginName() &&
         formula->second->getConstructionStrength() !=
             FormulaConstructionStrength::ConstructedWeak)
@@ -193,6 +190,7 @@ int main() {
       rvv::formula_catalog::kRepackSchedule,
       rvv::formula_catalog::kRepackAccumulatorLMUL,
       rvv::formula_catalog::kContractionAlgorithm,
+      rvv::formula_catalog::kCanonicalProblemBodyConstruction,
       rvv::formula_catalog::kSelectedBodyRealization,
       rvv::formula_catalog::kLowerQuantContractionConstruction,
   };
@@ -201,6 +199,49 @@ int main() {
       return fail(llvm::Twine("unclassified RVV construction authority: ") +
                   id);
   }
+
+  constexpr llvm::StringLiteral exactProblemSourceFormulas[] = {
+      rvv::formula_catalog::kVectorSourceConstruction,
+      rvv::formula_catalog::kReductionSourceConstruction,
+      rvv::formula_catalog::kDequantDotSourceConstruction,
+      rvv::formula_catalog::kPackedI4DotConstruction,
+      rvv::formula_catalog::kCodebookDotConstruction,
+      rvv::formula_catalog::kMonolithicBlockDotConstruction,
+  };
+  for (llvm::StringRef id : exactProblemSourceFormulas) {
+    const FormulaDescriptor *formula = byID.lookup(id);
+    if (!formula ||
+        formula->getResultKind() != FormulaResultKind::CanonicalProblem ||
+        formula->getCapabilityAxis().getUse() != FormulaAxisUse::HonestNull ||
+        formula->getConstructionStrength() !=
+            FormulaConstructionStrength::ConstructedWeak)
+      return fail(llvm::Twine("RVV exact-P source descriptor is incomplete: ") +
+                  id);
+  }
+
+  const FormulaDescriptor *canonicalBody =
+      byID.lookup(rvv::formula_catalog::kCanonicalProblemBodyConstruction);
+  if (!canonicalBody ||
+      canonicalBody->getResultKind() !=
+          FormulaResultKind::DeterministicConstruction ||
+      canonicalBody->getCapabilityAxis().getUse() != FormulaAxisUse::Decisive ||
+      canonicalBody->getConstructionStrength() !=
+          FormulaConstructionStrength::ConstructedWeak ||
+      !llvm::is_contained(canonicalBody->getProductionEntries(),
+                          rvv::formula_catalog::
+                              kCanonicalProblemBodyConstructionEntry.str()))
+    return fail("RVV exact-P selected-body formula contract is incomplete");
+  constexpr llvm::StringLiteral expectedCanonicalBodyCases[] = {
+      "i32-vector-binary",       "i32-vector-compare-select",
+      "i8-widening-dot-reduce", "packed-i4-q8-dot",
+      "codebook-i4-q8-dot",     "quantized-block-dot",
+      "unsupported-or-illegal",
+  };
+  for (llvm::StringRef semanticCase : expectedCanonicalBodyCases)
+    if (!llvm::is_contained(canonicalBody->getSemanticCases(),
+                            semanticCase.str()))
+      return fail(llvm::Twine("RVV exact-P body catalog lost semantic case: ") +
+                  semanticCase);
 
   struct ScalarFormulaExpectation {
     llvm::StringRef id;

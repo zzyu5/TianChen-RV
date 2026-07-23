@@ -46,6 +46,7 @@
 #include "Weft/Dialect/RVV/IR/RVVDialect.h"
 #include "Weft/Plugin/ExtensionPlugin.h"
 #include "Weft/Plugin/RVV/RVVCapabilityProfile.h"
+#include "Weft/Plugin/RVV/RVVCanonicalProblemConstruction.h"
 #include "Weft/Plugin/RVV/RVVExtensionPlugin.h"
 #include "Weft/Plugin/RVV/RVVGearboxSchedule.h"
 #include "Weft/Plugin/RVV/RVVSourceScheduleFormula.h"
@@ -90,9 +91,6 @@ constexpr llvm::StringLiteral kSourceKernelAttrName("weft_rvv.source_kernel");
 constexpr llvm::StringLiteral kAcceptedMarkerValue(
     "bounded_packed_i4_offset_binary_dot_source");
 constexpr llvm::StringLiteral kSeedAttrName("weft_rvv.lowering_seed");
-
-constexpr llvm::StringLiteral kOriginAttrName("origin");
-constexpr llvm::StringLiteral kRequiresAttrName("requires");
 
 // The plain-int8 K=32 block the LEGALITY GATE reasons about (the same fixed block
 // the dequant/reduction rungs feed the shared schedule authority). The gate only
@@ -178,50 +176,12 @@ matchPackedI4DotSourceFunc(mlir::func::FuncOp func) {
 }
 
 //===----------------------------------------------------------------------===//
-// (2) The capability-fact-driven integer-core LEGALITY GATE.
-//===----------------------------------------------------------------------===//
-
-// Run the SHARED block-dot schedule authority to confirm a legal integer-core
-// widening schedule is selectable at this VLEN tier -- byte-identical to the
-// dequant/reduction rungs' selectIntegerCoreLMUL (the {m1,m2} plain-int8 K=32
-// descriptor, factorCap=1). The RETURN VALUE is the full-block plain-int8 anchor;
-// the nibble HALF-block uses the NARROWER mf4 rung of the SAME i8->i16->i32
-// widening ladder. This call is the capability LEGALITY GATE only (fail-closed via
-// nullopt -> I7 when every candidate is pruned), NOT the nibble anchor source --
-// the q4_0 nibble core is the no-flip mf4 form, pinned below.
-std::optional<std::string>
-selectIntegerCoreLMUL(mlir::ModuleOp module, llvm::StringRef march,
-                      llvm::StringRef isaVectorHints) {
-  std::int64_t minimumVLEN = resolveRVVMinimumVLEN(module, march, isaVectorHints);
-  llvm::Expected<RVVSourceSchedulePlan> plan =
-      constructRVVSourceScheduleFormula(
-          {RVVSourceScheduleMechanism::PlainInt8BlockDot,
-           /*sew=*/8, /*blockLength=*/kContractionBlockLen, {"m1", "m2"}},
-          {minimumVLEN, resolveRVVVectorRegisterBudget(module)},
-          RVVSourceScheduleNoStaticContext{});
-  if (!plan)
-    return std::nullopt;
-  return plan->integerCoreLMUL;
-}
-
-//===----------------------------------------------------------------------===//
-// (3) Body builder: auto-construct the weft_rvv RVV-dialect nibble integer-core
-//     body (the single-strip packed_i4 product-reduce composition).
+// (2) Shared typed RVV body-building primitives.
 //===----------------------------------------------------------------------===//
 
 mlir::FlatSymbolRefAttr symbolRef(mlir::OpBuilder &builder,
                                   llvm::StringRef symbol) {
   return mlir::FlatSymbolRefAttr::get(builder.getContext(), symbol);
-}
-
-mlir::ArrayAttr createRequires(mlir::OpBuilder &builder, llvm::StringRef symbol) {
-  return builder.getArrayAttr({symbolRef(builder, symbol)});
-}
-
-weftrvv::PolicyAttr createAgnosticPolicy(mlir::OpBuilder &builder) {
-  return weftrvv::PolicyAttr::get(builder.getContext(),
-                                  weftrvv::TailPolicy::Agnostic,
-                                  weftrvv::MaskPolicy::Agnostic);
 }
 
 weftrvv::RuntimeABIValueOp
@@ -322,70 +282,27 @@ void createRVVStore(mlir::OpBuilder &builder, mlir::Location loc,
   (void)builder.create(state);
 }
 
-weftexec::VariantOp
-createVariant(mlir::OpBuilder &builder, mlir::Location loc,
-              llvm::StringRef selectedVariantSymbol, mlir::ArrayAttr requires,
-              weftrvv::PolicyAttr policy) {
-  mlir::OperationState state(loc, weftexec::VariantOp::getOperationName());
-  state.addAttribute("sym_name", builder.getStringAttr(selectedVariantSymbol));
-  state.addAttribute(kOriginAttrName,
-                     builder.getStringAttr(getRVVExtensionPluginName()));
-  state.addAttribute(kRequiresAttrName, requires);
-  state.addAttribute("weft_rvv.policy", policy);
-  state.addRegion();
-  auto variant = llvm::cast<weftexec::VariantOp>(builder.create(state));
-  variant.getBody().emplaceBlock();
-  return variant;
-}
-
-mlir::LogicalResult
-materializeKernel(mlir::OpBuilder &builder, llvm::StringRef kernelName,
-                  const ExtensionPluginRegistry &registry,
-                  PackedI4DotSourceMatch source, llvm::StringRef march,
-                  llvm::StringRef isaVectorHints) {
-  (void)registry;
+mlir::LogicalResult materializeCanonicalProblem(
+    mlir::OpBuilder &builder, llvm::StringRef kernelName,
+    PackedI4DotSourceMatch source, llvm::StringRef march,
+    llvm::StringRef isaVectorHints) {
   mlir::Location loc = source.func.getLoc();
-  weftrvv::PolicyAttr policy = createAgnosticPolicy(builder);
-  std::string selectedVariantSymbol = "rvv_packed_i4_offset_binary_dot_i8";
-
-  // The PINNED nibble integer-core widening ladder: the i8 packed-i4 weight +
-  // plain-i8 activation halves load at mf4, the asymmetric widening product is the
-  // next-wider mf2, and the signed widening reduce is i32 m1. The strip vsetvl the
-  // emitter issues for the mf4 anchor is e32m1 (the documented mf4 spelling). This
-  // is the q4_0 no-flip isolated-core form -- NOT a VLEN byte-flip.
-  llvm::StringRef loadLMUL = kNibbleCoreLoadLMUL;
-  llvm::StringRef productLMUL = getRVVNextWiderLMUL(loadLMUL);
-  if (productLMUL.empty())
-    return fail(source.func,
-                llvm::Twine("no wider LMUL rung for nibble integer-core load "
-                            "anchor '") +
-                    loadLMUL + "'");
-  llvm::StringRef reduceLMUL = getRVVNextWiderLMUL(productLMUL);
-  if (reduceLMUL.empty())
-    return fail(source.func,
-                llvm::Twine("no wider LMUL rung for nibble integer-core product "
-                            "anchor '") +
-                    productLMUL + "'");
-
   mlir::ModuleOp module = source.func->getParentOfType<mlir::ModuleOp>();
   llvm::Expected<weftexec::TargetOp> target =
       weft::target::rvv::materializeRVVSourceTargetProfile(
           builder, module, loc, kernelName, march, isaVectorHints);
   if (!target)
     return fail(source.func, llvm::toString(target.takeError()));
-
-  mlir::OperationState kernelState(loc, weftexec::KernelOp::getOperationName());
+  mlir::OperationState kernelState(loc,
+                                   weftexec::KernelOp::getOperationName());
   kernelState.addAttribute("sym_name", builder.getStringAttr(kernelName));
-  kernelState.addAttribute("target",
-                           symbolRef(builder, target->getSymName()));
+  kernelState.addAttribute("target", symbolRef(builder, target->getSymName()));
   kernelState.addAttribute("problem", symbolRef(builder, "canonical_problem"));
   kernelState.addRegion();
   auto kernel = llvm::cast<weftexec::KernelOp>(builder.create(kernelState));
   kernel.getBody().emplaceBlock();
-
-  mlir::OpBuilder::InsertionGuard kernelGuard(builder);
+  mlir::OpBuilder::InsertionGuard guard(builder);
   builder.setInsertionPointToStart(&kernel.getBody().front());
-
   mlir::OperationState problemState(
       loc, weftexec::PackedI4Q8DotProblemOp::getOperationName());
   problemState.addAttribute("sym_name",
@@ -393,80 +310,6 @@ materializeKernel(mlir::OpBuilder &builder, llvm::StringRef kernelName,
   problemState.addAttribute("block_length",
                             builder.getI64IntegerAttr(kContractionBlockLen));
   (void)builder.create(problemState);
-
-  mlir::ArrayAttr rvvRequires = createRequires(
-      builder, weft::target::rvv::getRVVSourceCapabilitySymbol(kernelName));
-
-  weftexec::VariantOp rvvVariant =
-      createVariant(builder, loc, selectedVariantSymbol, rvvRequires, policy);
-  // AUDIT-ONLY provenance (NOT the route/dtype authority): the no-flip nibble
-  // integer-core anchor the body below realizes structurally. Recorded as the
-  // PINNED form (never the gate's plain-int8 m1/m2 return, which would mislead).
-  rvvVariant->setAttr(
-      "weft_rvv.packed_i4_integer_core_anchor",
-      builder.getStringAttr("i8mf4-i16mf2-i32m1-no-vlen-flip"));
-  mlir::OpBuilder::InsertionGuard variantGuard(builder);
-  builder.setInsertionPointToStart(&rvvVariant.getBody().front());
-
-  mlir::Type runtimeABIType =
-      weftrvv::RuntimeABIValueType::get(builder.getContext());
-  // The six nibble integer-core ABI roles, in the order the emitted C signature
-  // pins (so the output buffer is arg4, matching the nibble-core lit): the
-  // packed-i4 weight, the two plain-i8 q8 activation halves, the i32 acc seed, the
-  // i32 out, and the runtime element count.
-  auto weight = createRuntimeABIValue(builder, loc, "lhs-input-buffer", "w",
-                                      "const int8_t *", "q4-weight",
-                                      runtimeABIType);
-  auto qlo =
-      createRuntimeABIValue(builder, loc, "rhs-input-buffer", "qlo",
-                            "const int8_t *", "q8-low", runtimeABIType);
-  auto qhi =
-      createRuntimeABIValue(builder, loc, "rhs-input-buffer", "qhi",
-                            "const int8_t *", "q8-high", runtimeABIType);
-  auto acc =
-      createRuntimeABIValue(builder, loc, "accumulator-input-buffer", "acc",
-                            "const int32_t *", "acc", runtimeABIType);
-  auto out = createRuntimeABIValue(builder, loc, "output-buffer", "out",
-                                   "int32_t *", "out", runtimeABIType);
-  auto n = createRuntimeABIValue(builder, loc, "runtime-element-count", "n",
-                                 "size_t", "n", builder.getIndexType());
-
-  weftrvv::SetVLOp setvl = createSetVL(builder, loc, n.getResult(),
-                                       kNibbleCoreStripSEW, kNibbleCoreStripLMUL,
-                                       policy);
-  weftrvv::WithVLOp withVL =
-      createWithVL(builder, loc, setvl.getVl(), kNibbleCoreStripSEW,
-                   kNibbleCoreStripLMUL, policy);
-
-  mlir::OpBuilder::InsertionGuard withVLGuard(builder);
-  builder.setInsertionPointToStart(&withVL.getBody().front());
-
-  mlir::Type i8VecType = weftrvv::VectorType::get(
-      builder.getContext(), builder.getI8Type(), loadLMUL);
-  mlir::Type i16VecType = weftrvv::VectorType::get(
-      builder.getContext(), builder.getI16Type(), productLMUL);
-  mlir::Type i32VecType = weftrvv::VectorType::get(
-      builder.getContext(), builder.getI32Type(), reduceLMUL);
-
-  // The three i8/mf4 source loads: the packed-i4 weight + the two plain-i8 q8
-  // activation halves (NOT nibble-decoded -- only the weight is).
-  mlir::Value loadedWeight =
-      createRVVLoad(builder, loc, weight.getResult(), setvl.getVl(), i8VecType);
-  mlir::Value loadedQLow =
-      createRVVLoad(builder, loc, qlo.getResult(), setvl.getVl(), i8VecType);
-  mlir::Value loadedQHigh =
-      createRVVLoad(builder, loc, qhi.getResult(), setvl.getVl(), i8VecType);
-  // The auto-constructed nibble decode + asymmetric widening product (the
-  // first-class generic op): offset-binary unpack of the weight, asymmetric
-  // i8(decoded) x i8(plain) widening product -> i16/mf2.
-  mlir::Value product = createPackedI4OffsetBinaryProduct(
-      builder, loc, loadedWeight, loadedQLow, loadedQHigh, setvl.getVl(),
-      i16VecType);
-  // The signed widening reduce -> i32/m1, carrying the i32 acc seed.
-  mlir::Value reduced = createStandaloneReduce(
-      builder, loc, product, acc.getResult(), setvl.getVl(), i32VecType);
-  createRVVStore(builder, loc, out.getResult(), reduced, setvl.getVl());
-
   return mlir::success();
 }
 
@@ -518,22 +361,14 @@ public:
   MaterializeRVVPackedI4DotSourceFrontDoorPass(
       const MaterializeRVVPackedI4DotSourceFrontDoorPass &other)
       : mlir::PassWrapper<MaterializeRVVPackedI4DotSourceFrontDoorPass,
-                          mlir::OperationPass<mlir::ModuleOp>>(other),
-        registry(other.registry) {}
-  explicit MaterializeRVVPackedI4DotSourceFrontDoorPass(
-      const ExtensionPluginRegistry *registry)
-      : registry(registry) {}
+                          mlir::OperationPass<mlir::ModuleOp>>(other) {}
 
   llvm::StringRef getArgument() const final {
     return "weft-rvv-materialize-packed-i4-offset-binary-dot-source-front-door";
   }
   llvm::StringRef getDescription() const final {
-    return "Auto-construct the weft_rvv q4_0 nibble integer-CORE body (load x3 + "
-           "packed_i4_offset_binary_x_i8_product + standalone_reduce + store) "
-           "from a marked generic nibble-core source, with the integer-core path "
-           "legality gated by the shared block-dot schedule authority from the "
-           "resolveRVVMinimumVLEN capability fact. BOUNDED Track B G1 step: the "
-           "nibble integer CORE only (no block loop / fp16 scale / fp32 fold).";
+    return "Adapt one bounded packed-i4/q8 dot source into target-bound "
+           "PackedI4Q8Dot canonical P";
   }
 
   void getDependentDialects(mlir::DialectRegistry &registry) const final {
@@ -545,15 +380,6 @@ public:
 
   void runOnOperation() final {
     mlir::ModuleOp module = getOperation();
-    if (!registry) {
-      module.emitError()
-          << "RVV packed-i4 offset-binary dot source front door requires an "
-             "injected extension-plugin registry to dispatch the conservative "
-             "fallback";
-      signalPassFailure();
-      return;
-    }
-
     auto marker =
         module->getAttrOfType<mlir::StringAttr>(kSourceFrontDoorAttrName);
     if (!marker || marker.getValue().trim() != kAcceptedMarkerValue)
@@ -586,34 +412,17 @@ public:
       return;
     }
 
-    // The capability LEGALITY GATE: confirm a legal integer-core widening
-    // schedule is selectable at this VLEN tier (fail-closed via I7 otherwise).
-    // The selected plain-int8 anchor is NOT the nibble anchor (pinned mf4); this
-    // call is the legality gate only.
-    std::optional<std::string> integerCoreLMUL =
-        selectIntegerCoreLMUL(module, march, isaVectorHints);
-    if (!integerCoreLMUL) {
-      (void)fail(module, llvm::Twine("the capability profile (march='") + march +
-                             "') prunes every legal integer-core anchor; no "
-                             "schedule is selectable (fail-closed)");
-      signalPassFailure();
-      return;
-    }
-
     std::string kernelName = getKernelName(module);
     mlir::OpBuilder builder(module.getContext());
     builder.setInsertionPointToStart(module.getBody());
-    if (mlir::failed(materializeKernel(builder, kernelName, *registry, *source,
-                                       march, isaVectorHints))) {
+    if (mlir::failed(materializeCanonicalProblem(
+            builder, kernelName, *source, march, isaVectorHints))) {
       signalPassFailure();
       return;
     }
 
-    // W2 §(1) B: the constructed body now carries an RVV provider op; materialize
-    // the c facts (typed minimum_vlen + support axes) onto it through the ONE
-    // shared producer, so a downstream resolveRVVMinimumVLEN reads the provider
-    // fact instead of re-parsing -march (I1/I4). This closes the "constructed
-    // empty provider" debt: the front door is the legitimate producer.
+    // Fill target-bound c_o through the shared producer. The owner later uses it
+    // for legality and construction; the adapter does not prebuild a body.
     (void)materializeRVVProviderCapabilityAxes(module, march, isaVectorHints);
 
     module->removeAttr(kSourceFrontDoorAttrName);
@@ -621,13 +430,12 @@ public:
   }
 
 private:
-  const ExtensionPluginRegistry *registry = nullptr;
-
   Pass::Option<std::string> march{
       *this, "march",
-      llvm::cl::desc("The capability-derivation -march the integer-core path "
-                     "legality is gated from (e.g. rv64gcv, rv64gcv_zvl256b). "
-                     "Empty => no guaranteed VLEN tier => fail-closed."),
+      llvm::cl::desc("RISC-V -march used only to populate the target-bound "
+                     "RVV capability profile consumed by downstream legality "
+                     "and selected-owner construction. Empty leaves required "
+                     "VLEN facts absent and later construction fails closed."),
       llvm::cl::init("")};
   Pass::Option<std::string> isaVectorHints{
       *this, "isa-vector-hints",
@@ -638,26 +446,109 @@ private:
 
 } // namespace
 
+llvm::Error constructRVVPackedI4Q8DotProblemBody(
+    weftexec::VariantOp variant, weftexec::PackedI4Q8DotProblemOp problem,
+    const RVVSelectedTargetCapabilityFacts &capability) {
+  if (!capability.minimumVLEN || !capability.vectorRegisterCount)
+    return llvm::createStringError(
+        llvm::inconvertibleErrorCode(),
+        "packed-i4 formula requires minimum_vlen and vreg_count in c_o");
+  llvm::Expected<RVVSourceSchedulePlan> gate =
+      constructRVVSourceScheduleFormula(
+          {RVVSourceScheduleMechanism::PlainInt8BlockDot,
+           /*sew=*/8, static_cast<std::int64_t>(problem.getBlockLength()),
+           {"m1", "m2"}},
+          {*capability.minimumVLEN, *capability.vectorRegisterCount},
+          RVVSourceScheduleNoStaticContext{});
+  if (!gate)
+    return gate.takeError();
+  if (variant.getBody().empty() || !variant.getBody().front().empty())
+    return llvm::createStringError(
+        llvm::inconvertibleErrorCode(),
+        "packed-i4 construction requires an empty selected candidate");
+  auto policy = variant->getAttrOfType<weftrvv::PolicyAttr>("weft_rvv.policy");
+  if (!policy)
+    return llvm::createStringError(llvm::inconvertibleErrorCode(),
+                                   "packed-i4 candidate lacks typed policy");
+  llvm::StringRef loadLMUL = kNibbleCoreLoadLMUL;
+  llvm::StringRef productLMUL = getRVVNextWiderLMUL(loadLMUL);
+  llvm::StringRef reduceLMUL = getRVVNextWiderLMUL(productLMUL);
+  if (productLMUL.empty() || reduceLMUL.empty())
+    return llvm::createStringError(
+        llvm::inconvertibleErrorCode(),
+        "packed-i4 mechanism has no complete widening LMUL ladder");
+
+  mlir::OpBuilder builder(variant.getContext());
+  builder.setInsertionPointToStart(&variant.getBody().front());
+  mlir::Location loc = problem.getLoc();
+  variant->setAttr("weft_rvv.packed_i4_integer_core_anchor",
+                   builder.getStringAttr(
+                       "i8mf4-i16mf2-i32m1-no-vlen-flip"));
+  mlir::Type runtimeABIType =
+      weftrvv::RuntimeABIValueType::get(builder.getContext());
+  auto weight = createRuntimeABIValue(builder, loc, "lhs-input-buffer", "w",
+                                      "const int8_t *", "q4-weight",
+                                      runtimeABIType);
+  auto qlo = createRuntimeABIValue(builder, loc, "rhs-input-buffer", "qlo",
+                                   "const int8_t *", "q8-low",
+                                   runtimeABIType);
+  auto qhi = createRuntimeABIValue(builder, loc, "rhs-secondary-input-buffer", "qhi",
+                                   "const int8_t *", "q8-high",
+                                   runtimeABIType);
+  auto acc = createRuntimeABIValue(builder, loc, "accumulator-input-buffer",
+                                   "acc", "const int32_t *", "acc",
+                                   runtimeABIType);
+  auto out = createRuntimeABIValue(builder, loc, "output-buffer", "out",
+                                   "int32_t *", "out", runtimeABIType);
+  auto n = createRuntimeABIValue(builder, loc, "runtime-element-count", "n",
+                                 "size_t", "n", builder.getIndexType());
+  weftrvv::SetVLOp setvl = createSetVL(
+      builder, loc, n.getResult(), kNibbleCoreStripSEW,
+      kNibbleCoreStripLMUL, policy);
+  weftrvv::WithVLOp withVL = createWithVL(
+      builder, loc, setvl.getVl(), kNibbleCoreStripSEW,
+      kNibbleCoreStripLMUL, policy);
+  mlir::OpBuilder::InsertionGuard guard(builder);
+  builder.setInsertionPointToStart(&withVL.getBody().front());
+  mlir::Type i8VecType = weftrvv::VectorType::get(
+      builder.getContext(), builder.getI8Type(), loadLMUL);
+  mlir::Type i16VecType = weftrvv::VectorType::get(
+      builder.getContext(), builder.getI16Type(), productLMUL);
+  mlir::Type i32VecType = weftrvv::VectorType::get(
+      builder.getContext(), builder.getI32Type(), reduceLMUL);
+  mlir::Value loadedWeight = createRVVLoad(
+      builder, loc, weight.getResult(), setvl.getVl(), i8VecType);
+  mlir::Value loadedQLow = createRVVLoad(
+      builder, loc, qlo.getResult(), setvl.getVl(), i8VecType);
+  mlir::Value loadedQHigh = createRVVLoad(
+      builder, loc, qhi.getResult(), setvl.getVl(), i8VecType);
+  mlir::Value product = createPackedI4OffsetBinaryProduct(
+      builder, loc, loadedWeight, loadedQLow, loadedQHigh, setvl.getVl(),
+      i16VecType);
+  mlir::Value reduced = createStandaloneReduce(
+      builder, loc, product, acc.getResult(), setvl.getVl(), i32VecType);
+  createRVVStore(builder, loc, out.getResult(), reduced, setvl.getVl());
+  return llvm::Error::success();
+}
+
 std::unique_ptr<::mlir::Pass>
 createMaterializeRVVPackedI4DotSourceFrontDoorPass(
     const ExtensionPluginRegistry &registry) {
-  return std::make_unique<MaterializeRVVPackedI4DotSourceFrontDoorPass>(
-      &registry);
+  (void)registry;
+  return std::make_unique<MaterializeRVVPackedI4DotSourceFrontDoorPass>();
 }
 
 llvm::Error registerRVVPackedI4DotSourceFrontDoorPasses(
     llvm::StringRef ownerPlugin, const ExtensionPluginRegistry &registry,
     llvm::SmallVectorImpl<SourceFrontDoorPassRegistration> &out) {
-  const ExtensionPluginRegistry *registryPtr = &registry;
+  (void)registry;
   out.push_back(SourceFrontDoorPassRegistration(
       ownerPlugin, formula_catalog::kPackedI4DotSourceEntry,
-      "Auto-construct the weft_rvv q4_0 nibble integer-CORE body (load x3 + "
-      "packed_i4_offset_binary_x_i8_product + standalone_reduce + store) from a "
-      "marked generic nibble-core source (BOUNDED Track B G1: the nibble integer "
-      "core only, capability-gated)",
+      "Adapt one bounded packed-i4/q8 dot source into target-bound exact "
+      "canonical P",
       formula_catalog::kPackedI4DotConstruction,
-      [registryPtr] {
-        return createMaterializeRVVPackedI4DotSourceFrontDoorPass(*registryPtr);
+      [] {
+        return std::make_unique<MaterializeRVVPackedI4DotSourceFrontDoorPass>();
       },
       SourceFrontDoorPassRegistration::DefaultArtifactFrontDoorPolicy::
           ExplicitOnly));

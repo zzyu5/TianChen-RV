@@ -612,8 +612,13 @@ llvm::Error materializeKernelPluginVariants(
                                            &recoverableDeclines))
     return error;
 
-  if (proposals.empty())
+  const bool hasExistingVariant = llvm::any_of(
+      kernel.getBody().front(),
+      [](mlir::Operation &op) { return llvm::isa<VariantOp>(op); });
+  if (proposals.empty() && !hasExistingVariant)
     return makeNoViableProposalError(kernel, recoverableDeclines);
+  if (proposals.empty())
+    return llvm::Error::success();
 
   llvm::SmallVector<VariantProposal, 4> proposalsToMaterialize;
   if (llvm::Error error = filterAlreadyMaterializedProposals(

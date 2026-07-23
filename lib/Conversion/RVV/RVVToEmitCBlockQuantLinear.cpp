@@ -14344,9 +14344,12 @@ mlir::LogicalResult VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(
         llvm::StringRef("codebook_table_load"));
   }
 
-  // Peek the region format WITHOUT emitting: a full body carries brick 2
-  // (the computed-scale dequant); the q4_0 (left_assoc) full body is the one the
-  // schedule-parametrization step materializes across ALL legal knob combos.
+  // Inspect the typed mechanism region WITHOUT emitting: this only checks that
+  // the formula-produced flat_* plan and its mechanism body agree; it is not a
+  // format/kind decision surface. A full body carries brick 2 (the
+  // computed-scale dequant); the offset-binary-nibble + left-associative plan is
+  // the one the schedule-parametrization step materializes across all legal knob
+  // combinations.
   weftrvv::BlockComputedScaleDequantOp peekBrick2;
   loopBody.getBody().walk(
       [&](weftrvv::BlockComputedScaleDequantOp o) { peekBrick2 = o; });

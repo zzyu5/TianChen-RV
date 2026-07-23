@@ -1,4 +1,4 @@
-// RUN: weft-opt %s --weft-toy-materialize-template-source-front-door | FileCheck %s --check-prefix=BOUNDARY --implicit-check-not="weft_toy.source_front_door" --implicit-check-not="source-seed" --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="weft_rvv"
+// RUN: weft-opt %s --weft-toy-materialize-template-source-front-door | FileCheck %s --check-prefix=BOUNDARY --implicit-check-not="weft.exec.variant" --implicit-check-not="weft_toy.compute_skeleton" --implicit-check-not="weft_rvv"
 // RUN: weft-opt %s --weft-source-artifact-front-door-pipeline | FileCheck %s --check-prefix=PLAN --implicit-check-not="weft_toy.source_front_door" --implicit-check-not="source-seed" --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="weft_rvv"
 // RUN: not weft-opt %s --weft-disable-builtin-plugins --weft-toy-materialize-template-source-front-door 2>&1 | FileCheck %s --check-prefix=NO-BUILTIN
 // RUN: not weft-opt %s --weft-disable-builtin-plugins --weft-source-artifact-front-door-pipeline 2>&1 | FileCheck %s --check-prefix=PIPE-NO-BUILTIN
@@ -15,25 +15,15 @@ module attributes {
 // BOUNDARY-SAME: id = "toy.template"
 // BOUNDARY-SAME: template_abi = "toy-metadata-boundary.v1"
 // BOUNDARY: weft.exec.kernel @toy_header_export
-// BOUNDARY: weft.exec.variant @toy_template_first_slice
-// BOUNDARY-SAME: origin = "toy-plugin"
-// BOUNDARY-SAME: requires = [@toy_template]
-// BOUNDARY: weft_toy.compute_skeleton {
-// BOUNDARY-SAME: selected_variant = @toy_template_first_slice
-// BOUNDARY-SAME: source_kernel = "toy_header_export"
-// BOUNDARY-SAME: template_reason = "toy-source-front-door-template-compute"
-// BOUNDARY: weft.exec.diagnostic
-// BOUNDARY-SAME: message = "selected Toy source front-door route"
-// BOUNDARY-SAME: reason = "variant-selected"
-// BOUNDARY-SAME: status = "selected"
-// BOUNDARY-SAME: target = @toy_template_first_slice
+// BOUNDARY-SAME: problem = @canonical_problem
+// BOUNDARY: weft.exec.template_compute_problem @canonical_problem
+// BOUNDARY-SAME: template_kind = "compute-skeleton"
 
 // PLAN: weft.exec.kernel @toy_header_export
+// PLAN: weft.exec.variant @toy_template_first_slice
+// PLAN-SAME: origin = "toy-plugin"
 // PLAN: weft_toy.compute_skeleton {
 // PLAN-SAME: selected_variant = @toy_template_first_slice
-// PLAN: weft.exec.diagnostic
-// PLAN-SAME: message = "selected Toy source front-door route"
-// PLAN-SAME: reason = "variant-selected"
 // PLAN: weft.exec.diagnostic {{.*}}artifact_kind = "riscv-elf-relocatable-object"
 // PLAN-SAME: emission_kind = "materialized-emitc-cpp-toy-template-module"
 // PLAN-SAME: lowering_boundary = "weft_toy.compute_skeleton"

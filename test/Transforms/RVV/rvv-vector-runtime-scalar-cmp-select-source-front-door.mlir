@@ -1,7 +1,7 @@
-// RUN: weft-opt %s --split-input-file --weft-rvv-materialize-vector-runtime-scalar-cmp-select-source-front-door | FileCheck %s --check-prefix=MATERIALIZED --implicit-check-not="weft_rvv.i32_" --implicit-check-not="scalar_fallback" --implicit-check-not="weft.exec.dispatch"
-// RUN: weft-opt %S/../../Support/RVV/rvv-vector-runtime-scalar-cmp-select-source-front-door-sle.mlir.inc --weft-rvv-materialize-vector-runtime-scalar-cmp-select-source-front-door --weft-select-variants --weft-materialize-emission-plans | FileCheck %s --check-prefix=PLAN --implicit-check-not="rvv-i32m1" --implicit-check-not="descriptor" --implicit-check-not="source-export"
+// RUN: weft-opt %s --split-input-file --weft-rvv-materialize-vector-runtime-scalar-cmp-select-source-front-door | FileCheck %s --check-prefix=SOURCE --implicit-check-not="weft.exec.variant" --implicit-check-not="weft_rvv."
+// RUN: weft-opt %S/../../Support/RVV/rvv-vector-runtime-scalar-cmp-select-source-front-door-sle.mlir.inc --weft-rvv-materialize-vector-runtime-scalar-cmp-select-source-front-door --weft-execution-planning-pipeline | FileCheck %s --check-prefix=PLAN --implicit-check-not="rvv-i32m1" --implicit-check-not="descriptor" --implicit-check-not="source-export"
 // RUN: not weft-opt %S/../../Support/RVV/rvv-vector-runtime-scalar-cmp-select-source-front-door-sle.mlir.inc --weft-source-artifact-front-door-pipeline 2>&1 | FileCheck %s --check-prefix=PIPELINE-FAIL --implicit-check-not="rvv-i32m1" --implicit-check-not="descriptor" --implicit-check-not="source-export" --implicit-check-not="rvv_selected_body_operation" --implicit-check-not="artifact_kind = \"riscv-elf-relocatable-object\""
-// RUN: weft-opt %S/../../Support/RVV/rvv-vector-runtime-scalar-cmp-select-source-front-door-sle.mlir.inc --weft-rvv-materialize-vector-runtime-scalar-cmp-select-source-front-door --weft-select-variants --weft-materialize-emission-plans | weft-translate --weft-export-target-header-artifact | FileCheck %s --check-prefix=HEADER-SLE --implicit-check-not="rvv-i32m1" --implicit-check-not="descriptor" --implicit-check-not="source-export"
+// RUN: weft-opt %S/../../Support/RVV/rvv-vector-runtime-scalar-cmp-select-source-front-door-sle.mlir.inc --weft-rvv-materialize-vector-runtime-scalar-cmp-select-source-front-door --weft-execution-planning-pipeline | weft-translate --weft-export-target-header-artifact | FileCheck %s --check-prefix=HEADER-SLE --implicit-check-not="rvv-i32m1" --implicit-check-not="descriptor" --implicit-check-not="source-export"
 
 module attributes {weft_rvv.source_front_door = "bounded_vector_runtime_scalar_cmp_select_source"} {
   func.func @source_vector_runtime_scalar_cmp_select_eq(%lhs: memref<?xi32>, %rhs_scalar: i32, %true_value: memref<?xi32>, %false_value: memref<?xi32>, %out: memref<?xi32>, %n: index) {
@@ -52,52 +52,23 @@ module attributes {weft_rvv.source_front_door = "bounded_vector_runtime_scalar_c
   }
 }
 
-// MATERIALIZED: weft.exec.target @rvv_vector_runtime_scalar_cmp_select_eq_from_vector_source_target_profile
-// MATERIALIZED: weft.exec.capability @rvv_vector_runtime_scalar_cmp_select_eq_from_vector_source_rvv_capability
-// MATERIALIZED-SAME: id = "rvv"
-// MATERIALIZED-SAME: kind = "isa-vector"
-// MATERIALIZED-LABEL: weft.exec.kernel @rvv_vector_runtime_scalar_cmp_select_eq_from_vector_source
-// MATERIALIZED: weft.exec.i32_vector_compare_select_problem @canonical_problem
-// MATERIALIZED-SAME: predicate = "eq"
-// MATERIALIZED-SAME: rhs_form = "runtime-scalar"
-// MATERIALIZED: weft.exec.variant @rvv_vector_runtime_scalar_cmp_select_eq
-// MATERIALIZED-SAME: origin = "rvv-plugin"
-// MATERIALIZED-DAG: weft_rvv.runtime_abi_value {{.*}}c_name = "lhs"{{.*}}purpose = "rvv-vector-runtime-scalar-cmp-select-source-front-door:lhs"{{.*}}role = "lhs-input-buffer"
-// MATERIALIZED-DAG: weft_rvv.runtime_abi_value {{.*}}c_name = "rhs_scalar"{{.*}}purpose = "rvv-vector-runtime-scalar-cmp-select-source-front-door:rhs_scalar"{{.*}}role = "rhs-scalar-value"
-// MATERIALIZED-DAG: weft_rvv.runtime_abi_value {{.*}}c_name = "true_value"{{.*}}role = "true-value-input-buffer"
-// MATERIALIZED-DAG: weft_rvv.runtime_abi_value {{.*}}c_name = "false_value"{{.*}}role = "false-value-input-buffer"
-// MATERIALIZED-DAG: weft_rvv.runtime_abi_value {{.*}}c_name = "out"{{.*}}role = "output-buffer"
-// MATERIALIZED: %[[EQ_N:.*]] = weft_rvv.runtime_abi_value {{.*}}c_name = "n"{{.*}}role = "runtime-element-count"{{.*}} : index
-// MATERIALIZED: %[[EQ_VL:.*]] = weft_rvv.setvl %[[EQ_N]]
-// MATERIALIZED-SAME: lmul = "m1"
-// MATERIALIZED-SAME: sew = 32
-// MATERIALIZED: weft_rvv.with_vl %[[EQ_VL]]
-// MATERIALIZED: weft_rvv.load
-// MATERIALIZED-SAME: -> !weft_rvv.vector<i32, "m1">
-// MATERIALIZED: weft_rvv.splat
-// MATERIALIZED-SAME: -> !weft_rvv.vector<i32, "m1">
-// MATERIALIZED: weft_rvv.compare
-// MATERIALIZED-SAME: kind = "eq"
-// MATERIALIZED-SAME: -> !weft_rvv.mask<i32, "m1">
-// MATERIALIZED: weft_rvv.select
-// MATERIALIZED-SAME: -> !weft_rvv.vector<i32, "m1">
-// MATERIALIZED: weft_rvv.store
-
-// MATERIALIZED-LABEL: weft.exec.kernel @rvv_vector_runtime_scalar_cmp_select_slt_from_vector_source
-// MATERIALIZED: weft.exec.i32_vector_compare_select_problem @canonical_problem
-// MATERIALIZED-SAME: predicate = "slt"
-// MATERIALIZED-SAME: rhs_form = "runtime-scalar"
-// MATERIALIZED: weft.exec.variant @rvv_vector_runtime_scalar_cmp_select_slt
-// MATERIALIZED: weft_rvv.compare
-// MATERIALIZED-SAME: kind = "slt"
-
-// MATERIALIZED-LABEL: weft.exec.kernel @rvv_vector_runtime_scalar_cmp_select_sle_from_vector_source
-// MATERIALIZED: weft.exec.i32_vector_compare_select_problem @canonical_problem
-// MATERIALIZED-SAME: predicate = "sle"
-// MATERIALIZED-SAME: rhs_form = "runtime-scalar"
-// MATERIALIZED: weft.exec.variant @rvv_vector_runtime_scalar_cmp_select_sle
-// MATERIALIZED: weft_rvv.compare
-// MATERIALIZED-SAME: kind = "sle"
+// SOURCE: weft.exec.target @rvv_vector_runtime_scalar_cmp_select_eq_from_vector_source_target_profile
+// SOURCE: weft.exec.capability @rvv_vector_runtime_scalar_cmp_select_eq_from_vector_source_rvv_capability
+// SOURCE-SAME: id = "rvv"
+// SOURCE-SAME: kind = "isa-vector"
+// SOURCE-LABEL: weft.exec.kernel @rvv_vector_runtime_scalar_cmp_select_eq_from_vector_source
+// SOURCE-SAME: problem = @canonical_problem
+// SOURCE: weft.exec.i32_vector_compare_select_problem @canonical_problem
+// SOURCE-SAME: predicate = "eq"
+// SOURCE-SAME: rhs_form = "runtime-scalar"
+// SOURCE-LABEL: weft.exec.kernel @rvv_vector_runtime_scalar_cmp_select_slt_from_vector_source
+// SOURCE: weft.exec.i32_vector_compare_select_problem @canonical_problem
+// SOURCE-SAME: predicate = "slt"
+// SOURCE-SAME: rhs_form = "runtime-scalar"
+// SOURCE-LABEL: weft.exec.kernel @rvv_vector_runtime_scalar_cmp_select_sle_from_vector_source
+// SOURCE: weft.exec.i32_vector_compare_select_problem @canonical_problem
+// SOURCE-SAME: predicate = "sle"
+// SOURCE-SAME: rhs_form = "runtime-scalar"
 
 // PLAN: weft.exec.diagnostic {{.*}}emission_kind = "materialized-emitc-cpp-rvv-intrinsic-object"
 // PLAN-SAME: runtime_abi_name = "rvv-exact-typed-body-callable-c-abi.v2"

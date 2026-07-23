@@ -310,16 +310,16 @@ module {
   weft.exec.target @malformed_toy_profile {id = "toy.profile.malformed", target_kind = "profile", construction_domain = "riscv-execution", capability_providers = [@malformed_toy_capability]}
 
   weft.exec.kernel @available_toy attributes {target = @available_toy_profile, problem = @canonical_problem} {
-    weft.exec.int8_mac_problem @canonical_problem {lhs_signedness = #weft<integer_signedness signed>, rhs_signedness = #weft<integer_signedness signed>, m = 4 : i64, n = 4 : i64, k = 8 : i64}
+    weft.exec.template_compute_problem @canonical_problem {template_kind = "compute-skeleton"}
   }
   weft.exec.kernel @missing_toy attributes {target = @missing_toy_profile, problem = @canonical_problem} {
-    weft.exec.int8_mac_problem @canonical_problem {lhs_signedness = #weft<integer_signedness signed>, rhs_signedness = #weft<integer_signedness signed>, m = 4 : i64, n = 4 : i64, k = 8 : i64}
+    weft.exec.template_compute_problem @canonical_problem {template_kind = "compute-skeleton"}
   }
   weft.exec.kernel @unavailable_toy attributes {target = @unavailable_toy_profile, problem = @canonical_problem} {
-    weft.exec.int8_mac_problem @canonical_problem {lhs_signedness = #weft<integer_signedness signed>, rhs_signedness = #weft<integer_signedness signed>, m = 4 : i64, n = 4 : i64, k = 8 : i64}
+    weft.exec.template_compute_problem @canonical_problem {template_kind = "compute-skeleton"}
   }
   weft.exec.kernel @malformed_toy attributes {target = @malformed_toy_profile, problem = @canonical_problem} {
-    weft.exec.int8_mac_problem @canonical_problem {lhs_signedness = #weft<integer_signedness signed>, rhs_signedness = #weft<integer_signedness signed>, m = 4 : i64, n = 4 : i64, k = 8 : i64}
+    weft.exec.template_compute_problem @canonical_problem {template_kind = "compute-skeleton"}
   }
 }
 )mlir";
@@ -459,7 +459,7 @@ module {
   }
   weft.exec.target @toy_template_profile {id = "toy.template.profile", target_kind = "profile", construction_domain = "riscv-execution", capability_providers = [@toy_template]}
   weft.exec.kernel @toy_template_kernel attributes {target = @toy_template_profile, problem = @canonical_problem} {
-    weft.exec.int8_mac_problem @canonical_problem {lhs_signedness = #weft<integer_signedness signed>, rhs_signedness = #weft<integer_signedness signed>, m = 4 : i64, n = 4 : i64, k = 8 : i64}
+    weft.exec.template_compute_problem @canonical_problem {template_kind = "compute-skeleton"}
   }
 }
 )mlir";

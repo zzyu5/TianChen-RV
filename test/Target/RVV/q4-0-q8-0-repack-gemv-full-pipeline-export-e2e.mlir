@@ -47,26 +47,27 @@
 // materializes the emission plan AND passes --weft-check-execution-plan-coherence
 // (the RepackGemv monolithic route id is a registered target-artifact export
 // route).
-// RUN: weft-opt %s --weft-rvv-lower-quant-contraction=march=rv64gcv --weft-source-artifact-front-door-pipeline | FileCheck %s --check-prefix=PLAN
+// RUN: weft-opt %s --weft-rvv-lower-quant-contraction=march=rv64gcv --weft-execution-planning-pipeline | FileCheck %s --check-prefix=PLAN
 
 // BYTE-EXACT: --weft-materialize-emission-plans only APPENDS the emission-plan
 // diagnostic mirror; the typed repack body is untouched, so the production-export
 // EmitC is byte-for-byte the CORE --weft-rvv-lower-to-emitc emit.
 // RUN: weft-opt %s --weft-rvv-lower-quant-contraction=march=rv64gcv --weft-rvv-lower-to-emitc > %t.core.mlir
-// RUN: weft-opt %s --weft-rvv-lower-quant-contraction=march=rv64gcv --weft-materialize-emission-plans --weft-rvv-lower-to-emitc > %t.prod.mlir
+// RUN: weft-opt %s --weft-rvv-lower-quant-contraction=march=rv64gcv --weft-execution-planning-pipeline --weft-rvv-lower-to-emitc > %t.prod.mlir
 // RUN: diff %t.core.mlir %t.prod.mlir
 
 // Target-artifact OBJECT export: the RepackGemv monolithic emission plan exports a
 // real RISC-V RVV relocatable object through the registered peer object exporter.
 // RUN: rm -f %t.o
-// RUN: weft-opt %s --weft-rvv-lower-quant-contraction=march=rv64gcv --weft-select-variants --weft-materialize-emission-plans | weft-translate --weft-export-target-artifact > %t.o
+// RUN: weft-opt %s --weft-rvv-lower-quant-contraction=march=rv64gcv --weft-execution-planning-pipeline | weft-translate --weft-export-target-artifact > %t.o
 // RUN: llvm-readobj -h %t.o | FileCheck %s --check-prefix=OBJECT
 // RUN: llvm-readobj --symbols %t.o | FileCheck %s --check-prefix=SYMBOL
 
 module {
-  weft.exec.kernel @ggml_vec_dot_q4_0_q8_0_repack_gemv_kernel attributes {construction_domain = "riscv-execution", problem = @canonical_problem} {
+  weft.exec.target @rvv_profile {id = "test.rvv.repack-gemv", target_kind = "profile", construction_domain = "riscv-execution", capability_providers = [@rvv]}
+  weft.exec.capability @rvv {id = "rvv", kind = "isa-vector", architecture = "riscv64", minimum_vlen = 128 : i64, rvv_version = "1.0", status = "available", supported_lmul = "mf8,mf4,mf2,m1,m2,m4,m8", supported_sew = "8,16,32,64", vreg_count = 32 : i64}
+  weft.exec.kernel @ggml_vec_dot_q4_0_q8_0_repack_gemv_kernel attributes {target = @rvv_profile, problem = @canonical_problem} {
     weft.exec.block_q4_0_contraction_problem @canonical_problem {activation_signedness = #weft<integer_signedness signed>, m = 1 : i64, n = 1 : i64, k = 32 : i64, qk = 32 : i64, weight_block_stride = 18 : i64, weight_scale_byte_offset = 0 : i64, weight_quant_byte_offset = 2 : i64}
-    weft.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
     weft.exec.variant @ggml_vec_dot_q4_0_q8_0_repack_gemv attributes {origin = "rvv-plugin", requires = [@rvv], weft_rvv.policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>} {
       %n = weft_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "n", role = "runtime-element-count"} : index
       %s = weft_rvv.runtime_abi_value {c_name = "s", c_type = "float *", ownership = "target-export-abi-owned", purpose = "out", role = "output-buffer"} : !weft_rvv.runtime_abi_value

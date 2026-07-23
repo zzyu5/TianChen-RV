@@ -429,13 +429,23 @@ llvm::Error TensorExtLiteExtensionPlugin::constructFormulaPlans(
   VariantLoweringBoundaryRequest bodyRequest(
       request.getVariant(), request.getKernel(), request.getProblem(),
       request.getCapabilities(), request.getRole(), builder, nullptr);
-  if (llvm::Error error =
-          materializeTensorExtLiteSelectedRoleSequenceIfNeeded(bodyRequest))
-    return error;
   llvm::Expected<llvm::SmallVector<mlir::Operation *, 4>> operations =
       inspectTensorExtLiteConstruction(request.getVariant());
   if (!operations)
     return operations.takeError();
+  if (operations->empty()) {
+    if (!llvm::isa_and_nonnull<weft::exec::FragmentMMAProblemOp>(
+            request.getProblem()))
+      return makeTensorExtLitePluginError(
+          "construction requires exact FragmentMMA canonical P unless an "
+          "explicit typed TensorExtLite debug body is already present");
+    if (llvm::Error error =
+            materializeTensorExtLiteSelectedRoleSequenceIfNeeded(bodyRequest))
+      return error;
+    operations = inspectTensorExtLiteConstruction(request.getVariant());
+    if (!operations)
+      return operations.takeError();
+  }
   if (operations->size() !=
       tensorext_lite::getTensorExtLiteConstructionSteps().size())
     return makeTensorExtLitePluginError(
@@ -486,7 +496,9 @@ void TensorExtLiteExtensionPlugin::collectFormulaDescriptors(
 
 bool TensorExtLiteExtensionPlugin::supportsOperation(
     const VariantProposalRequest &request) const {
-  return request.getProblem() && hasAvailableTensorExtLiteFragmentCapability(request);
+  return llvm::isa_and_nonnull<weft::exec::FragmentMMAProblemOp>(
+             request.getProblem()) &&
+         hasAvailableTensorExtLiteFragmentCapability(request);
 }
 
 llvm::Error TensorExtLiteExtensionPlugin::proposeVariants(
@@ -529,8 +541,8 @@ llvm::Error TensorExtLiteExtensionPlugin::registerSourceFrontDoorPasses(
   (void)registry;
   out.push_back(SourceFrontDoorPassRegistration(
       getName(), kTensorExtLiteSourceFrontDoorArgument,
-      "Materialize one bounded TensorExtLite fragment-MMA source marker into "
-      "the selected TensorExtLite role-sequence front door",
+      "Adapt one bounded TensorExtLite fragment-MMA source marker into "
+      "target-bound exact FragmentMMA canonical P",
       kTensorExtLiteConstructionFormulaID,
       [] {
         return createMaterializeTensorExtLiteFragmentMmaSourceFrontDoorPass();
@@ -542,11 +554,9 @@ llvm::Error TensorExtLiteExtensionPlugin::registerSourceFrontDoorPasses(
 
 llvm::Error TensorExtLiteExtensionPlugin::verifyVariantLegality(
     const VariantLegalityRequest &request) const {
-  // The legality predicate (capability conformance + variant
-  // metadata-vs-manifest) is owned by the construction-protocol lib so the
-  // typed-emission backend driver can share the EXACT authority (its
-  // convert-set must equal this success-set). This emits the fail-closed
-  // diagnostic; the driver declines on the same error.
+  // Family-local legality owns capability and selected-variant conformance.
+  // Artifact projection receives only the already-qualified exact body and
+  // must not replay this predicate as a second construction authority.
   return tensorext_lite::verifyTensorExtLiteSelectedVariantLegality(
       request.getVariant(), request.getKernel(), request.getCapabilities());
 }

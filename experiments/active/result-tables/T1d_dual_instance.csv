@@ -1,6 +1,6 @@
 "# T1d dual-instance demonstration -- ONE schema, TWO board fact instances, core diff = 0. Structural evidence (C1); NO perf claim."
 # generator,tools/visibility/t1d_dual_instance.py,regenerate,python3 tools/visibility/t1d_dual_instance.py,verify,python3 tools/visibility/t1d_dual_instance.py --check
-# schema,schema/capability.schema.v1.json,schema_sha256[:16],12444c02005527fd,HEAD,b949b3c86,weft_opt_sha256[:16],42263688a9e50b1f
+# schema,schema/capability.schema.v1.json,schema_sha256[:16],12444c02005527fd,HEAD,5151db31d,weft_opt_sha256[:16],acaf2a37d63207b6
 
 "# SECTION 1 -- fact instances (in-IR weft.exec.capability rows) and what the SAME core derives from each, driven through ONE byte-identical two-variant body"
 instance_id,board,fact_vlen_bits,fact_isa_vector_hints,fact_spacemit_ime_status,declared_instance_hash,legal_variant_set_size,legal_variant_set,infeasible_variant_set,guard_keys_evaluated,selection_chosen,selection_reason,core_diff,attribution_jsonl_sample
@@ -15,10 +15,10 @@ P2-hash-is-fact-keyed,k1,PASS,"body changed (2 variants -> 1, kernel symbol dual
 P3a-legal-variant-set,rvv|k1,PASS,"@ime_keyed_body (identical body+owner to @rvv_typed_body, differs ONLY by additionally requiring the spacemit.ime FACT): feasible=False on rvv / feasible=True on k1 => chosen rvv_typed_body / ime_keyed_body"
 P3b-plugin-fail-closed,rvv,PASS,ime-plugin-owned variant hard-REJECTED fail-closed by the IME plugin legality verifier (exit=1); Weft-RV IME extension plugin failed: IME target projection requires available capability id 'spacemit.ime'
 P3b-plugin-fail-closed,k1,PASS,ime-plugin-owned variant ACCEPTED by the IME plugin legality verifier (exit=0)
-P4-march-channel,rvv|k1,PASS,march= is the CONSTRUCTION-BOUNDARY fallback of resolveRVVMinimumVLEN (W3/W3b pull-the-pipe: post-construction consumers read the in-IR minimum_vlen provider fact directly; here the source-only front door has no provider yet so march resolves the axis): minimum_vlen 128->256 flips chosen LMUL m2->m1 (reason=prior) while declared_instance_hash stays IDENTICAL (3cd23a4ec979...)
+P4-owner-construction-axis,rvv|k1,PASS,source emits one exact quantized_block_dot P; selector chooses the SAME exact-P-derived candidate rvv_q8_0_q8_0_block_dot; bound c_o minimum_vlen 128->256 makes the selected RVV owner construct flat integer_core_lmul m2->m1; declared_instance_hash is DISTINCT (0e855cefdad8.../e99e543ca3a4...)
 
 # SECTION 3 -- core diff = 0 machine check
 check_id,mechanism,verdict,evidence,repro
-C1-f1-zero-branch,tools/gates/check_zero_core_family_branch.py (I3/[F-1] core scope),PASS,[f1-zero-branch] GREEN: zero family-name-keyed branch across 81 core files (I3 holds),python3 tools/gates/check_zero_core_family_branch.py
+C1-f1-zero-branch,tools/gates/check_zero_core_family_branch.py (I3/[F-1] core scope),PASS,[f1-zero-branch] GREEN: zero family-name-keyed branch across 83 core files (I3 holds),python3 tools/gates/check_zero_core_family_branch.py
 C2-fact-confined-diff,strip weft.exec.capability fact regions from both instances; require byte-equal remainder (variants/bodies/dispatch),PASS,"non-fact surface byte-identical; sha256(stripped)[:16]=43d4ea7b0bb792b1; retained body: chars=1537 lines=26 (emitted, not transcribed)",python3 tools/visibility/t1d_dual_instance.py --check
-C3-same-core-binary,"both instances driven through the SAME weft-opt binary and the SAME pass-pipeline string (no per-board build, flag, or path)",PASS,sha256(build/bin/weft-opt)[:16]=42263688a9e50b1f ; pipeline=--weft-select-variants,sha256sum build/bin/weft-opt
+C3-same-core-binary,"both instances driven through the SAME weft-opt binary and the SAME pass-pipeline string (no per-board build, flag, or path)",PASS,sha256(build/bin/weft-opt)[:16]=acaf2a37d63207b6 ; pipeline=--weft-select-variants,sha256sum build/bin/weft-opt

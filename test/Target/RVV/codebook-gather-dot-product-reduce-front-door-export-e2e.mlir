@@ -39,11 +39,11 @@
 
 // VLEN128 production-export: front door auto-constructs the body, materializes the
 // emission plan, lowers to EmitC. The codebook i8 gather anchor is m1.
-// RUN: weft-opt %s --weft-rvv-materialize-codebook-gather-dot-source-front-door=march=rv64gcv --weft-materialize-emission-plans --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=EMITC
+// RUN: weft-opt %s --weft-rvv-materialize-codebook-gather-dot-source-front-door=march=rv64gcv --weft-execution-planning-pipeline --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=EMITC
 
 // VLEN256 production-export: the SAME generic source, capability tier rv64gcv_zvl256b.
 // The codebook gather FLIPS to the mf2 anchor (i16m1 product).
-// RUN: weft-opt %s --weft-rvv-materialize-codebook-gather-dot-source-front-door=march=rv64gcv_zvl256b --weft-materialize-emission-plans --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=EMITC256
+// RUN: weft-opt %s --weft-rvv-materialize-codebook-gather-dot-source-front-door=march=rv64gcv_zvl256b --weft-execution-planning-pipeline --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=EMITC256
 
 // ===================== VLEN128 EMITTED C4 (N=3 + LUT) CHAIN @ m1 =============
 // The 6-arg EmitC signature: w = const UINT8_t* (the UNSIGNED gather index -- the one

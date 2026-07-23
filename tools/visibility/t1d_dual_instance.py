@@ -12,19 +12,14 @@ THE TWO FACT CHANNELS (they are genuinely different; do not conflate them):
       These form the TargetCapabilitySet that
       support::computeDeclaredInstanceHash (lib/Support/DeclaredInstanceHash.cpp)
       hashes. Changing a fact row CHANGES declared_instance_hash.
-  (2) march= RESOLVED-VLEN channel: the front-door CONSTRUCTOR resolves a guaranteed
-      VLEN via resolveRVVMinimumVLEN (lib/Plugin/RVV/RVVCapabilityProfile.cpp), which
-      PREFERS the in-IR minimum_vlen provider fact and derives from the `march=` pass
-      option ONLY as the construction-boundary fallback (source-only IR carries no
-      provider op yet -- the constructor is the fact's PRODUCER). POST-construction
-      consumers (repack strip width / lower-quant-contraction / schedule-descriptor-
-      registry) read the stamped in-IR minimum_vlen fact DIRECTLY -- W3/W3b pull-the-
-      pipe, decisive tests prove a provider minimum_vlen=256 OVERRIDES a conflicting
-      march=zvl128b there. Either way the DERIVED VLEN axis does NOT enter
-      declared_instance_hash (which keys on the declared capability fact ROWS, not the
-      derived VLEN): two marches over the same IR yield the SAME hash but a DIFFERENT
-      chosen LMUL. Probe P4 records exactly this at the constructor boundary, a real
-      and easily-misread property of the mechanism.
+  (2) march= SOURCE-PROFILE channel: the source adapter translates the selected
+      profile into an explicit target/capability provider plus the same exact P; it
+      does not construct a variant or typed compute body.  After the selector chooses
+      the exact-P-derived candidate, the selected RVV owner consumes P + bound c_o and
+      constructs the typed flat plan.  Therefore minimum_vlen is part of the declared
+      capability instance and DOES change declared_instance_hash, while the candidate
+      identity remains stable and the constructed LMUL changes.  Probe P4 records this
+      boundary directly; the selector neither invents nor rewrites compute semantics.
 
 THE MAIN BODY (section 1) is ONE byte-identical module carrying TWO variants:
   @rvv_typed_body   requires [@rvv]                 -- feasible on both boards
@@ -46,9 +41,12 @@ PROBES (each one is a real weft-opt invocation; nothing here is hand-written):
                              BY FACT. (b) complementary fail-closed leg: an
                              IME-PLUGIN-OWNED variant is hard-REJECTED by the IME
                              plugin's own legality verifier on the rvv board.
-  P4 march channel        -- the committed SEL-1 fixture: same source, march flips
-                             the fill-optimal LMUL m2(VLEN128)/m1(VLEN256) with the
-                             SAME declared_instance_hash (see channel note above).
+  P4 construction axis    -- the committed SEL-1 fixture: the source adapter emits
+                             the same exact P and the selector chooses the same
+                             exact-P-derived candidate; bound c_o then makes the
+                             selected RVV owner construct m2(VLEN128)/m1(VLEN256)
+                             flat plans.  The two declared capability instances
+                             intentionally have different instance hashes.
 
 CORE DIFF = 0 MACHINE CHECK (three independent legs, all mechanized):
   C1 f1-zero-branch  -- tools/gates/check_zero_core_family_branch.py: zero
@@ -94,20 +92,30 @@ SELECT_PASS = "--weft-select-variants=attribution-jsonl={jsonl} attribution-json
 LEGALITY_PASS = "--weft-verify-plugin-variant-legality"
 FRONTDOOR_PASS = (
     "--weft-rvv-materialize-q8-0-q8-0-block-dot-source-front-door="
-    "march={march} attribution-jsonl={jsonl} attribution-jsonl-no-timestamp=true"
+    "march={march}"
 )
+PLANNING_PASSES_BEFORE_SELECTION = [
+    "--weft-materialize-plugin-variants",
+    "--weft-check-hart-parallel-capabilities",
+    "--weft-verify-plugin-variant-legality",
+]
+PLANNING_PASSES_AFTER_SELECTION = [
+    "--weft-materialize-dispatch-runtime-guards",
+    "--weft-check-capability-requires",
+    "--weft-materialize-selected-lowering-boundaries",
+    "--weft-materialize-emission-plans",
+    "--weft-check-execution-plan-coherence",
+]
 
 
 def find_weft_opt():
-    # 总令 §4.2.4：唯一布局 = `build/<target>/` ⟹ `build/weft/bin/weft-opt`。
-    # ★原候选表 ("build-weft/bin", "build-demo/bin", "build/bin") **三者今皆不存在** ⟹ 本器恒 SETUP ERROR、
-    # T1d 表恒不可重生。此为 `_attic/ATTIC_INDEX.md` §二「`build/bin` 发现路径（3 门）」所记
-    # **同一病种的漏网第 4 例**（该条修了 f4/f5/f6 三门，漏了本器）。
-    # 与三门同法：`$WEFT_BUILD/bin` 优先，其次唯一布局 `build/weft/bin`。
+    # Prefer the caller-selected build, then the current in-tree layout.  Keep
+    # the older nested layout as a compatibility fallback for archived builds.
     env_build = os.environ.get("WEFT_BUILD")
     candidates = []
     if env_build:
         candidates.append(os.path.join(env_build, "bin", "weft-opt"))
+    candidates.append(os.path.join(REPO, "build/bin/weft-opt"))
     candidates.append(os.path.join(REPO, "build/weft/bin/weft-opt"))
     for path in candidates:
         if os.path.isfile(path) and os.access(path, os.X_OK):
@@ -203,8 +211,8 @@ def render(instance, kernel, variants):
            "".join(variants) + "  }\n}\n"
 
 
-def run(weft_opt, path, passes):
-    proc = subprocess.run([weft_opt, path] + passes + ["-o", "/dev/null"],
+def run(weft_opt, path, passes, output="/dev/null"):
+    proc = subprocess.run([weft_opt, path] + passes + ["-o", output],
                           cwd=REPO, capture_output=True, text=True)
     return proc.returncode, proc.stdout, proc.stderr
 
@@ -436,44 +444,78 @@ def collect(weft_opt, workdir):
                 else "hard-REJECTED fail-closed by the IME plugin legality verifier",
                 code, "; " + reason if reason else "")))
 
-    # --- P4: march channel (committed SEL-1 fixture). Same IR facts => SAME hash;
-    # ---     march flips the fill-optimal LMUL. Records the channel distinction.
+    # --- P4: exact P remains source-owned, while bound c_o changes the selected
+    # ---     owner construction.  The selector chooses the same exact-P-derived
+    # ---     candidate; the resulting flat plan changes m2(VLEN128)->m1(VLEN256).
     if os.path.isfile(SEL1_FIXTURE):
         march_seen = {}
         for key, inst in INSTANCES.items():
             jsonl = os.path.join(workdir, "p4_%s.jsonl" % key)
+            planned = os.path.join(workdir, "p4_%s.mlir" % key)
+            passes = ([FRONTDOOR_PASS.format(march=inst["march"])] +
+                      PLANNING_PASSES_BEFORE_SELECTION +
+                      [SELECT_PASS.format(jsonl=jsonl)] +
+                      PLANNING_PASSES_AFTER_SELECTION)
             code, _, err = run(weft_opt, SEL1_FIXTURE,
-                               [FRONTDOOR_PASS.format(march=inst["march"],
-                                                      jsonl=jsonl)])
+                               passes, output=planned)
             record = read_jsonl(jsonl)
-            if record is None:
-                probe_rows.append(dict(probe_id="P4-march-channel", instance=key,
+            if code != 0 or record is None or not os.path.isfile(planned):
+                probe_rows.append(dict(probe_id="P4-owner-construction-axis", instance=key,
                                        verdict="FAIL", detail=err.strip()[:200]))
                 green = False
                 continue
-            march_seen[key] = record
+            with open(planned) as handle:
+                planned_text = handle.read()
+            minimum_vlen = re.search(r"minimum_vlen = (\d+) : i64", planned_text)
+            integer_core_lmul = re.search(
+                r'integer_core_lmul = "([^"]+)"', planned_text)
+            has_exact_problem = (
+                planned_text.count("weft.exec.quantized_block_dot_problem") == 1)
+            has_flat_plan = "weft_rvv.flat_body_family" in planned_text
+            if minimum_vlen is None or integer_core_lmul is None:
+                probe_rows.append(dict(
+                    probe_id="P4-owner-construction-axis", instance=key,
+                    verdict="FAIL",
+                    detail="planned IR lacks minimum_vlen or integer_core_lmul"))
+                green = False
+                continue
+            march_seen[key] = dict(
+                record=record,
+                minimum_vlen=minimum_vlen.group(1),
+                integer_core_lmul=integer_core_lmul.group(1),
+                has_exact_problem=has_exact_problem,
+                has_flat_plan=has_flat_plan)
         if len(march_seen) == 2:
-            lmul_flip = march_seen["rvv"]["chosen"] != march_seen["k1"]["chosen"]
-            hash_same = (march_seen["rvv"]["declared_instance_hash"] ==
-                         march_seen["k1"]["declared_instance_hash"])
-            ok = lmul_flip and hash_same
+            rvv_record = march_seen["rvv"]["record"]
+            k1_record = march_seen["k1"]["record"]
+            same_candidate = rvv_record["chosen"] == k1_record["chosen"]
+            lmul_flip = (march_seen["rvv"]["integer_core_lmul"] == "m2" and
+                         march_seen["k1"]["integer_core_lmul"] == "m1")
+            hash_distinct = (rvv_record["declared_instance_hash"] !=
+                             k1_record["declared_instance_hash"])
+            exact_problem_preserved = all(
+                row["has_exact_problem"] for row in march_seen.values())
+            flat_plan_present = all(
+                row["has_flat_plan"] for row in march_seen.values())
+            ok = (same_candidate and lmul_flip and hash_distinct and
+                  exact_problem_preserved and flat_plan_present)
             green &= ok
             probe_rows.append(dict(
-                probe_id="P4-march-channel", instance="rvv|k1",
+                probe_id="P4-owner-construction-axis", instance="rvv|k1",
                 verdict="PASS" if ok else "FAIL",
-                detail="march= is the CONSTRUCTION-BOUNDARY fallback of "
-                       "resolveRVVMinimumVLEN (W3/W3b pull-the-pipe: post-construction "
-                       "consumers read the in-IR minimum_vlen provider fact directly; "
-                       "here the source-only front door has no provider yet so march "
-                       "resolves the axis): minimum_vlen %s->%s flips chosen "
-                       "LMUL %s->%s (reason=%s) while declared_instance_hash stays "
-                       "%s (%s...)" % (
+                detail="source emits one exact quantized_block_dot P; selector "
+                       "chooses the SAME exact-P-derived candidate %s; bound c_o "
+                       "minimum_vlen %s->%s makes the selected RVV owner construct "
+                       "flat integer_core_lmul %s->%s; declared_instance_hash is "
+                       "%s (%s.../%s...)" % (
+                           rvv_record["chosen"],
                            march_seen["rvv"]["minimum_vlen"],
                            march_seen["k1"]["minimum_vlen"],
-                           march_seen["rvv"]["chosen"], march_seen["k1"]["chosen"],
-                           march_seen["k1"]["reason"],
-                           "IDENTICAL" if hash_same else "DIVERGED",
-                           march_seen["k1"]["declared_instance_hash"][:12])))
+                           march_seen["rvv"]["integer_core_lmul"],
+                           march_seen["k1"]["integer_core_lmul"],
+                           "DISTINCT" if hash_distinct else "IDENTICAL",
+                           rvv_record["declared_instance_hash"][:12],
+                           k1_record["declared_instance_hash"][:12])))
 
     core_rows, core_green = core_diff_checks(weft_opt, files_main)
     green &= core_green
@@ -538,7 +580,8 @@ def main():
 
     weft_opt = find_weft_opt()
     if not weft_opt:
-        print("[t1d] SETUP ERROR: no built weft-opt found (build-weft/bin/weft-opt)",
+        print("[t1d] SETUP ERROR: no built weft-opt found under $WEFT_BUILD/bin "
+              "or the in-tree build layouts",
               file=sys.stderr)
         return 2
 

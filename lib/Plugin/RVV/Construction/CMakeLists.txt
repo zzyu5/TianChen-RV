@@ -1,4 +1,5 @@
 add_mlir_library(WeftRVVConstruction
+  PARTIAL_SOURCES_INTENDED
   RVVArtifactContract.cpp
   RVVBodyRuntimeControl.cpp
   ../RVVCapabilityProfile.cpp

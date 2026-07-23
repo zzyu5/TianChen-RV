@@ -30,7 +30,8 @@
 // (modulo the source-op provenance token).
 
 // The auto-constructed attr-less super-block block-dot scaffold (no shape knob).
-// RUN: weft-opt %s --weft-rvv-materialize-q4-k-q8-k-block-dot-source-front-door | FileCheck %s --check-prefix=BODY --implicit-check-not="scalar_fallback" --implicit-check-not="weft.exec.dispatch"
+// RUN: weft-opt %s --weft-rvv-materialize-q4-k-q8-k-block-dot-source-front-door | FileCheck %s --check-prefix=SOURCE --implicit-check-not="weft.exec.variant" --implicit-check-not="weft_rvv."
+// RUN: weft-opt %s --weft-rvv-materialize-q4-k-q8-k-block-dot-source-front-door=march=rv64gcv --weft-execution-planning-pipeline | FileCheck %s --check-prefix=BODY --implicit-check-not="scalar_fallback" --implicit-check-not="weft.exec.dispatch @"
 //
 // The EMITTED super-block dot core from the SAME auto-constructed attr-less op:
 // q4_K is NOT in any schedule autotuner, so there is NO --weft-rvv-materialize-schedule
@@ -41,7 +42,7 @@
 // shared CORE helpers are ssh-rvv-pinned to ggml's real ggml_vec_dot_q4_K_q8_K
 // _generic fp32 order). This lowering is VLEN-independent (no flip), so VLEN128 and
 // VLEN256 emit the SAME bytes: COVERAGE, not a capability flip.
-// RUN: weft-opt %s --weft-rvv-materialize-q4-k-q8-k-block-dot-source-front-door --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=EMIT
+// RUN: weft-opt %s --weft-rvv-materialize-q4-k-q8-k-block-dot-source-front-door=march=rv64gcv --weft-execution-planning-pipeline --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=EMIT
 //
 // FAIL-CLOSED (I7): a non-conforming operator-identity signature (the q8_K activation
 // operand is an f32 memref, not the i8 memref the vec_dot identity requires) is
@@ -65,10 +66,16 @@ module attributes {weft_rvv.source_front_door = "ggml_q4_K_q8_K_block_dot_source
 // pattern-library primitives). NO shape knob is stamped (no integer_core_lmul on
 // the loop op or the scaled-dot brick; the q4_K Win-A knob stays dormant, so the
 // emitter lowers at its default mf2 anchor).
+// SOURCE: weft.exec.kernel @ggml_vec_dot_q4_K_q8_K_kernel
+// SOURCE-SAME: problem = @canonical_problem
+// SOURCE: weft.exec.quantized_block_dot_problem @canonical_problem
+// SOURCE-SAME: activation_encoding = "q8_k"
+// SOURCE-SAME: qk = 256
+// SOURCE-SAME: weight_encoding = "q4_k"
 // BODY: weft.exec.kernel @ggml_vec_dot_q4_K_q8_K_kernel
 // BODY: weft.exec.quantized_block_dot_problem @canonical_problem
 // BODY-SAME: qk = 256
-// BODY-SAME: weight_encoding = "ggml_q4_k_q8_k_block_dot"
+// BODY-SAME: weight_encoding = "q4_k"
 // BODY: weft.exec.variant @rvv_q4_K_q8_K_block_dot
 // The ggml vec_dot ABI value set -- the EXACT 4-role list (n, s, vx, vy), NO dead
 // aux8/scales/aux32 scratch parameters: the super-block scratch is emitter-owned in

@@ -27,5 +27,4 @@ module {
 }
 
 // CHECK: collected no viable plugin proposals
-// CHECK-SAME: rvv-plugin:
-// CHECK-SAME: explicit typed weft_rvv extension-family IR
+// CHECK-SAME: no enabled extension plugin produced a viable proposal

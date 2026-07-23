@@ -33,19 +33,19 @@
 // schedule gearbox stamps the integer-core shape, the
 // weft-source-artifact-front-door-pipeline materializes the emission plan AND passes
 // --weft-check-execution-plan-coherence.
-// RUN: weft-opt %s --weft-rvv-materialize-q5-1-q8-1-block-dot-source-front-door --weft-source-artifact-front-door-pipeline | FileCheck %s --check-prefix=PLAN
+// RUN: weft-opt %s --weft-rvv-materialize-q5-1-q8-1-block-dot-source-front-door=march=rv64gcv --weft-source-artifact-front-door-pipeline | FileCheck %s --check-prefix=PLAN
 
 // BYTE-EXACT: --weft-materialize-emission-plans only APPENDS the emission-plan
 // diagnostic mirror; the block-dot body is untouched, so the production-export EmitC
 // is byte-for-byte the CORE --weft-rvv-lower-to-emitc emit.
-// RUN: weft-opt %s --weft-rvv-materialize-q5-1-q8-1-block-dot-source-front-door --weft-rvv-lower-to-emitc > %t.core.mlir
-// RUN: weft-opt %s --weft-rvv-materialize-q5-1-q8-1-block-dot-source-front-door --weft-materialize-emission-plans --weft-rvv-lower-to-emitc > %t.prod.mlir
+// RUN: weft-opt %s --weft-rvv-materialize-q5-1-q8-1-block-dot-source-front-door=march=rv64gcv --weft-execution-planning-pipeline --weft-rvv-lower-to-emitc > %t.core.mlir
+// RUN: weft-opt %s --weft-rvv-materialize-q5-1-q8-1-block-dot-source-front-door=march=rv64gcv --weft-execution-planning-pipeline --weft-rvv-lower-to-emitc > %t.prod.mlir
 // RUN: diff %t.core.mlir %t.prod.mlir
 
 // Target-artifact OBJECT export: the flat monolithic emission plan exports a real
 // RISC-V RVV relocatable object through the registered peer object exporter.
 // RUN: rm -f %t.o
-// RUN: weft-opt %s --weft-rvv-materialize-q5-1-q8-1-block-dot-source-front-door --weft-select-variants --weft-materialize-emission-plans | weft-translate --weft-export-target-artifact > %t.o
+// RUN: weft-opt %s --weft-rvv-materialize-q5-1-q8-1-block-dot-source-front-door=march=rv64gcv --weft-execution-planning-pipeline | weft-translate --weft-export-target-artifact > %t.o
 // RUN: llvm-readobj -h %t.o | FileCheck %s --check-prefix=OBJECT
 // RUN: llvm-readobj --symbols %t.o | FileCheck %s --check-prefix=SYMBOL
 

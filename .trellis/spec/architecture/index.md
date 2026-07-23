@@ -66,22 +66,24 @@
 exact physical-problem request continuity 与 exact selected-root artifact consumption：所有 live
 owner 通过统一 construction-before-artifact seam 返回 exact result，proposal/legality/cost/
 construction 使用同一 canonical problem，旧 artifact-side construction、部分 decision
-provider/replay 与兼容旁路已退出。这里的“横向完成”只指这些公共切面；RVV source/body
-仍有 body-first construction，全部 code-affecting authority 与 mechanism factorization 仍由
-active A/B task 收敛，不得概括为所有 production operator 已达到 strong reconstruction。
+provider/replay 与兼容旁路已退出。正式 source target/profile binding 与注册的
+RVV/Toy/TensorExtLite exact-P forward construction 也已闭合。这里的“横向完成”只指这些
+公共切面；逐点 `ConstructedWeak` leaf、未适配 direct/source entry 与 mechanism
+factorization 仍由 active A/B task 收敛，不得概括为所有 production operator 已达到 strong
+reconstruction。
 
 Artifact-neutral owner construction 横向重基已经完成：canonical problem 后的 owner
 construction 不再寄居于 EmitC backend，所有会请求 artifact 的 current owners 与
 source/direct/translate/artifact caller 共享 construction-before-artifact 主链；proposal、
 legality、cost 与 selected-owner construction 现在验证并传递同一 exact problem，artifact
-registry 只保留 selected owner 的完整 variant slice并拒绝 competing roots。这个结论仍不
-证明所有 source problem 已 forward-construct body。显式 kernel
-domain identity 与 owner membership gate 已在 proposal/selection/construction 前落地；但它
-不是 target/profile 驱动的 `BindDomain(t)=(d,C_d)`，后者与 physical source problem coverage
-仍是当前横向任务缺口。V2 的下一步仍不是实现 GPU，而是在 RISC-V 旗舰 realization 上横向
-闭合 source/domain binding、mechanism factorization、公式因果、delete-leaf reconstruction
-与重构后真实性能；不得借此建立大一统 Formula IR 或 universal Plan。完成 A/B 闭环后，
-GPU 才沿同一 construction contract 作为完整 domain/owner 接入。
+registry 只保留 selected owner 的完整 variant slice并拒绝 competing roots。显式 kernel
+domain identity/owner membership 与 target/profile 驱动的 `BindDomain(t)=(d,C_d)` 已分别
+落地；注册的 RVV/Toy/TensorExtLite source problem 已 forward-construct body。这个结论仍不
+证明所有 direct/source entry 已适配，也不证明任何 `ConstructedWeak` leaf 已通过删除重建。
+V2 的下一步仍不是实现 GPU，而是在 RISC-V 旗舰 realization 上横向闭合剩余 source/direct
+coverage、mechanism factorization、公式因果、delete-leaf reconstruction 与重构后真实性能；
+不得借此建立大一统 Formula IR 或 universal Plan。完成 A/B 闭环后，GPU 才沿同一
+construction contract 作为完整 domain/owner 接入。
 
 ## Quality Check
 

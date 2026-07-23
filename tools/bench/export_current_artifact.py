@@ -256,6 +256,7 @@ def _export_rvv(
         args.append(f"--weft-rvv-lower-quant-contraction=march={march}")
     elif recipe.mode == "rvv-source-front-door":
         args.append(f"--{recipe.front_door}=march={march}")
+        args.append("--weft-execution-planning-pipeline")
     elif recipe.mode != "rvv-exact-body":
         raise ExportError(f"unsupported RVV export mode: {recipe.mode}")
     args.append("--weft-rvv-lower-to-emitc")

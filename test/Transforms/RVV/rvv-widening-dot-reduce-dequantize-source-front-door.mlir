@@ -25,13 +25,14 @@
 // second auto-lowered block; the per-block fp16-scale loop is a later rung.
 
 // The auto-constructed dequant body (the e8m2 VLEN128 anchor).
-// RUN: weft-opt %s --weft-rvv-materialize-widening-dot-reduce-dequantize-source-front-door=march=rv64gcv | FileCheck %s --check-prefix=BODY --implicit-check-not="scalar_fallback" --implicit-check-not="weft.exec.dispatch"
+// RUN: weft-opt %s --weft-rvv-materialize-widening-dot-reduce-dequantize-source-front-door=march=rv64gcv | FileCheck %s --check-prefix=SOURCE --implicit-check-not="weft.exec.variant" --implicit-check-not="weft_rvv."
+// RUN: weft-opt %s --weft-rvv-materialize-widening-dot-reduce-dequantize-source-front-door=march=rv64gcv --weft-execution-planning-pipeline | FileCheck %s --check-prefix=BODY --implicit-check-not="scalar_fallback" --implicit-check-not="weft.exec.dispatch @"
 //
 // The capability-FLIP, asserted on the emitted INTRINSICS (not a metadata mirror):
 // the SAME generic source emits e8m2/i16m4 at VLEN128 and e8m1/i16m2 at VLEN256,
 // both ending in the i32->f32 runtime-scale dequant epilogue.
-// RUN: weft-opt %s --weft-rvv-materialize-widening-dot-reduce-dequantize-source-front-door=march=rv64gcv --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=VLEN128
-// RUN: weft-opt %s --weft-rvv-materialize-widening-dot-reduce-dequantize-source-front-door=march=rv64gcv_zvl256b --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=VLEN256
+// RUN: weft-opt %s --weft-rvv-materialize-widening-dot-reduce-dequantize-source-front-door=march=rv64gcv --weft-execution-planning-pipeline --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=VLEN128
+// RUN: weft-opt %s --weft-rvv-materialize-widening-dot-reduce-dequantize-source-front-door=march=rv64gcv_zvl256b --weft-execution-planning-pipeline --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=VLEN256
 //
 // FAIL-CLOSED (I7): a structurally non-conforming source -- the missing-dequant-tail
 // negative module below (a bare i32 dot store, NO sitofp/mulf %scale) -- is REJECTED,
@@ -63,6 +64,11 @@ module attributes {weft_rvv.source_front_door = "bounded_widening_dot_reduce_deq
 // per-kernel emitter authored this -- the front-door matcher constructed it from
 // the VLEN128 gearbox-selected m2 byte anchor, adding the runtime-f32-scale
 // dequant on top of the MVP's bare-dot body.
+// SOURCE: weft.exec.kernel @rvv_widening_dot_reduce_dequantize_i8_from_vector_source
+// SOURCE-SAME: problem = @canonical_problem
+// SOURCE: weft.exec.i8_widening_dot_reduce_problem @canonical_problem
+// SOURCE-SAME: block_length = 32
+// SOURCE-SAME: dequantize_to_f32 = true
 // BODY: weft.exec.kernel @rvv_widening_dot_reduce_dequantize_i8_from_vector_source
 // BODY: weft.exec.i8_widening_dot_reduce_problem @canonical_problem
 // BODY-SAME: block_length = 32

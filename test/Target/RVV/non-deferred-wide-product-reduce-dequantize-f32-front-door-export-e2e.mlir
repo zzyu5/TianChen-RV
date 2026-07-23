@@ -29,11 +29,11 @@
 // The front door's OWN output now exports: the PLAN carries the WIDE primitive
 // LMUL (source m2 / product m4 / accumulator m1) while the route identity stays
 // NARROW i8mf4-i16mf2.
-// RUN: weft-opt %s --weft-rvv-materialize-widening-dot-reduce-dequantize-source-front-door=march=rv64gcv --weft-materialize-emission-plans | FileCheck %s --check-prefix=PLAN
+// RUN: weft-opt %s --weft-rvv-materialize-widening-dot-reduce-dequantize-source-front-door=march=rv64gcv --weft-execution-planning-pipeline | FileCheck %s --check-prefix=PLAN
 
 // The exported EmitC emits the WIDE intrinsics (vsetvl_e8m2 / vle8_v_i8m2 /
 // vwmul_vv_i16m4 / vwredsum_vs_i16m4_i32m1), NOT the narrow i8mf4/i16mf2 forms.
-// RUN: weft-opt %s --weft-rvv-materialize-widening-dot-reduce-dequantize-source-front-door=march=rv64gcv --weft-materialize-emission-plans --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=EMITC
+// RUN: weft-opt %s --weft-rvv-materialize-widening-dot-reduce-dequantize-source-front-door=march=rv64gcv --weft-execution-planning-pipeline --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=EMITC
 
 // The route IDENTITY stays narrow (the wide strip is internal to the realized body).
 
@@ -56,11 +56,11 @@
 // (source m1 / product m2 / accumulator m1) while the route identity stays NARROW
 // i8mf4-i16mf2 (identical leaf profile to VLEN128 -- the wide strip is internal to
 // the realized body, the flip is capability-driven not a second hardcoded branch).
-// RUN: weft-opt %s --weft-rvv-materialize-widening-dot-reduce-dequantize-source-front-door=march=rv64gcv_zvl256b --weft-materialize-emission-plans | FileCheck %s --check-prefix=PLAN256
+// RUN: weft-opt %s --weft-rvv-materialize-widening-dot-reduce-dequantize-source-front-door=march=rv64gcv_zvl256b --weft-execution-planning-pipeline | FileCheck %s --check-prefix=PLAN256
 
 // The exported EmitC emits the m1/m2 WIDE intrinsics (vsetvl_e8m1 / vle8_v_i8m1 /
 // vwmul_vv_i16m2 / vwredsum_vs_i16m2_i32m1) -- ZERO narrow mf4/mf2 AND ZERO m2/m4.
-// RUN: weft-opt %s --weft-rvv-materialize-widening-dot-reduce-dequantize-source-front-door=march=rv64gcv_zvl256b --weft-materialize-emission-plans --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=EMITC256
+// RUN: weft-opt %s --weft-rvv-materialize-widening-dot-reduce-dequantize-source-front-door=march=rv64gcv_zvl256b --weft-execution-planning-pipeline --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=EMITC256
 
 // The route IDENTITY stays narrow (the wide strip is internal to the realized body).
 

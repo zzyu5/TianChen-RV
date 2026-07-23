@@ -680,6 +680,22 @@ mlir::LogicalResult Int8SlidingMACProblemOp::verify() {
   return mlir::success();
 }
 
+mlir::LogicalResult TemplateComputeProblemOp::verify() {
+  if (getTemplateKind() != "compute-skeleton")
+    return emitOpError()
+           << "requires template_kind='compute-skeleton'; got '"
+           << getTemplateKind() << "'";
+  return mlir::success();
+}
+
+mlir::LogicalResult FragmentMMAProblemOp::verify() {
+  if (getRoleCount() != 4)
+    return emitOpError()
+           << "requires the bounded config/load/mma/store role_count=4; got "
+           << getRoleCount();
+  return mlir::success();
+}
+
 mlir::LogicalResult I32VectorBinaryProblemOp::verify() {
   if (getKind() != "add" && getKind() != "sub" && getKind() != "mul")
     return emitOpError()

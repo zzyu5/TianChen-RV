@@ -26,6 +26,7 @@ inline constexpr llvm::StringLiteral kRuntimeABIParameterOwnershipAttrName(
 enum class RuntimeABIParameterRole {
   LHSInputBuffer,
   RHSInputBuffer,
+  RHSSecondaryInputBuffer,
   AccumulatorInputBuffer,
   SourceInputBuffer,
   TrueValueInputBuffer,
@@ -88,6 +89,8 @@ inline llvm::StringRef stringifyRuntimeABIParameterRole(
     return "lhs-input-buffer";
   case RuntimeABIParameterRole::RHSInputBuffer:
     return "rhs-input-buffer";
+  case RuntimeABIParameterRole::RHSSecondaryInputBuffer:
+    return "rhs-secondary-input-buffer";
   case RuntimeABIParameterRole::AccumulatorInputBuffer:
     return "accumulator-input-buffer";
   case RuntimeABIParameterRole::SourceInputBuffer:
@@ -150,6 +153,8 @@ symbolizeRuntimeABIParameterRole(llvm::StringRef role) {
     return RuntimeABIParameterRole::LHSInputBuffer;
   if (role == "rhs-input-buffer")
     return RuntimeABIParameterRole::RHSInputBuffer;
+  if (role == "rhs-secondary-input-buffer")
+    return RuntimeABIParameterRole::RHSSecondaryInputBuffer;
   if (role == "accumulator-input-buffer")
     return RuntimeABIParameterRole::AccumulatorInputBuffer;
   if (role == "source-input-buffer")

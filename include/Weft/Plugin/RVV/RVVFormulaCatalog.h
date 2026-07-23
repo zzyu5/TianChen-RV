@@ -9,6 +9,10 @@ inline constexpr llvm::StringLiteral kVariantConstruction(
     "weft.rvv.variant.construct");
 inline constexpr llvm::StringLiteral kVariantAnalyticPrior(
     "weft.rvv.variant.analytic-prior");
+inline constexpr llvm::StringLiteral kCanonicalProblemBodyConstruction(
+    "weft.rvv.canonical-problem-body.construct");
+inline constexpr llvm::StringLiteral kCanonicalProblemBodyConstructionEntry(
+    "construction:rvv-canonical-problem-body");
 inline constexpr llvm::StringLiteral kVectorSourceConstruction(
     "weft.rvv.vector-source.construct");
 inline constexpr llvm::StringLiteral kReductionSourceConstruction(
