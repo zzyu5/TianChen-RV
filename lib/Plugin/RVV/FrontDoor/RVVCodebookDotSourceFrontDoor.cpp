@@ -29,7 +29,7 @@
 // rung-3 front door, like dequant-vs-reduction.
 //
 // CAPABILITY framing -- the codebook DOES flip (the q4_0 sibling did NOT). The
-// capability consultation is the same RVVSourceScheduleFormula owner the rung-1/2
+// capability consultation is the same RVVIntegerCoreScheduleFormula owner the rung-1/2
 // front doors use, but here the selected i8
 // anchor is THREADED into the body types (NOT pinned). At VLEN128 only m1 reaches
 // VLMAX 16 (the 16-entry table needs every lane indexable; mf2 -> 8 < 16 is

@@ -39,8 +39,8 @@ inline constexpr llvm::StringLiteral kMonolithicBlockDotConstruction(
     "weft.rvv.monolithic-block-dot.construct");
 inline constexpr llvm::StringLiteral kFlatBlockDotPlan(
     "weft.rvv.flat-block-dot.plan");
-inline constexpr llvm::StringLiteral kSourceScheduleFormula(
-    "weft.rvv.source-schedule.construct");
+inline constexpr llvm::StringLiteral kIntegerCoreScheduleFormula(
+    "weft.rvv.integer-core-schedule.construct");
 inline constexpr llvm::StringLiteral kCompositeGatherMAccScatterPlan(
     "weft.rvv.composite-gather-macc-scatter.plan");
 inline constexpr llvm::StringLiteral kLowerQuantContractionConstruction(

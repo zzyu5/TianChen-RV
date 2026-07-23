@@ -24,7 +24,7 @@
 // dequant-vs-reduction.
 //
 // CAPABILITY framing -- NO FLIP claimed. The capability consultation is the SAME
-// RVVSourceScheduleFormula owner the rung-1/2 front doors use, run as the
+// RVVIntegerCoreScheduleFormula owner the rung-1/2 front doors use, run as the
 // LEGALITY GATE (fail-closed via I7
 // if the integer-core path is pruned), NOT as the nibble anchor source. q4_0's
 // nibble HALF-block integer core is pinned at i8mf4-i16mf2-i32m1 at every Zvl128b

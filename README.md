@@ -74,7 +74,7 @@ The repository already contains:
 These assets do not mean the project is finished. The artifact-neutral lifecycle/caller
 boundary has completed its horizontal cutover: registered/direct construction entries
 are enumerated by the lightweight catalog while evaluation remains in owner-local
-typed formulas; generic and source schedules enter the same construction-before-artifact
+typed formulas; generic and integer-core schedules enter the same construction-before-artifact
 lifecycle; lower-quant outputs complete legal schedules; composite realization is a real
 registry owner; and obsolete Q40/GEMM compatibility passes and non-semantic decision
 mirrors have been removed. Exact problem identity is now preserved through proposal, legality,

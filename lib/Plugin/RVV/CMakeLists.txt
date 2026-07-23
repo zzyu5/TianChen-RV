@@ -18,7 +18,7 @@ add_mlir_library(WeftRVVPlugin
 
   Selection/RVVContractionPathSelection.cpp
 
-  Schedule/RVVUnifiedScheduleMaterialization.cpp
+  Schedule/RVVScheduleInspectionPass.cpp
   Schedule/RVVProbedCapabilityAxesMaterialization.cpp
 
   BodyRealization/RVVSelectedBodyRealization.cpp

@@ -3,7 +3,7 @@
 #include "RVVCanonicalBodyBuilder.h"
 
 #include "Weft/Plugin/RVV/RVVGearboxSchedule.h"
-#include "Weft/Plugin/RVV/RVVSourceScheduleFormula.h"
+#include "Weft/Plugin/RVV/RVVIntegerCoreScheduleFormula.h"
 
 #include "mlir/IR/Builders.h"
 #include "llvm/ADT/Twine.h"
@@ -79,13 +79,13 @@ llvm::Error constructRVVPackedI4Q8DotProblemBody(
     return llvm::createStringError(
         llvm::inconvertibleErrorCode(),
         "packed-i4 formula requires minimum_vlen and vreg_count in c_o");
-  llvm::Expected<RVVSourceSchedulePlan> gate =
-      constructRVVSourceScheduleFormula(
-          {RVVSourceScheduleMechanism::PlainInt8BlockDot,
+  llvm::Expected<RVVIntegerCoreSchedulePlan> gate =
+      constructRVVIntegerCoreScheduleFormula(
+          {RVVIntegerCoreScheduleMechanism::PlainInt8BlockDot,
            /*sew=*/8, static_cast<std::int64_t>(problem.getBlockLength()),
            {"m1", "m2"}},
           {*capability.minimumVLEN, *capability.vectorRegisterCount},
-          RVVSourceScheduleNoStaticContext{});
+          RVVIntegerCoreScheduleNoStaticContext{});
   if (!gate)
     return gate.takeError();
   if (variant.getBody().empty() || !variant.getBody().front().empty())
@@ -165,13 +165,13 @@ llvm::Error constructRVVCodebookI4Q8DotProblemBody(
     return llvm::createStringError(
         llvm::inconvertibleErrorCode(),
         "codebook formula requires minimum_vlen and vreg_count in c_o");
-  llvm::Expected<RVVSourceSchedulePlan> schedule =
-      constructRVVSourceScheduleFormula(
-          {RVVSourceScheduleMechanism::CodebookGather,
+  llvm::Expected<RVVIntegerCoreSchedulePlan> schedule =
+      constructRVVIntegerCoreScheduleFormula(
+          {RVVIntegerCoreScheduleMechanism::CodebookGather,
            /*sew=*/8, static_cast<std::int64_t>(problem.getBlockLength()),
            {"m1", "mf2"}},
           {*capability.minimumVLEN, *capability.vectorRegisterCount},
-          RVVSourceScheduleNoStaticContext{});
+          RVVIntegerCoreScheduleNoStaticContext{});
   if (!schedule)
     return schedule.takeError();
   llvm::StringRef loadLMUL = schedule->integerCoreLMUL;

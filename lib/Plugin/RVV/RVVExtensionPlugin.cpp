@@ -19,7 +19,7 @@
 #include "Weft/Plugin/RVV/RVVPackedI4DotSourceFrontDoor.h"
 #include "Weft/Plugin/RVV/RVVReductionSourceFrontDoor.h"
 #include "Weft/Plugin/RVV/RVVScheduleFormula.h"
-#include "Weft/Plugin/RVV/RVVSourceScheduleFormula.h"
+#include "Weft/Plugin/RVV/RVVIntegerCoreScheduleFormula.h"
 #include "Weft/Plugin/RVV/RVVSelectedBodyRealization.h"
 #include "Weft/Plugin/RVV/RVVVectorSourceFrontDoor.h"
 #include "Weft/Support/RuntimeABI.h"
@@ -499,20 +499,21 @@ void RVVExtensionPlugin::collectFormulaDescriptors(
   flat.addProductionEntry("internal:flat-block-dot-plan");
   out.push_back(std::move(flat));
 
-  FormulaDescriptor sourceSchedule = makeDescriptor(
-      formula::kSourceScheduleFormula, "operator/source-schedule",
+  FormulaDescriptor integerCoreSchedule = makeDescriptor(
+      formula::kIntegerCoreScheduleFormula, "operator/integer-core-schedule",
       FormulaResultKind::ResourceSchedule, FormulaConstructionStrength::Strong,
-      "RVVSourceScheduleGeometryFacts",
+      "RVVIntegerCoreScheduleGeometryFacts",
       {"mechanism", "sew", "block-length", "candidate-lmuls"},
-      FormulaAxisUse::Decisive, "RVVSourceScheduleCapabilityFacts",
+      FormulaAxisUse::Decisive, "RVVIntegerCoreScheduleCapabilityFacts",
       {"minimum-vlen", "vector-register-budget"}, FormulaAxisUse::HonestNull,
-      "RVVSourceScheduleNoStaticContext");
-  for (const RVVSourceScheduleFormulaCase &semanticCase :
-       getRVVSourceScheduleFormulaCases())
-    sourceSchedule.addSemanticCase(semanticCase.semanticCase);
-  sourceSchedule.addSemanticCase("unsupported-or-illegal");
-  sourceSchedule.addProductionEntry("internal:source-schedule-formula");
-  out.push_back(std::move(sourceSchedule));
+      "RVVIntegerCoreScheduleNoStaticContext");
+  for (const RVVIntegerCoreScheduleFormulaCase &semanticCase :
+       getRVVIntegerCoreScheduleFormulaCases())
+    integerCoreSchedule.addSemanticCase(semanticCase.semanticCase);
+  integerCoreSchedule.addSemanticCase("unsupported-or-illegal");
+  integerCoreSchedule.addProductionEntry(
+      "internal:integer-core-schedule-formula");
+  out.push_back(std::move(integerCoreSchedule));
 
   FormulaDescriptor composite = makeDescriptor(
       formula::kCompositeGatherMAccScatterPlan,

@@ -6,7 +6,7 @@
 #include "Weft/Plugin/RVV/RVVLowPrecisionResourceFormula.h"
 #include "Weft/Plugin/RVV/RVVRepackScheduleFormula.h"
 #include "Weft/Plugin/RVV/RVVScheduleFormula.h"
-#include "Weft/Plugin/RVV/RVVSourceScheduleFormula.h"
+#include "Weft/Plugin/RVV/RVVIntegerCoreScheduleFormula.h"
 
 #include "llvm/ADT/Twine.h"
 #include "llvm/Support/raw_ostream.h"
@@ -519,35 +519,38 @@ int runGenericScheduleFormulaTest() {
   return 0;
 }
 
-int runSourceScheduleFormulaTest() {
-  pluginrvv::RVVSourceScheduleCapabilityFacts capability{
+int runIntegerCoreScheduleFormulaTest() {
+  pluginrvv::RVVIntegerCoreScheduleCapabilityFacts capability{
       /*minimumVLEN=*/256,
       /*vectorRegisterBudget=*/32};
 
-  auto plainM2 = pluginrvv::constructRVVSourceScheduleFormula(
-      {pluginrvv::RVVSourceScheduleMechanism::PlainInt8BlockDot,
+  auto plainM2 = pluginrvv::constructRVVIntegerCoreScheduleFormula(
+      {pluginrvv::RVVIntegerCoreScheduleMechanism::PlainInt8BlockDot,
        /*sew=*/8, /*blockLength=*/32, {"m2"}},
-      capability, pluginrvv::RVVSourceScheduleNoStaticContext{});
+      capability, pluginrvv::RVVIntegerCoreScheduleNoStaticContext{});
   if (!plainM2 || plainM2->integerCoreLMUL != "m2")
-    return fail("plain-int8 source formula must consume its admitted LMUL set");
+    return fail(
+        "plain-int8 integer-core formula must consume its admitted LMUL set");
 
-  auto codebookM1 = pluginrvv::constructRVVSourceScheduleFormula(
-      {pluginrvv::RVVSourceScheduleMechanism::CodebookGather,
+  auto codebookM1 = pluginrvv::constructRVVIntegerCoreScheduleFormula(
+      {pluginrvv::RVVIntegerCoreScheduleMechanism::CodebookGather,
        /*sew=*/8, /*blockLength=*/16, {"m1"}},
-      capability, pluginrvv::RVVSourceScheduleNoStaticContext{});
+      capability, pluginrvv::RVVIntegerCoreScheduleNoStaticContext{});
   if (!codebookM1 || codebookM1->integerCoreLMUL != "m1")
-    return fail("codebook source formula must restrict generated candidates to g");
+    return fail(
+        "codebook integer-core formula must restrict generated candidates to g");
 
   auto outsideGeneratedDomain =
-      pluginrvv::constructRVVSourceScheduleFormula(
-          {pluginrvv::RVVSourceScheduleMechanism::CodebookGather,
+      pluginrvv::constructRVVIntegerCoreScheduleFormula(
+          {pluginrvv::RVVIntegerCoreScheduleMechanism::CodebookGather,
            /*sew=*/8, /*blockLength=*/16, {"m4"}},
-          capability, pluginrvv::RVVSourceScheduleNoStaticContext{});
+          capability, pluginrvv::RVVIntegerCoreScheduleNoStaticContext{});
   if (outsideGeneratedDomain)
-    return fail("a source LMUL outside the generated domain must fail closed");
+    return fail(
+        "an integer-core LMUL outside the generated domain must fail closed");
   llvm::consumeError(outsideGeneratedDomain.takeError());
 
-  llvm::outs() << "source schedule formula: generated candidates intersect g; "
+  llvm::outs() << "integer-core schedule formula: generated candidates intersect g; "
                   "empty intersection rejects\n";
   return 0;
 }
@@ -860,7 +863,7 @@ int main() {
     return result;
   if (int result = runGenericScheduleFormulaTest())
     return result;
-  if (int result = runSourceScheduleFormulaTest())
+  if (int result = runIntegerCoreScheduleFormulaTest())
     return result;
   if (int result = runFlatBlockDotFormulaTest())
     return result;

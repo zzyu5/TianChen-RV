@@ -14,7 +14,7 @@
 #include "Weft/Dialect/RVV/IR/RVVDialect.h"
 #include "Weft/Plugin/RVV/RVVGearboxSchedule.h"
 #include "Weft/Plugin/RVV/RVVMonolithicBlockDotFamily.h"
-#include "Weft/Plugin/RVV/RVVSourceScheduleFormula.h"
+#include "Weft/Plugin/RVV/RVVIntegerCoreScheduleFormula.h"
 #include "Weft/Support/RuntimeABI.h"
 
 #include "mlir/IR/Builders.h"
@@ -3019,17 +3019,17 @@ constructSelectedBlockDotBody(
   const std::int64_t minimumVLEN = *capability.minimumVLEN;
   const std::int64_t vectorRegisterBudget =
       *capability.vectorRegisterCount;
-  llvm::Expected<RVVSourceSchedulePlan> sourceSchedule =
-      constructRVVSourceScheduleFormula(
-          {RVVSourceScheduleMechanism::FillOptimal,
+  llvm::Expected<RVVIntegerCoreSchedulePlan> integerCoreSchedule =
+      constructRVVIntegerCoreScheduleFormula(
+          {RVVIntegerCoreScheduleMechanism::FillOptimal,
            /*sew=*/8, typedFlatBlockLen, typedFlatLMULCandidates},
           {minimumVLEN, vectorRegisterBudget},
-          RVVSourceScheduleNoStaticContext{});
-  if (!sourceSchedule) {
-    problem.emitError() << llvm::toString(sourceSchedule.takeError());
+          RVVIntegerCoreScheduleNoStaticContext{});
+  if (!integerCoreSchedule) {
+    problem.emitError() << llvm::toString(integerCoreSchedule.takeError());
     return mlir::failure();
   }
-  const llvm::StringRef typedFlatLmul = sourceSchedule->integerCoreLMUL;
+  const llvm::StringRef typedFlatLmul = integerCoreSchedule->integerCoreLMUL;
   const llvm::StringRef configLMUL = typedFlatLoopPath ? typedFlatLmul : "m1";
 
   // The per-block reduce seed (0), a variant-scope value that dominates the

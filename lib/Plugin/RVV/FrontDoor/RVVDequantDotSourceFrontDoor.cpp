@@ -5,7 +5,7 @@
 // constructs the weft_rvv RVV-dialect body for a GENERIC vector-dialect signed
 // widening int8 dot-reduce WITH a runtime-f32-scale dequant tail, instead of a
 // per-kernel hand emitter. The integer-core LMUL anchor is the typed result of
-// RVVSourceScheduleFormula over the same source/capability facts as the MVP, so
+// RVVIntegerCoreScheduleFormula over the same source/capability facts as the MVP, so
 // the SAME generic source
 // emits an e8m2/i16m4-form body at VLEN128 and an e8m1/i16m2-form body at
 // VLEN256, NOW with the i32->f32 dequant fused in before the f32 store.

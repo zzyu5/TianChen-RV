@@ -3,7 +3,7 @@
 #include "RVVCanonicalBodyBuilder.h"
 
 #include "Weft/Plugin/RVV/RVVGearboxSchedule.h"
-#include "Weft/Plugin/RVV/RVVSourceScheduleFormula.h"
+#include "Weft/Plugin/RVV/RVVIntegerCoreScheduleFormula.h"
 
 #include "mlir/IR/Builders.h"
 #include "llvm/ADT/Twine.h"
@@ -32,15 +32,15 @@ llvm::Error constructWideningDotBody(
             ? "RVV dequant-dot formula requires minimum_vlen and vreg_count in c_o"
             : "RVV reduction formula requires minimum_vlen and vreg_count in c_o");
 
-  RVVSourceScheduleMechanism mechanism =
-      dequantize ? RVVSourceScheduleMechanism::PlainInt8BlockDot
-                 : RVVSourceScheduleMechanism::EffectiveWidthInvariant;
-  llvm::Expected<RVVSourceSchedulePlan> schedule =
-      constructRVVSourceScheduleFormula(
+  RVVIntegerCoreScheduleMechanism mechanism =
+      dequantize ? RVVIntegerCoreScheduleMechanism::PlainInt8BlockDot
+                 : RVVIntegerCoreScheduleMechanism::EffectiveWidthInvariant;
+  llvm::Expected<RVVIntegerCoreSchedulePlan> schedule =
+      constructRVVIntegerCoreScheduleFormula(
           {mechanism, /*sew=*/8,
            static_cast<std::int64_t>(problem.getBlockLength()), {"m1", "m2"}},
           {*capability.minimumVLEN, *capability.vectorRegisterCount},
-          RVVSourceScheduleNoStaticContext{});
+          RVVIntegerCoreScheduleNoStaticContext{});
   if (!schedule)
     return schedule.takeError();
   llvm::StringRef loadLMUL = schedule->integerCoreLMUL;

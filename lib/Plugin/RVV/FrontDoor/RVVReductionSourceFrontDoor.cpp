@@ -3,7 +3,7 @@
 // Track B auto-lowering front door (the "type-Triton-ish backend" first block):
 // the COMPILER auto-constructs the weft_rvv RVV-dialect body for a GENERIC
 // vector-dialect signed widening int8 dot-reduce, instead of a per-kernel hand
-// emitter. The integer-core LMUL anchor is the typed RVVSourceScheduleFormula
+// emitter. The integer-core LMUL anchor is the typed RVVIntegerCoreScheduleFormula
 // result over source/capability facts,
 // the SAME generic op emits an e8m2-form body at VLEN128 and an e8m1-form body at
 // VLEN256 (the capability flip, exactly the q8_0 brick #1 shape, but from a

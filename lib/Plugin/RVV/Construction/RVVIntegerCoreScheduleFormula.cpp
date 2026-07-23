@@ -1,4 +1,4 @@
-#include "Weft/Plugin/RVV/RVVSourceScheduleFormula.h"
+#include "Weft/Plugin/RVV/RVVIntegerCoreScheduleFormula.h"
 
 #include "Weft/Plugin/RVV/RVVGearboxSchedule.h"
 
@@ -10,9 +10,9 @@
 
 namespace weft::plugin::rvv {
 
-static llvm::Error makeSourceScheduleFormulaError(llvm::Twine message) {
+static llvm::Error makeIntegerCoreScheduleFormulaError(llvm::Twine message) {
   return llvm::make_error<llvm::StringError>(
-      llvm::Twine("RVV source schedule formula rejected: ") + message,
+      llvm::Twine("RVV integer-core schedule formula rejected: ") + message,
       llvm::errc::invalid_argument);
 }
 
@@ -40,8 +40,8 @@ static bool isAdmittedLMUL(const GenericScheduleCandidate &candidate,
 }
 
 static llvm::SmallVector<GenericScheduleCandidate>
-admitSourceLMULs(llvm::ArrayRef<GenericScheduleCandidate> generated,
-                 llvm::ArrayRef<llvm::StringRef> admittedLMULs) {
+admitIntegerCoreLMULs(llvm::ArrayRef<GenericScheduleCandidate> generated,
+                      llvm::ArrayRef<llvm::StringRef> admittedLMULs) {
   llvm::SmallVector<GenericScheduleCandidate> admitted;
   for (const GenericScheduleCandidate &candidate : generated)
     if (isAdmittedLMUL(candidate, admittedLMULs))
@@ -49,27 +49,28 @@ admitSourceLMULs(llvm::ArrayRef<GenericScheduleCandidate> generated,
   return admitted;
 }
 
-llvm::Expected<RVVSourceSchedulePlan> constructRVVSourceScheduleFormula(
-    const RVVSourceScheduleGeometryFacts &geometry,
-    const RVVSourceScheduleCapabilityFacts &capability,
-    RVVSourceScheduleNoStaticContext) {
+llvm::Expected<RVVIntegerCoreSchedulePlan> constructRVVIntegerCoreScheduleFormula(
+    const RVVIntegerCoreScheduleGeometryFacts &geometry,
+    const RVVIntegerCoreScheduleCapabilityFacts &capability,
+    RVVIntegerCoreScheduleNoStaticContext) {
   if (geometry.sew <= 0 || geometry.blockLength <= 0)
-    return makeSourceScheduleFormulaError(
+    return makeIntegerCoreScheduleFormulaError(
         "requires positive SEW and block length geometry");
   if (capability.vectorRegisterBudget <= 0)
-    return makeSourceScheduleFormulaError(
+    return makeIntegerCoreScheduleFormulaError(
         "requires a positive canonical vector-register budget");
 
   llvm::SmallVector<llvm::StringRef, 2> candidateRefs;
   for (const std::string &candidate : geometry.candidateLMULs)
     candidateRefs.push_back(candidate);
   if (candidateRefs.empty())
-    return makeSourceScheduleFormulaError("requires a non-empty LMUL candidate set");
+    return makeIntegerCoreScheduleFormulaError(
+        "requires a non-empty LMUL candidate set");
 
   std::optional<std::string> selected;
   std::string reason = "analytic-prior";
   switch (geometry.mechanism) {
-  case RVVSourceScheduleMechanism::EffectiveWidthInvariant: {
+  case RVVIntegerCoreScheduleMechanism::EffectiveWidthInvariant: {
     RVVWidthInvariantLMULChoice choice = getRVVEffectiveWidthInvariantLMUL(
         capability.minimumVLEN, geometry.sew, geometry.blockLength,
         candidateRefs);
@@ -78,7 +79,7 @@ llvm::Expected<RVVSourceSchedulePlan> constructRVVSourceScheduleFormula(
     reason = stringifyRVVWidthInvariantLMULReason(choice.reason).str();
     break;
   }
-  case RVVSourceScheduleMechanism::PlainInt8BlockDot: {
+  case RVVIntegerCoreScheduleMechanism::PlainInt8BlockDot: {
     static constexpr llvm::StringLiteral kCoreLMULs[] = {"m1", "m2"};
     RVVBlockDotKernelDescriptor descriptor{
         /*coreLMULs=*/kCoreLMULs,
@@ -94,24 +95,24 @@ llvm::Expected<RVVSourceSchedulePlan> constructRVVSourceScheduleFormula(
              capability.vectorRegisterBudget))
       candidates.push_back(toGenericBlockDotCandidate(candidate));
     llvm::SmallVector<GenericScheduleCandidate> admitted =
-        admitSourceLMULs(candidates, candidateRefs);
+        admitIntegerCoreLMULs(candidates, candidateRefs);
     selected = readLMUL(selectGenericMinCostCandidate(admitted));
     reason = "analytic-prior";
     break;
   }
-  case RVVSourceScheduleMechanism::CodebookGather: {
+  case RVVIntegerCoreScheduleMechanism::CodebookGather: {
     llvm::SmallVector<GenericScheduleCandidate> candidates;
     for (const RVVBlockDotShapeCandidate &candidate :
          enumerateRVVCodebookShapeCandidates(
              capability.minimumVLEN, capability.vectorRegisterBudget))
       candidates.push_back(toGenericBlockDotCandidate(candidate));
     llvm::SmallVector<GenericScheduleCandidate> admitted =
-        admitSourceLMULs(candidates, candidateRefs);
+        admitIntegerCoreLMULs(candidates, candidateRefs);
     selected = readLMUL(selectGenericMinCostCandidate(admitted));
     reason = "analytic-prior";
     break;
   }
-  case RVVSourceScheduleMechanism::FillOptimal: {
+  case RVVIntegerCoreScheduleMechanism::FillOptimal: {
     RVVFillLMULChoice choice = chooseFillOptimalLMUL(
         static_cast<unsigned>(
             capability.minimumVLEN < 0 ? 0 : capability.minimumVLEN),
@@ -125,9 +126,9 @@ llvm::Expected<RVVSourceSchedulePlan> constructRVVSourceScheduleFormula(
   }
 
   if (!selected)
-    return makeSourceScheduleFormulaError(
+    return makeIntegerCoreScheduleFormulaError(
         "no legal LMUL candidate remains after capability/resource legality");
-  return RVVSourceSchedulePlan{*selected, reason};
+  return RVVIntegerCoreSchedulePlan{*selected, reason};
 }
 
 } // namespace weft::plugin::rvv

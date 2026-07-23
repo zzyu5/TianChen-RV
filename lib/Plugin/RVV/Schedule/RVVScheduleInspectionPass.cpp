@@ -1,4 +1,4 @@
-//===- RVVUnifiedScheduleMaterialization.cpp ------------------------------===//
+//===- RVVScheduleInspectionPass.cpp -------------------------------------===//
 //
 // Explicit tuning/candidate-inspection entry for the walk-all RVV schedule
 // formula. Production construction invokes the same owner through the RVV

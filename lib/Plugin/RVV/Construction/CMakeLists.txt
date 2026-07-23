@@ -15,7 +15,7 @@ add_mlir_library(WeftRVVConstruction
   RVVFormulaConstruction.cpp
   RVVScheduleFormula.cpp
   RVVSelectedTargetCapability.cpp
-  RVVSourceScheduleFormula.cpp
+  RVVIntegerCoreScheduleFormula.cpp
 
   LINK_LIBS PUBLIC
   WeftConversionEmitC

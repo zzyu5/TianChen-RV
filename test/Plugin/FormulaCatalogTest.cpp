@@ -10,7 +10,7 @@
 #include "Weft/Plugin/RVV/RVVFormulaCatalog.h"
 #include "Weft/Plugin/RVV/RVVQuantizeFormula.h"
 #include "Weft/Plugin/RVV/RVVScheduleFormula.h"
-#include "Weft/Plugin/RVV/RVVSourceScheduleFormula.h"
+#include "Weft/Plugin/RVV/RVVIntegerCoreScheduleFormula.h"
 #include "Weft/Plugin/RVV/RVVSelectedBodyRealization.h"
 #include "Weft/Plugin/Scalar/ScalarFormulaConstruction.h"
 
@@ -183,7 +183,7 @@ int main() {
       rvv::formula_catalog::kDequantTernaryPlan,
       rvv::formula_catalog::kQuantizeRowConstruction,
       rvv::formula_catalog::kFlatBlockDotPlan,
-      rvv::formula_catalog::kSourceScheduleFormula,
+      rvv::formula_catalog::kIntegerCoreScheduleFormula,
       rvv::formula_catalog::kCompositeGatherMAccScatterPlan,
       rvv::formula_catalog::kScheduleFormula,
       rvv::formula_catalog::kLowPrecisionResourceSchedule,
@@ -298,25 +298,26 @@ int main() {
       FormulaConstructionStrength::ConstructedWeak)
     return fail("flat block-dot catalog must retain its ConstructedWeak boundary");
 
-  const FormulaDescriptor *sourceScheduleFormula =
-      byID.lookup(rvv::formula_catalog::kSourceScheduleFormula);
-  if (!sourceScheduleFormula ||
-      sourceScheduleFormula->getConstructionStrength() !=
+  const FormulaDescriptor *integerCoreScheduleFormula =
+      byID.lookup(rvv::formula_catalog::kIntegerCoreScheduleFormula);
+  if (!integerCoreScheduleFormula ||
+      integerCoreScheduleFormula->getConstructionStrength() !=
           FormulaConstructionStrength::Strong)
-    return fail("source schedule formula descriptor is absent or weak");
-  llvm::StringSet<> sourceScheduleCases;
+    return fail("integer-core schedule formula descriptor is absent or weak");
+  llvm::StringSet<> integerCoreScheduleCases;
   for (const std::string &semanticCase :
-       sourceScheduleFormula->getSemanticCases())
-    sourceScheduleCases.insert(semanticCase);
-  for (const rvv::RVVSourceScheduleFormulaCase &semanticCase :
-       rvv::getRVVSourceScheduleFormulaCases())
-    if (!sourceScheduleCases.contains(semanticCase.semanticCase))
-      return fail(llvm::Twine("source schedule catalog lost semantic case: ") +
-                  semanticCase.semanticCase);
-  if (!sourceScheduleCases.contains("unsupported-or-illegal") ||
-      sourceScheduleCases.size() !=
-          rvv::getRVVSourceScheduleFormulaCases().size() + 1)
-    return fail("source schedule catalog has an unowned semantic case");
+       integerCoreScheduleFormula->getSemanticCases())
+    integerCoreScheduleCases.insert(semanticCase);
+  for (const rvv::RVVIntegerCoreScheduleFormulaCase &semanticCase :
+       rvv::getRVVIntegerCoreScheduleFormulaCases())
+    if (!integerCoreScheduleCases.contains(semanticCase.semanticCase))
+      return fail(
+          llvm::Twine("integer-core schedule catalog lost semantic case: ") +
+          semanticCase.semanticCase);
+  if (!integerCoreScheduleCases.contains("unsupported-or-illegal") ||
+      integerCoreScheduleCases.size() !=
+          rvv::getRVVIntegerCoreScheduleFormulaCases().size() + 1)
+    return fail("integer-core schedule catalog has an unowned semantic case");
 
   const FormulaDescriptor *compositeFormula =
       byID.lookup(rvv::formula_catalog::kCompositeGatherMAccScatterPlan);
