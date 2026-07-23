@@ -1120,12 +1120,11 @@ mlir::LogicalResult DispatchCaseOp::verify() {
   auto runtimeGuardAttr =
       getOperation()->getAttrOfType<mlir::FlatSymbolRefAttr>(
           kRuntimeGuardAttrName);
-  if (runtimeGuardRequiredAttr && runtimeGuardRequiredAttr.getValue() &&
-      !runtimeGuardAttr)
-    return emitOpError()
-           << "requires runtime_guard linkage to a "
-              "dispatch-availability-guard runtime_param when "
-              "runtime_guard_required=true";
+  // `runtime_guard_required = true` is the pre-materialization semantic
+  // requirement.  The dispatch-runtime-guard pass owns creation/linkage of the
+  // concrete runtime_param, and ExecutionPlanCoherence rejects a missing link
+  // once a coherent executable plan is required.  Rejecting the marker here
+  // would make the materialization pass impossible to run on valid input.
   if (runtimeGuardAttr) {
     if (!runtimeGuardRequiredAttr || !runtimeGuardRequiredAttr.getValue())
       return emitOpError()

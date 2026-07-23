@@ -58,6 +58,7 @@ weft.exec.kernel @guarded_runtime_dispatch attributes {} {
   // CHECK-SAME: origin = "portable-plugin"
   // CHECK-SAME: requires = [@generic_toolchain]
   weft.exec.variant @portable_fallback attributes {
+    fallback_role = "conservative",
     origin = "portable-plugin",
     requires = [@generic_toolchain]
   } {
@@ -103,6 +104,7 @@ weft.exec.kernel @guarded_by_inherited_case_metadata attributes {} {
   } {
   }
   weft.exec.variant @portable_fallback attributes {
+    fallback_role = "conservative",
     origin = "portable-plugin",
     requires = [@generic_toolchain]
   } {
@@ -162,6 +164,7 @@ weft.exec.kernel @guarded_conflict_dispatch attributes {} {
   } {
   }
   weft.exec.variant @portable_fallback attributes {
+    fallback_role = "conservative",
     origin = "portable-plugin",
     requires = [@scalar_fallback]
   } {

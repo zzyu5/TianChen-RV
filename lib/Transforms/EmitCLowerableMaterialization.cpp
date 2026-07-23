@@ -268,8 +268,8 @@ private:
                       "EmitC artifact projection: ") +
           construction.getReason());
 
-    // Stage 3 换心 decouple (PATH R, emitc-lowerable-route materialization).
-    // Attempt the real typed-body->emitc DialectConversion on a CLONE of the
+    // Materialize the exact constructed body through real typed-body->EmitC
+    // DialectConversion on a CLONE of the
     // module — via the table-driven backend-emission registry (mirrors the
     // plugin ExtensionPlugin registry: zero core branch per family). The
     // registry iterates every registered typed-emission backend, skips those

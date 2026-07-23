@@ -28,16 +28,31 @@
     ".trellis/spec/architecture/执行问题与家族边界.md",
     ".trellis/spec/measurement/index.md",
     "include/Weft/Plugin/FormulaCatalog.h",
+    "include/Weft/Plugin/RVV/RVVRuntimeAVLVLControl.h",
     "lib/Plugin/RVV/Construction",
+    "lib/Plugin/RVV/BodyRealization",
+    "lib/Plugin/RVV/CMakeLists.txt",
     "lib/Plugin/IME/IMEFormulaConstruction.cpp",
     "lib/Plugin/Scalar/ScalarFormulaConstruction.cpp",
     "tools/bench/bench"
   ],
-  "notes": "禁止纵向只完成一个 format/operator/formula 后宣告重构完成；q5_1 只能作为局部 reconstruction witness。禁止实现 GPU、改变两柱六律或主公式、建立 universal Formula IR/provider/verifier、恢复 selected-stamp/compatibility/emitter 决策，或让 measurement 创造 compute。",
+  "notes": "当前结构检查点已经完成 construction-owned RVV runtime control 与旧 RVV route-provider/protocol 物理退出；这不等于 mechanism factorization、delete-leaf strong reconstruction、formula causal coverage 或真硬件 A/B 已完成。禁止纵向只完成一个 format/operator/formula 后宣告重构完成；q5_1 只能作为局部 reconstruction witness。禁止实现 GPU、改变两柱六律或主公式、建立 universal Formula IR/provider/verifier、恢复 selected-stamp/compatibility/emitter 决策，或让 measurement 创造 compute。",
   "meta": {
     "predecessor": "01f55f3fab63ae923cb61109000f02ee6e7bad01",
     "method_baseline": "docs/method/README.md",
     "architecture_baseline": "docs/method/项目全景与Spec重构前方法基线v2.md",
-    "research_axis": "extensibility-performance"
+    "research_axis": "extensibility-performance",
+    "checkpoints": [
+      {
+        "commit": "e1ec88bd1",
+        "state": "completed",
+        "summary": "RVV runtime control moved into construction-owned exact body"
+      },
+      {
+        "commit": "288f05fe9",
+        "state": "completed",
+        "summary": "retired RVV route-provider and construction-protocol stack"
+      }
+    ]
   }
 }

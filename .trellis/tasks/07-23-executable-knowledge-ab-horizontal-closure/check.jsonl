@@ -1,8 +1,11 @@
 {"file":".trellis/tasks/07-23-executable-knowledge-ab-horizontal-closure/prd.md","reason":"逐项核对横向范围、多 topology reconstruction、四臂消融与 GPU 禁止项"}
 {"file":".trellis/spec/canon/核心不变量.md","reason":"两柱六律相关 I1/I3/I4/I5/I7/I8/I9 边界"}
 {"file":".trellis/spec/canon/部署与构造语义.md","reason":"ConstructedWeak 与 delete-leaf strong reconstruction 判据"}
-{"file":"test/Scripts/project-construction-authority.test","reason":"保护 artifact-neutral construction、唯一 conversion 与 flat_* no-redecision"}
+{"file":"test/Scripts/project-construction-authority.test","reason":"保护 artifact-neutral construction、唯一 conversion、flat_* no-redecision，以及旧 RVV route-provider/protocol symbol、include 与构建目标不得回流；当前结构检查点已通过"}
 {"file":"test/Plugin/formula-catalog.test","reason":"source/problem/formula owner 与 artifact inventory 分立"}
 {"file":"tools/bench/bench","reason":"验证 current compiler output、correctness 与正式测量入口"}
 {"file":"experiments/master","reason":"B 线正式结果与 current deployed/strong-opponent/e2e 归因"}
 {"file":"experiments/runs.log","reason":"正式 run lineage、qualification 与 paired regression"}
+{"file":"build/weft/bin/weft-opt","reason":"本地 compiler 构建检查已通过；不等于真硬件证据"}
+{"file":"build/weft/bin/weft-translate","reason":"本地 artifact toolchain 构建检查已通过；不等于真硬件证据"}
+{"file":"build/weft/test","reason":"完整 check-weft 已通过 979/979；只证明本地编译器与工具链行为"}

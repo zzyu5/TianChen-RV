@@ -1,7 +1,8 @@
-// RUN: weft-opt %s --split-input-file --verify-diagnostics --weft-materialize-emission-plans
+// RUN: weft-opt %s --split-input-file --verify-diagnostics --weft-materialize-emission-plans | FileCheck %s
 
 module {
   weft.exec.kernel @fallback_only_scalar_without_boundary {
+    // CHECK-LABEL: weft.exec.kernel @fallback_only_scalar_without_boundary
     weft.exec.capability @scalar_fallback {
       id = "scalar.fallback",
       kind = "fallback",
@@ -19,6 +20,8 @@ module {
       status = "selected",
       target = @scalar_fallback_first_slice
     }
+    // CHECK: lowering_pipeline = "scalar-no-constructed-body-route"
+    // CHECK-SAME: status = "unsupported"
   }
 }
 
@@ -50,8 +53,8 @@ module {
 // -----
 
 module {
-  // expected-error@+1 {{origin 'other-plugin' does not match selected variant @scalar_fallback_first_slice origin 'scalar-plugin'}}
   weft.exec.kernel @boundary_origin_mismatch {
+    // CHECK-LABEL: weft.exec.kernel @boundary_origin_mismatch
     weft.exec.capability @scalar_fallback {
       id = "scalar.fallback",
       kind = "fallback",
@@ -79,14 +82,17 @@ module {
       source_kernel = "boundary_origin_mismatch",
       status = "no-active-route"
     }
+    // A legacy diagnostic-like boundary is not construction authority.
+    // CHECK: lowering_pipeline = "scalar-no-constructed-body-route"
+    // CHECK-SAME: status = "unsupported"
   }
 }
 
 // -----
 
 module {
-  // expected-error@+1 {{stale lowering boundary 'weft.exec.diagnostic' selected_variant @other_scalar as direct variant is not selected by the current dispatch or selected diagnostic surface}}
   weft.exec.kernel @boundary_selected_variant_mismatch {
+    // CHECK-LABEL: weft.exec.kernel @boundary_selected_variant_mismatch
     weft.exec.capability @scalar_fallback {
       id = "scalar.fallback",
       kind = "fallback",
@@ -119,14 +125,16 @@ module {
       source_kernel = "boundary_selected_variant_mismatch",
       status = "no-active-route"
     }
+    // CHECK: lowering_pipeline = "scalar-no-constructed-body-route"
+    // CHECK-SAME: status = "unsupported"
   }
 }
 
 // -----
 
 module {
-  // expected-error@+1 {{duplicate competing lowering boundaries for selected path @scalar_fallback_first_slice as direct variant}}
   weft.exec.kernel @duplicate_competing_boundaries {
+    // CHECK-LABEL: weft.exec.kernel @duplicate_competing_boundaries
     weft.exec.capability @scalar_fallback {
       id = "scalar.fallback",
       kind = "fallback",
@@ -164,14 +172,16 @@ module {
       source_kernel = "duplicate_competing_boundaries",
       status = "no-active-route"
     }
+    // CHECK: lowering_pipeline = "scalar-no-constructed-body-route"
+    // CHECK-SAME: status = "unsupported"
   }
 }
 
 // -----
 
 module {
-  // expected-error@+1 {{required_capabilities must be a safe subset of selected variant @scalar_fallback_first_slice requires metadata}}
   weft.exec.kernel @boundary_required_capabilities_mismatch {
+    // CHECK-LABEL: weft.exec.kernel @boundary_required_capabilities_mismatch
     weft.exec.capability @scalar_fallback {
       id = "scalar.fallback",
       kind = "fallback",
@@ -204,5 +214,7 @@ module {
       source_kernel = "boundary_required_capabilities_mismatch",
       status = "no-active-route"
     }
+    // CHECK: lowering_pipeline = "scalar-no-constructed-body-route"
+    // CHECK-SAME: status = "unsupported"
   }
 }

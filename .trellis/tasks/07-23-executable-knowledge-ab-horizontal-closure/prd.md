@@ -55,11 +55,27 @@ topology 的纵向切片，也不得保留旧路径作为兼容退路。
   replay、role/status/interface 字符串镜像、通用 readiness verifier 与 metadata-only
   lowering boundary 已删除；保留的 family contract 只含 legality 与纯 artifact ABI/callee
   常量；
-- 上述切面完成时全量 lit 为 `980/980`。
+- RVV runtime control 已进入 construction-side exact body：
+  `RVVBodyRuntimeControl {sew, lmul, policy, runtimeAVLValue}` 不再由 artifact/provider 根据
+  ABI order 或 metadata 补出；
+- 旧 `lib/Plugin/RVV/EmitC` route-provider 栈、`RVVConstructionProtocol`、
+  `RVVContractionRouteIdentity`、route-family plan-owner mirrors 与旧 provider CMake target
+  已物理删除；RVV 现在链接 artifact-neutral `WeftRVVConstruction`；
+- segment2 typed-body construction 已迁回 realization owner；contraction realization 直接
+  消费 formula 的 relation/layout/resource plan，不再经 primitive-facts/intrinsic-metadata
+  mirror 重放；
+- provider/formula replay validator 与 capability `providerMirror/legalityMirror` 已退出；
+  body-realization caller 也不再把无语义 ABI-order 字符串传给 runtime-control 构造。
+  artifact metadata 仍可报告 ABI 顺序，但不能参与 body/config 决策。dialect `verify()` 仍
+  负责 exact typed body 的局部结构、类型、operand/policy 和语义关系，不能被笼统写成
+  “删除 verifier”；
+- 上述切面已经通过 `weft-opt`/`weft-translate` 构建、authority guard 与完整
+  `check-weft`（`979/979`）。这是本地编译器/工具链证据，不是强重建、GPU 或真硬件证据。
 
 仍未闭合、因此 task 不能标为 completed 的主体包括：
 
-- Scalar/RVV/IME 及其它 production leaf 中剩余的完整算法 authority 与 plan dictionary；
+- Scalar/RVV/IME 及其它 production leaf 中尚未因式分解的完整算法 authority 与 plan
+  dictionary；
 - decisive `g/c/ω` counterfactual、mechanism fan-out 与 honest-null 因果测试；
 - 多 topology delete-leaf strong reconstruction；
 - official runner 的 current-artifact 四臂消融、winner residual 稀疏性与 deployed/e2e paired
@@ -214,6 +230,11 @@ A 线回答“知识是否集中、可组合、可扩展并真实构造”；B �
   candidate/legal set、final plan/body 与 consumer；
 - [ ] selected-stamp、provider-driven compute、formula replay、plan mirror、hidden default 与
   compatibility middle path 从 production 清零；
+- [x] 旧 RVV route-provider / construction-protocol 第二权威与对应构建依赖物理退出；
+- [x] RVV runtime control 由 construction body config 拥有，artifact 只消费 exact typed
+  body；
+- [x] provider-side formula/primitive-facts replay 已退出当前 RVV production path，同时
+  保留 typed dialect 的局部良构性验证；
 - [x] artifact route id/manifest/evidence metadata 不再参与 family construction legality、
   candidate、final-body completion 或 compute；
 - [ ] RVV `flat_*`、IME/Scalar final computation plan 与 artifact mechanical projection 边界保持；

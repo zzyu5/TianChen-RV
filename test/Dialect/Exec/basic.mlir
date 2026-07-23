@@ -76,7 +76,7 @@ weft.exec.kernel @saxpy attributes {} {
   // CHECK: weft.exec.variant @portable_variant
   // CHECK-SAME: origin = "portable-plugin"
   // CHECK-SAME: requires = [@portable]
-  weft.exec.variant @portable_variant attributes {origin = "portable-plugin", requires = [@portable]} {
+  weft.exec.variant @portable_variant attributes {fallback_role = "conservative", origin = "portable-plugin", requires = [@portable]} {
   }
 
   // CHECK: weft.exec.dispatch

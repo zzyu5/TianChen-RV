@@ -287,6 +287,7 @@ module {
       kind = "runtime"
     }
     weft.exec.variant @first_path attributes {
+      fallback_role = "conservative",
       origin = "first",
       requires = [@generic_alpha]
     } {

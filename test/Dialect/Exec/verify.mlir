@@ -18,7 +18,7 @@ weft.exec.kernel @ok attributes {} {
       }
     }
   }
-  weft.exec.variant @portable_variant attributes {origin = "portable-plugin", requires = [@portable]} {
+  weft.exec.variant @portable_variant attributes {fallback_role = "conservative", origin = "portable-plugin", requires = [@portable]} {
   }
   weft.exec.dispatch attributes {} {
     weft.exec.case @rvv_variant {condition = "preferred_capability_available", guard = "shape_guard_passed", policy = "prefer_accelerated", runtime_guard = @runtime_guard, runtime_guard_required = true}
@@ -30,7 +30,7 @@ weft.exec.kernel @ok attributes {} {
 
 weft.exec.kernel @selected_marker_ok attributes {} {
   weft.exec.capability @portable {id = "portable", kind = "toolchain"}
-  weft.exec.variant @portable_variant attributes {origin = "portable-plugin", requires = [@portable]} {
+  weft.exec.variant @portable_variant attributes {fallback_role = "conservative", origin = "portable-plugin", requires = [@portable]} {
   }
   weft.exec.diagnostic {
     message = "portable variant selected by generic planner",
@@ -420,7 +420,7 @@ weft.exec.kernel @empty_diagnostic_severity attributes {} {
 
 weft.exec.kernel @empty_diagnostic_selection_kind attributes {} {
   weft.exec.capability @portable {id = "portable", kind = "toolchain"}
-  weft.exec.variant @portable_variant attributes {origin = "portable-plugin", requires = [@portable]} {
+  weft.exec.variant @portable_variant attributes {fallback_role = "conservative", origin = "portable-plugin", requires = [@portable]} {
   }
   // expected-error @+1 {{requires non-empty string attribute 'selection_kind' when present}}
   weft.exec.diagnostic {reason = "variant-selected", message = "using selected variant", selection_kind = "", target = @portable_variant}
@@ -430,7 +430,7 @@ weft.exec.kernel @empty_diagnostic_selection_kind attributes {} {
 
 weft.exec.kernel @unknown_diagnostic_target attributes {} {
   weft.exec.capability @portable {id = "portable", kind = "toolchain"}
-  weft.exec.variant @portable_variant attributes {origin = "portable-plugin", requires = [@portable]} {
+  weft.exec.variant @portable_variant attributes {fallback_role = "conservative", origin = "portable-plugin", requires = [@portable]} {
   }
   // expected-error @+1 {{references unknown diagnostic target variant @missing_variant in enclosing weft.exec.kernel}}
   weft.exec.diagnostic {reason = "variant-selected", message = "using selected variant", selection_kind = "static-variant", target = @missing_variant}
@@ -440,7 +440,7 @@ weft.exec.kernel @unknown_diagnostic_target attributes {} {
 
 weft.exec.kernel @valid_supported_emission_plan_diagnostic attributes {} {
   weft.exec.capability @portable {id = "portable", kind = "toolchain"}
-  weft.exec.variant @portable_variant attributes {origin = "portable-plugin", requires = [@portable]} {
+  weft.exec.variant @portable_variant attributes {fallback_role = "conservative", origin = "portable-plugin", requires = [@portable]} {
   }
   weft.exec.diagnostic {
     artifact_kind = "compiler-emission-plan",
@@ -466,7 +466,7 @@ weft.exec.kernel @valid_supported_emission_plan_diagnostic attributes {} {
 
 weft.exec.kernel @valid_unsupported_emission_plan_diagnostic attributes {} {
   weft.exec.capability @portable {id = "portable", kind = "toolchain"}
-  weft.exec.variant @portable_variant attributes {origin = "portable-plugin", requires = [@portable]} {
+  weft.exec.variant @portable_variant attributes {fallback_role = "conservative", origin = "portable-plugin", requires = [@portable]} {
   }
   weft.exec.diagnostic {
     message = "plugin reports no lowering/runtime/artifact path yet",
@@ -488,7 +488,7 @@ weft.exec.kernel @valid_unsupported_emission_plan_diagnostic attributes {} {
 
 weft.exec.kernel @missing_emission_plan_target attributes {} {
   weft.exec.capability @portable {id = "portable", kind = "toolchain"}
-  weft.exec.variant @portable_variant attributes {origin = "portable-plugin", requires = [@portable]} {
+  weft.exec.variant @portable_variant attributes {fallback_role = "conservative", origin = "portable-plugin", requires = [@portable]} {
   }
   // expected-error @+1 {{emission-plan diagnostic requires a variant symbol reference target}}
   weft.exec.diagnostic {message = "missing target", origin = "portable-plugin", reason = "emission_plan", required_capabilities = [@portable], role = "direct variant", runtime_abi_kind = "portable-host-runtime", runtime_abi_name = "portable.runtime.abi.deferred", runtime_glue_role = "portable-runtime-glue", status = "unsupported"}
@@ -498,7 +498,7 @@ weft.exec.kernel @missing_emission_plan_target attributes {} {
 
 weft.exec.kernel @unknown_emission_plan_target attributes {} {
   weft.exec.capability @portable {id = "portable", kind = "toolchain"}
-  weft.exec.variant @portable_variant attributes {origin = "portable-plugin", requires = [@portable]} {
+  weft.exec.variant @portable_variant attributes {fallback_role = "conservative", origin = "portable-plugin", requires = [@portable]} {
   }
   // expected-error @+1 {{references unknown emission-plan diagnostic target variant @missing_variant in enclosing weft.exec.kernel}}
   weft.exec.diagnostic {message = "unknown target", origin = "portable-plugin", reason = "emission_plan", required_capabilities = [@portable], role = "direct variant", runtime_abi_kind = "portable-host-runtime", runtime_abi_name = "portable.runtime.abi.deferred", runtime_glue_role = "portable-runtime-glue", status = "unsupported", target = @missing_variant}
@@ -508,7 +508,7 @@ weft.exec.kernel @unknown_emission_plan_target attributes {} {
 
 weft.exec.kernel @non_variant_emission_plan_target attributes {} {
   weft.exec.capability @portable {id = "portable", kind = "toolchain"}
-  weft.exec.variant @portable_variant attributes {origin = "portable-plugin", requires = [@portable]} {
+  weft.exec.variant @portable_variant attributes {fallback_role = "conservative", origin = "portable-plugin", requires = [@portable]} {
   }
   // expected-error @+1 {{emission-plan diagnostic target @portable resolves to a direct sibling symbol that is not a weft.exec.variant}}
   weft.exec.diagnostic {message = "capability is not a variant", origin = "portable-plugin", reason = "emission_plan", required_capabilities = [@portable], role = "direct variant", runtime_abi_kind = "portable-host-runtime", runtime_abi_name = "portable.runtime.abi.deferred", runtime_glue_role = "portable-runtime-glue", status = "unsupported", target = @portable}
@@ -518,7 +518,7 @@ weft.exec.kernel @non_variant_emission_plan_target attributes {} {
 
 weft.exec.kernel @empty_emission_plan_origin attributes {} {
   weft.exec.capability @portable {id = "portable", kind = "toolchain"}
-  weft.exec.variant @portable_variant attributes {origin = "portable-plugin", requires = [@portable]} {
+  weft.exec.variant @portable_variant attributes {fallback_role = "conservative", origin = "portable-plugin", requires = [@portable]} {
   }
   // expected-error @+1 {{emission-plan diagnostic requires non-empty string attribute 'origin'}}
   weft.exec.diagnostic {message = "empty origin", origin = "", reason = "emission_plan", required_capabilities = [@portable], role = "direct variant", runtime_abi_kind = "portable-host-runtime", runtime_abi_name = "portable.runtime.abi.deferred", runtime_glue_role = "portable-runtime-glue", status = "unsupported", target = @portable_variant}
@@ -528,7 +528,7 @@ weft.exec.kernel @empty_emission_plan_origin attributes {} {
 
 weft.exec.kernel @empty_emission_plan_role attributes {} {
   weft.exec.capability @portable {id = "portable", kind = "toolchain"}
-  weft.exec.variant @portable_variant attributes {origin = "portable-plugin", requires = [@portable]} {
+  weft.exec.variant @portable_variant attributes {fallback_role = "conservative", origin = "portable-plugin", requires = [@portable]} {
   }
   // expected-error @+1 {{emission-plan diagnostic requires non-empty string attribute 'role'}}
   weft.exec.diagnostic {message = "empty role", origin = "portable-plugin", reason = "emission_plan", required_capabilities = [@portable], role = "", runtime_abi_kind = "portable-host-runtime", runtime_abi_name = "portable.runtime.abi.deferred", runtime_glue_role = "portable-runtime-glue", status = "unsupported", target = @portable_variant}
@@ -538,7 +538,7 @@ weft.exec.kernel @empty_emission_plan_role attributes {} {
 
 weft.exec.kernel @empty_emission_plan_status attributes {} {
   weft.exec.capability @portable {id = "portable", kind = "toolchain"}
-  weft.exec.variant @portable_variant attributes {origin = "portable-plugin", requires = [@portable]} {
+  weft.exec.variant @portable_variant attributes {fallback_role = "conservative", origin = "portable-plugin", requires = [@portable]} {
   }
   // expected-error @+1 {{requires non-empty string attribute 'status' when present}}
   weft.exec.diagnostic {message = "empty status", origin = "portable-plugin", reason = "emission_plan", required_capabilities = [@portable], role = "direct variant", runtime_abi_kind = "portable-host-runtime", runtime_abi_name = "portable.runtime.abi.deferred", runtime_glue_role = "portable-runtime-glue", status = "", target = @portable_variant}
@@ -548,7 +548,7 @@ weft.exec.kernel @empty_emission_plan_status attributes {} {
 
 weft.exec.kernel @bad_emission_plan_status attributes {} {
   weft.exec.capability @portable {id = "portable", kind = "toolchain"}
-  weft.exec.variant @portable_variant attributes {origin = "portable-plugin", requires = [@portable]} {
+  weft.exec.variant @portable_variant attributes {fallback_role = "conservative", origin = "portable-plugin", requires = [@portable]} {
   }
   // expected-error @+1 {{emission-plan diagnostic status must be 'supported' or 'unsupported'}}
   weft.exec.diagnostic {message = "bad status", origin = "portable-plugin", reason = "emission_plan", required_capabilities = [@portable], role = "direct variant", runtime_abi_kind = "portable-host-runtime", runtime_abi_name = "portable.runtime.abi.deferred", runtime_glue_role = "portable-runtime-glue", status = "ready", target = @portable_variant}
@@ -558,7 +558,7 @@ weft.exec.kernel @bad_emission_plan_status attributes {} {
 
 weft.exec.kernel @supported_emission_plan_missing_lowering attributes {} {
   weft.exec.capability @portable {id = "portable", kind = "toolchain"}
-  weft.exec.variant @portable_variant attributes {origin = "portable-plugin", requires = [@portable]} {
+  weft.exec.variant @portable_variant attributes {fallback_role = "conservative", origin = "portable-plugin", requires = [@portable]} {
   }
   // expected-error @+1 {{emission-plan diagnostic requires non-empty string attribute 'lowering_pipeline'}}
   weft.exec.diagnostic {artifact_kind = "compiler-emission-plan", emission_kind = "portable-emission", message = "missing lowering", origin = "portable-plugin", reason = "emission_plan", required_capabilities = [@portable], role = "direct variant", runtime_abi = "portable.runtime.abi.v1", runtime_abi_kind = "portable-host-runtime", runtime_abi_name = "portable.runtime.abi.v1", runtime_glue_role = "portable-runtime-glue", status = "supported", target = @portable_variant}
@@ -575,9 +575,25 @@ weft.exec.kernel @bad_fallback_role attributes {} {
 
 // -----
 
+weft.exec.kernel @fallback_target_without_conservative_role attributes {} {
+  weft.exec.capability @fast {id = "fast", kind = "toolchain"}
+  weft.exec.capability @portable {id = "portable", kind = "toolchain"}
+  weft.exec.variant @fast_variant attributes {origin = "fast-plugin", requires = [@fast]} {
+  }
+  weft.exec.variant @not_a_fallback attributes {origin = "portable-plugin", requires = [@portable]} {
+  }
+  weft.exec.dispatch attributes {} {
+    weft.exec.case @fast_variant
+    // expected-error @+1 {{target @not_a_fallback must be a fallback-eligible weft.exec.variant with fallback_role='conservative'}}
+    weft.exec.fallback @not_a_fallback
+  }
+}
+
+// -----
+
 weft.exec.kernel @supported_emission_plan_missing_runtime_abi attributes {} {
   weft.exec.capability @portable {id = "portable", kind = "toolchain"}
-  weft.exec.variant @portable_variant attributes {origin = "portable-plugin", requires = [@portable]} {
+  weft.exec.variant @portable_variant attributes {fallback_role = "conservative", origin = "portable-plugin", requires = [@portable]} {
   }
   // expected-error @+1 {{emission-plan diagnostic requires non-empty string attribute 'runtime_abi'}}
   weft.exec.diagnostic {artifact_kind = "compiler-emission-plan", emission_kind = "portable-emission", lowering_pipeline = "portable.lowering.pipeline.v1", message = "missing runtime abi", origin = "portable-plugin", reason = "emission_plan", required_capabilities = [@portable], role = "direct variant", runtime_abi_kind = "portable-host-runtime", runtime_abi_name = "portable.runtime.abi.v1", runtime_glue_role = "portable-runtime-glue", status = "supported", target = @portable_variant}
@@ -587,7 +603,7 @@ weft.exec.kernel @supported_emission_plan_missing_runtime_abi attributes {} {
 
 weft.exec.kernel @supported_emission_plan_missing_artifact_kind attributes {} {
   weft.exec.capability @portable {id = "portable", kind = "toolchain"}
-  weft.exec.variant @portable_variant attributes {origin = "portable-plugin", requires = [@portable]} {
+  weft.exec.variant @portable_variant attributes {fallback_role = "conservative", origin = "portable-plugin", requires = [@portable]} {
   }
   // expected-error @+1 {{emission-plan diagnostic requires non-empty string attribute 'artifact_kind'}}
   weft.exec.diagnostic {emission_kind = "portable-emission", lowering_pipeline = "portable.lowering.pipeline.v1", message = "missing artifact kind", origin = "portable-plugin", reason = "emission_plan", required_capabilities = [@portable], role = "direct variant", runtime_abi = "portable.runtime.abi.v1", runtime_abi_kind = "portable-host-runtime", runtime_abi_name = "portable.runtime.abi.v1", runtime_glue_role = "portable-runtime-glue", status = "supported", target = @portable_variant}
@@ -597,7 +613,7 @@ weft.exec.kernel @supported_emission_plan_missing_artifact_kind attributes {} {
 
 weft.exec.kernel @duplicate_emission_plan_diagnostic attributes {} {
   weft.exec.capability @portable {id = "portable", kind = "toolchain"}
-  weft.exec.variant @portable_variant attributes {origin = "portable-plugin", requires = [@portable]} {
+  weft.exec.variant @portable_variant attributes {fallback_role = "conservative", origin = "portable-plugin", requires = [@portable]} {
   }
   weft.exec.diagnostic {message = "first", origin = "portable-plugin", reason = "emission_plan", required_capabilities = [@portable], role = "direct variant", runtime_abi_kind = "portable-host-runtime", runtime_abi_name = "portable.runtime.abi.deferred", runtime_glue_role = "portable-runtime-glue", status = "unsupported", target = @portable_variant}
   // expected-error @+1 {{duplicates emission-plan diagnostic for target @portable_variant in enclosing weft.exec.kernel}}
@@ -608,7 +624,7 @@ weft.exec.kernel @duplicate_emission_plan_diagnostic attributes {} {
 
 weft.exec.kernel @unknown_dispatch_case attributes {} {
   weft.exec.capability @portable {id = "portable", kind = "toolchain"}
-  weft.exec.variant @portable_variant attributes {origin = "portable-plugin", requires = [@portable]} {
+  weft.exec.variant @portable_variant attributes {fallback_role = "conservative", origin = "portable-plugin", requires = [@portable]} {
   }
   weft.exec.dispatch attributes {} {
     // expected-error @+1 {{references unknown dispatch case variant @missing_variant in enclosing weft.exec.kernel}}
@@ -621,7 +637,7 @@ weft.exec.kernel @unknown_dispatch_case attributes {} {
 
 weft.exec.kernel @case_outside_dispatch attributes {} {
   weft.exec.capability @portable {id = "portable", kind = "toolchain"}
-  weft.exec.variant @portable_variant attributes {origin = "portable-plugin", requires = [@portable]} {
+  weft.exec.variant @portable_variant attributes {fallback_role = "conservative", origin = "portable-plugin", requires = [@portable]} {
   }
   // expected-error @+1 {{must be nested directly in a weft.exec.dispatch}}
   weft.exec.case @portable_variant {condition = "preferred_capability_available"}
@@ -634,7 +650,7 @@ weft.exec.kernel @unknown_dispatch_case_runtime_guard attributes {} {
   weft.exec.capability @portable {id = "portable", kind = "toolchain"}
   weft.exec.variant @rvv_variant attributes {origin = "rvv-plugin", requires = [@rvv]} {
   }
-  weft.exec.variant @portable_variant attributes {origin = "portable-plugin", requires = [@portable]} {
+  weft.exec.variant @portable_variant attributes {fallback_role = "conservative", origin = "portable-plugin", requires = [@portable]} {
   }
   weft.exec.dispatch attributes {} {
     // expected-error @+1 {{runtime_guard references unknown runtime_param @missing_runtime_guard in enclosing weft.exec.kernel}}
@@ -650,7 +666,7 @@ weft.exec.kernel @non_runtime_param_dispatch_case_runtime_guard attributes {} {
   weft.exec.capability @portable {id = "portable", kind = "toolchain"}
   weft.exec.variant @rvv_variant attributes {origin = "rvv-plugin", requires = [@rvv]} {
   }
-  weft.exec.variant @portable_variant attributes {origin = "portable-plugin", requires = [@portable]} {
+  weft.exec.variant @portable_variant attributes {fallback_role = "conservative", origin = "portable-plugin", requires = [@portable]} {
   }
   weft.exec.dispatch attributes {} {
     // expected-error @+1 {{runtime_guard @rvv_variant resolves to a direct sibling symbol that is not a weft.exec.runtime_param}}
@@ -667,7 +683,7 @@ weft.exec.kernel @wrong_role_dispatch_case_runtime_guard attributes {} {
   weft.exec.runtime_param @runtime_n {abi_role = "runtime-element-count", c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "runtime-abi-scalar"}
   weft.exec.variant @rvv_variant attributes {origin = "rvv-plugin", requires = [@rvv]} {
   }
-  weft.exec.variant @portable_variant attributes {origin = "portable-plugin", requires = [@portable]} {
+  weft.exec.variant @portable_variant attributes {fallback_role = "conservative", origin = "portable-plugin", requires = [@portable]} {
   }
   weft.exec.dispatch attributes {} {
     // expected-error @+1 {{runtime_guard @runtime_n must reference a weft.exec.runtime_param with ABI role 'dispatch-availability-guard'}}
@@ -683,7 +699,7 @@ weft.exec.kernel @false_runtime_guard_required attributes {} {
   weft.exec.capability @portable {id = "portable", kind = "toolchain"}
   weft.exec.variant @rvv_variant attributes {origin = "rvv-plugin", requires = [@rvv]} {
   }
-  weft.exec.variant @portable_variant attributes {origin = "portable-plugin", requires = [@portable]} {
+  weft.exec.variant @portable_variant attributes {fallback_role = "conservative", origin = "portable-plugin", requires = [@portable]} {
   }
   weft.exec.dispatch attributes {} {
     // expected-error @+1 {{requires boolean attribute 'runtime_guard_required' to be true when present}}
@@ -700,7 +716,7 @@ weft.exec.kernel @runtime_guard_without_required_marker attributes {} {
   weft.exec.runtime_param @runtime_guard {abi_role = "dispatch-availability-guard", c_name = "rvv_available", c_type = "int", ownership = "target-export-abi-owned", purpose = "runtime-abi-scalar"}
   weft.exec.variant @rvv_variant attributes {origin = "rvv-plugin", requires = [@rvv]} {
   }
-  weft.exec.variant @portable_variant attributes {origin = "portable-plugin", requires = [@portable]} {
+  weft.exec.variant @portable_variant attributes {fallback_role = "conservative", origin = "portable-plugin", requires = [@portable]} {
   }
   weft.exec.dispatch attributes {} {
     // expected-error @+1 {{requires typed 'runtime_guard_required' = true when 'runtime_guard' is present}}
@@ -716,7 +732,7 @@ weft.exec.kernel @fallback_with_runtime_guard_metadata attributes {} {
   weft.exec.capability @portable {id = "portable", kind = "toolchain"}
   weft.exec.variant @rvv_variant attributes {origin = "rvv-plugin", requires = [@rvv]} {
   }
-  weft.exec.variant @portable_variant attributes {origin = "portable-plugin", requires = [@portable]} {
+  weft.exec.variant @portable_variant attributes {fallback_role = "conservative", origin = "portable-plugin", requires = [@portable]} {
   }
   weft.exec.dispatch attributes {} {
     weft.exec.case @rvv_variant
@@ -744,7 +760,7 @@ weft.exec.kernel @dispatch_with_duplicate_fallback attributes {} {
   weft.exec.capability @portable {id = "portable", kind = "toolchain"}
   weft.exec.variant @rvv_variant attributes {origin = "rvv-plugin", requires = [@rvv]} {
   }
-  weft.exec.variant @portable_variant attributes {origin = "portable-plugin", requires = [@portable]} {
+  weft.exec.variant @portable_variant attributes {fallback_role = "conservative", origin = "portable-plugin", requires = [@portable]} {
   }
   // expected-error @+1 {{requires exactly one weft.exec.fallback}}
   weft.exec.dispatch attributes {} {
@@ -758,7 +774,7 @@ weft.exec.kernel @dispatch_with_duplicate_fallback attributes {} {
 
 weft.exec.kernel @dispatch_without_case attributes {} {
   weft.exec.capability @portable {id = "portable", kind = "toolchain"}
-  weft.exec.variant @portable_variant attributes {origin = "portable-plugin", requires = [@portable]} {
+  weft.exec.variant @portable_variant attributes {fallback_role = "conservative", origin = "portable-plugin", requires = [@portable]} {
   }
   // expected-error @+1 {{requires at least one weft.exec.case}}
   weft.exec.dispatch attributes {} {
@@ -773,7 +789,7 @@ weft.exec.kernel @empty_dispatch_condition attributes {} {
   weft.exec.capability @portable {id = "portable", kind = "toolchain"}
   weft.exec.variant @rvv_variant attributes {origin = "rvv-plugin", requires = [@rvv]} {
   }
-  weft.exec.variant @portable_variant attributes {origin = "portable-plugin", requires = [@portable]} {
+  weft.exec.variant @portable_variant attributes {fallback_role = "conservative", origin = "portable-plugin", requires = [@portable]} {
   }
   weft.exec.dispatch attributes {} {
     // expected-error @+1 {{requires non-empty string attribute 'condition' when present}}
@@ -789,7 +805,7 @@ weft.exec.kernel @empty_dispatch_guard attributes {} {
   weft.exec.capability @portable {id = "portable", kind = "toolchain"}
   weft.exec.variant @rvv_variant attributes {origin = "rvv-plugin", requires = [@rvv]} {
   }
-  weft.exec.variant @portable_variant attributes {origin = "portable-plugin", requires = [@portable]} {
+  weft.exec.variant @portable_variant attributes {fallback_role = "conservative", origin = "portable-plugin", requires = [@portable]} {
   }
   weft.exec.dispatch attributes {} {
     // expected-error @+1 {{requires non-empty string attribute 'guard' when present}}
@@ -805,7 +821,7 @@ weft.exec.kernel @empty_dispatch_policy attributes {} {
   weft.exec.capability @portable {id = "portable", kind = "toolchain"}
   weft.exec.variant @rvv_variant attributes {origin = "rvv-plugin", requires = [@rvv]} {
   }
-  weft.exec.variant @portable_variant attributes {origin = "portable-plugin", requires = [@portable]} {
+  weft.exec.variant @portable_variant attributes {fallback_role = "conservative", origin = "portable-plugin", requires = [@portable]} {
   }
   weft.exec.dispatch attributes {} {
     // expected-error @+1 {{requires non-empty string attribute 'policy' when present}}
@@ -818,7 +834,7 @@ weft.exec.kernel @empty_dispatch_policy attributes {} {
 
 weft.exec.kernel @fallback_inside_variant attributes {} {
   weft.exec.capability @portable {id = "portable", kind = "toolchain"}
-  weft.exec.variant @portable_variant attributes {origin = "portable-plugin", requires = [@portable]} {
+  weft.exec.variant @portable_variant attributes {fallback_role = "conservative", origin = "portable-plugin", requires = [@portable]} {
     // expected-error @+1 {{must be nested directly in a weft.exec.dispatch}}
     weft.exec.fallback @portable_variant
   }
@@ -836,7 +852,7 @@ weft.exec.kernel @dispatch_inside_variant attributes {} {
       weft.exec.fallback @portable_variant
     }
   }
-  weft.exec.variant @portable_variant attributes {origin = "portable-plugin", requires = [@portable]} {
+  weft.exec.variant @portable_variant attributes {fallback_role = "conservative", origin = "portable-plugin", requires = [@portable]} {
   }
 }
 
@@ -847,7 +863,7 @@ weft.exec.kernel @duplicate_dispatch_case attributes {} {
   weft.exec.capability @portable {id = "portable", kind = "toolchain"}
   weft.exec.variant @rvv_variant attributes {origin = "rvv-plugin", requires = [@rvv]} {
   }
-  weft.exec.variant @portable_variant attributes {origin = "portable-plugin", requires = [@portable]} {
+  weft.exec.variant @portable_variant attributes {fallback_role = "conservative", origin = "portable-plugin", requires = [@portable]} {
   }
   weft.exec.dispatch attributes {} {
     weft.exec.case @rvv_variant {condition = "first_generic_guard"}
@@ -864,7 +880,7 @@ weft.exec.kernel @illegal_dispatch_body_op attributes {} {
   weft.exec.capability @portable {id = "portable", kind = "toolchain"}
   weft.exec.variant @rvv_variant attributes {origin = "rvv-plugin", requires = [@rvv]} {
   }
-  weft.exec.variant @portable_variant attributes {origin = "portable-plugin", requires = [@portable]} {
+  weft.exec.variant @portable_variant attributes {fallback_role = "conservative", origin = "portable-plugin", requires = [@portable]} {
   }
   weft.exec.dispatch attributes {} {
     weft.exec.case @rvv_variant {condition = "preferred_capability_available"}

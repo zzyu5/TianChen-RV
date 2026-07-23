@@ -635,7 +635,7 @@ llvm::Error TensorExtLiteExtensionPlugin::buildVariantEmissionPlan(
       artifactRoute.emissionKind, artifactRoute.routeID,
       artifactRoute.runtimeABI, artifactRoute.artifactKind,
       "TensorExtLite selected explicit role sequence materializes an EmitC "
-      "module through the common WEFTEmitCLowerableRoute materializer and "
+      "module through the common constructed-body EmitC materializer and "
       "packages the MLIR EmitC C/C++ emitter output as a relocatable object "
       "artifact for the first slice");
   out.setRuntimeABIKind(artifactRoute.runtimeABIKind);

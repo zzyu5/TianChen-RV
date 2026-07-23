@@ -709,6 +709,7 @@ module {
     } {
     }
     weft.exec.variant @fallback attributes {
+      fallback_role = "conservative",
       origin = "mock-emitter",
       requires = [@base]
     } {
@@ -835,6 +836,7 @@ module {
     } {
     }
     weft.exec.variant @fallback attributes {
+      fallback_role = "conservative",
       origin = "mock-emitter",
       requires = [@base]
     } {
@@ -903,6 +905,7 @@ module {
     } {
     }
     weft.exec.variant @fallback attributes {
+      fallback_role = "conservative",
       origin = "mock-emitter",
       requires = [@base]
     } {
@@ -1051,6 +1054,7 @@ module {
     } {
     }
     weft.exec.variant @fallback attributes {
+      fallback_role = "conservative",
       origin = "mock-emitter",
       requires = [@base]
     } {
@@ -1189,6 +1193,7 @@ module {
     } {
     }
     weft.exec.variant @fallback attributes {
+      fallback_role = "conservative",
       origin = "mock-emitter",
       requires = [@base]
     } {
@@ -1256,6 +1261,7 @@ module {
     } {
     }
     weft.exec.variant @fallback attributes {
+      fallback_role = "conservative",
       origin = "mock-emitter",
       requires = [@base]
     } {
@@ -1391,6 +1397,7 @@ module {
     } {
     }
     weft.exec.variant @fallback attributes {
+      fallback_role = "conservative",
       origin = "mock-emitter",
       requires = [@base]
     } {
@@ -1428,6 +1435,7 @@ module {
     } {
     }
     weft.exec.variant @fallback attributes {
+      fallback_role = "conservative",
       origin = "mock-emitter",
       requires = [@base]
     } {
@@ -2036,6 +2044,7 @@ module {
     } {
     }
     weft.exec.variant @fallback attributes {
+      fallback_role = "conservative",
       origin = "mock-emitter",
       requires = [@base]
     } {
@@ -2063,6 +2072,7 @@ module {
     } {
     }
     weft.exec.variant @fallback attributes {
+      fallback_role = "conservative",
       origin = "mock-emitter",
       requires = [@base]
     } {
@@ -2129,6 +2139,7 @@ module {
       }
     }
     weft.exec.variant @fallback attributes {
+      fallback_role = "conservative",
       origin = "mock-emitter",
       requires = [@base]
     } {

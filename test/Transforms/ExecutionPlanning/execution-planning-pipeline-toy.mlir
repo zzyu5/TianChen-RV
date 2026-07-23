@@ -6,8 +6,6 @@ module {
   // PIPE-SAME: selected_variant = @toy_template_first_slice
   // PIPE: weft.exec.diagnostic
   // PIPE-SAME: artifact_kind = "riscv-elf-relocatable-object"
-  // PIPE-SAME: artifact_metadata = [{key = "toy_emitc_lowerable_route", value = "toy-template-compute-emitc-route"}
-  // PIPE-SAME: {key = "toy_source_op", value = "weft_toy.compute_skeleton"}
   // PIPE-SAME: emission_kind = "materialized-emitc-cpp-toy-template-module"
   // PIPE-SAME: lowering_boundary = "weft_toy.compute_skeleton"
   // PIPE-SAME: lowering_pipeline = "toy-template-compute-emitc-route"

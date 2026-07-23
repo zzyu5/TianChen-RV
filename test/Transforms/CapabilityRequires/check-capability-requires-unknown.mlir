@@ -52,6 +52,7 @@ weft.exec.kernel @guarded_unknown attributes {} {
   } {
   }
   weft.exec.variant @portable_fallback attributes {
+    fallback_role = "conservative",
     origin = "portable-plugin",
     requires = [@present_toolchain]
   } {

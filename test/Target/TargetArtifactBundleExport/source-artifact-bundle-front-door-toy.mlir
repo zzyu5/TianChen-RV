@@ -23,8 +23,6 @@
 // HEADER: weft.toy.runtime_abi_kind: plugin-owned-runtime-abi
 // HEADER: weft.toy.runtime_abi_name: toy-template-compute-runtime-c-abi.v1
 // HEADER: weft.toy.runtime_abi_parameter[0]: size_t toy_value_count role=runtime-element-count ownership=target-export-abi-owned
-// HEADER: weft.toy.emitc_lowerable_route: toy-template-compute-emitc-route
-// HEADER: weft.toy.source_op_interface: WEFTEmitCLowerableOpInterface
 // HEADER: extern "C" {
 // HEADER: void weft_emitc_toy_header_export_toy_template_first_slice(size_t toy_value_count);
 
@@ -38,10 +36,6 @@
 // INDEX: runtime_abi_name: "toy-template-compute-runtime-c-abi.v1"
 // INDEX: runtime_abi_parameter_count: 1
 // INDEX: c_name: "toy_value_count"
-// INDEX: key: "toy_emitc_lowerable_route"
-// INDEX: value: "toy-template-compute-emitc-route"
-// INDEX: key: "toy_source_op_interface"
-// INDEX: value: "WEFTEmitCLowerableOpInterface"
 // INDEX: handoff_kind: "materialized-emitc-cpp-toy-template-object"
 // INDEX: evidence_role: "relocatable-object"
 // INDEX-LABEL: artifact[1]:

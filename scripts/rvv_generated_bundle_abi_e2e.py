@@ -8571,11 +8571,11 @@ def source_front_door_family_contract_summary(
             contract.default_artifact_front_door_policy
         ),
         "route_authority": (
-            "selected typed weft_rvv body plus RVV provider-built "
-            "WEFTEmitCLowerableRoute"
+            "selected exact typed weft_rvv body consumed by the RVV "
+            "artifact driver"
         ),
         "common_emitc_role": (
-            "neutral materializer for provider payload; no RVV semantic "
+            "neutral materializer for typed artifact projection; no RVV semantic "
             "inference"
         ),
     }
@@ -30548,8 +30548,8 @@ def base_memory_movement_boundary_summary(
     return {
         "source": (
             "typed weft_rvv memory body/config/runtime facts -> RVV "
-            "base-memory route-family facts -> memory operand-binding facts "
-            "-> RVV-owned statement plan -> provider-built route"
+            "base-memory typed facts -> memory operand-binding facts "
+            "-> RVV-owned statement plan -> mechanical artifact projection"
         ),
         "authority": (
             "exact-body-derived typed weft_rvv base memory body/config/runtime "

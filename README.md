@@ -93,9 +93,20 @@ construct a typed body for their current mechanical artifact path. Catalog/backe
 inventories are checked separately and neither is compute authority. See
 [ISSUE-129 and ISSUE-131](.trellis/spec/issues/发射器与架构.md).
 
+The same authority cut now extends through the RVV body/artifact boundary.
+Construction owns the exact `RVVBodyRuntimeControl` (`sew`, `lmul`, policy and
+runtime AVL value), and selected-body realization consumes formula-produced
+relation/layout/resource decisions directly. The former
+`lib/Plugin/RVV/EmitC` route-provider stack, `RVVConstructionProtocol`, route
+identity/plan-owner mirrors and their CMake target have been removed; segment2
+typed-body construction now lives with its construction owner. The RVV dialect
+still verifies local structure, types and semantic relations, but no verifier
+replays a formula or recreates a provider decision.
+
 That lifecycle cutover is a structural prerequisite, not the end of the research
-refactor. Deterministic-family construction manifests, typed-role replay, route
-providers, generic readiness verification, string role/status/interface mirrors and
+refactor. Deterministic-family construction manifests and the old RVV compute
+route-provider/protocol stack, typed-role replay, provider-side formula replay,
+generic readiness verification, string role/status/interface mirrors and
 metadata-only lowering boundaries have been retired; pure artifact ABI/callee
 constants no longer decide construction. Other code-affecting knowledge still lives
 across complete leaves, front doors, schedules and conversions, and
@@ -220,9 +231,11 @@ selected typed result
 Reference family: lib/Plugin/Template/.
 
 The stable formula-layer and coverage contract is in [architecture/公式层与覆盖.md](.trellis/spec/architecture/公式层与覆盖.md).
-The first V2 implementation task is
-[artifact-neutral family construction rebase](.trellis/tasks/07-23-artifact-neutral-family-construction-rebase/prd.md);
-it deliberately does not implement GPU.
+The completed first V2 implementation task is the
+[artifact-neutral family construction rebase](.trellis/tasks/07-23-artifact-neutral-family-construction-rebase/prd.md).
+The active follow-up is the
+[executable-knowledge A/B horizontal closure](.trellis/tasks/07-23-executable-knowledge-ab-horizontal-closure/prd.md).
+Neither task implements GPU.
 
 ## Measurement
 

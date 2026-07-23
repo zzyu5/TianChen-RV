@@ -551,6 +551,16 @@ measurement 只修正合法残差，artifact lowerer 无 compute authority。
 
 ## 9. 当前代码基础与 artifact-neutral rebase 状态
 
+本节必须同时写目标态和当前态，二者不得互相冒充：
+
+| 边界 | 当前已经成立 | 边界 / 尚未完成 |
+|---|---|---|
+| family / artifact authority | family 先返回 exact typed body，artifact lowerer 机械消费 | 不代表所有 leaf 已能由 mechanisms/formula 重建 |
+| RVV body | `flat_*` 与 runtime control 由 construction 拥有，旧 route-provider/protocol 已退出 | 仍有 `ConstructedWeak` 完整 leaf |
+| verification | typed dialect 检查结构/类型，capability check 检查已绑定配置 | verifier 不得重放公式或重新选择 compute |
+| GPU | V2 lifecycle 已为独立 GPU family 留出正确工位 | 尚无 GPU family、body、artifact、runtime 或证据 |
+| evidence | 本地 compiler/build 路径可验证 | current-artifact 真硬件 A/B 尚未闭合 |
+
 ### 9.1 已经成立的基础
 
 当前项目已经完成一轮重要横向收口：
@@ -574,6 +584,19 @@ measurement 只修正合法残差，artifact lowerer 无 compute authority。
   provider、通用 readiness verifier、role/status/interface 字符串镜像和 metadata-only
   `lowering_boundary` 已退出 production；它们保留 family-local typed body、legality 与纯
   artifact ABI/callee 常量，artifact 常量不参与 compute；
+- RVV construction 现在以
+  `RVVBodyRuntimeControl {sew, lmul, policy, runtimeAVLValue}` 明确拥有 exact-body runtime
+  control；artifact lowering 不从 ABI
+  顺序、route metadata 或 provider state 补出 VL/config 决定；
+- 旧 `lib/Plugin/RVV/EmitC` route-provider 栈、`RVVConstructionProtocol`、
+  `RVVContractionRouteIdentity`、各 route-family plan-owner mirror 与旧 CMake provider target
+  已物理删除；RVV 构建只链接 artifact-neutral `WeftRVVConstruction`；
+- segment2 的真实 typed-body construction 已回到自己的 realization owner；contraction
+  realization 直接消费 formula 的 relation/layout/resource plan，不再经 primitive-facts 或
+  intrinsic-metadata mirror 重放；
+- provider/formula replay validator 已删除；保留的 dialect `verify()` 只检查 typed body 的
+  局部结构、类型、operand role、policy 与语义关系，construction-time capability check 只
+  检查已经绑定的 body config，二者都不是第二 compute authority；
 - `ConstructedWeak` 与 strong reconstruction 的界线保持诚实。
 
 这里的“artifact-neutral”不仅指 lifecycle/caller 已迁出 EmitC driver，也指确定性 family
@@ -586,8 +609,9 @@ authority。
 
 ### 9.2 当前仍需完成的 A/B 主线
 
-Artifact-neutral 主体切换、caller closure 与完整回归已经完成；剩余工作不能被误写成
-construction 仍在 EmitC driver，也不能因此跳过 RISC-V 旗舰 realization 的方法闭环：
+Artifact-neutral 主体切换、caller closure、旧 RVV provider/protocol 物理清场与相应本地
+回归已经完成；剩余工作不能被误写成 construction 仍在 EmitC driver，也不能因此跳过
+RISC-V 旗舰 realization 的方法闭环：
 
 1. `P=(S,g,ω)` ownership 已可枚举，但真实 code-affecting `g/c/ω` 与 mechanism/formula
    仍分散在若干 family leaf、front door、schedule 与 conversion 中；
@@ -799,6 +823,8 @@ GPU correctness/performance。
 - ISSUE-131 保留 rebase 前 construction lifecycle 被 EmitC 绑住的历史问题，当前已关闭；
 - 第一个 task 已完成 artifact-neutral horizontal rebase；
 - 当前 task 是 executable-knowledge A/B horizontal closure，不实现 GPU；
+- 当前 task 已完成 RVV exact-body/runtime-control 与旧 provider/protocol 清场这一结构阶段，
+  但仍保持 `in_progress`；
 - GPU implementation 仍须之后另建，不作为 A/B task 的隐藏子项。
 
 ---

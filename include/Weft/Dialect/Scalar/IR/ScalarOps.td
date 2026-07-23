@@ -138,8 +138,8 @@ def ImmediateCallBodyOp : WEFTScalar_Op<"immediate_call_body",
     Final typed body constructed from compute_skeleton. The artifact lowerer
     consumes the exact operation and projects the fixed
     `i32 weft_scalar_compute_skeleton(i32)` call ABI plus the typed immediate.
-    The body identity owns that call topology; no source-op or route provider
-    participates in lowering.
+    The body identity owns that call topology; no source op or intermediate
+    provider participates in lowering.
   }];
   let arguments = (ins
     StrAttr:$source_kernel,

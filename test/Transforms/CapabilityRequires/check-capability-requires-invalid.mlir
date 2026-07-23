@@ -35,6 +35,7 @@ weft.exec.kernel @unguarded_dispatch_case attributes {} {
   } {
   }
   weft.exec.variant @portable_fallback attributes {
+    fallback_role = "conservative",
     origin = "portable-plugin",
     requires = [@generic_toolchain]
   } {
@@ -71,6 +72,7 @@ weft.exec.kernel @unavailable_fallback attributes {} {
   } {
   }
   weft.exec.variant @portable_fallback attributes {
+    fallback_role = "conservative",
     origin = "runtime-fallback-plugin",
     requires = [@portable_runtime]
   } {
@@ -141,6 +143,7 @@ weft.exec.kernel @unguarded_conflict_dispatch attributes {} {
   } {
   }
   weft.exec.variant @portable_fallback attributes {
+    fallback_role = "conservative",
     origin = "portable-plugin",
     requires = [@generic_toolchain]
   } {
@@ -180,6 +183,7 @@ weft.exec.kernel @conflicting_fallback attributes {} {
   } {
   }
   weft.exec.variant @portable_fallback attributes {
+    fallback_role = "conservative",
     origin = "runtime-fallback-plugin",
     requires = [@scalar_fallback]
   } {

@@ -1,7 +1,7 @@
 // RUN: weft-opt %s --weft-materialize-selected-lowering-boundaries --weft-materialize-emitc-lowerable-routes | FileCheck %s
 
 // Plain compare/select pre-realized bodies must be consumed by the selected
-// lowering-boundary producer before the provider builds a WEFTEmitCLowerableRoute.
+// selected-body producer before the RVV artifact driver consumes the exact body.
 
 module {
   weft.exec.kernel @pre_route_cmp_select_kernel {

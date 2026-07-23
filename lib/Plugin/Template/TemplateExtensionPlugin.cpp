@@ -528,7 +528,7 @@ llvm::Error TemplateExtensionPlugin::buildVariantEmissionPlan(
       artifactRoute.emissionKind, artifactRoute.routeID,
       artifactRoute.runtimeABI, artifactRoute.artifactKind,
       "Template selected compute_skeleton route materializes a verified EmitC "
-      "module through the common WEFTEmitCLowerableRoute materializer and "
+      "module through the common constructed-body EmitC materializer and "
       "exports generated C++ through the MLIR EmitC C/C++ emitter");
   out.setRuntimeABIKind(artifactRoute.runtimeABIKind);
   out.setRuntimeABIName(artifactRoute.runtimeABIName);

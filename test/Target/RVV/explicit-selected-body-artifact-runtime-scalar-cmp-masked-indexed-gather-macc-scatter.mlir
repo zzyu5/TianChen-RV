@@ -2,12 +2,12 @@
 // RUN: weft-opt %s --weft-materialize-emission-plans | weft-translate --weft-export-target-header-artifact | FileCheck %s --check-prefix=HEADER
 // RUN: sed '/weft.exec.case @rvv_explicit_composite/d' %s | not weft-opt --weft-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=MISSING-DISPATCH-CASE
 // RUN: sed '/weft.exec.fallback @explicit_composite_scalar_fallback/d' %s | not weft-opt --weft-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=MISSING-DISPATCH-FALLBACK
-// RUN: sed '0,/^      weft.exec.case @rvv_explicit_composite {origin = "rvv-plugin", policy = "explicit-composite-gather-macc-scatter-case"}/s//      weft.exec.case @rvv_explicit_composite {origin = "rvv-plugin", policy = "explicit-composite-gather-macc-scatter-case", runtime_guard_required = true}/' %s | not weft-opt --weft-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=MISSING-RUNTIME-GUARD
+// RUN: sed '0,/^      weft.exec.case @rvv_explicit_composite {origin = "rvv-plugin", policy = "explicit-composite-gather-macc-scatter-case"}/s//      weft.exec.case @rvv_explicit_composite {origin = "rvv-plugin", policy = "explicit-composite-gather-macc-scatter-case", runtime_guard_required = true}/' %s | not weft-opt --weft-materialize-emission-plans --weft-check-execution-plan-coherence 2>&1 | FileCheck %s --check-prefix=MISSING-RUNTIME-GUARD
 
 // Hand-authored explicit selected-body input for the Stage2 runtime scalar
 // compare, masked indexed gather, masked MAcc, and masked indexed scatter
-// composite. The target artifact must consume provider-owned route facts and
-// mirrors from this realized typed body instead of metadata or route names.
+// composite. The target artifact must mechanically consume the realized exact
+// typed body instead of reconstructing computation from metadata or route names.
 
 module {
   weft.exec.kernel @explicit_composite_masked_indexed_gather_macc_scatter_kernel {
@@ -71,8 +71,8 @@ module {
 
 // MISSING-DISPATCH-FALLBACK: 'weft.exec.dispatch' op requires exactly one weft.exec.fallback
 
-// MISSING-RUNTIME-GUARD: 'weft.exec.case' op requires runtime_guard linkage to a dispatch-availability-guard runtime_param when runtime_guard_required=true
-
+// MISSING-RUNTIME-GUARD: Weft-RV execution plan coherence check failed for kernel @explicit_composite_masked_indexed_gather_macc_scatter_kernel
+// MISSING-RUNTIME-GUARD-SAME: dispatch case @rvv_explicit_composite carries typed runtime_guard_required = true but is missing runtime_guard linkage to a dispatch-availability runtime_param
 
 
 

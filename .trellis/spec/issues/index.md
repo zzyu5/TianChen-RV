@@ -259,7 +259,7 @@
 | ISSUE-078 | 固定简报模板不再强制 | RESOLVED | spec树与治理 |
 | ISSUE-079 | 实验预注册与 Trellis task 解耦 | RESOLVED | spec树与治理 |
 | ISSUE-080 | task 母子自动聚合不再是全项目门 | RESOLVED | spec树与治理 |
-| ISSUE-081 | N-operand route identity 的完成度自相抵 | 待施工 | 发射器与架构 |
+| ISSUE-081 | N-operand route identity 的完成度自相抵 | RESOLVED / retired with old provider ontology (2026-07-23) | 发射器与架构 |
 | ISSUE-082 | 「falsifier 组 CI 常绿」措辞失锚 | 待裁 | 门与工具 |
 | ISSUE-083 | 真二进制门 DORMANT 的常驻登记处 | 阻塞 | 门与工具 |
 | ISSUE-084 | 旧 C2 成本曲线第三家族点不再是柱二前置 | RESOLVED | 性能与测量 |
@@ -329,7 +329,7 @@
 | [architecture](../architecture/index.md) 「本层登记的未决项」表 未决项 **B**（既有 spec 树与新六层归并） | ISSUE-070（第 2 问）—— **未随 070 裁定了结，仍活** |
 | ~~未决项 **C**（core-invariants 夹带叙事/commit 号）~~ | ISSUE-070（第 1 问）—— **已裁**：载体已归档，外壳随件离场 |
 | ~~未决项 **D**（[PERF-1] 门项数）~~ | ISSUE-071 —— **已裁**：门体 = 十项 |
-| [architecture](../architecture/index.md) 「本层登记的未决项」表 未决项 **E**（N-operand route identity） | ISSUE-081 |
+| ~~未决项 **E**（N-operand route identity）~~ | ISSUE-081 —— **已关闭**：旧 route identity/provider ontology 已物理退役；typed operand topology 由当前 construction/formula 承接 |
 | [evidence](../evidence/index.md) §六 **G-1**（性能证词根悬空） | ISSUE-072 |
 | [evidence](../evidence/index.md) §六 **G-2**（「CI 常绿」措辞失锚） | ISSUE-082 |
 | [evidence](../evidence/index.md) §六 **G-3**（承重论证载体去向） | ISSUE-072 |

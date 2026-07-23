@@ -8,7 +8,7 @@
 
 // This target artifact bundle test intentionally starts from the existing
 // pre-realized selected-body fixture. It proves the selected-boundary producer,
-// provider-built route, and target artifact validator reach the generated
+// exact-body artifact lowering and target artifact validator reach the generated
 // object/header bundle before runtime evidence is collected by the script.
 
 // BUNDLE-STDOUT: weft.target_artifact_bundle_export: complete

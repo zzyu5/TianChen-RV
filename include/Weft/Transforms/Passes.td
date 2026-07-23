@@ -404,17 +404,16 @@ def MaterializeRVVSchedule
 
 def MaterializeEmitCLowerableRoutes
     : Pass<"weft-materialize-emitc-lowerable-routes", "::mlir::ModuleOp"> {
-  let summary = "Materialize plugin-owned EmitC lowerable routes through the common route interface";
+  let summary = "Construct a selected family body and materialize it through the EmitC backend registry";
   let description = [{
-    Finds a bounded direct weft.exec.variant, builds target capabilities from
-    the enclosing kernel, asks the variant origin plugin for an
-    extension-family EmitC lowerable route, and replaces the module with the
-    materialized MLIR EmitC module produced by the common
-    WEFTEmitCLowerableRoute materializer.
+    Finds a bounded direct weft.exec.variant, binds the origin family and
+    target capabilities, asks that family to construct an exact final typed
+    body, and replaces the module with the fully legalized MLIR EmitC module
+    produced by the construction-blind backend registry.
 
     The pass is extension-neutral. It routes by the generic origin plugin and
     does not branch on RVV, scalar, IME, offload, vendor, dtype, LMUL,
-    intrinsic spelling, runtime ABI roles, or artifact route metadata. Family
+    intrinsic spelling, runtime ABI roles, or artifact metadata. Family
     semantics and intrinsic/runtime-call mapping stay in the origin plugin.
     This pass materializes EmitC IR only; it does not print C/C++, export
     target artifacts, compile objects, run hardware, prove correctness, or

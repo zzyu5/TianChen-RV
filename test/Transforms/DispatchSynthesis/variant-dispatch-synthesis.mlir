@@ -112,6 +112,7 @@ weft.exec.kernel @already_dispatched attributes {} {
     kind = "toolchain"
   }
   weft.exec.variant @baseline_path attributes {
+    fallback_role = "conservative",
     origin = "baseline-plugin",
     requires = [@baseline_capability]
   } {

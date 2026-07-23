@@ -1052,7 +1052,7 @@ llvm::Error IMEExtensionPlugin::buildVariantEmissionPlan(
       "ime-vmadot-mma-runtime-c-abi.v1", "riscv-elf-relocatable-object",
       "IME selected boundary lowers the FOUNDATION-validated int8->int32 MAC "
       "kernel (signed vmadot or unsigned vmadotu) through the common "
-      "WEFTEmitCLowerableRoute materializer and the MLIR EmitC C/C++ emitter");
+      "constructed-body EmitC materializer and the MLIR EmitC C/C++ emitter");
   out.setRuntimeABIKind("plugin-owned-runtime-abi");
   out.setRuntimeABIName("ime-vmadot-mma-runtime-c-abi.v1");
   out.setRuntimeGlueRole("emitc-cpp-ime-vmadot-mma-runtime-glue");

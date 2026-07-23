@@ -30,7 +30,7 @@ module {
 // PLAN-SAME: emission_kind = "materialized-emitc-cpp-tensorext-lite-fragment-mma-module"
 // PLAN-SAME: lowering_boundary = "weft_tensorext_lite.config_skeleton"
 // PLAN-SAME: lowering_pipeline = "tensorext-lite-fragment-mma-emitc-route"
-// PLAN-SAME: message = "TensorExtLite selected explicit role sequence materializes an EmitC module through the common WEFTEmitCLowerableRoute materializer and packages the MLIR EmitC C/C++ emitter output as a relocatable object artifact for the first slice"
+// PLAN-SAME: message = "TensorExtLite selected explicit role sequence materializes an EmitC module through the common constructed-body EmitC materializer and packages the MLIR EmitC C/C++ emitter output as a relocatable object artifact for the first slice"
 // PLAN-SAME: origin = "tensorext-lite-plugin"
 // PLAN-SAME: reason = "emission_plan"
 // PLAN-SAME: runtime_abi = "tensorext-lite-fragment-mma-runtime-c-abi.v1"

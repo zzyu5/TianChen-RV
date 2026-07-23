@@ -539,7 +539,7 @@ llvm::Error ToyExtensionPlugin::buildVariantEmissionPlan(
       artifactRoute.emissionKind, artifactRoute.routeID,
       artifactRoute.runtimeABI, artifactRoute.artifactKind,
       "Toy selected compute_skeleton route materializes a verified EmitC "
-      "module through the common WEFTEmitCLowerableRoute materializer and "
+      "module through the common constructed-body EmitC materializer and "
       "exports a relocatable object with an object-backed declaration header "
       "and bundle");
   out.setRuntimeABIKind(artifactRoute.runtimeABIKind);

@@ -27,7 +27,7 @@ module {
       emission_kind = "materialized-emitc-cpp-toy-template-module",
       lowering_boundary = "weft_toy.compute_skeleton",
       lowering_pipeline = "toy-template-compute-emitc-route",
-      message = "Toy selected compute_skeleton route materializes a verified EmitC module through the common WEFTEmitCLowerableRoute materializer and exports a relocatable object with an object-backed declaration header and bundle",
+      message = "Toy selected compute_skeleton route materializes a verified EmitC module through the common constructed-body EmitC materializer and exports a relocatable object with an object-backed declaration header and bundle",
       origin = "toy-plugin",
       plan_kind = "plugin-emission-plan",
       reason = "emission_plan",

@@ -32,7 +32,7 @@ module {
       target = @tensorext_lite_tile_mma_first_slice
     }
     weft.exec.diagnostic {
-      message = "TensorExtLite selected explicit role sequence materializes an EmitC module through the common WEFTEmitCLowerableRoute materializer; target artifact export remains unsupported for this family slice",
+      message = "TensorExtLite selected explicit role sequence materializes an EmitC module through the common constructed-body EmitC materializer; target artifact export remains unsupported for this family slice",
       origin = "tensorext-lite-plugin",
       plan_kind = "plugin-emission-plan",
       reason = "emission_plan",

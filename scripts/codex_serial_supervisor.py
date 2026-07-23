@@ -1964,22 +1964,21 @@ Codex to choose from multiple candidate tasks.
 The project shape that matters for review is:
 
 ```text
-Weft-RV MLIR / weft.exec envelope
-  -> selected extension-family variant
-  -> typed extension-family body
-  -> plugin-owned legality / selected-body realization / route provider
-  -> WEFTEmitCLowerableRoute
-  -> common EmitC materialization and target artifact mechanics
+canonical operator problem P=(S,g,omega)
+  -> target/profile binds one construction family + c_f
+  -> family-local formula / legality / optional bounded selection
+  -> exact typed extension-family body
+  -> family artifact driver and target artifact mechanics
 ```
 
 For the current real hardware mainline, the selected family is RVV:
 
 ```text
-selected weft.exec RVV variant
-  -> typed low-level weft_rvv vector-level body
-  -> RVV plugin-owned legality / selected-body realization / route provider
-  -> WEFTEmitCLowerableRoute
-  -> common EmitC materializer
+bound RVV family + c_rvv
+  -> RVV formula / legality / optional bounded selection
+  -> exact typed low-level weft_rvv body + final plan
+  -> RVV artifact driver mechanically lowers the exact body
+  -> common EmitC legalization/materialization
   -> target artifact
   -> ssh rvv evidence when runtime/correctness/performance is claimed
 ```
@@ -1987,18 +1986,15 @@ selected weft.exec RVV variant
 `weft.exec` is the execution envelope and ABI/runtime binding surface. It does
 not invent compute semantics from parameter names, route ids, artifact names,
 test names, descriptors, or C strings. `weft_rvv` is the low-level typed RVV
-body. The RVV plugin owns RVV legality, realization, intrinsic mapping, route
-construction, and fail-closed diagnostics. Common lowering/export owns neutral
-mechanics only.
-An RVV route is not a decorator over an old `i32_*` op, route id, descriptor,
-or artifact. The provider builds `WEFTEmitCLowerableRoute` only after the
-selected vector-level `weft_rvv` body structurally carries the operation, dtype,
-config, memory form, runtime value use, and policy facts. Common materialization
-then lowers that route to MLIR EmitC; it must not choose RVV semantics itself.
+body. The RVV plugin owns RVV formula, legality, realization, intrinsic mapping
+and fail-closed diagnostics. The old route-provider/protocol stack is retired.
+Common lowering/export consumes the exact typed body through the family
+artifact driver and owns neutral mechanics only; it must not choose RVV
+semantics itself.
 Emission-plan diagnostics, result fields, route ids, manifests, and artifact
 metadata are mirrors only. Bare `supported`/`status`/`result` wording must not
 be treated as acceptance state or route authority; mirror fields should use
-explicit mirror labels such as `provider_supported_mirror`.
+explicit non-authoritative artifact wording rather than provider acceptance labels.
 
 Dtype/config authority must stay layered. `weft.exec.mem_window` and
 `weft.exec.runtime_param` bind parameter roles and runtime SSA values; they do

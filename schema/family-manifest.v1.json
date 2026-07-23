@@ -171,7 +171,7 @@
       "dispatch_keys": [
         "demo"
       ],
-      "note": "Demo minimal toy family (Tier-2 clean-room integration exercise, 2026-07-12). Cloned from the Template scaffold to demonstrate the [P-4] external-integration protocol end-to-end (dialect + plugin + target). Emission-pattern piece ③ = route-provider readiness + construction protocol REUSING the common EmitC materializer; NO separate backend emission driver registered (that would require a second shared-registration touch to lib/Conversion/EmitC/Builtin/BuiltinBackendEmitters.cpp, which is NOT in this manifest's shared_allowances -- see the T1c report finding).",
+      "note": "Demo minimal toy family retained as an integration fixture. Its current plugin constructs an exact typed body and the registered artifact driver lowers that body through the common EmitC harness. The historical route-provider/construction-manifest protocol is retired; this manifest is inventory only and is not construction or compute authority.",
       "source_ranges": [
         "lib/Dialect/Demo",
         "lib/Plugin/Demo",

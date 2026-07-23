@@ -1,5 +1,6 @@
-// RUN: weft-opt %s --split-input-file --verify-diagnostics --weft-materialize-emission-plans
+// RUN: weft-opt %s --split-input-file --verify-diagnostics --weft-materialize-emission-plans --weft-check-execution-plan-coherence
 
+// expected-error@+1 {{Weft-RV execution plan coherence check failed for kernel @rvv_dispatch_case_missing_runtime_guard: dispatch case @rvv_scalar_broadcast_macc carries typed runtime_guard_required = true but is missing runtime_guard linkage to a dispatch-availability runtime_param}}
 module {
   weft.exec.kernel @rvv_dispatch_case_missing_runtime_guard {
     weft.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
@@ -27,7 +28,6 @@ module {
     weft.exec.variant @scalar_fallback_path attributes {fallback_role = "conservative", origin = "scalar-plugin", requires = [@scalar_fallback]} {
     }
     weft.exec.dispatch {
-      // expected-error@+1 {{requires runtime_guard linkage to a dispatch-availability-guard runtime_param when runtime_guard_required=true}}
       weft.exec.case @rvv_scalar_broadcast_macc {origin = "rvv-plugin", policy = "dispatch-envelope-negative-case", runtime_guard_required = true}
       weft.exec.fallback @scalar_fallback_path {fallback_role = "conservative", origin = "scalar-plugin"}
     }

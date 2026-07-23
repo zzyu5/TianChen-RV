@@ -98,6 +98,7 @@ module {
       kind = "toolchain"
     }
     weft.exec.variant @baseline_path attributes {
+      fallback_role = "conservative",
       origin = "baseline-plugin",
       requires = [@baseline_capability]
     } {

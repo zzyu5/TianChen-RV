@@ -6,20 +6,20 @@ include "mlir/IR/OpBase.td"
 def WEFTEmitCLowerableOpInterface
     : OpInterface<"WEFTEmitCLowerableOpInterface"> {
   let description = [{
-    Interface for WEFT extension-family operations that can provide bounded
-    provenance for the common EmitC lowerable route.
+    Interface for exact WEFT extension-family body operations that provide
+    bounded source provenance to current EmitC artifact lowering.
 
     The interface identifies the typed source operation and source role used
-    when constructing a WEFTEmitCLowerableRoute. It does not encode descriptor
-    semantics, hardware configuration, runtime correctness, performance
-    evidence, or family-specific intrinsic names.
+    for artifact diagnostics. It does not construct a route, encode descriptor
+    semantics, choose hardware configuration, or carry runtime correctness,
+    performance evidence, or family-specific intrinsic names.
   }];
 
   let cppNamespace = "::weft::conversion::emitc";
 
   let methods = [
     InterfaceMethod<
-      /*desc=*/"Return the typed source operation name for EmitC route provenance.",
+      /*desc=*/"Return the typed source operation name for EmitC artifact provenance.",
       /*retTy=*/"::llvm::StringRef",
       /*methodName=*/"getWEFTEmitCLowerableSourceOpName",
       /*args=*/(ins),
@@ -28,7 +28,7 @@ def WEFTEmitCLowerableOpInterface
         return $_op->getName().getStringRef();
       }]>,
     InterfaceMethod<
-      /*desc=*/"Return the source role for EmitC route provenance.",
+      /*desc=*/"Return the source role for EmitC artifact provenance.",
       /*retTy=*/"::llvm::StringRef",
       /*methodName=*/"getWEFTEmitCLowerableSourceRole",
       /*args=*/(ins),

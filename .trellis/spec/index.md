@@ -193,16 +193,22 @@ dequant 与 IME 的 MAC/tile 选择也在 emission 前形成 family-local final 
 Demo/Toy/Template/TensorExtLite 以已资格化 final typed body 加固定机械 route 实现，不另造
 通用 plan/provider。
 
-当前 A/B 横向重构的第一项结构切面已经删除确定性 family 的
+当前 A/B 横向重构已经完成两项结构清场。确定性 family 的
 `emitc_route_mapping`/construction manifest、typed-role replay、route provider、通用
-readiness verifier、字符串 role/status/interface 镜像和 metadata-only lowering boundary。
-保留的 artifact ABI/callee 常量只机械投影 exact typed body，不参与 construction、legality
-或 compute。这一完成不等于其它 `ConstructedWeak` leaf 已经 strong。
+readiness verifier、字符串 role/status/interface 镜像和 metadata-only lowering boundary 已
+删除；旧 RVV `lib/Plugin/RVV/EmitC` route-provider 栈、`RVVConstructionProtocol`、route
+identity/plan-owner mirror 与对应构建目标也已物理退出。RVV runtime control 现在由
+construction-side exact body 持有，segment2 与 contraction realization 直接消费 typed
+construction/formula 结果。保留的 artifact ABI/callee 常量只机械投影 exact typed body，
+不参与 construction、legality 或 compute。这一完成不等于其它 `ConstructedWeak` leaf
+已经 strong。
 
 这证明的是当前可达 production authority 和 caller 已横向收敛，不是所有知识都达到强
 因式分解。仍标为 `ConstructedWeak` 的完整 leaf，只有在删除该逐点实现后能由
 `g/c/ω + mechanisms + formula` 重建同一实例时，才可升级 strong construction。后续工程
 重点是继续做 mechanism factorization、能力因果与该删除实验，而不是重开兼容入口。
+保留的 dialect verifier 只检查局部结构、类型和语义关系；删除的是 provider/formula replay
+验证，不是删除类型系统或 legality。
 
 V2 的首轮横向重构已经把 canonical problem 之后的 target/family binding 与 family
 construction 从 EmitC driver 迁入 artifact-neutral plugin lifecycle，并闭合 current

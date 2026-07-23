@@ -24,7 +24,8 @@ def WEFT_RVV_Dialect : Dialect {
     negative or verifier fixtures, but it is not executable route, ABI,
     EmitC-lowerable, selected-body, artifact, source-front-door, or exporter
     authority. Current RVV execution goes through explicit generic typed
-    extension-family IR plus a provider-built materialized EmitC route.
+    extension-family IR whose exact typed body is consumed by the RVV artifact
+    driver.
   }];
 
   let useDefaultTypePrinterParser = 1;
@@ -358,7 +359,8 @@ def TypedBinaryPreRealizedBodyOp
     direct-C exporter, intrinsic wrapper, runtime artifact, correctness
     evidence, or performance evidence. The RVV plugin must first realize it
     into explicit setvl/with_vl/load/compute/store weft_rvv body structure
-    before the existing provider may construct a WEFTEmitCLowerableRoute.
+    before the RVV artifact lowerer consumes the exact
+    typed body.
   }];
 
   let arguments = (ins
@@ -392,8 +394,9 @@ def TypedRuntimeScalarSplatStorePreRealizedBodyOp
     This op is not a route id, helper-string authority, descriptor, source
     front door, direct-C exporter, constant substitution, artifact mirror, or
     common EmitC semantic inference hook. The RVV plugin must first realize it
-    into explicit setvl/with_vl/splat/store weft_rvv body structure before the
-    provider may construct a WEFTEmitCLowerableRoute.
+    into explicit setvl/with_vl/splat/store weft_rvv body structure
+    before the RVV artifact lowerer consumes the exact
+    typed body.
   }];
 
   let arguments = (ins
@@ -426,8 +429,9 @@ def TypedMaskedBinaryPreRealizedBodyOp
     direct-C exporter, route id, intrinsic wrapper, runtime artifact,
     correctness evidence, or performance evidence. The RVV plugin must first
     realize it into explicit setvl/with_vl/load/compare/masked_binary/store
-    weft_rvv body structure before the existing provider may construct a
-    WEFTEmitCLowerableRoute.
+    weft_rvv body structure
+    before the RVV artifact lowerer consumes the exact
+    typed body.
   }];
 
   let arguments = (ins
@@ -463,8 +467,8 @@ def TypedCompareSelectPreRealizedBodyOp
     direct-C exporter, route id, intrinsic wrapper, runtime artifact,
     correctness evidence, or performance evidence. The RVV plugin must first
     realize it into explicit setvl/with_vl/load/compare/select/store weft_rvv
-    body structure before the existing provider may construct a
-    WEFTEmitCLowerableRoute.
+    body structure before the RVV artifact lowerer consumes the exact
+    typed body.
   }];
 
   let arguments = (ins
@@ -505,8 +509,9 @@ def TypedComputedMaskSelectPreRealizedBodyOp
     descriptor, source-front-door marker, direct-C exporter, intrinsic wrapper,
     runtime artifact, correctness evidence, or performance evidence. The RVV
     plugin must realize it into explicit setvl/with_vl/load/load/load/load/
-    compare/select/store weft_rvv body structure before the provider may
-    construct a WEFTEmitCLowerableRoute.
+    compare/select/store weft_rvv body structure
+    before the RVV artifact lowerer consumes the exact
+    typed body.
   }];
 
   let arguments = (ins
@@ -554,7 +559,8 @@ def TypedRuntimeScalarCompareSelectPreRealizedBodyOp
     exporter, intrinsic wrapper, runtime artifact, correctness evidence, or
     performance evidence. The RVV plugin must realize it into explicit
     setvl/with_vl/load/splat/load/load/compare/select/store weft_rvv body
-    structure before the provider may construct a WEFTEmitCLowerableRoute.
+    structure before the RVV artifact lowerer consumes the exact
+    typed body.
   }];
 
   let arguments = (ins
@@ -603,8 +609,9 @@ def TypedRuntimeScalarDualCompareMaskAndSelectPreRealizedBodyOp
     exporter, intrinsic wrapper, runtime artifact, correctness evidence, or
     performance evidence. The RVV plugin must realize it into explicit
     setvl/with_vl/load/splat/load/splat/compare/compare/mask_and/load/load/
-    select/store weft_rvv body structure before the provider may construct a
-    WEFTEmitCLowerableRoute.
+    select/store weft_rvv body structure
+    before the RVV artifact lowerer consumes the exact
+    typed body.
   }];
 
   let arguments = (ins
@@ -652,8 +659,9 @@ def TypedF32ClampSelectPreRealizedBodyOp
     wrapper, route label, descriptor, source-front-door marker, direct-C
     exporter, runtime artifact, correctness evidence, or performance evidence.
     The RVV plugin must realize it into explicit setvl/with_vl/load/splat/
-    splat/compare/select/compare/select/store weft_rvv body structure before
-    the provider may construct a WEFTEmitCLowerableRoute.
+    splat/compare/select/compare/select/store weft_rvv body structure
+    before
+    the RVV artifact lowerer consumes the exact typed body.
   }];
 
   let arguments = (ins
@@ -698,8 +706,9 @@ def TypedDequantClampF32EpiloguePreRealizedBodyOp
     label, descriptor, source-front-door marker, direct-C exporter, runtime
     artifact, correctness evidence, or performance evidence. The RVV plugin
     must realize it into explicit setvl/with_vl/load/dequantize/splat/splat/
-    compare/select/compare/select/store weft_rvv body structure before the
-    provider may construct a WEFTEmitCLowerableRoute.
+    compare/select/compare/select/store weft_rvv body structure
+    before the RVV artifact lowerer consumes the exact
+    typed body.
   }];
 
   let arguments = (ins
@@ -747,8 +756,9 @@ def TypedRuntimeScalarComputedMaskStorePreRealizedBodyOp
     source-front-door marker, direct-C exporter, intrinsic wrapper, runtime
     artifact, correctness evidence, or performance evidence. The RVV plugin
     must realize it into explicit setvl/with_vl/load/splat/compare/load/
-    masked_store weft_rvv body structure before the provider may construct a
-    WEFTEmitCLowerableRoute.
+    masked_store weft_rvv body structure
+    before the RVV artifact lowerer consumes the exact
+    typed body.
   }];
 
   let arguments = (ins
@@ -795,8 +805,9 @@ def TypedRuntimeScalarComputedMaskLoadStorePreRealizedBodyOp
     source-front-door marker, direct-C exporter, intrinsic wrapper, runtime
     artifact, correctness evidence, or performance evidence. The RVV plugin
     must realize it into explicit setvl/with_vl/load/splat/compare/load/
-    masked_load/store weft_rvv body structure before the provider may
-    construct a WEFTEmitCLowerableRoute.
+    masked_load/store weft_rvv body structure
+    before the RVV artifact lowerer consumes the exact
+    typed body.
   }];
 
   let arguments = (ins
@@ -836,8 +847,8 @@ def TypedReducePreRealizedBodyOp
     marker, direct-C exporter, route id, intrinsic wrapper, runtime artifact,
     correctness evidence, or performance evidence. The RVV plugin must first
     realize it into explicit setvl/with_vl/load/load/reduce/store weft_rvv body
-    structure before the existing provider may construct a
-    WEFTEmitCLowerableRoute.
+    structure before the RVV artifact lowerer consumes the exact
+    typed body.
   }];
 
   let arguments = (ins
@@ -876,8 +887,9 @@ def TypedStandaloneReducePreRealizedBodyOp
     source-front-door marker, direct-C exporter, route id, intrinsic wrapper,
     runtime artifact, correctness evidence, or performance evidence. The RVV
     plugin must first realize it into explicit setvl/with_vl/load/
-    standalone_reduce/store weft_rvv body structure before the provider may
-    construct a WEFTEmitCLowerableRoute.
+    standalone_reduce/store weft_rvv body structure
+    before the RVV artifact lowerer consumes the exact
+    typed body.
   }];
 
   let arguments = (ins
@@ -917,8 +929,9 @@ def TypedComputedMaskStandaloneReducePreRealizedBodyOp
     metadata authority, runtime artifact, correctness evidence, or performance
     evidence. The RVV plugin must first realize it into explicit
     setvl/with_vl/load/load/load/compare/masked_standalone_reduce/store
-    weft_rvv body structure before the provider may construct a
-    WEFTEmitCLowerableRoute.
+    weft_rvv body structure
+    before the RVV artifact lowerer consumes the exact
+    typed body.
   }];
 
   let arguments = (ins
@@ -968,8 +981,9 @@ def TypedRuntimeScalarComputedMaskStandaloneReducePreRealizedBodyOp
     direct-C exporter, intrinsic wrapper, runtime artifact, correctness
     evidence, or performance evidence. The RVV plugin must first realize it
     into explicit setvl/with_vl/load/splat/compare/load/
-    masked_standalone_reduce/store weft_rvv body structure before the provider
-    may construct a WEFTEmitCLowerableRoute.
+    masked_standalone_reduce/store weft_rvv body structure
+    before the RVV
+    artifact lowerer consumes the exact typed body.
   }];
 
   let arguments = (ins
@@ -1013,8 +1027,9 @@ def TypedMAccPreRealizedBodyOp
     source-front-door marker, direct-C exporter, route id, intrinsic wrapper,
     runtime artifact, correctness evidence, or performance evidence. The RVV
     plugin must first realize it into explicit setvl/with_vl/load/load-or-splat/
-    accumulator-load/macc/store weft_rvv body structure before the existing
-    provider may construct a WEFTEmitCLowerableRoute.
+    accumulator-load/macc/store weft_rvv body structure
+    before the RVV artifact lowerer consumes the exact
+    typed body.
   }];
 
   let arguments = (ins
@@ -1056,7 +1071,8 @@ def TypedComputedMaskMAccPreRealizedBodyOp
     runtime artifact, correctness evidence, or performance evidence. The RVV
     plugin must first realize it into explicit setvl/with_vl/compare-loads/
     payload-loads/accumulator-load/compare/masked_macc/store weft_rvv body
-    structure before the provider may construct a WEFTEmitCLowerableRoute.
+    structure before the RVV artifact lowerer consumes the exact
+    typed body.
   }];
 
   let arguments = (ins
@@ -1108,7 +1124,8 @@ def TypedRuntimeScalarComputedMaskMAccPreRealizedBodyOp
     runtime artifact, correctness evidence, or performance evidence. The RVV
     plugin must first realize it into explicit setvl/with_vl/load/splat/
     payload-loads/accumulator-load/compare/masked_macc/store weft_rvv body
-    structure before the provider may construct a WEFTEmitCLowerableRoute.
+    structure before the RVV artifact lowerer consumes the exact
+    typed body.
   }];
 
   let arguments = (ins
@@ -1154,7 +1171,8 @@ def TypedWideningMAccPreRealizedBodyOp
     id, intrinsic wrapper, runtime artifact, correctness evidence, or
     performance evidence. The RVV plugin must realize it into explicit
     setvl/with_vl/load/load/load/widening_macc/store weft_rvv body structure
-    before the provider may construct a WEFTEmitCLowerableRoute.
+    before the RVV artifact lowerer consumes the exact
+    typed body.
   }];
 
   let arguments = (ins
@@ -1200,8 +1218,9 @@ def TypedWideningDotReducePreRealizedBodyOp
     namespace, descriptor, source-front-door marker, direct-C exporter, route
     id, intrinsic wrapper, runtime artifact, correctness evidence, or
     performance evidence. The RVV plugin must realize it into explicit typed
-    weft_rvv body structure before the provider may construct a
-    WEFTEmitCLowerableRoute.
+    weft_rvv body structure
+    before the RVV artifact lowerer consumes the exact
+    typed body.
   }];
 
   let arguments = (ins
@@ -1251,8 +1270,9 @@ def TypedStridedInputWideningDotReducePreRealizedBodyOp
     marker, direct-C exporter, route id, intrinsic wrapper, runtime artifact,
     correctness evidence, or performance evidence. The RVV plugin must realize
     it into explicit typed strided_load/strided_load/widening_dot_reduce/store
-    weft_rvv body structure before the provider may construct a
-    WEFTEmitCLowerableRoute.
+    weft_rvv body structure
+    before the RVV artifact lowerer consumes the exact
+    typed body.
   }];
 
   let arguments = (ins
@@ -1304,8 +1324,9 @@ def TypedComputedMaskWideningDotReducePreRealizedBodyOp
     id, intrinsic wrapper, runtime artifact, correctness evidence, or
     performance evidence. The RVV plugin must realize it into explicit
     setvl/with_vl/load/load/compare/load/load/masked_widening_dot_reduce/store
-    weft_rvv body structure before the provider may construct a
-    WEFTEmitCLowerableRoute.
+    weft_rvv body structure
+    before the RVV artifact lowerer consumes the exact
+    typed body.
   }];
 
   let arguments = (ins
@@ -1362,8 +1383,9 @@ def TypedComputedMaskStridedInputWideningDotReducePreRealizedBodyOp
     id, intrinsic wrapper, runtime artifact, correctness evidence, or
     performance evidence. The RVV plugin must realize it into explicit
     setvl/with_vl/load/load/compare/strided_load/strided_load/
-    masked_widening_dot_reduce/store weft_rvv body structure before the
-    provider may construct a WEFTEmitCLowerableRoute.
+    masked_widening_dot_reduce/store weft_rvv body structure
+    before the RVV artifact lowerer consumes the exact
+    typed body.
   }];
 
   let arguments = (ins
@@ -1420,8 +1442,9 @@ def TypedWideningProductReducePreRealizedBodyOp
     direct-C exporter, route id, intrinsic wrapper, runtime artifact,
     correctness evidence, or performance evidence. The RVV plugin must
     realize it into explicit setvl/with_vl/load/load/widening_product/
-    standalone_reduce/store weft_rvv body structure before the provider may
-    construct a WEFTEmitCLowerableRoute.
+    standalone_reduce/store weft_rvv body structure
+    before the RVV artifact lowerer consumes the exact
+    typed body.
   }];
 
   let arguments = (ins
@@ -1473,8 +1496,9 @@ def TypedWideningProductReduceDequantizePreRealizedBodyOp
     id, intrinsic wrapper, runtime artifact, correctness evidence, or
     performance evidence. The RVV plugin must realize it into explicit
     setvl/with_vl/load/load/widening_product/standalone_reduce/dequantize/
-    store weft_rvv body structure before the provider may construct a
-    WEFTEmitCLowerableRoute.
+    store weft_rvv body structure
+    before the RVV artifact lowerer consumes the exact
+    typed body.
   }];
 
   let arguments = (ins
@@ -1533,8 +1557,9 @@ def TypedWideningProductReduceDequantClampF32PreRealizedBodyOp
     correctness evidence, or performance evidence. The RVV plugin must
     realize it into explicit setvl/with_vl/load/load/widening_product/
     standalone_reduce/dequantize/splat/splat/compare/select/compare/select/
-    store weft_rvv body structure before the provider may construct a
-    WEFTEmitCLowerableRoute.
+    store weft_rvv body structure
+    before the RVV artifact lowerer consumes the exact
+    typed body.
   }];
 
   let arguments = (ins
@@ -1599,8 +1624,9 @@ def TypedWideningProductReduceDequantClampF32BodyOp
     correctness evidence, or performance evidence. The RVV plugin must realize
     it into explicit setvl/with_vl/load/load/widening_product/
     standalone_reduce/dequantize/splat/splat/compare/select/compare/select/
-    store weft_rvv body structure before the provider may construct a
-    WEFTEmitCLowerableRoute.
+    store weft_rvv body structure
+    before the RVV artifact lowerer consumes the exact
+    typed body.
   }];
 
   let arguments = (ins
@@ -1658,8 +1684,9 @@ def TypedWideningConversionPreRealizedBodyOp
     descriptor, source-front-door marker, direct-C exporter, route id,
     intrinsic wrapper, runtime artifact, correctness evidence, or performance
     evidence. The RVV plugin must realize it into explicit setvl/with_vl/load/
-    widening_convert/store weft_rvv body structure before the provider may
-    construct a WEFTEmitCLowerableRoute.
+    widening_convert/store weft_rvv body structure
+    before the RVV artifact lowerer consumes the exact
+    typed body.
   }];
 
   let arguments = (ins
@@ -1696,8 +1723,9 @@ def TypedStridedMemoryPreRealizedBodyOp
     source-front-door marker, direct-C exporter, route id, intrinsic wrapper,
     runtime artifact, correctness evidence, or performance evidence. The RVV
     plugin must realize it into explicit setvl/with_vl/strided_load/move/store
-    weft_rvv body structure before the provider may construct a
-    WEFTEmitCLowerableRoute.
+    weft_rvv body structure
+    before the RVV artifact lowerer consumes the exact
+    typed body.
   }];
 
   let arguments = (ins
@@ -1734,8 +1762,9 @@ def TypedStridedStoreMemoryPreRealizedBodyOp
     descriptor, source-front-door marker, direct-C exporter, route id,
     intrinsic wrapper, runtime artifact, correctness evidence, or performance
     evidence. The RVV plugin must realize it into explicit
-    setvl/with_vl/load/move/strided_store weft_rvv body structure before the
-    provider may construct a WEFTEmitCLowerableRoute.
+    setvl/with_vl/load/move/strided_store weft_rvv body structure
+    before the RVV artifact lowerer consumes the exact
+    typed body.
   }];
 
   let arguments = (ins
@@ -1771,8 +1800,9 @@ def TypedIndexedGatherMemoryPreRealizedBodyOp
     marker, direct-C exporter, route id, intrinsic wrapper, runtime artifact,
     correctness evidence, or performance evidence. The RVV plugin must realize
     it into explicit setvl/with_vl/index_load/indexed_load/move/store
-    weft_rvv body structure before the provider may construct a
-    WEFTEmitCLowerableRoute.
+    weft_rvv body structure
+    before the RVV artifact lowerer consumes the exact
+    typed body.
   }];
 
   let arguments = (ins
@@ -1811,7 +1841,8 @@ def TypedIndexedScatterMemoryPreRealizedBodyOp
     exporter, route id, intrinsic wrapper, runtime artifact, correctness
     evidence, or performance evidence. The RVV plugin must realize it into
     explicit setvl/with_vl/load/index_load/move/indexed_store weft_rvv body
-    structure before the provider may construct a WEFTEmitCLowerableRoute.
+    structure before the RVV artifact lowerer consumes the exact
+    typed body.
   }];
 
   let arguments = (ins
@@ -1852,8 +1883,8 @@ def TypedMaskedMemoryPreRealizedBodyOp
     evidence. The RVV plugin must realize masked_unit_load_store into explicit
     setvl/with_vl/mask_load/load/masked_load/store and masked_unit_store into
     explicit setvl/with_vl/load/mask_load/masked_store weft_rvv body structure
-    before the
-    provider may construct a WEFTEmitCLowerableRoute.
+    before the RVV artifact lowerer consumes the exact
+    typed body.
   }];
 
   let arguments = (ins
@@ -1892,8 +1923,9 @@ def TypedComputedMaskMemoryPreRealizedBodyOp
     This op is not a fusion framework, route label, intrinsic wrapper,
     runtime artifact, correctness evidence, or performance evidence. The RVV
     plugin must realize it into explicit setvl/with_vl/load/load/load/compare/
-    masked_load/store weft_rvv body structure before the provider may construct
-    a WEFTEmitCLowerableRoute.
+    masked_load/store weft_rvv body structure
+    before the RVV artifact lowerer
+    consumes the exact typed body.
   }];
 
   let arguments = (ins
@@ -1938,8 +1970,9 @@ def TypedComputedMaskStridedStorePreRealizedBodyOp
     door marker, direct-C exporter, intrinsic wrapper, runtime artifact,
     correctness evidence, or performance evidence. The RVV plugin must realize
     it into explicit setvl/with_vl/load/load/load/strided_load/compare/
-    masked_strided_store weft_rvv body structure before the provider may
-    construct a WEFTEmitCLowerableRoute.
+    masked_strided_store weft_rvv body structure
+    before the RVV artifact lowerer consumes the exact
+    typed body.
   }];
 
   let arguments = (ins
@@ -1987,8 +2020,9 @@ def TypedComputedMaskStridedLoadPreRealizedBodyOp
     source-front-door marker, direct-C exporter, intrinsic wrapper, runtime
     artifact, correctness evidence, or performance evidence. The RVV plugin
     must realize it into explicit setvl/with_vl/load/load/load/compare/
-    masked_strided_load/store weft_rvv body structure before the provider may
-    construct a WEFTEmitCLowerableRoute.
+    masked_strided_load/store weft_rvv body structure
+    before the RVV artifact lowerer consumes the exact
+    typed body.
   }];
 
   let arguments = (ins
@@ -2037,8 +2071,9 @@ def TypedComputedMaskIndexedGatherPreRealizedBodyOp
     source-front-door marker, direct-C exporter, intrinsic wrapper, runtime
     artifact, correctness evidence, or performance evidence. The RVV plugin
     must realize it into explicit setvl/with_vl/load/load/load/index_load/
-    compare/masked_indexed_load/store weft_rvv body structure before the
-    provider may construct a WEFTEmitCLowerableRoute.
+    compare/masked_indexed_load/store weft_rvv body structure
+    before the RVV artifact lowerer consumes the exact
+    typed body.
   }];
 
   let arguments = (ins
@@ -2089,8 +2124,9 @@ def TypedRuntimeScalarComputedMaskIndexedGatherPreRealizedBodyOp
     source-front-door marker, direct-C exporter, intrinsic wrapper, runtime
     artifact, correctness evidence, or performance evidence. The RVV plugin
     must realize it into explicit setvl/with_vl/load/splat/load/index_load/
-    compare/masked_indexed_load/store weft_rvv body structure before the
-    provider may construct a WEFTEmitCLowerableRoute.
+    compare/masked_indexed_load/store weft_rvv body structure
+    before the RVV artifact lowerer consumes the exact
+    typed body.
   }];
 
   let arguments = (ins
@@ -2140,7 +2176,8 @@ def TypedComputedMaskIndexedScatterPreRealizedBodyOp
     intrinsic wrapper, runtime artifact, correctness evidence, or performance
     evidence. The RVV plugin must realize it into explicit setvl/with_vl/load/
     load/load/index_load/compare/masked_indexed_store weft_rvv body structure
-    before the provider may construct a WEFTEmitCLowerableRoute.
+    before the RVV artifact lowerer consumes the exact
+    typed body.
   }];
 
   let arguments = (ins
@@ -2192,7 +2229,8 @@ def TypedRuntimeScalarComputedMaskIndexedScatterPreRealizedBodyOp
     intrinsic wrapper, runtime artifact, correctness evidence, or performance
     evidence. The RVV plugin must realize it into explicit setvl/with_vl/load/
     splat/load/index_load/compare/masked_indexed_store weft_rvv body structure
-    before the provider may construct a WEFTEmitCLowerableRoute.
+    before the RVV artifact lowerer consumes the exact
+    typed body.
   }];
 
   let arguments = (ins
@@ -2243,8 +2281,9 @@ def TypedComputedMaskSegment2LoadPreRealizedBodyOp
     source-front-door marker, direct-C exporter, intrinsic wrapper, runtime
     artifact, correctness evidence, or performance evidence. The RVV plugin
     must realize it into explicit setvl/with_vl/load/load/load/load/compare/
-    masked_segment2_load/store/store weft_rvv body structure before the
-    provider may construct a WEFTEmitCLowerableRoute.
+    masked_segment2_load/store/store weft_rvv body structure
+    before the RVV artifact lowerer consumes the exact
+    typed body.
   }];
 
   let arguments = (ins
@@ -2298,8 +2337,9 @@ def TypedRuntimeScalarComputedMaskSegment2LoadPreRealizedBodyOp
     source-front-door marker, direct-C exporter, intrinsic wrapper, runtime
     artifact, correctness evidence, or performance evidence. The RVV plugin
     must realize it into explicit setvl/with_vl/load/splat/load/load/compare/
-    masked_segment2_load/store/store weft_rvv body structure before the
-    provider may construct a WEFTEmitCLowerableRoute.
+    masked_segment2_load/store/store weft_rvv body structure
+    before the RVV artifact lowerer consumes the exact
+    typed body.
   }];
 
   let arguments = (ins
@@ -2355,8 +2395,9 @@ def TypedComputedMaskSegment2StorePreRealizedBodyOp
     source-front-door marker, direct-C exporter, intrinsic wrapper, runtime
     artifact, correctness evidence, or performance evidence. The RVV plugin
     must realize it into explicit setvl/with_vl/load/load/load/load/compare/
-    optional binary/masked_segment2_store weft_rvv body structure before the
-    provider may construct a WEFTEmitCLowerableRoute.
+    optional binary/masked_segment2_store weft_rvv body structure
+    before the RVV artifact lowerer consumes the exact
+    typed body.
   }];
 
   let arguments = (ins
@@ -2412,8 +2453,9 @@ def TypedRuntimeScalarComputedMaskSegment2StorePreRealizedBodyOp
     source-front-door marker, direct-C exporter, intrinsic wrapper, runtime
     artifact, correctness evidence, or performance evidence. The RVV plugin
     must realize it into explicit setvl/with_vl/load/splat/load/load/compare/
-    masked_segment2_store weft_rvv body structure before the provider may
-    construct a WEFTEmitCLowerableRoute.
+    masked_segment2_store weft_rvv body structure
+    before the RVV artifact lowerer consumes the exact
+    typed body.
   }];
 
   let arguments = (ins
@@ -2462,8 +2504,9 @@ def TypedSegment2DeinterleaveMemoryPreRealizedBodyOp
     marker, route id, artifact name, direct-C exporter, intrinsic wrapper,
     runtime artifact, correctness evidence, or performance evidence. The RVV
     plugin must realize it into explicit setvl/with_vl/segment2_load/move/
-    move/store/store weft_rvv body structure before the provider may construct
-    a WEFTEmitCLowerableRoute.
+    move/store/store weft_rvv body structure
+    before the RVV artifact lowerer
+    consumes the exact typed body.
   }];
 
   let arguments = (ins
@@ -2504,8 +2547,9 @@ def TypedSegment2InterleaveMemoryPreRealizedBodyOp
     marker, route id, artifact name, direct-C exporter, intrinsic wrapper,
     runtime artifact, correctness evidence, or performance evidence. The RVV
     plugin must realize it into explicit setvl/with_vl/load/load/
-    segment2_store weft_rvv body structure before the provider may construct a
-    WEFTEmitCLowerableRoute.
+    segment2_store weft_rvv body structure
+    before the RVV artifact lowerer consumes the exact
+    typed body.
   }];
 
   let arguments = (ins
@@ -2543,12 +2587,12 @@ def LoadOp : WEFTRVV_Op<"load",
     !weft_rvv.vector element/LMUL token matching the enclosing config.
     LHS/RHS input buffers are valid for ordinary arithmetic and compare
     operands; source input buffers are valid for bounded computed-mask memory
-    movement; an output buffer load is valid only when the RVV provider
-    recognizes it as an explicit accumulator/old-destination input.
+    movement; an output buffer load is valid only when its typed operand role
+    makes it an explicit accumulator/old-destination input.
 
     Buffer ABI provenance comes from the explicit runtime ABI operand. Element
     dtype and LMUL come from the result type and are validated with the
-    surrounding setvl/with_vl config by the RVV dialect/provider.
+    surrounding setvl/with_vl config by the RVV dialect verifier.
 
     Additive loop-capable extension (M-FLAT W2): the OPTIONAL `block_index`
     operand + `block_stride` attribute make one generic load address a per-block
@@ -3541,10 +3585,10 @@ def WideningProductOp : WEFTRVV_Op<"widening_product",
 
     For the current bounded Stage 2 low-precision foundation, kind is limited
     to signed_widening_product or unsigned_widening_product. The signed i8
-    route is provider-supported when all typed source/product facts match the
-    provider-owned route contract. The unsigned u8 surface is verifier-legal
-    so the RVV provider can fail closed at the missing unsigned intrinsic and
-    target mirror boundary until production support is implemented. Lhs, rhs,
+    artifact mapping is supported when all typed source/product facts match
+    the exact body contract. The unsigned u8 surface is verifier-legal so the
+    RVV artifact lowerer can fail closed when its intrinsic mapping is absent,
+    until production support is implemented. Lhs, rhs,
     result, VL, source/result SEW/LMUL, policy, memory-form facts, and product
     relation are structural in the selected RVV body. Route ids, helper names,
     ABI strings, artifact names, status fields, exact intrinsic spellings,
@@ -11230,9 +11274,9 @@ def MoveOp : WEFTRVV_Op<"move",
     result.
 
     For the current bounded Stage 2 strided memory movement slice, kind is
-    limited to copy. The route provider consumes this op as structural typed
-    body authority that the strided loaded vector is the unit-stride store
-    value; common EmitC/export must not infer that from route ids, ABI names,
+    limited to copy. The RVV artifact lowerer consumes this op as structural
+    typed body authority: the strided loaded vector is the unit-stride store
+    value. Common EmitC/export must not infer that from route ids, ABI names,
     artifact metadata, or C strings.
   }];
 

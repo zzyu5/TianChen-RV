@@ -7,6 +7,9 @@
 {"file":".trellis/spec/measurement/index.md","reason":"official runner、correctness、lineage 与真硬件证据入口"}
 {"file":"include/Weft/Plugin/FormulaCatalog.h","reason":"只读 production problem/formula inventory，禁止作为 compute dispatcher"}
 {"file":"lib/Plugin/RVV/Construction","reason":"RVV formula/mechanism/final-plan 横向重构主面"}
+{"file":"include/Weft/Plugin/RVV/RVVRuntimeAVLVLControl.h","reason":"construction-owned exact RVV body runtime control；已完成结构检查点"}
+{"file":"lib/Plugin/RVV/BodyRealization","reason":"selected-body owner 直接消费 formula/capability 结果；旧 provider replay 已退出"}
+{"file":"lib/Plugin/RVV/CMakeLists.txt","reason":"旧 EmitC route-provider/protocol 构建依赖已经物理删除"}
 {"file":"lib/Plugin/IME/IMEFormulaConstruction.cpp","reason":"IME family-local computation-plan owner"}
 {"file":"lib/Plugin/Scalar/ScalarFormulaConstruction.cpp","reason":"Scalar family-local computation-plan owner"}
 {"file":"tools/bench/bench","reason":"B 线 current artifact official measurement 入口"}

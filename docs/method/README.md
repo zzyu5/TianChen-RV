@@ -7,7 +7,7 @@
 > **2026-07-22 状态说明**：本文保留此前对双重 authority、provider/materializer 和
 > 伪 formula 化的诊断。当前代码已经建立 project-level plugin formula lifecycle，并完成
 > quantize/dequantize、repack、通用 tunable schedule、low-precision selected body 与
-> composite direct route 的横向 authority 切换；旧 Gearbox pass、candidate/resource/audit
+> composite typed body 的横向 authority 切换；旧 Gearbox pass、candidate/resource/audit
 > mirrors、handoff/marker、planner/verifier 补构造和 emitter default 已退出。这里完成的是
 > 单一 construction authority，不是 strong reconstruction；`ConstructedWeak` leaf 与
 > delete-leaf 目标必须继续分开。
@@ -29,6 +29,15 @@
 > 字符串 role/status/interface 镜像和 metadata-only lowering boundary 已退出 production；
 > artifact 只保留 ABI/callee 等机械常量。这一切面已完成并不等于 Scalar/RVV/IME 的完整
 > leaf 都能由 `g/c/ω + mechanisms + formula` 重建，后者仍是当前横向 task 的核心门。
+
+> **2026-07-23 RVV exact-body 清场**：RVV runtime control 已由 construction 以
+> `RVVBodyRuntimeControl {sew, lmul, policy, runtimeAVLValue}` 构造，selected-body owner
+> 直接消费 formula 的 relation/layout/resource 结果。旧 `lib/Plugin/RVV/EmitC` route-provider
+> 栈、`RVVConstructionProtocol`、route identity/plan-owner mirrors 与对应构建目标已物理
+> 删除；segment2 typed-body construction 已回到 construction owner。这里删除的是 provider
+> 对公式和 body 的重放权威，不是删除类型系统：dialect `verify()` 仍检查局部结构、类型、
+> operand 关系与 policy，construction-time capability check 仍检查已绑定结果，但二者都不
+> 生成 candidate 或重新决定 compute。本地 build/lit 只证明编译器路径，不是硬件证据。
 
 ## 一、发生了什么
 
@@ -328,9 +337,11 @@ reconstruction strength：
    reconstruction coverage、semantic correctness 与 performance evidence；
 5. 稳定路径的性能仍由 B 线按相同输入、对手和真板做 paired regression。
 
-authority 公共基础与当前旧生产链退出已经完成；公式因果只有部分证据；delete-leaf
-reconstruction 尚未完成；correctness 与性能必须由各自测试和实验独立证明。无需为这些工作恢复旧 task
-队列或把本文拆成多个纵向迁移任务。
+authority 公共基础、旧 RVV provider/protocol 与当前旧生产链退出已经完成；公式因果只有
+部分证据；delete-leaf reconstruction 尚未完成；correctness 与性能必须由各自测试和实验
+独立证明。当前恢复入口是
+`.trellis/tasks/07-23-executable-knowledge-ab-horizontal-closure/`；不要把它重新拆成按
+format/operator 排队的纵向迁移 task。
 
 ## 十、完成后的项目应是什么样
 
