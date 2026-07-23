@@ -208,6 +208,9 @@ struct FlatBlockDotDescriptor {
 std::optional<FlatBlockDotComputePlan>
 readFinalFlatBlockDotComputePlan(mlir::Operation *op);
 
+FlatBlockDotDescriptor
+descriptorFromFinalPlan(const FlatBlockDotComputePlan &plan);
+
 // Read that same final computation plan plus the monolithic op's raw typed
 // geometry. This is only a projection helper for the two remaining direct
 // monolithic entry points; it does not make any code-shape decision.

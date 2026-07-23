@@ -142,6 +142,12 @@ super-block, and grid/codebook construction modules. This construction field is
 not visible to artifact lowering; flat EmitC still consumes only the final
 formula-produced `flat_*` plan.
 
+The RVV artifact implementation mirrors that boundary physically: flat plan
+reading, shared flat emission, typed flat-loop emission, flat primitives, and
+ternary/codebook/grid repack consumers live in separate mechanism-oriented source
+files. The split adds no dispatch layer and preserves the same typed methods and
+generated EmitC.
+
 This authority convergence is not strong reconstruction. Entries marked
 `ConstructedWeak` still depend on complete mechanical leaves and must not be counted
 as passing the delete-leaf criterion: after deleting a point implementation,
