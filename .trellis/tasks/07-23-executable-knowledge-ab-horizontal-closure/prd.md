@@ -77,14 +77,31 @@ topology 的纵向切片，也不得保留旧路径作为兼容退路。
   参与 route 判定并传入 harness。固定 prefill workload 不再接受 decode 标签。这个切面只
   证明 current-artifact 数据面已接线；当前正式硬件行、qualified winner 与 e2e 仍为零，
   因此 B 线完成门仍未勾选；
-- 上述切面已经通过 `weft-opt`/`weft-translate` 构建、authority guard、measurement control
-  plane 与完整 `check-weft`（`980/980`）。这是本地编译器/工具链证据，不是强重建、GPU
-  或真硬件证据。
+- generic source materialization 现在要求 kernel 通过 exact symbol 指向一个带纯 identity
+  `CanonicalProblem` trait 的 direct source problem；common 只解析身份和 ownership，不枚举
+  problem 类型，也不再把 kernel 冒充 problem。当前只落地了 int8 MAC 与 q4_0
+  dequantize-row 两个初始 typed problem op；它们证明窄腰 seam 可执行，但尚未覆盖全部
+  production `S/g/ω`，不能写成 source layer 已横向完成；
+- Scalar q2 block-dot 与 q4_0 dequant 已由 formula 先产生 topology-specific computation plan，
+  再物化为 typed loop/mechanism tree；artifact driver 递归投影该树，不再从 format/kind 或
+  隐藏常数重建算法。Scalar 仍依赖 selected/source stamps 与 kernel scan，且没有
+  delete-leaf witness，因此仍是 `ConstructedWeak`；
+- RVV flat block-dot 的逐点 `RVVFlatBlockDotLeaf` identity 已退出 production formula，改由
+  weight encoding、scale/min 与 bias geometry 的可组合事实构造既有 `flat_*` final plan；
+  未有真实 erasure witness 的 source construction 已降回 `ConstructedWeak`。当前
+  body-first fact extraction 仍是 normalization，不是从 canonical problem 的 forward
+  reconstruction；
+- 上述切面已经通过 `weft-opt`/`weft-translate` 构建、formula/catalog/authority guard、
+  measurement control plane 与完整 `check-weft`（`981/981`）。这是本地编译器/工具链证据，
+  不是强重建、GPU 或真硬件证据。
 
 仍未闭合、因此 task 不能标为 completed 的主体包括：
 
-- Scalar/RVV/IME 及其它 production leaf 中尚未因式分解的完整算法 authority 与 plan
-  dictionary；
+- IME 仍把 signedness、problem shape、weight format 与 slide 等 `S/g/ω` 错放在 capability
+  provider；Scalar/RVV 仍有 selected-stamp、source scan、body-first normalization 以及其它
+  production leaf 中尚未因式分解的完整算法 authority；
+- 物理 canonical problem 尚未覆盖全部 current source-origin entry；target/profile 也尚未
+  在跨-origin generic cost ranking 之前形成唯一 family binding；
 - decisive `g/c/ω` counterfactual、mechanism fan-out 与 honest-null 因果测试；
 - 多 topology delete-leaf strong reconstruction；
 - current artifact 的真板 correctness/deployed identity、四臂消融、winner residual 稀疏性与

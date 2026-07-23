@@ -1,8 +1,8 @@
 // RUN: not weft-opt %s --weft-materialize-plugin-variants 2>&1 | FileCheck %s
 
 module {
-  weft.exec.kernel @missing_capability_anchor {
+  weft.exec.kernel @missing_problem_anchor {
   }
 }
 
-// CHECK: error: Weft-RV plugin variant materialization for kernel @missing_capability_anchor requires at least one capability provider in the kernel capability scope
+// CHECK: error: weft.exec.kernel @missing_problem_anchor requires exact canonical problem anchor 'problem = @symbol'

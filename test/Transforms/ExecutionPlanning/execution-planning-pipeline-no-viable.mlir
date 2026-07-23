@@ -1,7 +1,8 @@
 // RUN: not weft-opt %s --weft-execution-planning-pipeline 2>&1 | FileCheck %s
 
 module {
-  weft.exec.kernel @pipeline_no_viable_after_rvv_decline {
+  weft.exec.kernel @pipeline_no_viable_after_rvv_decline attributes {problem = @canonical_problem} {
+    weft.exec.int8_mac_problem @canonical_problem {lhs_signedness = #weft<integer_signedness signed>, rhs_signedness = #weft<integer_signedness signed>, m = 4 : i64, n = 4 : i64, k = 8 : i64}
     weft.exec.capability @rvv {
       id = "rvv",
       kind = "isa-vector",

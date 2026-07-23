@@ -1,7 +1,8 @@
 // RUN: not weft-opt %s --weft-disable-builtin-plugins --weft-materialize-plugin-variants 2>&1 | FileCheck %s
 
 module {
-  weft.exec.kernel @empty_registry {
+  weft.exec.kernel @empty_registry attributes {problem = @problem} {
+    weft.exec.int8_mac_problem @problem {lhs_signedness = #weft<integer_signedness signed>, rhs_signedness = #weft<integer_signedness signed>, m = 4 : i64, n = 4 : i64, k = 8 : i64}
     weft.exec.capability @scalar_fallback {
       id = "scalar.fallback",
       kind = "fallback",

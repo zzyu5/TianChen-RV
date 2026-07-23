@@ -6,7 +6,8 @@
 // the shared backend emitter consumes it; no construction-template fallback is
 // allowed to manufacture this module.
 module {
-  weft.exec.kernel @demo_direct_emitc {
+  weft.exec.kernel @demo_direct_emitc attributes {problem = @canonical_problem} {
+    weft.exec.int8_mac_problem @canonical_problem {lhs_signedness = #weft<integer_signedness signed>, rhs_signedness = #weft<integer_signedness signed>, m = 4 : i64, n = 4 : i64, k = 8 : i64}
     weft.exec.capability @demo_extension {
       id = "demo.extension",
       kind = "future-extension-demo",

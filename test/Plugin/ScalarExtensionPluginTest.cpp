@@ -586,12 +586,56 @@ module {
     return result;
   auto tq2 = llvm::dyn_cast_if_present<weft::scalar::PackedTernaryDotBodyOp>(
       tq2Result.getOperation());
+  weft::scalar::TernaryBlockLoopOp tq2Block;
+  weft::scalar::TernaryPlaneGroupLoopOp tq2Group;
+  weft::scalar::TernaryPlaneLoopOp tq2Plane;
+  weft::scalar::TernaryLaneLoopOp tq2Lane;
+  weft::scalar::TernaryDecodeMacOp tq2Decode;
+  weft::scalar::TernaryScaleFoldOp tq2Fold;
+  bool tq2HasStore = false;
+  if (tq2 && !tq2.getBody().empty()) {
+    mlir::Block &root = tq2.getBody().front();
+    if (root.getOperations().size() == 2) {
+      tq2Block = llvm::dyn_cast<weft::scalar::TernaryBlockLoopOp>(
+          &root.front());
+      tq2HasStore = llvm::isa<weft::scalar::TernaryStoreOp>(root.back());
+    }
+  }
+  if (tq2Block && !tq2Block.getBody().empty()) {
+    mlir::Block &block = tq2Block.getBody().front();
+    if (block.getOperations().size() == 2) {
+      tq2Group = llvm::dyn_cast<weft::scalar::TernaryPlaneGroupLoopOp>(
+          &block.front());
+      tq2Fold = llvm::dyn_cast<weft::scalar::TernaryScaleFoldOp>(
+          &block.back());
+    }
+  }
+  if (tq2Group && !tq2Group.getBody().empty() &&
+      tq2Group.getBody().front().getOperations().size() == 1)
+    tq2Plane = llvm::dyn_cast<weft::scalar::TernaryPlaneLoopOp>(
+        &tq2Group.getBody().front().front());
+  if (tq2Plane && !tq2Plane.getBody().empty() &&
+      tq2Plane.getBody().front().getOperations().size() == 1)
+    tq2Lane = llvm::dyn_cast<weft::scalar::TernaryLaneLoopOp>(
+        &tq2Plane.getBody().front().front());
+  if (tq2Lane && !tq2Lane.getBody().empty() &&
+      tq2Lane.getBody().front().getOperations().size() == 1)
+    tq2Decode = llvm::dyn_cast<weft::scalar::TernaryDecodeMacOp>(
+        &tq2Lane.getBody().front().front());
   if (int result = expect(
-          tq2Result.hasFinalBody() && tq2 && tq2.getQk() == 256 &&
-              tq2.getPackedWeightBytes() == 64 && tq2.getPlanes() == 4 &&
-              tq2.getPlaneLanes() == 32 && tq2.getFieldBits() == 2 &&
-              tq2.getFieldMask() == 3 && tq2.getDecodeZeroPoint() == 1,
-          "tq2 source is consumed into the complete packed ternary body"))
+          tq2Result.hasFinalBody() && tq2 && tq2Block && tq2Group &&
+              tq2Plane && tq2Lane && tq2Decode && tq2Fold && tq2HasStore &&
+              tq2Block.getQk() == 256 &&
+              tq2Block.getWeightBlockStride() == 66 &&
+              tq2Group.getUpperBound() == 64 && tq2Group.getStep() == 32 &&
+              tq2Plane.getUpperBound() == 4 &&
+              tq2Plane.getFieldBits() == 2 &&
+              tq2Lane.getUpperBound() == 32 &&
+              tq2Decode.getFieldMask() == 3 &&
+              tq2Decode.getDecodeZeroPoint() == 1 &&
+              tq2Fold.getWeightDByteOffset() == 64,
+          "tq2 source is consumed into the complete typed loop/decode/fold "
+          "plan tree"))
     return result;
 
   FamilyConstructionResult q4Result;
@@ -599,11 +643,45 @@ module {
     return result;
   auto q4 = llvm::dyn_cast_if_present<weft::scalar::PackedAffineDequantBodyOp>(
       q4Result.getOperation());
+  weft::scalar::AffineBlockLoopOp q4Block;
+  weft::scalar::AffineBlockScaleOp q4Scale;
+  weft::scalar::AffineQuantBaseOp q4QuantBase;
+  weft::scalar::AffinePackedByteLoopOp q4Packed;
+  weft::scalar::AffineDecodeScaleScatterOp q4Decode;
+  if (q4 && !q4.getBody().empty() &&
+      q4.getBody().front().getOperations().size() == 1)
+    q4Block = llvm::dyn_cast<weft::scalar::AffineBlockLoopOp>(
+        &q4.getBody().front().front());
+  if (q4Block && !q4Block.getBody().empty()) {
+    mlir::Block &block = q4Block.getBody().front();
+    if (block.getOperations().size() == 3) {
+      auto iterator = block.begin();
+      q4Scale = llvm::dyn_cast<weft::scalar::AffineBlockScaleOp>(
+          &*iterator++);
+      q4QuantBase = llvm::dyn_cast<weft::scalar::AffineQuantBaseOp>(
+          &*iterator++);
+      q4Packed = llvm::dyn_cast<weft::scalar::AffinePackedByteLoopOp>(
+          &*iterator);
+    }
+  }
+  if (q4Packed && !q4Packed.getBody().empty() &&
+      q4Packed.getBody().front().getOperations().size() == 1)
+    q4Decode = llvm::dyn_cast<weft::scalar::AffineDecodeScaleScatterOp>(
+        &q4Packed.getBody().front().front());
   if (int result = expect(
-          q4Result.hasFinalBody() && q4 && q4.getQk() == 32 &&
-              q4.getHalfWidth() == 16 && q4.getFieldBits() == 4 &&
-              q4.getFieldMask() == 15 && q4.getDecodeZeroPoint() == 8,
-          "q4 source is consumed into the complete paired-dequant body"))
+          q4Result.hasFinalBody() && q4 && q4Block && q4Scale && q4QuantBase &&
+              q4Packed && q4Decode && q4Block.getQk() == 32 &&
+              q4Block.getWeightBlockStride() == 18 &&
+              q4Scale.getWeightDByteOffset() == 0 &&
+              q4QuantBase.getWeightQuantByteOffset() == 2 &&
+              q4Packed.getUpperBound() == 16 &&
+              q4Decode.getLowFieldShift() == 0 &&
+              q4Decode.getHighFieldShift() == 4 &&
+              q4Decode.getFieldMask() == 15 &&
+              q4Decode.getDecodeZeroPoint() == 8 &&
+              q4Decode.getHighOutputDelta() == 16,
+          "q4 source is consumed into the complete typed "
+          "block/decode/scale/scatter plan tree"))
     return result;
 
   unsigned sourceCount = 0;

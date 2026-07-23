@@ -149,78 +149,195 @@ def ImmediateCallBodyOp : WEFTScalar_Op<"immediate_call_body",
   let assemblyFormat = "attr-dict";
 }
 
+// These plan operations are deliberately Scalar-family-local and
+// topology-specific. They are not a generic loop/dataflow IR: formula
+// construction creates the exact closed tree below, and the Scalar artifact
+// driver projects each typed node mechanically.
+
+def TernaryBlockLoopOp : WEFTScalar_Op<"ternary_block_loop",
+    [NoRegionArguments, NoTerminator, SingleBlock]> {
+  let summary = "tq2 block traversal in the final Scalar computation plan";
+  let description = [{
+    Owns the outer runtime `n / qk` loop and the per-block weight/activation
+    base computation for the packed ternary dot. The nested plan owns the
+    group/plane/lane traversal and fold; an artifact driver must not recreate
+    either from a source format name.
+  }];
+  let arguments = (ins
+    I64Attr:$qk,
+    I64Attr:$weight_block_stride,
+    I64Attr:$activation_block_stride,
+    I64Attr:$activation_quant_byte_offset,
+    I64Attr:$step
+  );
+  let regions = (region SizedRegion<1>:$body);
+  let assemblyFormat = "attr-dict-with-keyword $body";
+}
+
+def TernaryPlaneGroupLoopOp : WEFTScalar_Op<"ternary_plane_group_loop",
+    [NoRegionArguments, NoTerminator, SingleBlock]> {
+  let summary = "packed-byte group traversal in the ternary dot plan";
+  let arguments = (ins I64Attr:$upper_bound, I64Attr:$step);
+  let regions = (region SizedRegion<1>:$body);
+  let assemblyFormat = "attr-dict-with-keyword $body";
+}
+
+def TernaryPlaneLoopOp : WEFTScalar_Op<"ternary_plane_loop",
+    [NoRegionArguments, NoTerminator, SingleBlock]> {
+  let summary = "2-bit field-plane traversal in the ternary dot plan";
+  let arguments = (ins
+    I64Attr:$upper_bound,
+    I64Attr:$step,
+    I64Attr:$field_bits
+  );
+  let regions = (region SizedRegion<1>:$body);
+  let assemblyFormat = "attr-dict-with-keyword $body";
+}
+
+def TernaryLaneLoopOp : WEFTScalar_Op<"ternary_lane_loop",
+    [NoRegionArguments, NoTerminator, SingleBlock]> {
+  let summary = "lane traversal in the ternary dot plan";
+  let arguments = (ins I64Attr:$upper_bound, I64Attr:$step);
+  let regions = (region SizedRegion<1>:$body);
+  let assemblyFormat = "attr-dict-with-keyword $body";
+}
+
+def TernaryDecodeMacOp : WEFTScalar_Op<"ternary_decode_mac", []> {
+  let summary = "typed shift-mask-affine ternary decode and signed i32 MAC";
+  let description = [{
+    Exact innermost computation node for the packed ternary dot. It loads the
+    packed weight byte at `group + lane`, shifts by the enclosing plane's
+    `plane * field_bits`, masks and subtracts `decode_zero_point`, loads the
+    activation at
+    `group * activation_plane_stride + plane * plane_lanes + lane`, and adds
+    their signed i32 product to the block accumulator.
+  }];
+  let arguments = (ins
+    I64Attr:$field_mask,
+    I64Attr:$decode_zero_point,
+    I64Attr:$activation_plane_stride,
+    I64Attr:$plane_lanes
+  );
+  let assemblyFormat = "attr-dict";
+}
+
+def TernaryScaleFoldOp : WEFTScalar_Op<"ternary_scale_fold", []> {
+  let summary = "typed fp16/f32 scale load and block-dot f32 fold";
+  let description = [{
+    Exact post-inner-loop fold node. It reads the activation scale as f32 and
+    the weight scale as fp16 at the typed byte offsets, combines them as
+    `activation_scale * weight_scale`, and performs
+    `sum + (float)i32_accumulator * combined_scale`.
+  }];
+  let arguments = (ins
+    I64Attr:$weight_d_byte_offset,
+    I64Attr:$activation_d_byte_offset
+  );
+  let assemblyFormat = "attr-dict";
+}
+
+def TernaryStoreOp : WEFTScalar_Op<"ternary_store", []> {
+  let summary = "store the final ternary-dot f32 sum to output element zero";
+  let assemblyFormat = "attr-dict";
+}
+
 def PackedTernaryDotBodyOp : WEFTScalar_Op<"packed_ternary_dot_body",
-    [DeclareOpInterfaceMethods<WEFTEmitCLowerableOpInterface,
+    [NoRegionArguments, NoTerminator, SingleBlock,
+     DeclareOpInterfaceMethods<WEFTEmitCLowerableOpInterface,
       ["getWEFTEmitCLowerableSourceOpName",
        "getWEFTEmitCLowerableSourceRole"]>]> {
   let summary = "constructed packed ternary scalar dot body";
   let description = [{
     Final family-local computation body for the tq2_0 x q8_K topology. Its
-    semantics are a block loop over `n/qk`; within each block it traverses
-    packed weight groups, 2-bit planes, and lanes in that order, decodes
-    `((weight >> (plane*field_bits)) & field_mask) - decode_zero_point`, maps
-    the activation index as
-    `group*activation_plane_stride + plane*plane_lanes + lane`, accumulates in
-    signed i32, loads the weight scale as fp16 and activation scale as f32,
-    folds `(float)sumi * (activation_scale * weight_scale)` into an f32 sum,
-    and stores that sum at output element zero. The external ABI is fixed to
+    nested Scalar-local typed plan contains the block/group/plane/lane loop
+    tree, decode-MAC node, scale-fold node, and final store node. Every bound,
+    stride, offset, and decode constant lives on the node that consumes it.
+    The external ABI is fixed to
     `(int n, float *s, const uint8_t *weights, const int8_t *activations)`.
-    Attributes contain every variable bound/stride/offset/decode constant;
-    operation identity contains the fixed loop topology, types, maps, fold
-    association, and store semantics. Artifact lowering does not read or
-    reinterpret the tq2_0 source problem.
+    Artifact lowering walks this exact plan and does not read or reinterpret
+    the tq2_0 source problem.
   }];
   let arguments = (ins
     StrAttr:$source_kernel,
-    FlatSymbolRefAttr:$selected_variant,
+    FlatSymbolRefAttr:$selected_variant
+  );
+  let regions = (region SizedRegion<1>:$body);
+  let assemblyFormat = "attr-dict-with-keyword $body";
+}
+
+def AffineBlockLoopOp : WEFTScalar_Op<"affine_block_loop",
+    [NoRegionArguments, NoTerminator, SingleBlock]> {
+  let summary = "q4_0 block traversal in the final Scalar computation plan";
+  let arguments = (ins
     I64Attr:$qk,
     I64Attr:$weight_block_stride,
-    I64Attr:$activation_block_stride,
-    I64Attr:$weight_d_byte_offset,
-    I64Attr:$activation_d_byte_offset,
-    I64Attr:$activation_quant_byte_offset,
-    I64Attr:$packed_weight_bytes,
-    I64Attr:$planes,
-    I64Attr:$plane_lanes,
-    I64Attr:$plane_group_stride,
-    I64Attr:$field_bits,
+    I64Attr:$step
+  );
+  let regions = (region SizedRegion<1>:$body);
+  let assemblyFormat = "attr-dict-with-keyword $body";
+}
+
+def AffineBlockScaleOp : WEFTScalar_Op<"affine_block_scale", []> {
+  let summary = "load one q4_0 block scale as fp16 and convert it to f32";
+  let arguments = (ins I64Attr:$weight_d_byte_offset);
+  let assemblyFormat = "attr-dict";
+}
+
+def AffineQuantBaseOp : WEFTScalar_Op<"affine_quant_base", []> {
+  let summary = "form the packed q4_0 quant-byte base";
+  let arguments = (ins I64Attr:$weight_quant_byte_offset);
+  let assemblyFormat = "attr-dict";
+}
+
+def AffinePackedByteLoopOp : WEFTScalar_Op<"affine_packed_byte_loop",
+    [NoRegionArguments, NoTerminator, SingleBlock]> {
+  let summary = "packed-byte traversal in the q4_0 dequantization plan";
+  let arguments = (ins I64Attr:$upper_bound, I64Attr:$step);
+  let regions = (region SizedRegion<1>:$body);
+  let assemblyFormat = "attr-dict-with-keyword $body";
+}
+
+def AffineDecodeScaleScatterOp
+    : WEFTScalar_Op<"affine_decode_scale_scatter", []> {
+  let summary = "typed paired-nibble decode, scale, and scatter";
+  let description = [{
+    Exact q4_0 inner computation node. It decodes the low and high unsigned
+    fields with the typed shifts/mask/zero point, converts both signed results
+    to f32, multiplies each by the enclosing block scale, and stores them at
+    `block*qk + packed_index + low_output_delta` and
+    `block*qk + packed_index + high_output_delta`.
+  }];
+  let arguments = (ins
+    I64Attr:$low_field_shift,
+    I64Attr:$high_field_shift,
     I64Attr:$field_mask,
     I64Attr:$decode_zero_point,
-    I64Attr:$activation_plane_stride
+    I64Attr:$low_output_delta,
+    I64Attr:$high_output_delta
   );
   let assemblyFormat = "attr-dict";
 }
 
 def PackedAffineDequantBodyOp : WEFTScalar_Op<"packed_affine_dequant_body",
-    [DeclareOpInterfaceMethods<WEFTEmitCLowerableOpInterface,
+    [NoRegionArguments, NoTerminator, SingleBlock,
+     DeclareOpInterfaceMethods<WEFTEmitCLowerableOpInterface,
       ["getWEFTEmitCLowerableSourceOpName",
        "getWEFTEmitCLowerableSourceRole"]>]> {
   let summary = "constructed packed affine scalar dequant body";
   let description = [{
     Final family-local computation body for q4_0 paired-nibble dequantization.
-    Its semantics are a block loop over `n/qk`; each block loads one fp16 scale,
-    visits `half_width` packed bytes, decodes the low field and high field using
-    `field_mask`, `field_bits`, and `decode_zero_point`, converts each signed
-    value to f32, multiplies by the block scale, and scatters the pair to
-    `block*qk+j` and `block*qk+j+half_width`. The external ABI is fixed to
-    `(int n, float *output, const uint8_t *weights)`. Attributes contain every
-    variable bound/stride/offset/decode constant; operation identity contains
-    the fixed loop topology, types, paired index map, and stores. Artifact
-    lowering does not read or reinterpret the q4_0 source problem.
+    Its nested Scalar-local typed plan contains the block loop, scale load,
+    packed-byte loop, paired decode/rescale/scatter node, and every consumed
+    bound/stride/offset/decode constant. The external ABI is fixed to
+    `(int n, float *output, const uint8_t *weights)`. Artifact lowering walks
+    that exact plan and does not read or reinterpret the q4_0 source problem.
   }];
   let arguments = (ins
     StrAttr:$source_kernel,
-    FlatSymbolRefAttr:$selected_variant,
-    I64Attr:$qk,
-    I64Attr:$weight_block_stride,
-    I64Attr:$weight_d_byte_offset,
-    I64Attr:$weight_quant_byte_offset,
-    I64Attr:$half_width,
-    I64Attr:$field_bits,
-    I64Attr:$field_mask,
-    I64Attr:$decode_zero_point
+    FlatSymbolRefAttr:$selected_variant
   );
-  let assemblyFormat = "attr-dict";
+  let regions = (region SizedRegion<1>:$body);
+  let assemblyFormat = "attr-dict-with-keyword $body";
 }
 
 #endif // WEFT_DIALECT_SCALAR_IR_SCALAROPS_TD

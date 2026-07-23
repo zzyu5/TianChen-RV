@@ -26,6 +26,8 @@
 # RUN: rg -n 'OpConversionPattern<weft::scalar::(ImmediateCallBodyOp|PackedTernaryDotBodyOp)' %S/../../lib/Plugin/Scalar/ScalarBackendEmissionDriver.cpp | FileCheck %s --check-prefix=SCALAR-TYPED-BODY
 # RUN: rg -n 'constructRVVStandaloneDequantScheduleFormula\(' %S/../../lib/Plugin/RVV/Construction/RVVFormulaConstruction.cpp | FileCheck %s --check-prefix=DEQUANT-OWNER
 # RUN: not rg -n 'deriveFlatBlockDotDescriptor|flat-arms' %S/../../include %S/../../lib %S/../../tools
+# RUN: not rg -n 'RVVFlatBlockDotLeaf|typed-leaf' %S/../../include %S/../../lib %S/../../tools
+# RUN: python3 %S/../../tools/visibility/e6_descriptor_cost.py flat-formula --worktree | FileCheck %s --check-prefix=FLAT-COMPOSITION
 # RUN: not rg -n 'weft-rvv-materialize-(q4-0|gemm)-schedule|MaterializeRVV(Q40|Gemm)Schedule' %S/../../include %S/../../lib %S/../../tools
 # RUN: not rg -n 'selectGenericSchedule|chooseFillOptimalLMUL' %S/../../lib/Plugin/RVV/FrontDoor
 # RUN: sed -n '/VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(/,/^}/p' %S/../../lib/Conversion/RVV/RVVToEmitCBlockQuantLinear.cpp | rg 'readFinalFlatBlockDotComputePlan' | FileCheck %s --check-prefix=FLAT-PLAN-READ
@@ -45,6 +47,12 @@
 # FLAT-PLAN-PROJECTION: descriptor.decodePrimitive = plan.decodePrimitive
 # FLAT-PLAN-PROJECTION-NEXT: {{.*}}descriptor.foldModel = plan.foldModel
 # FLAT-PLAN-PROJECTION: descriptor.applyOffsetBias = plan.applyOffsetBias
+# FLAT-COMPOSITION: # Flat computation mechanism (2): composable representation plan
+# FLAT-COMPOSITION: # pin    : WORKTREE validation only (UNPINNED; not evidence output)
+# FLAT-COMPOSITION: weight encodings      : 7
+# FLAT-COMPOSITION: weight-scale encodings: 4
+# FLAT-COMPOSITION: consumed geometry facts: 8
+# FLAT-COMPOSITION: semantic coverage cases: 9
 # CONSTRUCTION-ORDER: constructEmissionReferences(kernel, references, registry,
 # CONSTRUCTION-ORDER: reference.construction.getOperation()
 

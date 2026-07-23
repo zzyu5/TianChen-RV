@@ -392,7 +392,7 @@ void TemplateExtensionPlugin::collectFormulaDescriptors(
 
 bool TemplateExtensionPlugin::supportsOperation(
     const VariantProposalRequest &request) const {
-  return request.getHighLevelOp() && hasAvailableTemplateExtensionCapability(request);
+  return request.getProblem() && hasAvailableTemplateExtensionCapability(request);
 }
 
 llvm::Error TemplateExtensionPlugin::proposeVariants(

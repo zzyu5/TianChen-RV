@@ -299,9 +299,16 @@ void RVVExtensionPlugin::collectFormulaDescriptors(
   cost.addProductionEntry("plugin:analytic-cost");
   out.push_back(std::move(cost));
 
+  // Construction strength describes the complete production source
+  // construction, not just a reusable schedule decision that it happens to
+  // consume.  These front doors still own complete point-body builders and no
+  // point-authority erasure witness currently reconstructs those bodies, so
+  // they must remain honestly ConstructedWeak.  Internal schedule formulas
+  // below retain their independently justified strength.
   FormulaDescriptor vector = makeDescriptor(
       formula::kVectorSourceConstruction, "operator/vector-elementwise",
-      FormulaResultKind::TypedPlan, FormulaConstructionStrength::Strong,
+      FormulaResultKind::TypedPlan,
+      FormulaConstructionStrength::ConstructedWeak,
       "RVVVectorSourceGeometryFacts", {"opcode", "element-type", "predicate"},
       FormulaAxisUse::Decisive, "RVVCapabilityProjection",
       {"minimum-vlen", "supported-lmul"}, FormulaAxisUse::HonestNull,
@@ -337,7 +344,7 @@ void RVVExtensionPlugin::collectFormulaDescriptors(
                   FormulaAxisUse::Decisive, "RVVCapabilityProjection",
                   {"supported-lmul", "vector-register-budget"},
                   "widening-dot-reduce", formula::kReductionSourceEntry,
-                  FormulaConstructionStrength::Strong);
+                  FormulaConstructionStrength::ConstructedWeak);
   addSingleSource(formula::kDequantDotSourceConstruction,
                   "operator/dequant-dot", "RVVDequantDotGeometryFacts",
                   {"scale-kind", "element-type", "shape"},
@@ -345,7 +352,7 @@ void RVVExtensionPlugin::collectFormulaDescriptors(
                   {"supported-lmul", "vector-register-budget"},
                   "widening-dot-reduce-with-scale",
                   formula::kDequantDotSourceEntry,
-                  FormulaConstructionStrength::Strong);
+                  FormulaConstructionStrength::ConstructedWeak);
   addSingleSource(formula::kDequantizeRowConstruction,
                   "operator/dequantize-row", "DequantizeRowStreamFacts",
                   {"format", "qk", "layout", "decode-mechanism"},
@@ -382,14 +389,14 @@ void RVVExtensionPlugin::collectFormulaDescriptors(
                   {"minimum-vlen", "supported-lmul"},
                   "packed-i4-offset-binary-dot",
                   formula::kPackedI4DotSourceEntry,
-                  FormulaConstructionStrength::Strong);
+                  FormulaConstructionStrength::ConstructedWeak);
   addSingleSource(formula::kCodebookDotConstruction,
                   "operator/codebook-dot", "CodebookDotGeometryFacts",
                   {"qk", "codebook-entries", "layout"},
                   FormulaAxisUse::Decisive, "RVVCapabilityProjection",
                   {"minimum-vlen", "supported-lmul"},
                   "codebook-gather-dot", formula::kCodebookDotSourceEntry,
-                  FormulaConstructionStrength::Strong);
+                  FormulaConstructionStrength::ConstructedWeak);
 
   FormulaDescriptor monolithic = makeDescriptor(
       formula::kMonolithicBlockDotConstruction, "operator/block-dot",
@@ -448,8 +455,9 @@ void RVVExtensionPlugin::collectFormulaDescriptors(
       formula::kFlatBlockDotPlan, "operator/block-dot",
       FormulaResultKind::TypedPlan, FormulaConstructionStrength::ConstructedWeak,
       "RVVFlatBlockDotGeometryFacts",
-      {"typed-leaf", "qk", "sub-block-length", "weight-quant-offset",
-       "activation-quant-offset"},
+      {"weight-encoding", "weight-scale-encoding", "has-min-term",
+       "requires-offset-bias", "qk", "sub-block-length",
+       "weight-quant-offset", "activation-quant-offset"},
       FormulaAxisUse::HonestNull, "RVVFlatBlockDotNoCapabilityInput", {},
       FormulaAxisUse::HonestNull, "RVVFlatBlockDotNoStaticContext");
   for (const RVVFlatBlockDotFormulaCase &semanticCase :

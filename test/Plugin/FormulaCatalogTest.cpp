@@ -155,6 +155,18 @@ int main() {
     if (formula->second->getOwnerPlugin() != frontDoor.getOwnerPlugin())
       return fail(llvm::Twine("front door/formula owner mismatch: ") +
                   frontDoor.getArgument());
+    // A registered RVV source front door is a complete production
+    // construction entry.  None currently has a point-authority erasure
+    // witness, even when it consumes an independently strong schedule formula;
+    // catalog strength must therefore remain honest about the full source
+    // construction boundary.
+    if (frontDoor.getOwnerPlugin() == rvv::getRVVExtensionPluginName() &&
+        formula->second->getConstructionStrength() !=
+            FormulaConstructionStrength::ConstructedWeak)
+      return fail(llvm::Twine(
+                      "RVV source construction without a delete-leaf witness "
+                      "must remain ConstructedWeak: ") +
+                  frontDoor.getArgument());
     std::string key =
         (frontDoor.getOwnerPlugin() + llvm::Twine("\n") +
          frontDoor.getArgument())

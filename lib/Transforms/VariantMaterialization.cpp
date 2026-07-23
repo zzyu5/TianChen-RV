@@ -572,6 +572,12 @@ llvm::Error materializeKernelPluginVariants(
                     "kernel @") +
         kernel.getSymName() + " to have a materialized body block");
 
+  llvm::Expected<mlir::Operation *> problem =
+      plugin::resolveCanonicalProblem(kernel);
+  if (!problem)
+    return makeMaterializationError(
+        llvm::toString(problem.takeError()));
+
   if (registry.empty())
     return makeMaterializationError(
         llvm::Twine("Weft-RV plugin variant materialization for kernel @") +
@@ -588,7 +594,7 @@ llvm::Error materializeKernelPluginVariants(
         kernel.getSymName() +
         " requires at least one capability provider in the kernel capability "
         "scope");
-  VariantProposalRequest request(kernel.getOperation(), kernel, *capabilities);
+  VariantProposalRequest request(*problem, kernel, *capabilities);
 
   llvm::SmallVector<VariantProposal, 4> proposals;
   llvm::SmallVector<VariantProposalDecline, 2> recoverableDeclines;

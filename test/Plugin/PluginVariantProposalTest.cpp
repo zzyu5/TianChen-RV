@@ -83,14 +83,14 @@ public:
   bool supportsOperation(const VariantProposalRequest &request) const override {
     ++supportCalls;
 
-    if (request.getHighLevelOp())
+    if (request.getProblem())
       observedHighLevelOpName =
-          request.getHighLevelOp()->getName().getStringRef().str();
+          request.getProblem()->getName().getStringRef().str();
     if (request.getKernel())
       observedKernelName = request.getKernel().getSymName().str();
     observedCapabilityCount = request.getCapabilities().size();
 
-    return request.getHighLevelOp() && request.getKernel() &&
+    return request.getProblem() && request.getKernel() &&
            request.getCapabilities().isCapabilityAvailableByID(
                supportCapabilityID);
   }
@@ -157,7 +157,7 @@ public:
   }
 
   bool supportsOperation(const VariantProposalRequest &request) const override {
-    return request.getHighLevelOp() && request.getKernel() &&
+    return request.getProblem() && request.getKernel() &&
            request.getCapabilities().isCapabilityAvailableByID(
                supportCapabilityID);
   }

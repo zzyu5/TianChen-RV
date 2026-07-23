@@ -553,11 +553,18 @@ int runSourceScheduleFormulaTest() {
 }
 
 int runFlatBlockDotFormulaTest() {
-  auto construct = [](pluginrvv::RVVFlatBlockDotLeaf leaf, int64_t qk,
+  using WeightEncoding = pluginrvv::RVVFlatWeightEncoding;
+  using ScaleEncoding = pluginrvv::RVVFlatWeightScaleEncoding;
+  auto construct = [](WeightEncoding weightEncoding,
+                      ScaleEncoding scaleEncoding, bool hasMinTerm,
+                      bool requiresOffsetBias, int64_t qk,
                       int64_t subBlockLength = 0)
       -> llvm::Expected<pluginrvv::RVVFlatBlockDotPlan> {
     return pluginrvv::constructRVVFlatBlockDotFormula(
-        {/*leaf=*/leaf,
+        {/*weightEncoding=*/weightEncoding,
+         /*weightScaleEncoding=*/scaleEncoding,
+         /*hasMinTerm=*/hasMinTerm,
+         /*requiresOffsetBias=*/requiresOffsetBias,
          /*qk=*/qk,
          /*subBlockLength=*/subBlockLength,
          /*weightQuantByteOffset=*/2,
@@ -565,10 +572,13 @@ int runFlatBlockDotFormulaTest() {
         pluginrvv::RVVFlatBlockDotNoCapabilityInput{},
         pluginrvv::RVVFlatBlockDotNoStaticContext{});
   };
-  auto require = [&](pluginrvv::RVVFlatBlockDotLeaf leaf, int64_t qk,
+  auto require = [&](WeightEncoding weightEncoding,
+                     ScaleEncoding scaleEncoding, bool hasMinTerm,
+                     bool requiresOffsetBias, int64_t qk,
                      int64_t subBlockLength = 0)
       -> std::optional<pluginrvv::RVVFlatBlockDotPlan> {
-    auto plan = construct(leaf, qk, subBlockLength);
+    auto plan = construct(weightEncoding, scaleEncoding, hasMinTerm,
+                          requiresOffsetBias, qk, subBlockLength);
     if (!plan) {
       llvm::errs() << "FAIL: valid flat formula rejected: "
                    << llvm::toString(plan.takeError()) << "\n";
@@ -577,16 +587,33 @@ int runFlatBlockDotFormulaTest() {
     return std::move(*plan);
   };
 
-  auto q80 = require(pluginrvv::RVVFlatBlockDotLeaf::Q80Q80, 32);
-  auto q40 = require(pluginrvv::RVVFlatBlockDotLeaf::Q40Q80, 32);
-  auto q41 = require(pluginrvv::RVVFlatBlockDotLeaf::Q41Q81, 32);
-  auto q50 = require(pluginrvv::RVVFlatBlockDotLeaf::Q50Q80, 32);
-  auto q51 = require(pluginrvv::RVVFlatBlockDotLeaf::Q51Q81, 32);
-  auto iq4 = require(pluginrvv::RVVFlatBlockDotLeaf::IQ4NLQ80, 32);
-  auto mxfp4 = require(pluginrvv::RVVFlatBlockDotLeaf::MXFP4Q80, 32);
-  auto q10 = require(pluginrvv::RVVFlatBlockDotLeaf::Q10Q80, 128);
-  auto nvfp4 =
-      require(pluginrvv::RVVFlatBlockDotLeaf::NVFP4Q80, 64, 16);
+  auto q80 = require(WeightEncoding::SignedI8, ScaleEncoding::FP16,
+                     /*hasMinTerm=*/false,
+                     /*requiresOffsetBias=*/false, 32);
+  auto q40 = require(WeightEncoding::OffsetBinaryNibble, ScaleEncoding::FP16,
+                     /*hasMinTerm=*/false,
+                     /*requiresOffsetBias=*/false, 32);
+  auto q41 = require(WeightEncoding::UnsignedNibble, ScaleEncoding::FP16,
+                     /*hasMinTerm=*/true,
+                     /*requiresOffsetBias=*/false, 32);
+  auto q50 = require(WeightEncoding::FiveBitOffsetBinary, ScaleEncoding::FP16,
+                     /*hasMinTerm=*/false,
+                     /*requiresOffsetBias=*/true, 32);
+  auto q51 = require(WeightEncoding::FiveBitOffsetBinary, ScaleEncoding::FP16,
+                     /*hasMinTerm=*/true,
+                     /*requiresOffsetBias=*/false, 32);
+  auto iq4 = require(WeightEncoding::NibbleCodebook, ScaleEncoding::FP16,
+                     /*hasMinTerm=*/false,
+                     /*requiresOffsetBias=*/false, 32);
+  auto mxfp4 = require(WeightEncoding::NibbleCodebook, ScaleEncoding::E8M0,
+                      /*hasMinTerm=*/false,
+                      /*requiresOffsetBias=*/false, 32);
+  auto q10 = require(WeightEncoding::BinarySign, ScaleEncoding::None,
+                     /*hasMinTerm=*/false,
+                     /*requiresOffsetBias=*/false, 128);
+  auto nvfp4 = require(WeightEncoding::NVFP4Codebook, ScaleEncoding::UE4M3,
+                      /*hasMinTerm=*/false,
+                      /*requiresOffsetBias=*/false, 64, 16);
   if (!q80 || !q40 || !q41 || !q50 || !q51 || !iq4 || !mxfp4 ||
       !q10 || !nvfp4)
     return 1;
@@ -618,7 +645,10 @@ int runFlatBlockDotFormulaTest() {
     return fail("closed q1_0/NVFP4 body families must carry honest final fields");
 
   auto shiftedActivation = pluginrvv::constructRVVFlatBlockDotFormula(
-      {/*leaf=*/pluginrvv::RVVFlatBlockDotLeaf::Q40Q80,
+      {/*weightEncoding=*/WeightEncoding::OffsetBinaryNibble,
+       /*weightScaleEncoding=*/ScaleEncoding::FP16,
+       /*hasMinTerm=*/false,
+       /*requiresOffsetBias=*/false,
        /*qk=*/32,
        /*subBlockLength=*/0,
        /*weightQuantByteOffset=*/2,
@@ -628,13 +658,17 @@ int runFlatBlockDotFormulaTest() {
   if (!shiftedActivation || shiftedActivation->activationQuantByteOffset != 6)
     return fail("flat formula must consume the activation offset into its plan");
 
-  auto oddQ40 = construct(pluginrvv::RVVFlatBlockDotLeaf::Q40Q80, 33);
+  auto oddQ40 = construct(WeightEncoding::OffsetBinaryNibble,
+                          ScaleEncoding::FP16, false, false, 33);
   if (oddQ40)
     return fail("odd q4_0 qk must fail flat formula construction");
   llvm::consumeError(oddQ40.takeError());
 
   auto negativeWeightOffset = pluginrvv::constructRVVFlatBlockDotFormula(
-      {/*leaf=*/pluginrvv::RVVFlatBlockDotLeaf::Q40Q80,
+      {/*weightEncoding=*/WeightEncoding::OffsetBinaryNibble,
+       /*weightScaleEncoding=*/ScaleEncoding::FP16,
+       /*hasMinTerm=*/false,
+       /*requiresOffsetBias=*/false,
        /*qk=*/32,
        /*subBlockLength=*/0,
        /*weightQuantByteOffset=*/-1,
@@ -646,7 +680,10 @@ int runFlatBlockDotFormulaTest() {
   llvm::consumeError(negativeWeightOffset.takeError());
 
   auto negativeActivationOffset = pluginrvv::constructRVVFlatBlockDotFormula(
-      {/*leaf=*/pluginrvv::RVVFlatBlockDotLeaf::Q40Q80,
+      {/*weightEncoding=*/WeightEncoding::OffsetBinaryNibble,
+       /*weightScaleEncoding=*/ScaleEncoding::FP16,
+       /*hasMinTerm=*/false,
+       /*requiresOffsetBias=*/false,
        /*qk=*/32,
        /*subBlockLength=*/0,
        /*weightQuantByteOffset=*/2,
@@ -656,18 +693,27 @@ int runFlatBlockDotFormulaTest() {
   if (negativeActivationOffset)
     return fail("flat formula must reject an invalid activation quant offset");
   llvm::consumeError(negativeActivationOffset.takeError());
-  auto missingNV = construct(pluginrvv::RVVFlatBlockDotLeaf::NVFP4Q80, 64, 0);
+  auto invalidComposition = construct(
+      WeightEncoding::OffsetBinaryNibble, ScaleEncoding::E8M0,
+      /*hasMinTerm=*/false, /*requiresOffsetBias=*/false, 32);
+  if (invalidComposition)
+    return fail("an unsupported representation-mechanism composition must reject");
+  llvm::consumeError(invalidComposition.takeError());
+
+  auto missingNV = construct(WeightEncoding::NVFP4Codebook,
+                             ScaleEncoding::UE4M3, false, false, 64, 0);
   if (missingNV)
     return fail("NVFP4 without a sub-block length must reject");
   llvm::consumeError(missingNV.takeError());
-  auto oversizedNV =
-      construct(pluginrvv::RVVFlatBlockDotLeaf::NVFP4Q80, 64, 128);
+  auto oversizedNV = construct(WeightEncoding::NVFP4Codebook,
+                               ScaleEncoding::UE4M3, false, false, 64, 128);
   if (oversizedNV)
     return fail("NVFP4 sub-block length larger than qk must reject");
   llvm::consumeError(oversizedNV.takeError());
 
-  llvm::outs() << "flat block-dot formula: all live leaf mechanisms construct "
-                  "closed final plans; invalid geometry rejects\n";
+  llvm::outs() << "flat block-dot formula: composable representation facts "
+                  "construct every live closed final plan; invalid geometry "
+                  "and unsupported compositions reject\n";
   return 0;
 }
 

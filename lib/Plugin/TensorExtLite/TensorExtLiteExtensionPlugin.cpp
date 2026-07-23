@@ -482,7 +482,7 @@ void TensorExtLiteExtensionPlugin::collectFormulaDescriptors(
 
 bool TensorExtLiteExtensionPlugin::supportsOperation(
     const VariantProposalRequest &request) const {
-  return request.getHighLevelOp() && hasAvailableTensorExtLiteFragmentCapability(request);
+  return request.getProblem() && hasAvailableTensorExtLiteFragmentCapability(request);
 }
 
 llvm::Error TensorExtLiteExtensionPlugin::proposeVariants(

@@ -97,18 +97,18 @@ private:
 
 class VariantProposalRequest {
 public:
-  VariantProposalRequest(mlir::Operation *highLevelOp,
+  VariantProposalRequest(mlir::Operation *problem,
                          weft::exec::KernelOp kernel,
                          const support::TargetCapabilitySet &capabilities);
 
-  mlir::Operation *getHighLevelOp() const { return highLevelOp; }
+  mlir::Operation *getProblem() const { return problem; }
   weft::exec::KernelOp getKernel() const { return kernel; }
   const support::TargetCapabilitySet &getCapabilities() const {
     return capabilities;
   }
 
 private:
-  mlir::Operation *highLevelOp = nullptr;
+  mlir::Operation *problem = nullptr;
   weft::exec::KernelOp kernel;
   const support::TargetCapabilitySet &capabilities;
 };
@@ -150,13 +150,14 @@ class FamilyConstructionRequest {
 public:
   FamilyConstructionRequest(
       mlir::ModuleOp module, weft::exec::VariantOp variant,
-      weft::exec::KernelOp kernel,
+      weft::exec::KernelOp kernel, mlir::Operation *problem,
       const support::TargetCapabilitySet &capabilities,
       VariantEmissionRole role = VariantEmissionRole::DirectVariant);
 
   mlir::ModuleOp getModule() const { return module; }
   weft::exec::VariantOp getVariant() const { return variant; }
   weft::exec::KernelOp getKernel() const { return kernel; }
+  mlir::Operation *getProblem() const { return problem; }
   const support::TargetCapabilitySet &getCapabilities() const {
     return capabilities;
   }
@@ -166,9 +167,17 @@ private:
   mlir::ModuleOp module;
   weft::exec::VariantOp variant;
   weft::exec::KernelOp kernel;
+  mlir::Operation *problem = nullptr;
   const support::TargetCapabilitySet &capabilities;
   VariantEmissionRole role = VariantEmissionRole::DirectVariant;
 };
+
+/// Resolve the exact family-neutral canonical problem named by
+/// `weft.exec.kernel problem = @symbol`.  This is an identity/ownership join
+/// only: common code neither interprets problem fields nor dispatches on a
+/// family name.  Missing, dangling and non-problem symbols fail closed.
+llvm::Expected<mlir::Operation *>
+resolveCanonicalProblem(weft::exec::KernelOp kernel);
 
 enum class FamilyConstructionStatus {
   Unknown,

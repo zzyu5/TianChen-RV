@@ -391,7 +391,7 @@ void DemoExtensionPlugin::collectFormulaDescriptors(
 
 bool DemoExtensionPlugin::supportsOperation(
     const VariantProposalRequest &request) const {
-  return request.getHighLevelOp() && hasAvailableDemoExtensionCapability(request);
+  return request.getProblem() && hasAvailableDemoExtensionCapability(request);
 }
 
 llvm::Error DemoExtensionPlugin::proposeVariants(

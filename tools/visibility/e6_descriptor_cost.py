@@ -64,18 +64,21 @@ T2 != attribution to C2.
 At least four distinct things are called a 描述符 here:
   (1) k<Fmt>DecodeFacts       front-door decode facts record   <- D1 MEASURES THIS
   (2) RVVFlatBlockDotPlan     formula-owned final flat computation plan, built
-                              from the finite typed mechanism leaf domain
+                              from composable typed representation/mechanism facts
                                                               <- `flat-formula`
   (3) N-operand 通用路由描述符  routing descriptor (总纲v3 [B-1])
   (4) 调度描述符               schedule descriptor (LMUL knobs)
-D1 covers (1) ONLY. The formula leaf inventory in (2) is a semantic case set,
-not a LOC quantity, and must NEVER be summed, averaged, or plotted with D1.
-The flat formats have no (1), but they do have a formula-produced final plan;
-T2 therefore says "no DecodeFacts record" rather than "no descriptor".
+D1 covers (1) ONLY. The formula composition inventory in (2) reports its
+representation axes, consumed geometry facts, and semantic coverage; it is not
+a LOC quantity and must NEVER be summed, averaged, or plotted with D1. The flat
+formats have no (1), but they do have a formula-produced final plan; T2 therefore
+says "no DecodeFacts record" rather than "no descriptor".
 
 USAGE
     e6_descriptor_cost.py emit            # per-format table + JSON, from source
     e6_descriptor_cost.py flat-formula    # mechanism (2), separately, NOT in T2
+    e6_descriptor_cost.py flat-formula --worktree
+                                           # pre-commit parser validation, UNPINNED
     e6_descriptor_cost.py check-redline   # assert descriptor data never on C2 rows
     e6_descriptor_cost.py c2-rows         # the canonical C2 filter (what C2 may eat)
 """
@@ -121,15 +124,20 @@ def head_sha():
     ).strip()
 
 
-def read_source(path):
-    """Read a source file AT THE PIN (the HEAD blob), never the working tree.
+def read_source(path, from_worktree=False):
+    """Read a source file at HEAD, or explicitly from the worktree for validation.
 
     This repo has concurrent writers: another line owns lib/ and rewrites it
     mid-session. Reading the working tree while STAMPING a HEAD pin would make
     the pin a lie and the line numbers un-reproducible -- the stale-line-number
     class of error this project has already been burned by twice. So: measure
-    the blob the pin names. Returns (lines, worktree_differs).
+    the blob the pin names by default. The explicit worktree mode is only for
+    pre-commit parser validation and is labelled UNPINNED in its output.
+    Returns (lines, worktree_differs).
     """
+    if from_worktree:
+        with open(path, encoding="utf-8") as source:
+            return source.read().split("\n"), False
     rel = os.path.relpath(path, REPO)
     blob = subprocess.check_output(["git", "-C", REPO, "show", f"HEAD:{rel}"], text=True)
     dirty = subprocess.call(
@@ -343,24 +351,30 @@ def cmd_check_redline():
     return 0
 
 
+FLAT_FORMULA_HEADER = os.path.join(
+    REPO, "include/Weft/Plugin/RVV/RVVFlatBlockDotFormula.h"
+)
 FLAT_FORMULA_SRC = os.path.join(
     REPO, "lib/Plugin/RVV/Construction/RVVFlatBlockDotFormula.cpp"
 )
-FLAT_CASE_RE = re.compile(r"^\s*case\s+RVVFlatBlockDotLeaf::(\w+)\s*:\s*$")
+FLAT_WEIGHT_ENCODING_ENUM = "RVVFlatWeightEncoding"
+FLAT_SCALE_ENCODING_ENUM = "RVVFlatWeightScaleEncoding"
+FLAT_GEOMETRY_STRUCT = "RVVFlatBlockDotGeometryFacts"
+FLAT_WEIGHT_CASE_RE = re.compile(
+    rf"^\s*case\s+{FLAT_WEIGHT_ENCODING_ENUM}::(\w+)\s*:\s*$"
+)
+FLAT_ENUM_VALUE_RE = re.compile(r"^\s*(\w+)(?:\s*=\s*[^,]+)?\s*,\s*$")
+FLAT_GEOMETRY_FIELD_RE = re.compile(
+    rf"^\s*(?:{FLAT_WEIGHT_ENCODING_ENUM}|{FLAT_SCALE_ENCODING_ENUM}|bool|"
+    r"std::int64_t)\s+(\w+)"
+)
+FLAT_SEMANTIC_CASE_RE = re.compile(r'^\s*\{"([^"]+)"\},\s*$')
 
 
-def cmd_flat_formula():
-    """List the formula-owned finite flat leaf cases at the pinned HEAD.
-
-    This is a semantic inventory only. It deliberately reports no LOC metric
-    and writes nothing into T2: formula cases and DecodeFacts records are
-    different evidence units.
-    """
-    lines, dirty = read_source(FLAT_FORMULA_SRC)
-    start = next(
-        i for i, line in enumerate(lines)
-        if "constructRVVFlatBlockDotFormula(" in line
-    )
+def find_braced_span(lines, marker, description):
+    start = next((i for i, line in enumerate(lines) if marker in line), None)
+    if start is None:
+        sys.exit(f"FATAL: no {description} found")
     depth = 0
     opened = False
     end = None
@@ -373,27 +387,157 @@ def cmd_flat_formula():
             end = i
             break
     if end is None:
-        sys.exit("FATAL: unterminated constructRVVFlatBlockDotFormula")
+        sys.exit(f"FATAL: unterminated {description}")
+    return start, end
+
+
+def extract_enum_values(lines, enum_name):
+    start, end = find_braced_span(lines, f"enum class {enum_name}", enum_name)
+    values = [
+        (i + 1, match.group(1))
+        for i in range(start + 1, end)
+        if (match := FLAT_ENUM_VALUE_RE.match(lines[i]))
+    ]
+    if not values:
+        sys.exit(f"FATAL: {enum_name} declares no values")
+    names = [name for _, name in values]
+    if len(names) != len(set(names)):
+        sys.exit(f"FATAL: {enum_name} declares duplicate values")
+    return values, start, end
+
+
+def extract_geometry_fields(lines):
+    start, end = find_braced_span(
+        lines, f"struct {FLAT_GEOMETRY_STRUCT}", FLAT_GEOMETRY_STRUCT
+    )
+    fields = [
+        (i + 1, match.group(1))
+        for i in range(start + 1, end)
+        if (match := FLAT_GEOMETRY_FIELD_RE.match(lines[i]))
+    ]
+    expected = {
+        "weightEncoding",
+        "weightScaleEncoding",
+        "hasMinTerm",
+        "requiresOffsetBias",
+        "qk",
+        "subBlockLength",
+        "weightQuantByteOffset",
+        "activationQuantByteOffset",
+    }
+    names = [name for _, name in fields]
+    if set(names) != expected or len(names) != len(expected):
+        sys.exit(
+            "FATAL: flat geometry facts differ from the composable formula "
+            f"contract; got {', '.join(names)}"
+        )
+    return fields, start, end
+
+
+def extract_semantic_cases(lines):
+    marker = "kRVVFlatBlockDotFormulaCases[] = {"
+    start, end = find_braced_span(lines, marker, "flat semantic-case inventory")
     cases = [
         (i + 1, match.group(1))
-        for i in range(start, end + 1)
-        if (match := FLAT_CASE_RE.match(lines[i]))
+        for i in range(start + 1, end)
+        if (match := FLAT_SEMANTIC_CASE_RE.match(lines[i]))
     ]
     if not cases:
-        sys.exit("FATAL: no RVVFlatBlockDotLeaf cases found")
+        sys.exit("FATAL: flat semantic-case inventory is empty")
     names = [name for _, name in cases]
     if len(names) != len(set(names)):
-        sys.exit("FATAL: duplicate RVVFlatBlockDotLeaf formula case")
+        sys.exit("FATAL: duplicate flat semantic coverage case")
+    return cases, start, end
 
-    print("# Flat computation mechanism (2): formula-owned final plan cases")
-    print(f"# source : {os.path.relpath(FLAT_FORMULA_SRC, REPO)}:{start+1}-{end+1}")
-    print(f"# pin    : HEAD={head_sha()}  (read from the HEAD blob)")
-    if dirty:
-        print("# NOTE   : worktree differs; re-run after committing to update the pin")
-    print("# unit   : finite semantic leaf identity (NOT LOC; NOT a T2 value)")
-    for line, name in cases:
-        print(f"  {name:<18} :{line}")
-    print(f"\n  formula leaf cases: {len(cases)}")
+
+def cmd_flat_formula(from_worktree=False):
+    """Report composable flat representation axes and facts, never a LOC metric."""
+    header_lines, header_dirty = read_source(
+        FLAT_FORMULA_HEADER, from_worktree=from_worktree
+    )
+    source_lines, source_dirty = read_source(
+        FLAT_FORMULA_SRC, from_worktree=from_worktree
+    )
+
+    weight_encodings, weight_start, _ = extract_enum_values(
+        header_lines, FLAT_WEIGHT_ENCODING_ENUM
+    )
+    scale_encodings, scale_start, _ = extract_enum_values(
+        header_lines, FLAT_SCALE_ENCODING_ENUM
+    )
+    geometry_fields, geometry_start, _ = extract_geometry_fields(header_lines)
+    semantic_cases, semantic_start, _ = extract_semantic_cases(header_lines)
+    formula_start, formula_end = find_braced_span(
+        source_lines,
+        "constructRVVFlatBlockDotFormula(",
+        "constructRVVFlatBlockDotFormula",
+    )
+    weight_cases = [
+        (i + 1, match.group(1))
+        for i in range(formula_start, formula_end + 1)
+        if (match := FLAT_WEIGHT_CASE_RE.match(source_lines[i]))
+    ]
+    weight_names = [name for _, name in weight_encodings]
+    case_names = [name for _, name in weight_cases]
+    if len(case_names) != len(set(case_names)):
+        sys.exit("FATAL: duplicate flat weight-encoding formula case")
+    if set(case_names) != set(weight_names):
+        sys.exit(
+            "FATAL: flat formula switch does not cover exactly the declared "
+            f"weight encodings; declared={','.join(weight_names)} "
+            f"covered={','.join(case_names)}"
+        )
+    scale_names = [name for _, name in scale_encodings]
+    formula_text = "\n".join(source_lines[formula_start : formula_end + 1])
+    unused_scales = [
+        name
+        for name in scale_names
+        if f"{FLAT_SCALE_ENCODING_ENUM}::{name}" not in formula_text
+    ]
+    if unused_scales:
+        sys.exit(
+            "FATAL: flat formula does not consume declared weight-scale "
+            f"encodings: {', '.join(unused_scales)}"
+        )
+
+    case_lines = {name: line for line, name in weight_cases}
+    print("# Flat computation mechanism (2): composable representation plan")
+    print(
+        f"# header : {os.path.relpath(FLAT_FORMULA_HEADER, REPO)} "
+        f"(axes@{weight_start + 1},{scale_start + 1}; "
+        f"facts@{geometry_start + 1}; coverage@{semantic_start + 1})"
+    )
+    print(
+        f"# formula : {os.path.relpath(FLAT_FORMULA_SRC, REPO)}:"
+        f"{formula_start + 1}-{formula_end + 1}"
+    )
+    if from_worktree:
+        print("# pin    : WORKTREE validation only (UNPINNED; not evidence output)")
+    else:
+        print(f"# pin    : HEAD={head_sha()}  (read from HEAD blobs)")
+        if header_dirty or source_dirty:
+            print("# NOTE   : worktree differs; re-run after committing to update the pin")
+    print(
+        "# unit   : representation axes + consumed geometry facts + semantic "
+        "coverage (NOT LOC; NOT a T2 value)"
+    )
+    print("\n  weight encodings:")
+    for line, name in weight_encodings:
+        print(f"    {name:<25} header:{line:<5} formula:{case_lines[name]}")
+    print("\n  weight-scale encodings:")
+    for line, name in scale_encodings:
+        print(f"    {name:<25} header:{line}")
+    print("\n  consumed geometry facts:")
+    for line, name in geometry_fields:
+        print(f"    {name:<25} header:{line}")
+    print("\n  semantic coverage:")
+    for line, name in semantic_cases:
+        print(f"    {name:<25} header:{line}")
+
+    print(f"\n  weight encodings      : {len(weight_encodings)}")
+    print(f"  weight-scale encodings: {len(scale_encodings)}")
+    print(f"  consumed geometry facts: {len(geometry_fields)}")
+    print(f"  semantic coverage cases: {len(semantic_cases)}")
     return 0
 
 
@@ -404,7 +548,12 @@ def main():
         "check-redline": cmd_check_redline,
         "c2-rows": cmd_c2_rows,
     }
-    if len(sys.argv) < 2 or sys.argv[1] not in cmds:
+    if len(sys.argv) == 3:
+        if sys.argv[1] == "flat-formula" and sys.argv[2] == "--worktree":
+            return cmd_flat_formula(from_worktree=True)
+        print(__doc__)
+        return 2
+    if len(sys.argv) != 2 or sys.argv[1] not in cmds:
         print(__doc__)
         return 2
     return cmds[sys.argv[1]]()

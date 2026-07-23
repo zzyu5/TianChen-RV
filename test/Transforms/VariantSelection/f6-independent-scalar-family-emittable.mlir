@@ -20,7 +20,13 @@
 // RUN: weft-opt %s --weft-check-capability-requires --weft-materialize-plugin-variants --weft-verify-plugin-variant-legality --weft-select-variants | weft-translate --weft-scalar-emitc-to-cpp | FileCheck %s --check-prefix=EMIT --implicit-check-not="__riscv_" --implicit-check-not="popcount" --implicit-check-not="weft_rvv"
 
 module {
-  weft.exec.kernel @only_feasible_scalar {
+  weft.exec.kernel @only_feasible_scalar attributes {problem = @canonical_problem} {
+    weft.exec.dequantize_row_q4_0_problem @canonical_problem {
+      qk = 32 : i64,
+      weight_block_stride = 18 : i64,
+      weight_d_byte_offset = 0 : i64,
+      weight_quant_byte_offset = 2 : i64
+    }
     weft.exec.capability @scalar_fallback {id = "scalar.fallback", kind = "fallback", status = "available"}
     weft_scalar.dequantize_row_q4_0 {
       source_kernel = "only_feasible_scalar",

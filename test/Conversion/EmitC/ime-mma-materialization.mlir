@@ -1,7 +1,7 @@
 // RUN: weft-opt %s --weft-materialize-plugin-variants --weft-select-variants --weft-materialize-selected-lowering-boundaries --weft-materialize-emitc-lowerable-routes | FileCheck %s --check-prefix=EMITC --implicit-check-not="weft_rvv" --implicit-check-not="weft_toy" --implicit-check-not="weft_template" --implicit-check-not="weft_tensorext_lite" --implicit-check-not="weft_offload"
 
-// N2 zero-core-branch proof: a kernel carrying ONLY the spacemit.ime capability
-// FACT (no high-level op, no family-name branch) drives the generic
+// N2 zero-core-branch proof: a canonical signed-int8 4x4x8 MAC problem plus the
+// spacemit.ime capability FACT, with no family-name branch, drive the generic
 // proposal/selection/boundary/EmitC pipeline. The IME plugin proposes its
 // variant because lookupProviderByID("spacemit.ime") is available; the generic
 // selector picks it; the generic boundary materializer creates a real
@@ -10,7 +10,8 @@
 // family-name string appears in any core selection/materialization pass (the
 // --implicit-check-not guards assert no OTHER family's dialect leaks either).
 module {
-  weft.exec.kernel @ime_mma_kernel {
+  weft.exec.kernel @ime_mma_kernel attributes {problem = @canonical_problem} {
+    weft.exec.int8_mac_problem @canonical_problem {lhs_signedness = #weft<integer_signedness signed>, rhs_signedness = #weft<integer_signedness signed>, m = 4 : i64, n = 4 : i64, k = 8 : i64}
     weft.exec.capability @spacemit_ime {
       id = "spacemit.ime",
       kind = "isa-matrix-vector-backed",

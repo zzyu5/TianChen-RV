@@ -77,7 +77,7 @@
 | `tools/visibility/gen_sixstate_table.py` | T0 六态普查表生成 | 被 `regen_all.sh` 调用 |
 | `tools/visibility/gen_burndown_curve.py` | T7 燃减双曲线生成 | 被 `regen_all.sh` 调用 |
 | `tools/visibility/recompute_ledger_anchor.sh` | T2 台账锚重算（DUAL-NUMBER 口径 · 先查后改 · 禁静默替换） | 手动；`experiments/active/visibility/` 侧 |
-| `tools/visibility/e6_descriptor_cost.py` | E6 描述符成本核算（T2 增长律**披露**，明标非 C2 主张） | 手动；evidence 层 §三 |
+| `tools/visibility/e6_descriptor_cost.py` | E6 描述符成本核算（T2 增长律**披露**，另报 flat formula 组合式 representation axes/facts，明标非 C2 主张） | 手动；evidence 层 §三 |
 | `tools/visibility/t1d_dual_instance.py` | E5/T1d 双实例演示表生成 | 手动；产 `experiments/active/result-tables/T1d_dual_instance.csv` |
 | `tools/visibility/tp_param_chain.py` | E2/T-P 构造参数三段链 | 手动；`.trellis/事故档案/2026-07-16-E2-TP-构造参数三段链.md` |
 | `tools/visibility/pattern_fanout_ledger.py` | C7 模式计数归一 · 扇出台账（机算 · 可复跑） | 手动；`.trellis/事故档案/2026-07-16-C7-模式计数归一与扇出台账.md` |

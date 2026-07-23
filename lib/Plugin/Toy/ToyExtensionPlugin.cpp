@@ -390,7 +390,7 @@ void ToyExtensionPlugin::collectFormulaDescriptors(
 
 bool ToyExtensionPlugin::supportsOperation(
     const VariantProposalRequest &request) const {
-  return request.getHighLevelOp() && hasAvailableToyTemplateCapability(request);
+  return request.getProblem() && hasAvailableToyTemplateCapability(request);
 }
 
 llvm::Error ToyExtensionPlugin::proposeVariants(

@@ -1,9 +1,9 @@
 // G4 M2: the FORMAT-KEYED q8_0 IME GEMM tile typed-region front door (the FLAT-int8
 // copy-adapt sibling of q4_0).
 //
-// A kernel carrying ONLY the spacemit.ime capability FACT + a whole-matrix SHAPE
-// fact (ime_matmul_shape) + a WEIGHT-FORMAT fact (ime_weight_format = "q8_0") --
-// no high-level op, no family-name branch -- drives the generic
+// A canonical 256x256x256 signed-int8 MAC problem plus the spacemit.ime
+// capability, a whole-matrix SHAPE fact (ime_matmul_shape), and a WEIGHT-FORMAT
+// fact (ime_weight_format = "q8_0") -- with no family-name branch -- drive the generic
 // proposal/selection/boundary pipeline to CONSTRUCT the typed-region
 // weft_ime.q8_0_matmul_tile op. The weight-format fact is pure data flow of the
 // capability, keyed ON TOP of the whole-matrix GEMM prior.
@@ -18,7 +18,8 @@
 // RUN: weft-opt %s --weft-materialize-plugin-variants --weft-select-variants --weft-materialize-selected-lowering-boundaries --weft-materialize-emitc-lowerable-routes | FileCheck %s --check-prefix=EMITC --implicit-check-not="weft_rvv" --implicit-check-not="weft_toy"
 
 module {
-  weft.exec.kernel @ime_q8_0_matmul_kernel {
+  weft.exec.kernel @ime_q8_0_matmul_kernel attributes {problem = @canonical_problem} {
+    weft.exec.int8_mac_problem @canonical_problem {lhs_signedness = #weft<integer_signedness signed>, rhs_signedness = #weft<integer_signedness signed>, m = 256 : i64, n = 256 : i64, k = 256 : i64}
     weft.exec.capability @spacemit_ime {
       id = "spacemit.ime",
       kind = "isa-matrix-vector-backed",

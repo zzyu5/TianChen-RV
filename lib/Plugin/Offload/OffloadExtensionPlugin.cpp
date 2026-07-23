@@ -476,7 +476,7 @@ void OffloadExtensionPlugin::collectFormulaDescriptors(
 
 bool OffloadExtensionPlugin::supportsOperation(
     const VariantProposalRequest &request) const {
-  return request.getHighLevelOp() &&
+  return request.getProblem() &&
          hasAvailableOffloadRuntimeCapability(request);
 }
 

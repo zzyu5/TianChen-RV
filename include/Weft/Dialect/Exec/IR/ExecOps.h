@@ -10,6 +10,8 @@
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/IR/SymbolTable.h"
 
+#include "Weft/Dialect/Exec/IR/ExecTraits.h"
+
 #include "Weft/Dialect/Exec/IR/ExecOpsDialect.h.inc"
 
 #include "Weft/Dialect/Exec/IR/ExecEnums.h.inc"

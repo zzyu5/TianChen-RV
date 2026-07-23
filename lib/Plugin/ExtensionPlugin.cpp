@@ -4,6 +4,7 @@
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/DialectRegistry.h"
 #include "mlir/IR/Operation.h"
+#include "mlir/IR/SymbolTable.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringSet.h"
 #include "llvm/ADT/Twine.h"
@@ -353,9 +354,9 @@ SourceFrontDoorPassRegistration::SourceFrontDoorPassRegistration(
       defaultArtifactFrontDoorPolicy(policy) {}
 
 VariantProposalRequest::VariantProposalRequest(
-    mlir::Operation *highLevelOp, weft::exec::KernelOp kernel,
+    mlir::Operation *problem, weft::exec::KernelOp kernel,
     const support::TargetCapabilitySet &capabilities)
-    : highLevelOp(highLevelOp), kernel(kernel), capabilities(capabilities) {}
+    : problem(problem), kernel(kernel), capabilities(capabilities) {}
 
 VariantLegalityRequest::VariantLegalityRequest(
     weft::exec::VariantOp variant, weft::exec::KernelOp kernel,
@@ -364,11 +365,44 @@ VariantLegalityRequest::VariantLegalityRequest(
 
 FamilyConstructionRequest::FamilyConstructionRequest(
     mlir::ModuleOp module, weft::exec::VariantOp variant,
-    weft::exec::KernelOp kernel,
+    weft::exec::KernelOp kernel, mlir::Operation *problem,
     const support::TargetCapabilitySet &capabilities,
     VariantEmissionRole role)
     : module(module), variant(variant), kernel(kernel),
-      capabilities(capabilities), role(role) {}
+      problem(problem), capabilities(capabilities), role(role) {}
+
+llvm::Expected<mlir::Operation *>
+resolveCanonicalProblem(weft::exec::KernelOp kernel) {
+  if (!kernel)
+    return makePluginRegistryError(
+        "canonical problem resolution requires a weft.exec.kernel");
+
+  auto problemRef =
+      kernel->getAttrOfType<mlir::FlatSymbolRefAttr>("problem");
+  if (!problemRef)
+    return makePluginRegistryError(
+        llvm::Twine("weft.exec.kernel @") + kernel.getSymName() +
+        " requires exact canonical problem anchor 'problem = @symbol'");
+
+  mlir::Operation *problem =
+      mlir::SymbolTable::lookupSymbolIn(kernel, problemRef.getValue());
+  if (!problem)
+    return makePluginRegistryError(
+        llvm::Twine("weft.exec.kernel @") + kernel.getSymName() +
+        " canonical problem anchor references unknown symbol @" +
+        problemRef.getValue());
+  if (problem->getParentOp() != kernel.getOperation())
+    return makePluginRegistryError(
+        llvm::Twine("weft.exec.kernel @") + kernel.getSymName() +
+        " canonical problem @" + problemRef.getValue() +
+        " must be a direct child of that kernel");
+  if (!problem->hasTrait<mlir::OpTrait::weft::CanonicalProblem>())
+    return makePluginRegistryError(
+        llvm::Twine("weft.exec.kernel @") + kernel.getSymName() +
+        " canonical problem @" + problemRef.getValue() +
+        " resolves to a non-problem symbol");
+  return problem;
+}
 
 VariantCostRequest::VariantCostRequest(
     weft::exec::VariantOp variant, weft::exec::KernelOp kernel,
@@ -1384,8 +1418,20 @@ llvm::Error ExtensionPluginRegistry::constructFormulaPlansForVariant(
         "' rejected selected variant legality: " +
         llvm::toString(std::move(error)));
 
-  FamilyConstructionRequest request(module, variant, kernel, *capabilities,
-                                    role);
+  mlir::Operation *problem = nullptr;
+  if (kernel->hasAttr("problem")) {
+    llvm::Expected<mlir::Operation *> resolvedProblem =
+        resolveCanonicalProblem(kernel);
+    if (!resolvedProblem)
+      return makePluginRegistryError(
+          llvm::Twine("bound family construction for origin '") + origin +
+          "' rejected canonical problem anchor: " +
+          llvm::toString(resolvedProblem.takeError()));
+    problem = *resolvedProblem;
+  }
+
+  FamilyConstructionRequest request(module, variant, kernel, problem,
+                                    *capabilities, role);
   out = FamilyConstructionResult();
   if (llvm::Error error = plugin->constructFormulaPlans(request, out))
     return makePluginRegistryError(

@@ -56,6 +56,23 @@ def WEFTExec_CapabilityStatus : I32EnumAttr<
   let genSpecializedAttr = 0;
 }
 
+def WEFTExec_IntegerSignednessSigned
+    : I32EnumAttrCase<"Signed", 0, "signed">;
+def WEFTExec_IntegerSignednessUnsigned
+    : I32EnumAttrCase<"Unsigned", 1, "unsigned">;
+
+def WEFTExec_IntegerSignedness : I32EnumAttr<
+    "IntegerSignedness", "closed integer operand signedness",
+    [WEFTExec_IntegerSignednessSigned,
+     WEFTExec_IntegerSignednessUnsigned]> {
+  let cppNamespace = "::weft::exec";
+  let genSpecializedAttr = 0;
+}
+
+def WEFTExec_IntegerSignednessAttr
+    : EnumAttr<WEFT_Exec_Dialect, WEFTExec_IntegerSignedness,
+               "integer_signedness">;
+
 def WEFTExec_CapabilityRelationsAttr
     : WEFTExec_Attr<"CapabilityRelations", "capability_relations"> {
   let summary = "typed provides/implies/conflicts capability-id relations";
@@ -83,6 +100,9 @@ def WEFTExec_CapabilityRelationsAttr
 
 class WEFTExec_Op<string mnemonic, list<Trait> traits = []>
     : Op<WEFT_Exec_Dialect, mnemonic, traits>;
+
+def WEFTExec_CanonicalProblem
+    : NativeOpTrait<"weft::CanonicalProblem">;
 
 def TargetOp : WEFTExec_Op<"exec.target", [Symbol]> {
   let summary = "named target capability profile anchor";
@@ -115,6 +135,57 @@ def CapabilityOp : WEFTExec_Op<"exec.capability", [Symbol]> {
   let hasVerifier = 1;
 }
 
+def Int8MACProblemOp
+    : WEFTExec_Op<"exec.int8_mac_problem",
+                  [Symbol, WEFTExec_CanonicalProblem]> {
+  let summary = "family-neutral int8 multiply-accumulate source problem";
+  let description = [{
+    Defines one canonical, pre-family-binding int8 multiply-accumulate problem.
+    Operation identity fixes S to an int8 x int8 -> int32 MAC fragment; the two
+    required signedness attributes are typed representation/semantic facts.
+
+    This op is a bounded operator-problem anchor, not a tensor/tile IR and not
+    an executable family body. It carries no target capability, family,
+    schedule, candidate, selected variant, artifact route, or runtime observer.
+    A weft.exec.kernel may reference it through `problem = @symbol`; common
+    orchestration resolves only that exact symbol and leaves every field to the
+    bound family plugin.
+  }];
+
+  let arguments = (ins
+    SymbolNameAttr:$sym_name,
+    WEFTExec_IntegerSignednessAttr:$lhs_signedness,
+    WEFTExec_IntegerSignednessAttr:$rhs_signedness,
+    I64Attr:$m,
+    I64Attr:$n,
+    I64Attr:$k
+  );
+  let assemblyFormat = "$sym_name attr-dict";
+  let hasVerifier = 1;
+}
+
+def DequantizeRowQ40ProblemOp
+    : WEFTExec_Op<"exec.dequantize_row_q4_0_problem",
+                  [Symbol, WEFTExec_CanonicalProblem]> {
+  let summary = "family-neutral q4_0 dequantize-row source problem";
+  let description = [{
+    Defines the bounded q4_0 block expansion problem before target/family
+    binding. Operation identity fixes S to q4_0 packed-nibble values scaled to
+    f32 output; required attributes carry the canonical external block geometry
+    g. It contains no Scalar/RVV/IME schedule or artifact choice.
+  }];
+
+  let arguments = (ins
+    SymbolNameAttr:$sym_name,
+    I64Attr:$qk,
+    I64Attr:$weight_block_stride,
+    I64Attr:$weight_d_byte_offset,
+    I64Attr:$weight_quant_byte_offset
+  );
+  let assemblyFormat = "$sym_name attr-dict";
+  let hasVerifier = 1;
+}
+
 def KernelOp : WEFTExec_Op<"exec.kernel",
     [IsolatedFromAbove, NoRegionArguments, NoTerminator, SingleBlock, Symbol,
      SymbolTable]> {
@@ -125,7 +196,8 @@ def KernelOp : WEFTExec_Op<"exec.kernel",
   }];
 
   let arguments = (ins SymbolNameAttr:$sym_name,
-                   OptionalAttr<FlatSymbolRefAttr>:$target);
+                   OptionalAttr<FlatSymbolRefAttr>:$target,
+                   OptionalAttr<FlatSymbolRefAttr>:$problem);
   let regions = (region SizedRegion<1>:$body);
   let assemblyFormat = "$sym_name attr-dict-with-keyword $body";
   let hasVerifier = 1;

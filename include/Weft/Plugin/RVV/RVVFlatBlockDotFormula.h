@@ -27,37 +27,41 @@ inline constexpr llvm::StringLiteral kRVVFlatBodyFamilyAttr(
 inline constexpr llvm::StringLiteral kRVVFlatOffsetBiasAttr(
     "weft_rvv.flat_offset_bias");
 
-/// The finite flat execution families currently reachable through the RVV
-/// source front doors.  The enum is an inventory/input type only; the formula
-/// returns the closed plan below, which is what downstream consumers read.
-enum class RVVFlatBlockDotLeaf {
-  Q80Q80,
-  Q40Q80,
-  Q41Q81,
-  Q50Q80,
-  Q51Q81,
-  IQ4NLQ80,
-  MXFP4Q80,
-  Q10Q80,
-  NVFP4Q80,
+/// Typed representation facts used to compose the flat decode mechanism.
+/// These are not point-leaf identities: multiple operator cases may share one
+/// encoding and differ only in scale/min/bias facts below.
+enum class RVVFlatWeightEncoding {
+  SignedI8,
+  OffsetBinaryNibble,
+  UnsignedNibble,
+  FiveBitOffsetBinary,
+  NibbleCodebook,
+  BinarySign,
+  NVFP4Codebook,
+};
+
+enum class RVVFlatWeightScaleEncoding {
+  None,
+  FP16,
+  E8M0,
+  UE4M3,
 };
 
 struct RVVFlatBlockDotFormulaCase {
-  RVVFlatBlockDotLeaf leaf;
   llvm::StringLiteral semanticCase;
 };
 
 inline constexpr RVVFlatBlockDotFormulaCase
     kRVVFlatBlockDotFormulaCases[] = {
-        {RVVFlatBlockDotLeaf::Q80Q80, "q8_0-q8_0"},
-        {RVVFlatBlockDotLeaf::Q40Q80, "q4_0-q8_0"},
-        {RVVFlatBlockDotLeaf::Q41Q81, "q4_1-q8_1"},
-        {RVVFlatBlockDotLeaf::Q50Q80, "q5_0-q8_0"},
-        {RVVFlatBlockDotLeaf::Q51Q81, "q5_1-q8_1"},
-        {RVVFlatBlockDotLeaf::IQ4NLQ80, "iq4_nl-q8_0"},
-        {RVVFlatBlockDotLeaf::MXFP4Q80, "mxfp4-q8_0"},
-        {RVVFlatBlockDotLeaf::Q10Q80, "q1_0-q8_0"},
-        {RVVFlatBlockDotLeaf::NVFP4Q80, "nvfp4-q8_0"},
+        {"q8_0-q8_0"},
+        {"q4_0-q8_0"},
+        {"q4_1-q8_1"},
+        {"q5_0-q8_0"},
+        {"q5_1-q8_1"},
+        {"iq4_nl-q8_0"},
+        {"mxfp4-q8_0"},
+        {"q1_0-q8_0"},
+        {"nvfp4-q8_0"},
     };
 
 inline llvm::ArrayRef<RVVFlatBlockDotFormulaCase>
@@ -66,7 +70,11 @@ getRVVFlatBlockDotFormulaCases() {
 }
 
 struct RVVFlatBlockDotGeometryFacts {
-  RVVFlatBlockDotLeaf leaf;
+  RVVFlatWeightEncoding weightEncoding = RVVFlatWeightEncoding::SignedI8;
+  RVVFlatWeightScaleEncoding weightScaleEncoding =
+      RVVFlatWeightScaleEncoding::None;
+  bool hasMinTerm = false;
+  bool requiresOffsetBias = false;
   std::int64_t qk = 0;
   std::int64_t subBlockLength = 0;
   std::int64_t weightQuantByteOffset = 0;

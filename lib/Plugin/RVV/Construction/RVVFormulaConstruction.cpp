@@ -206,22 +206,50 @@ static mlir::LogicalResult
 constructRVVFlatBlockDotPlans(mlir::Operation *scope) {
   mlir::Builder builder(scope->getContext());
   mlir::LogicalResult status = mlir::success();
-  auto materialize = [&](mlir::Operation *op, RVVFlatBlockDotLeaf leaf,
-                         std::int64_t qk, std::int64_t subBlockLength,
-                         std::int64_t weightQuantOffset,
-                         std::int64_t activationQuantOffset) {
+  auto materialize = [&](mlir::Operation *op,
+                         const RVVFlatBlockDotGeometryFacts &geometry) {
     if (mlir::failed(status))
       return;
     llvm::Expected<RVVFlatBlockDotPlan> plan =
         constructRVVFlatBlockDotFormula(
-            {leaf, qk, subBlockLength, weightQuantOffset,
-             activationQuantOffset},
-            RVVFlatBlockDotNoCapabilityInput{},
+            geometry, RVVFlatBlockDotNoCapabilityInput{},
             RVVFlatBlockDotNoStaticContext{});
     if (!plan) {
       op->emitError() << llvm::toString(plan.takeError());
       status = mlir::failure();
       return;
+    }
+    if (auto typed = llvm::dyn_cast<weftrvv::TypedFlatBlockDotLoopBodyOp>(op)) {
+      llvm::StringRef expectedTypedFold;
+      if (plan->foldModel == "separated-left-associative" ||
+          plan->foldModel == "sumi-times-scales")
+        expectedTypedFold = "sumi_times_scales";
+      else if (plan->foldModel == "left-associative")
+        expectedTypedFold = "left_assoc";
+      else if (plan->foldModel == "scale-plus-min")
+        expectedTypedFold = "scale_plus_min";
+      else if (plan->foldModel == "scales-times-sumi")
+        expectedTypedFold = "scales_times_sumi";
+      else if (plan->foldModel == "binary-two-level")
+        expectedTypedFold = "flat_binary_two_level";
+      else if (plan->foldModel == "nvfp4-codebook")
+        expectedTypedFold = "flat_nvfp4_codebook";
+      else {
+        typed.emitError()
+            << "flat formula produced an unmapped typed fold '"
+            << plan->foldModel << "'";
+        status = mlir::failure();
+        return;
+      }
+      if (typed.getFoldModel() != expectedTypedFold) {
+        typed.emitError()
+            << "typed fold_model '" << typed.getFoldModel()
+            << "' conflicts with the representation-derived flat plan; "
+               "expected '"
+            << expectedTypedFold << "'";
+        status = mlir::failure();
+        return;
+      }
     }
     struct PlanAttr {
       llvm::StringRef name;
@@ -266,6 +294,12 @@ constructRVVFlatBlockDotPlans(mlir::Operation *scope) {
     }
   };
 
+  // ConstructedWeak normalization only: current source front doors still
+  // materialize the complete typed mechanism body before this lifecycle.  We
+  // derive the closed flat plan from reusable representation/mechanism facts
+  // instead of a point-leaf id, but this walk is not evidence of forward
+  // point-authority erasure.  A later source-first cut must remove the complete
+  // builders before this path may be classified Strong.
   scope->walk([&](weftrvv::TypedFlatBlockDotLoopBodyOp op) {
     if (mlir::failed(status))
       return;
@@ -311,7 +345,10 @@ constructRVVFlatBlockDotPlans(mlir::Operation *scope) {
                                  static_cast<unsigned>(hasIQ4NL) +
                                  static_cast<unsigned>(hasQ10) +
                                  static_cast<unsigned>(hasNVFP4);
-    std::optional<RVVFlatBlockDotLeaf> leaf;
+    std::optional<RVVFlatWeightEncoding> weightEncoding;
+    RVVFlatWeightScaleEncoding weightScaleEncoding =
+        RVVFlatWeightScaleEncoding::FP16;
+    bool requiresOffsetBias = false;
     if (mechanismFamilies > 1) {
       op.emitError()
           << "flat block-dot formula found multiple competing compute "
@@ -320,62 +357,27 @@ constructRVVFlatBlockDotPlans(mlir::Operation *scope) {
       return;
     }
     if (hasQ80)
-      leaf = RVVFlatBlockDotLeaf::Q80Q80;
+      weightEncoding = RVVFlatWeightEncoding::SignedI8;
     else if (hasQ40)
-      leaf = RVVFlatBlockDotLeaf::Q40Q80;
+      weightEncoding = RVVFlatWeightEncoding::OffsetBinaryNibble;
     else if (hasQ41)
-      leaf = RVVFlatBlockDotLeaf::Q41Q81;
-    else if (hasQ5)
-      leaf = hasMinTerm ? RVVFlatBlockDotLeaf::Q51Q81
-                        : RVVFlatBlockDotLeaf::Q50Q80;
-    else if (hasIQ4NL)
-      leaf = RVVFlatBlockDotLeaf::IQ4NLQ80;
-    else if (hasQ10)
-      leaf = RVVFlatBlockDotLeaf::Q10Q80;
-    else if (hasNVFP4)
-      leaf = RVVFlatBlockDotLeaf::NVFP4Q80;
+      weightEncoding = RVVFlatWeightEncoding::UnsignedNibble;
+    else if (hasQ5) {
+      weightEncoding = RVVFlatWeightEncoding::FiveBitOffsetBinary;
+      requiresOffsetBias = !hasMinTerm;
+    } else if (hasIQ4NL)
+      weightEncoding = RVVFlatWeightEncoding::NibbleCodebook;
+    else if (hasQ10) {
+      weightEncoding = RVVFlatWeightEncoding::BinarySign;
+      weightScaleEncoding = RVVFlatWeightScaleEncoding::None;
+    } else if (hasNVFP4) {
+      weightEncoding = RVVFlatWeightEncoding::NVFP4Codebook;
+      weightScaleEncoding = RVVFlatWeightScaleEncoding::UE4M3;
+    }
 
-    if (!leaf) {
+    if (!weightEncoding) {
       op.emitError()
           << "flat block-dot formula cannot classify the typed mechanism body";
-      status = mlir::failure();
-      return;
-    }
-
-    // fold_model is retained as a typed semantic assertion on the mechanism
-    // body, not as a second construction authority. The leaf is selected only
-    // from concrete mechanism ops above; a stale assertion fails here instead
-    // of being consulted by the emitter.
-    llvm::StringRef expectedTypedFold;
-    switch (*leaf) {
-    case RVVFlatBlockDotLeaf::Q80Q80:
-    case RVVFlatBlockDotLeaf::IQ4NLQ80:
-      expectedTypedFold = "sumi_times_scales";
-      break;
-    case RVVFlatBlockDotLeaf::Q40Q80:
-      expectedTypedFold = "left_assoc";
-      break;
-    case RVVFlatBlockDotLeaf::Q41Q81:
-    case RVVFlatBlockDotLeaf::Q51Q81:
-      expectedTypedFold = "scale_plus_min";
-      break;
-    case RVVFlatBlockDotLeaf::Q50Q80:
-      expectedTypedFold = "scales_times_sumi";
-      break;
-    case RVVFlatBlockDotLeaf::Q10Q80:
-      expectedTypedFold = "flat_binary_two_level";
-      break;
-    case RVVFlatBlockDotLeaf::NVFP4Q80:
-      expectedTypedFold = "flat_nvfp4_codebook";
-      break;
-    case RVVFlatBlockDotLeaf::MXFP4Q80:
-      llvm_unreachable("mxfp4 uses its direct typed operation in this lifecycle");
-    }
-    if (op.getFoldModel() != expectedTypedFold) {
-      op.emitError() << "typed fold_model '" << op.getFoldModel()
-                     << "' conflicts with the concrete flat mechanism body; "
-                        "expected '"
-                     << expectedTypedFold << "'";
       status = mlir::failure();
       return;
     }
@@ -395,12 +397,13 @@ constructRVVFlatBlockDotPlans(mlir::Operation *scope) {
         sawActivationOffset = true;
       }
     }
-    const bool sharedWholeBlock = *leaf == RVVFlatBlockDotLeaf::Q80Q80;
-    const bool sharedHalfBlock = *leaf == RVVFlatBlockDotLeaf::Q40Q80 ||
-                                 *leaf == RVVFlatBlockDotLeaf::Q41Q81 ||
-                                 *leaf == RVVFlatBlockDotLeaf::Q50Q80 ||
-                                 *leaf == RVVFlatBlockDotLeaf::Q51Q81 ||
-                                 *leaf == RVVFlatBlockDotLeaf::IQ4NLQ80;
+    const bool sharedWholeBlock =
+        *weightEncoding == RVVFlatWeightEncoding::SignedI8;
+    const bool sharedHalfBlock =
+        *weightEncoding == RVVFlatWeightEncoding::OffsetBinaryNibble ||
+        *weightEncoding == RVVFlatWeightEncoding::UnsignedNibble ||
+        *weightEncoding == RVVFlatWeightEncoding::FiveBitOffsetBinary ||
+        *weightEncoding == RVVFlatWeightEncoding::NibbleCodebook;
     if ((sharedWholeBlock || sharedHalfBlock) && !sawActivationOffset) {
       op.emitError() << "flat block-dot formula requires typed activation "
                         "loads with explicit quant_byte_offset";
@@ -447,19 +450,45 @@ constructRVVFlatBlockDotPlans(mlir::Operation *scope) {
       weightQuantOffset = nvfp4Core.getWeightQuantByteOffset();
       activationQuantOffset = nvfp4Core.getActivationQuantByteOffset();
     }
-    materialize(op.getOperation(), *leaf, op.getQk(), subBlockLength,
-                weightQuantOffset, activationQuantOffset);
+    RVVFlatBlockDotGeometryFacts geometry;
+    geometry.weightEncoding = *weightEncoding;
+    geometry.weightScaleEncoding = weightScaleEncoding;
+    geometry.hasMinTerm = hasMinTerm;
+    geometry.requiresOffsetBias = requiresOffsetBias;
+    geometry.qk = static_cast<std::int64_t>(op.getQk());
+    geometry.subBlockLength = subBlockLength;
+    geometry.weightQuantByteOffset = weightQuantOffset;
+    geometry.activationQuantByteOffset = activationQuantOffset;
+    materialize(op.getOperation(), geometry);
   });
 
   scope->walk([&](weftrvv::GgmlBlockDotQ40Q80Op op) {
-    materialize(op.getOperation(), RVVFlatBlockDotLeaf::Q40Q80, op.getQk(),
-                /*subBlockLength=*/0, op.getQuantByteOffset(),
-                op.getQuantByteOffset());
+    materialize(
+        op.getOperation(),
+        {/*weightEncoding=*/RVVFlatWeightEncoding::OffsetBinaryNibble,
+         /*weightScaleEncoding=*/RVVFlatWeightScaleEncoding::FP16,
+         /*hasMinTerm=*/false,
+         /*requiresOffsetBias=*/false,
+         /*qk=*/static_cast<std::int64_t>(op.getQk()),
+         /*subBlockLength=*/0,
+         /*weightQuantByteOffset=*/static_cast<std::int64_t>(
+             op.getQuantByteOffset()),
+         /*activationQuantByteOffset=*/static_cast<std::int64_t>(
+             op.getQuantByteOffset())});
   });
   scope->walk([&](weftrvv::GgmlBlockDotMXFP4Q80Op op) {
-    materialize(op.getOperation(), RVVFlatBlockDotLeaf::MXFP4Q80, op.getQk(),
-                /*subBlockLength=*/0, op.getWeightQuantByteOffset(),
-                op.getActivationQuantByteOffset());
+    materialize(
+        op.getOperation(),
+        {/*weightEncoding=*/RVVFlatWeightEncoding::NibbleCodebook,
+         /*weightScaleEncoding=*/RVVFlatWeightScaleEncoding::E8M0,
+         /*hasMinTerm=*/false,
+         /*requiresOffsetBias=*/false,
+         /*qk=*/static_cast<std::int64_t>(op.getQk()),
+         /*subBlockLength=*/0,
+         /*weightQuantByteOffset=*/static_cast<std::int64_t>(
+             op.getWeightQuantByteOffset()),
+         /*activationQuantByteOffset=*/static_cast<std::int64_t>(
+             op.getActivationQuantByteOffset())});
   });
   return status;
 }

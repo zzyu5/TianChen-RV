@@ -1,8 +1,8 @@
 #include "Weft/Plugin/Scalar/ScalarBackendEmissionDriver.h"
 
 #include "Weft/Conversion/EmitC/BackendEmissionRegistry.h"
-#include "Weft/Conversion/EmitC/WEFTEmitCLowerableOpInterface.h"
 #include "Weft/Conversion/EmitC/TypedBackendEmissionDriver.h"
+#include "Weft/Conversion/EmitC/WEFTEmitCLowerableOpInterface.h"
 #include "Weft/Dialect/Scalar/IR/ScalarDialect.h"
 
 #include "mlir/Dialect/EmitC/IR/EmitC.h"
@@ -13,6 +13,7 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include <cstdint>
 #include <string>
 
 namespace weft {
@@ -59,19 +60,8 @@ std::string kernelStepComment(llvm::StringRef opName, llvm::StringRef role,
   return text;
 }
 
-/// Mechanically lowers a constructed `weft_scalar.immediate_call_body` into a
-/// standalone
-/// top-level, pure-scalar EmitC function:
-///   #include <stdint.h>
-///   int32_t weft_scalar_compute_skeleton(int32_t);
-///   extern "C" void weft_emitc_<kernel>_<variant>(void) {
-///     // route_source_op + source_op provenance comments
-///     int32_t vN = <scalar_immediate>;
-///     int32_t vM = weft_scalar_compute_skeleton(vN);
-///   }
-/// The exported function name is derived from the selected kernel+variant and
-/// the emitted constant is the op's `scalar_immediate`, so the emission is
-/// operand-driven and carries no __riscv_ intrinsics.
+/// The tracer-bullet final body has no internal loop plan. Its operation
+/// identity and immediate are already the complete Scalar computation body.
 class ScalarImmediateCallBodyToEmitCFunc final
     : public mlir::OpConversionPattern<weft::scalar::ImmediateCallBodyOp> {
 public:
@@ -83,7 +73,6 @@ public:
                   OpAdaptor /*adaptor*/,
                   mlir::ConversionPatternRewriter &rewriter) const override {
     mlir::Location loc = body.getLoc();
-
     auto variant = body.getSelectedVariantAttr();
     auto sourceKernel = body.getSourceKernelAttr();
     if (!variant || !sourceKernel)
@@ -91,11 +80,9 @@ public:
           body, "immediate_call_body requires selected_variant and "
                 "source_kernel attributes");
 
-    int64_t immediate = body.getScalarImmediate();
     std::string functionName =
         ("weft_emitc_" + sourceKernel.getValue() + "_" + variant.getValue())
             .str();
-
     auto lowerable =
         llvm::dyn_cast<weftemitc::WEFTEmitCLowerableOpInterface>(
             body.getOperation());
@@ -103,10 +90,6 @@ public:
       return rewriter.notifyMatchFailure(
           body, "weft_scalar.immediate_call_body must implement "
                 "WEFTEmitCLowerableOpInterface");
-    llvm::StringRef sourceOpName =
-        lowerable.getWEFTEmitCLowerableSourceOpName();
-    llvm::StringRef sourceRole = lowerable.getWEFTEmitCLowerableSourceRole();
-
     llvm::StringRef callee = kScalarSkeletonCallee;
 
     auto module = body->getParentOfType<mlir::ModuleOp>();
@@ -114,11 +97,8 @@ public:
       return rewriter.notifyMatchFailure(body, "body has no module");
 
     mlir::Type i32 = rewriter.getI32Type();
-
-    // Standalone top-level EmitC module: the standard header, the private
-    // callee declaration, then the exported function.
     {
-      mlir::OpBuilder::InsertionGuard moduleGuard(rewriter);
+      mlir::OpBuilder::InsertionGuard guard(rewriter);
       rewriter.setInsertionPointToStart(module.getBody());
       rewriter.create<emitc::IncludeOp>(loc, "stdint.h",
                                         /*is_standard_include=*/true);
@@ -126,8 +106,6 @@ public:
 
     mlir::OpBuilder::InsertionGuard moduleGuard(rewriter);
     rewriter.setInsertionPointToEnd(module.getBody());
-
-    // Private callee declaration: int32_t weft_scalar_compute_skeleton(int32_t).
     mlir::FunctionType calleeType = rewriter.getFunctionType({i32}, {i32});
     llvm::SmallVector<mlir::NamedAttribute, 1> calleeAttrs;
     calleeAttrs.push_back(rewriter.getNamedAttr(
@@ -135,7 +113,6 @@ public:
         rewriter.getStringAttr("private")));
     rewriter.create<emitc::FuncOp>(loc, callee, calleeType, calleeAttrs);
 
-    // Exported function: extern "C" void <name>(void).
     mlir::FunctionType functionType =
         rewriter.getFunctionType(/*inputs=*/{}, /*results=*/{});
     llvm::SmallVector<mlir::NamedAttribute, 1> funcAttrs;
@@ -146,23 +123,21 @@ public:
     mlir::Block *entry = func.addEntryBlock();
     rewriter.setInsertionPointToStart(entry);
 
-    // Provenance: route_source_op comment, then the source_op step comment.
+    llvm::StringRef sourceOpName =
+        lowerable.getWEFTEmitCLowerableSourceOpName();
+    llvm::StringRef sourceRole = lowerable.getWEFTEmitCLowerableSourceRole();
     rewriter.create<emitc::VerbatimOp>(
         loc, routeSourceComment(sourceOpName, sourceRole,
                                 kEmitCLowerableInterfaceName));
     rewriter.create<emitc::VerbatimOp>(
         loc, stepComment(sourceOpName, sourceRole,
-                         kEmitCLowerableInterfaceName,
-                         callee));
+                         kEmitCLowerableInterfaceName, callee));
 
-    // Operand-driven body: materialize the op's immediate as a scalar constant
-    // and feed it to the portable callee.
     auto constant = rewriter.create<emitc::ConstantOp>(
-        loc, i32, rewriter.getI32IntegerAttr(immediate));
-    llvm::SmallVector<mlir::Value, 1> callOperands{constant.getResult()};
-    rewriter.create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{i32}, callee,
-                                         callOperands);
-
+        loc, i32, rewriter.getI32IntegerAttr(body.getScalarImmediate()));
+    rewriter.create<emitc::CallOpaqueOp>(
+        loc, mlir::TypeRange{i32}, callee,
+        mlir::ValueRange{constant.getResult()});
     rewriter.create<emitc::ReturnOp>(loc, mlir::Value());
 
     rewriter.eraseOp(body);
@@ -170,39 +145,387 @@ public:
   }
 };
 
-/// Mechanically lowers a constructed `weft_scalar.packed_ternary_dot_body`
-/// into a standalone pure-scalar EmitC function that implements its typed
-/// block-traversal/decode/MAC/fold semantics:
-/// vec_dot:
-///   #include <stddef.h>
-///   #include <stdint.h>
-///   extern "C" void weft_emitc_<kernel>_<variant>(
-///       int n, float *s, const uint8_t *vx, const int8_t *vy) {
-///     float sumf = 0.0f;
-///     size_t nb = (size_t)n / 256;
-///     for (size_t ib = 0; ib < nb; ib += 1) {
-///       const uint8_t *qs = vx + ib*66;
-///       const int8_t  *q8 = vy + ib*292 + 4;
-///       int sumi = 0;
-///       for (size_t j = 0; j < 64; j += 32)
-///         for (size_t l = 0; l < 4; l += 1) {
-///           int shift = (int)(l * 2);
-///           for (size_t k = 0; k < 32; k += 1) {
-///             int w = (((int)qs[j + k] >> shift) & 3) - 1;
-///             sumi += (int)q8[j*4 + l*32 + k] * w;
-///           }
-///         }
-///       float dy = *(const float *)(vy + ib*292 + 0);
-///       float dx = (float)*(const _Float16 *)(vx + ib*66 + 64);
-///       sumf = sumf + (float)sumi * (dy * dx);
-///     }
-///     *s = sumf;
-///   }
-/// The exported function name is derived from source_kernel + selected_variant,
-/// and the block-format facts (qk, strides, byte offsets) drive the emitted
-/// loop bounds and address arithmetic, so the emission is operand-driven. The
-/// ternary decode is a pure int8xint8 MAC -- NO XOR-popcount, NO __riscv_
-/// intrinsics, NO vector machinery.
+struct TernaryProjectionState {
+  mlir::ConversionPatternRewriter &rewriter;
+  mlir::Location loc;
+  llvm::StringRef sourceOpName;
+  llvm::StringRef sourceRole;
+
+  mlir::Type sizeType;
+  mlir::Type intType;
+  mlir::Type floatType;
+  mlir::Type constU8Type;
+  mlir::Type constI8Type;
+  mlir::Type constFloatType;
+  mlir::Type constFloatPtrType;
+
+  mlir::Value nArg;
+  mlir::Value outArg;
+  mlir::Value weightsArg;
+  mlir::Value activationsArg;
+  mlir::Value sumfVar;
+  mlir::Value blockIndex;
+  mlir::Value weightBlockBase;
+  mlir::Value activationBlockBase;
+  mlir::Value packedWeights;
+  mlir::Value quantActivations;
+  mlir::Value blockAccumulatorVar;
+  mlir::Value groupIndex;
+  mlir::Value planeIndex;
+  mlir::Value laneIndex;
+  mlir::Value shift;
+
+  mlir::Value sizeLiteral(int64_t value) {
+    return rewriter
+        .create<emitc::LiteralOp>(loc, sizeType, std::to_string(value))
+        .getResult();
+  }
+
+  mlir::Value intLiteral(int64_t value) {
+    return rewriter
+        .create<emitc::LiteralOp>(loc, intType, std::to_string(value))
+        .getResult();
+  }
+
+  void emitStep(llvm::StringRef step) {
+    rewriter.create<emitc::VerbatimOp>(
+        loc, kernelStepComment(sourceOpName, sourceRole, step));
+  }
+};
+
+mlir::LogicalResult projectTernaryRegion(mlir::Block &planBlock,
+                                         TernaryProjectionState &state);
+
+mlir::LogicalResult projectTernaryNode(mlir::Operation *node,
+                                       TernaryProjectionState &state) {
+  mlir::ConversionPatternRewriter &rewriter = state.rewriter;
+  mlir::Location loc = state.loc;
+
+  if (auto block =
+          llvm::dyn_cast<weft::scalar::TernaryBlockLoopOp>(node)) {
+    state.emitStep("super_block_count");
+    mlir::Value nSize =
+        rewriter.create<emitc::CastOp>(loc, state.sizeType, state.nArg)
+            .getResult();
+    mlir::Value blockCount =
+        rewriter
+            .create<emitc::DivOp>(loc, state.sizeType, nSize,
+                                  state.sizeLiteral(block.getQk()))
+            .getResult();
+
+    state.sumfVar = rewriter.create<emitc::VariableOp>(
+        loc, emitc::LValueType::get(state.floatType),
+        emitc::OpaqueAttr::get(rewriter.getContext(), ""));
+    rewriter.create<emitc::AssignOp>(
+        loc, state.sumfVar,
+        rewriter
+            .create<emitc::LiteralOp>(loc, state.floatType, "0.0f")
+            .getResult());
+
+    state.emitStep("super_block_loop");
+    auto loop = rewriter.create<emitc::ForOp>(
+        loc, state.sizeLiteral(0), blockCount,
+        state.sizeLiteral(block.getStep()), /*bodyBuilder=*/nullptr);
+    mlir::OpBuilder::InsertionGuard guard(rewriter);
+    rewriter.setInsertionPointToStart(loop.getBody());
+    TernaryProjectionState nested = state;
+    nested.blockIndex = loop.getInductionVar();
+
+    mlir::Value weightOffset =
+        rewriter
+            .create<emitc::MulOp>(
+                loc, state.sizeType, nested.blockIndex,
+                state.sizeLiteral(block.getWeightBlockStride()))
+            .getResult();
+    nested.weightBlockBase =
+        rewriter
+            .create<emitc::AddOp>(loc, state.weightsArg.getType(),
+                                  state.weightsArg, weightOffset)
+            .getResult();
+    nested.packedWeights = nested.weightBlockBase;
+
+    mlir::Value activationOffset =
+        rewriter
+            .create<emitc::MulOp>(
+                loc, state.sizeType, nested.blockIndex,
+                state.sizeLiteral(block.getActivationBlockStride()))
+            .getResult();
+    nested.activationBlockBase =
+        rewriter
+            .create<emitc::AddOp>(loc, state.activationsArg.getType(),
+                                  state.activationsArg, activationOffset)
+            .getResult();
+    nested.quantActivations = nested.activationBlockBase;
+    if (block.getActivationQuantByteOffset() != 0)
+      nested.quantActivations =
+          rewriter
+              .create<emitc::AddOp>(
+                  loc, state.activationsArg.getType(),
+                  nested.activationBlockBase,
+                  state.sizeLiteral(block.getActivationQuantByteOffset()))
+              .getResult();
+
+    nested.blockAccumulatorVar = rewriter.create<emitc::VariableOp>(
+        loc, emitc::LValueType::get(state.intType),
+        emitc::OpaqueAttr::get(rewriter.getContext(), ""));
+    rewriter.create<emitc::AssignOp>(
+        loc, nested.blockAccumulatorVar,
+        rewriter.create<emitc::LiteralOp>(loc, state.intType, "0").getResult());
+    return projectTernaryRegion(block.getBody().front(), nested);
+  }
+
+  if (auto group =
+          llvm::dyn_cast<weft::scalar::TernaryPlaneGroupLoopOp>(node)) {
+    state.emitStep("plane_group_loop");
+    auto loop = rewriter.create<emitc::ForOp>(
+        loc, state.sizeLiteral(0), state.sizeLiteral(group.getUpperBound()),
+        state.sizeLiteral(group.getStep()), /*bodyBuilder=*/nullptr);
+    mlir::OpBuilder::InsertionGuard guard(rewriter);
+    rewriter.setInsertionPointToStart(loop.getBody());
+    TernaryProjectionState nested = state;
+    nested.groupIndex = loop.getInductionVar();
+    return projectTernaryRegion(group.getBody().front(), nested);
+  }
+
+  if (auto plane =
+          llvm::dyn_cast<weft::scalar::TernaryPlaneLoopOp>(node)) {
+    auto loop = rewriter.create<emitc::ForOp>(
+        loc, state.sizeLiteral(0), state.sizeLiteral(plane.getUpperBound()),
+        state.sizeLiteral(plane.getStep()), /*bodyBuilder=*/nullptr);
+    mlir::OpBuilder::InsertionGuard guard(rewriter);
+    rewriter.setInsertionPointToStart(loop.getBody());
+    TernaryProjectionState nested = state;
+    nested.planeIndex = loop.getInductionVar();
+    nested.shift =
+        rewriter
+            .create<emitc::CastOp>(
+                loc, state.intType,
+                rewriter
+                    .create<emitc::MulOp>(
+                        loc, state.sizeType, nested.planeIndex,
+                        state.sizeLiteral(plane.getFieldBits()))
+                    .getResult())
+            .getResult();
+    return projectTernaryRegion(plane.getBody().front(), nested);
+  }
+
+  if (auto lane = llvm::dyn_cast<weft::scalar::TernaryLaneLoopOp>(node)) {
+    auto loop = rewriter.create<emitc::ForOp>(
+        loc, state.sizeLiteral(0), state.sizeLiteral(lane.getUpperBound()),
+        state.sizeLiteral(lane.getStep()), /*bodyBuilder=*/nullptr);
+    mlir::OpBuilder::InsertionGuard guard(rewriter);
+    rewriter.setInsertionPointToStart(loop.getBody());
+    TernaryProjectionState nested = state;
+    nested.laneIndex = loop.getInductionVar();
+    return projectTernaryRegion(lane.getBody().front(), nested);
+  }
+
+  if (auto decode =
+          llvm::dyn_cast<weft::scalar::TernaryDecodeMacOp>(node)) {
+    state.emitStep("ternary_decode_mac");
+    mlir::Value weightIndex =
+        rewriter
+            .create<emitc::AddOp>(loc, state.sizeType, state.groupIndex,
+                                  state.laneIndex)
+            .getResult();
+    auto packedWeights =
+        llvm::cast<mlir::TypedValue<emitc::PointerType>>(state.packedWeights);
+    mlir::Value weightElement =
+        rewriter.create<emitc::SubscriptOp>(loc, packedWeights, weightIndex)
+            .getResult();
+    mlir::Value weightByte =
+        rewriter
+            .create<emitc::LoadOp>(loc, state.constU8Type, weightElement)
+            .getResult();
+    mlir::Value weightInt =
+        rewriter.create<emitc::CastOp>(loc, state.intType, weightByte)
+            .getResult();
+    mlir::Value shifted =
+        rewriter
+            .create<emitc::BitwiseRightShiftOp>(loc, state.intType, weightInt,
+                                                state.shift)
+            .getResult();
+    mlir::Value masked =
+        rewriter
+            .create<emitc::BitwiseAndOp>(
+                loc, state.intType, shifted,
+                state.intLiteral(decode.getFieldMask()))
+            .getResult();
+    mlir::Value weight =
+        rewriter
+            .create<emitc::SubOp>(
+                loc, state.intType, masked,
+                state.intLiteral(decode.getDecodeZeroPoint()))
+            .getResult();
+
+    mlir::Value groupTerm =
+        rewriter
+            .create<emitc::MulOp>(
+                loc, state.sizeType, state.groupIndex,
+                state.sizeLiteral(decode.getActivationPlaneStride()))
+            .getResult();
+    mlir::Value planeTerm =
+        rewriter
+            .create<emitc::MulOp>(
+                loc, state.sizeType, state.planeIndex,
+                state.sizeLiteral(decode.getPlaneLanes()))
+            .getResult();
+    mlir::Value activationIndex =
+        rewriter
+            .create<emitc::AddOp>(
+                loc, state.sizeType,
+                rewriter
+                    .create<emitc::AddOp>(loc, state.sizeType, groupTerm,
+                                          planeTerm)
+                    .getResult(),
+                state.laneIndex)
+            .getResult();
+    auto quantActivations =
+        llvm::cast<mlir::TypedValue<emitc::PointerType>>(
+            state.quantActivations);
+    mlir::Value activationElement =
+        rewriter
+            .create<emitc::SubscriptOp>(loc, quantActivations, activationIndex)
+            .getResult();
+    mlir::Value activationByte =
+        rewriter
+            .create<emitc::LoadOp>(loc, state.constI8Type, activationElement)
+            .getResult();
+    mlir::Value activationInt =
+        rewriter.create<emitc::CastOp>(loc, state.intType, activationByte)
+            .getResult();
+    mlir::Value product =
+        rewriter
+            .create<emitc::MulOp>(loc, state.intType, activationInt, weight)
+            .getResult();
+    mlir::Value current =
+        rewriter
+            .create<emitc::LoadOp>(loc, state.intType,
+                                   state.blockAccumulatorVar)
+            .getResult();
+    rewriter.create<emitc::AssignOp>(
+        loc, state.blockAccumulatorVar,
+        rewriter.create<emitc::AddOp>(loc, state.intType, current, product)
+            .getResult());
+    return mlir::success();
+  }
+
+  if (auto fold = llvm::dyn_cast<weft::scalar::TernaryScaleFoldOp>(node)) {
+    state.emitStep("fold_activation_d");
+    mlir::Value activationScaleAddress = state.activationBlockBase;
+    if (fold.getActivationDByteOffset() != 0)
+      activationScaleAddress =
+          rewriter
+              .create<emitc::AddOp>(
+                  loc, state.activationsArg.getType(),
+                  state.activationBlockBase,
+                  state.sizeLiteral(fold.getActivationDByteOffset()))
+              .getResult();
+    mlir::Value activationScalePointer =
+        rewriter
+            .create<emitc::CastOp>(loc, state.constFloatPtrType,
+                                   activationScaleAddress)
+            .getResult();
+    mlir::Value zeroIndex =
+        rewriter.create<emitc::LiteralOp>(loc, rewriter.getIndexType(), "0");
+    mlir::Value activationScaleElement =
+        rewriter
+            .create<emitc::SubscriptOp>(
+                loc,
+                llvm::cast<mlir::TypedValue<emitc::PointerType>>(
+                    activationScalePointer),
+                zeroIndex)
+            .getResult();
+    mlir::Value activationScale =
+        rewriter
+            .create<emitc::LoadOp>(loc, state.constFloatType,
+                                   activationScaleElement)
+            .getResult();
+
+    state.emitStep("fold_weight_d");
+    mlir::Value weightScaleAddress = state.weightBlockBase;
+    if (fold.getWeightDByteOffset() != 0)
+      weightScaleAddress =
+          rewriter
+              .create<emitc::AddOp>(
+                  loc, state.weightsArg.getType(), state.weightBlockBase,
+                  state.sizeLiteral(fold.getWeightDByteOffset()))
+              .getResult();
+    mlir::Value weightScale =
+        rewriter
+            .create<emitc::CallOpaqueOp>(
+                loc, mlir::TypeRange{state.floatType},
+                "(float)*(const _Float16 *)",
+                mlir::ValueRange{weightScaleAddress})
+            .getResult(0);
+    mlir::Value combinedScale =
+        rewriter
+            .create<emitc::MulOp>(loc, state.floatType, activationScale,
+                                  weightScale)
+            .getResult();
+
+    state.emitStep("scalar_fold");
+    mlir::Value accumulator =
+        rewriter
+            .create<emitc::LoadOp>(loc, state.intType,
+                                   state.blockAccumulatorVar)
+            .getResult();
+    mlir::Value currentSum =
+        rewriter.create<emitc::LoadOp>(loc, state.floatType, state.sumfVar)
+            .getResult();
+    auto expression = rewriter.create<emitc::ExpressionOp>(
+        loc, state.floatType, /*do_not_inline=*/false);
+    {
+      mlir::OpBuilder::InsertionGuard guard(rewriter);
+      mlir::Block *expressionBlock =
+          rewriter.createBlock(&expression.getRegion());
+      rewriter.setInsertionPointToStart(expressionBlock);
+      mlir::Value accumulatorFloat =
+          rewriter.create<emitc::CastOp>(loc, state.floatType, accumulator)
+              .getResult();
+      mlir::Value term =
+          rewriter
+              .create<emitc::MulOp>(loc, state.floatType, accumulatorFloat,
+                                    combinedScale)
+              .getResult();
+      mlir::Value next =
+          rewriter
+              .create<emitc::AddOp>(loc, state.floatType, currentSum, term)
+              .getResult();
+      rewriter.create<emitc::YieldOp>(loc, next);
+    }
+    rewriter.create<emitc::AssignOp>(loc, state.sumfVar,
+                                     expression.getResult());
+    return mlir::success();
+  }
+
+  if (llvm::isa<weft::scalar::TernaryStoreOp>(node)) {
+    state.emitStep("store_s");
+    mlir::Value sum =
+        rewriter.create<emitc::LoadOp>(loc, state.floatType, state.sumfVar)
+            .getResult();
+    mlir::Value zeroIndex =
+        rewriter.create<emitc::LiteralOp>(loc, rewriter.getIndexType(), "0");
+    auto output =
+        llvm::cast<mlir::TypedValue<emitc::PointerType>>(state.outArg);
+    mlir::Value element =
+        rewriter.create<emitc::SubscriptOp>(loc, output, zeroIndex).getResult();
+    rewriter.create<emitc::AssignOp>(loc, element, sum);
+    return mlir::success();
+  }
+
+  return node->emitError(
+      "unsupported node in exact Scalar ternary computation plan");
+}
+
+mlir::LogicalResult projectTernaryRegion(mlir::Block &planBlock,
+                                         TernaryProjectionState &state) {
+  for (mlir::Operation &node : planBlock)
+    if (mlir::failed(projectTernaryNode(&node, state)))
+      return mlir::failure();
+  return mlir::success();
+}
+
 class ScalarPackedTernaryDotBodyToEmitCFunc final
     : public mlir::OpConversionPattern<weft::scalar::PackedTernaryDotBodyOp> {
 public:
@@ -210,68 +533,36 @@ public:
       weft::scalar::PackedTernaryDotBodyOp>::OpConversionPattern;
 
   mlir::LogicalResult
-  matchAndRewrite(weft::scalar::PackedTernaryDotBodyOp dot,
+  matchAndRewrite(weft::scalar::PackedTernaryDotBodyOp body,
                   OpAdaptor /*adaptor*/,
                   mlir::ConversionPatternRewriter &rewriter) const override {
-    mlir::Location loc = dot.getLoc();
-    mlir::MLIRContext *ctx = rewriter.getContext();
-
-    auto variant =
-        dot->getAttrOfType<mlir::FlatSymbolRefAttr>("selected_variant");
-    auto sourceKernel = dot->getAttrOfType<mlir::StringAttr>("source_kernel");
-    if (!variant || !sourceKernel)
-      return rewriter.notifyMatchFailure(
-          dot, "packed_ternary_dot_body requires selected_variant and "
-               "source_kernel attributes");
-
+    auto variant = body.getSelectedVariantAttr();
+    auto sourceKernel = body.getSourceKernelAttr();
     auto lowerable =
         llvm::dyn_cast<weftemitc::WEFTEmitCLowerableOpInterface>(
-            dot.getOperation());
-    if (!lowerable)
+            body.getOperation());
+    auto module = body->getParentOfType<mlir::ModuleOp>();
+    if (!variant || !sourceKernel || !lowerable || !module)
       return rewriter.notifyMatchFailure(
-          dot, "packed_ternary_dot_body must implement "
-               "WEFTEmitCLowerableOpInterface");
-    llvm::StringRef opName = lowerable.getWEFTEmitCLowerableSourceOpName();
-    llvm::StringRef role = lowerable.getWEFTEmitCLowerableSourceRole();
+          body, "packed_ternary_dot_body lacks exact ownership or module "
+                "context");
 
-    int64_t qk = dot.getQk();
-    int64_t weightStride = dot.getWeightBlockStride();
-    int64_t activationStride = dot.getActivationBlockStride();
-    int64_t weightDOffset = dot.getWeightDByteOffset();
-    int64_t activationDOffset = dot.getActivationDByteOffset();
-    int64_t q8Offset = dot.getActivationQuantByteOffset();
-    int64_t qsBytes = dot.getPackedWeightBytes();
-    int64_t numPlanes = dot.getPlanes();
-    int64_t planeLanes = dot.getPlaneLanes();
-    int64_t chunkBytes = dot.getPlaneGroupStride();
-    int64_t fieldBits = dot.getFieldBits();
-    int64_t fieldMask = dot.getFieldMask();
-    int64_t decodeZeroPoint = dot.getDecodeZeroPoint();
-    int64_t activationPlaneStride = dot.getActivationPlaneStride();
-
-    std::string functionName =
-        ("weft_emitc_" + sourceKernel.getValue() + "_" + variant.getValue())
-            .str();
-
-    auto module = dot->getParentOfType<mlir::ModuleOp>();
-    if (!module)
-      return rewriter.notifyMatchFailure(dot, "op has no module");
-
-    mlir::Type sizeType = emitc::OpaqueType::get(ctx, "size_t");
-    mlir::Type intType = emitc::OpaqueType::get(ctx, "int");
-    mlir::Type floatType = emitc::OpaqueType::get(ctx, "float");
-    mlir::Type constU8Type = emitc::OpaqueType::get(ctx, "const uint8_t");
-    mlir::Type constI8Type = emitc::OpaqueType::get(ctx, "const int8_t");
-    mlir::Type constFloatType = emitc::OpaqueType::get(ctx, "const float");
+    mlir::Location loc = body.getLoc();
+    mlir::MLIRContext *context = rewriter.getContext();
+    mlir::Type sizeType = emitc::OpaqueType::get(context, "size_t");
+    mlir::Type intType = emitc::OpaqueType::get(context, "int");
+    mlir::Type floatType = emitc::OpaqueType::get(context, "float");
+    mlir::Type constU8Type = emitc::OpaqueType::get(context, "const uint8_t");
+    mlir::Type constI8Type = emitc::OpaqueType::get(context, "const int8_t");
+    mlir::Type constFloatType =
+        emitc::OpaqueType::get(context, "const float");
+    mlir::Type floatPtrType = emitc::PointerType::get(floatType);
     mlir::Type constU8PtrType = emitc::PointerType::get(constU8Type);
     mlir::Type constI8PtrType = emitc::PointerType::get(constI8Type);
     mlir::Type constFloatPtrType = emitc::PointerType::get(constFloatType);
-    mlir::Type floatPtrType = emitc::PointerType::get(floatType);
-    llvm::StringRef fp16ReadCallee = "(float)*(const _Float16 *)";
 
-    // Standalone C size/integer declarations at module start.
     {
-      mlir::OpBuilder::InsertionGuard g(rewriter);
+      mlir::OpBuilder::InsertionGuard guard(rewriter);
       rewriter.setInsertionPointToStart(module.getBody());
       rewriter.create<emitc::VerbatimOp>(
           loc, "#include <stddef.h>\n#include <stdint.h>");
@@ -279,9 +570,9 @@ public:
 
     mlir::OpBuilder::InsertionGuard moduleGuard(rewriter);
     rewriter.setInsertionPointToEnd(module.getBody());
-
-    // extern "C" void <name>(int n, float *s, const uint8_t *vx,
-    //                        const int8_t *vy).
+    std::string functionName =
+        ("weft_emitc_" + sourceKernel.getValue() + "_" + variant.getValue())
+            .str();
     mlir::FunctionType functionType = rewriter.getFunctionType(
         {intType, floatPtrType, constU8PtrType, constI8PtrType}, {});
     llvm::SmallVector<mlir::NamedAttribute, 1> funcAttrs;
@@ -292,305 +583,282 @@ public:
     mlir::Block *entry = func.addEntryBlock();
     rewriter.setInsertionPointToStart(entry);
 
-    mlir::Value nArg = entry->getArgument(0);
-    auto sArg = llvm::cast<mlir::TypedValue<emitc::PointerType>>(
-        entry->getArgument(1));
-    mlir::Value vxArg = entry->getArgument(2);
-    mlir::Value vyArg = entry->getArgument(3);
-
-    auto sizeLit = [&](int64_t v) -> mlir::Value {
-      return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
-    };
-    auto intLit = [&](int64_t v) -> mlir::Value {
-      return rewriter.create<emitc::LiteralOp>(loc, intType, std::to_string(v));
-    };
-    auto step = [&](llvm::StringRef s) {
-      rewriter.create<emitc::VerbatimOp>(loc, kernelStepComment(opName, role, s));
-    };
-
+    llvm::StringRef sourceOpName =
+        lowerable.getWEFTEmitCLowerableSourceOpName();
+    llvm::StringRef sourceRole = lowerable.getWEFTEmitCLowerableSourceRole();
     rewriter.create<emitc::VerbatimOp>(
-        loc, routeSourceComment(opName, role, "WEFTEmitCLowerableOpInterface"));
-
-    // size_t nb = (size_t)n / qk;
-    step("super_block_count");
-    mlir::Value nSize =
-        rewriter.create<emitc::CastOp>(loc, sizeType, nArg).getResult();
-    mlir::Value nb =
-        rewriter.create<emitc::DivOp>(loc, sizeType, nSize, sizeLit(qk))
-            .getResult();
-
-    // float sumf = 0.0f;
-    auto sumfVar = rewriter.create<emitc::VariableOp>(
-        loc, emitc::LValueType::get(floatType), emitc::OpaqueAttr::get(ctx, ""));
-    rewriter.create<emitc::AssignOp>(
-        loc, sumfVar,
-        rewriter.create<emitc::LiteralOp>(loc, floatType, "0.0f").getResult());
-
-    // for (size_t ib = 0; ib < nb; ib += 1) { ... }
-    step("super_block_loop");
-    auto blockLoop = rewriter.create<emitc::ForOp>(loc, sizeLit(0), nb,
-                                                   sizeLit(1),
-                                                   /*bodyBuilder=*/nullptr);
-    {
-      mlir::OpBuilder::InsertionGuard guard(rewriter);
-      rewriter.setInsertionPointToStart(blockLoop.getBody());
-      mlir::Value ib = blockLoop.getInductionVar();
-
-      // const uint8_t *qs = vx + ib*weightStride;  (weight qs at byte 0).
-      mlir::Value xoff =
-          rewriter.create<emitc::MulOp>(loc, sizeType, ib, sizeLit(weightStride))
-              .getResult();
-      mlir::Value xb =
-          rewriter.create<emitc::AddOp>(loc, vxArg.getType(), vxArg, xoff)
-              .getResult();
-      auto qs = llvm::cast<mlir::TypedValue<emitc::PointerType>>(xb);
-
-      // const int8_t *q8 = vy + ib*activationStride + q8Offset;
-      mlir::Value yoff =
-          rewriter
-              .create<emitc::MulOp>(loc, sizeType, ib, sizeLit(activationStride))
-              .getResult();
-      mlir::Value yb =
-          rewriter.create<emitc::AddOp>(loc, vyArg.getType(), vyArg, yoff)
-              .getResult();
-      mlir::Value q8base = yb;
-      if (q8Offset != 0)
-        q8base = rewriter
-                     .create<emitc::AddOp>(loc, vyArg.getType(), yb,
-                                           sizeLit(q8Offset))
-                     .getResult();
-      auto q8 = llvm::cast<mlir::TypedValue<emitc::PointerType>>(q8base);
-
-      // int sumi = 0;
-      auto sumiVar = rewriter.create<emitc::VariableOp>(
-          loc, emitc::LValueType::get(intType), emitc::OpaqueAttr::get(ctx, ""));
-      rewriter.create<emitc::AssignOp>(
-          loc, sumiVar,
-          rewriter.create<emitc::LiteralOp>(loc, intType, "0").getResult());
-
-      // for (size_t j = 0; j < qsBytes; j += chunkBytes)  -- 32-byte plane groups.
-      step("plane_group_loop");
-      auto jLoop = rewriter.create<emitc::ForOp>(loc, sizeLit(0),
-                                                 sizeLit(qsBytes),
-                                                 sizeLit(chunkBytes),
-                                                 /*bodyBuilder=*/nullptr);
-      {
-        mlir::OpBuilder::InsertionGuard jg(rewriter);
-        rewriter.setInsertionPointToStart(jLoop.getBody());
-        mlir::Value j = jLoop.getInductionVar();
-
-        // for (size_t l = 0; l < numPlanes; l += 1)  -- the 4 2-bit planes.
-        auto lLoop = rewriter.create<emitc::ForOp>(loc, sizeLit(0),
-                                                   sizeLit(numPlanes),
-                                                   sizeLit(1),
-                                                   /*bodyBuilder=*/nullptr);
-        {
-          mlir::OpBuilder::InsertionGuard lg(rewriter);
-          rewriter.setInsertionPointToStart(lLoop.getBody());
-          mlir::Value l = lLoop.getInductionVar();
-
-          // int shift = (int)(l * 2);  (the 2-bit field shift {0,2,4,6}).
-          mlir::Value shift =
-              rewriter
-                  .create<emitc::CastOp>(
-                      loc, intType,
-                      rewriter
-                          .create<emitc::MulOp>(loc, sizeType, l,
-                                                sizeLit(fieldBits))
-                          .getResult())
-                  .getResult();
-
-          // for (size_t k = 0; k < planeLanes; k += 1)
-          auto kLoop = rewriter.create<emitc::ForOp>(loc, sizeLit(0),
-                                                     sizeLit(planeLanes),
-                                                     sizeLit(1),
-                                                     /*bodyBuilder=*/nullptr);
-          {
-            mlir::OpBuilder::InsertionGuard kg(rewriter);
-            rewriter.setInsertionPointToStart(kLoop.getBody());
-            mlir::Value k = kLoop.getInductionVar();
-
-            step("ternary_decode_mac");
-            // int w = (((int)qs[j + k] >> shift) & 3) - 1;  (2-bit ternary,
-            // {-1,0,+1(,2)}).
-            mlir::Value wIdx =
-                rewriter.create<emitc::AddOp>(loc, sizeType, j, k).getResult();
-            mlir::Value qsElem =
-                rewriter.create<emitc::SubscriptOp>(loc, qs, wIdx).getResult();
-            mlir::Value qsByte =
-                rewriter.create<emitc::LoadOp>(loc, constU8Type, qsElem)
-                    .getResult();
-            mlir::Value qsInt =
-                rewriter.create<emitc::CastOp>(loc, intType, qsByte).getResult();
-            mlir::Value shifted =
-                rewriter
-                    .create<emitc::BitwiseRightShiftOp>(loc, intType, qsInt,
-                                                        shift)
-                    .getResult();
-            mlir::Value masked =
-                rewriter
-                    .create<emitc::BitwiseAndOp>(loc, intType, shifted,
-                                                 intLit(fieldMask))
-                    .getResult();
-            mlir::Value w =
-                rewriter.create<emitc::SubOp>(loc, intType, masked,
-                                              intLit(decodeZeroPoint))
-                    .getResult();
-
-            // int a = (int)q8[j*4 + l*32 + k];  (the matching int8 activation).
-            mlir::Value j4 =
-                rewriter.create<emitc::MulOp>(loc, sizeType, j,
-                                              sizeLit(activationPlaneStride))
-                    .getResult();
-            mlir::Value l32 =
-                rewriter
-                    .create<emitc::MulOp>(loc, sizeType, l, sizeLit(planeLanes))
-                    .getResult();
-            mlir::Value q8Idx =
-                rewriter
-                    .create<emitc::AddOp>(
-                        loc, sizeType,
-                        rewriter.create<emitc::AddOp>(loc, sizeType, j4, l32)
-                            .getResult(),
-                        k)
-                    .getResult();
-            mlir::Value q8Elem =
-                rewriter.create<emitc::SubscriptOp>(loc, q8, q8Idx).getResult();
-            mlir::Value q8Byte =
-                rewriter.create<emitc::LoadOp>(loc, constI8Type, q8Elem)
-                    .getResult();
-            mlir::Value q8Int =
-                rewriter.create<emitc::CastOp>(loc, intType, q8Byte)
-                    .getResult();
-
-            // sumi += a * w;  (integer int8xint8 MAC; order-free).
-            mlir::Value prod =
-                rewriter.create<emitc::MulOp>(loc, intType, q8Int, w)
-                    .getResult();
-            mlir::Value sumiCur =
-                rewriter.create<emitc::LoadOp>(loc, intType, sumiVar)
-                    .getResult();
-            mlir::Value sumiNext =
-                rewriter.create<emitc::AddOp>(loc, intType, sumiCur, prod)
-                    .getResult();
-            rewriter.create<emitc::AssignOp>(loc, sumiVar, sumiNext);
-          }
-        }
-      }
-
-      // float dy = *(const float *)(vy + ib*activationStride + activationDOffset).
-      step("fold_activation_d");
-      mlir::Value dyAddr = yb;
-      if (activationDOffset != 0)
-        dyAddr = rewriter
-                     .create<emitc::AddOp>(loc, vyArg.getType(), yb,
-                                           sizeLit(activationDOffset))
-                     .getResult();
-      mlir::Value dyPtr =
-          rewriter.create<emitc::CastOp>(loc, constFloatPtrType, dyAddr)
-              .getResult();
-      mlir::Value dyIndex =
-          rewriter.create<emitc::LiteralOp>(loc, rewriter.getIndexType(), "0");
-      mlir::Value dyElem =
-          rewriter
-              .create<emitc::SubscriptOp>(
-                  loc, llvm::cast<mlir::TypedValue<emitc::PointerType>>(dyPtr),
-                  dyIndex)
-              .getResult();
-      mlir::Value dy =
-          rewriter.create<emitc::LoadOp>(loc, constFloatType, dyElem)
-              .getResult();
-
-      // float dx = (float)*(const _Float16 *)(vx + ib*weightStride +
-      // weightDOffset).
-      step("fold_weight_d");
-      mlir::Value dxAddr = xb;
-      if (weightDOffset != 0)
-        dxAddr = rewriter
-                     .create<emitc::AddOp>(loc, vxArg.getType(), xb,
-                                           sizeLit(weightDOffset))
-                     .getResult();
-      mlir::Value dx =
-          rewriter
-              .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{floatType},
-                                           fp16ReadCallee,
-                                           mlir::ValueRange{dxAddr})
-              .getResult(0);
-
-      // float d = dy * dx;  (the single per-super-block scale).
-      mlir::Value d =
-          rewriter.create<emitc::MulOp>(loc, floatType, dy, dx).getResult();
-
-      // sumf = sumf + (float)sumi * d;  -- ONE emitc.expression so it renders as
-      // ggml's single `sumf += (float) sumi * d;` C statement.
-      step("scalar_fold");
-      mlir::Value sumiFinal =
-          rewriter.create<emitc::LoadOp>(loc, intType, sumiVar).getResult();
-      mlir::Value sumfCur =
-          rewriter.create<emitc::LoadOp>(loc, floatType, sumfVar).getResult();
-      auto foldExpr = rewriter.create<emitc::ExpressionOp>(
-          loc, floatType, /*do_not_inline=*/false);
-      {
-        mlir::OpBuilder::InsertionGuard eg(rewriter);
-        mlir::Block *exprBlock = rewriter.createBlock(&foldExpr.getRegion());
-        rewriter.setInsertionPointToStart(exprBlock);
-        mlir::Value sumiF =
-            rewriter.create<emitc::CastOp>(loc, floatType, sumiFinal)
-                .getResult();
-        mlir::Value term =
-            rewriter.create<emitc::MulOp>(loc, floatType, sumiF, d).getResult();
-        mlir::Value next =
-            rewriter.create<emitc::AddOp>(loc, floatType, sumfCur, term)
-                .getResult();
-        rewriter.create<emitc::YieldOp>(loc, next);
-      }
-      rewriter.create<emitc::AssignOp>(loc, sumfVar, foldExpr.getResult());
-    }
-
-    // *s = sumf;  (structured scalar store through the float * output pointer).
-    step("store_s");
-    mlir::Value sumf =
-        rewriter.create<emitc::LoadOp>(loc, floatType, sumfVar).getResult();
-    mlir::Value outIndex =
-        rewriter.create<emitc::LiteralOp>(loc, rewriter.getIndexType(), "0");
-    emitc::SubscriptOp outSub =
-        rewriter.create<emitc::SubscriptOp>(loc, sArg, outIndex);
-    rewriter.create<emitc::AssignOp>(loc, outSub.getResult(), sumf);
-
+        loc, routeSourceComment(sourceOpName, sourceRole,
+                                kEmitCLowerableInterfaceName));
+    TernaryProjectionState state{
+        rewriter,
+        loc,
+        sourceOpName,
+        sourceRole,
+        sizeType,
+        intType,
+        floatType,
+        constU8Type,
+        constI8Type,
+        constFloatType,
+        constFloatPtrType,
+        entry->getArgument(0),
+        entry->getArgument(1),
+        entry->getArgument(2),
+        entry->getArgument(3),
+    };
+    if (mlir::failed(projectTernaryRegion(body.getBody().front(), state)))
+      return rewriter.notifyMatchFailure(
+          body, "failed to project exact Scalar ternary computation plan");
     rewriter.create<emitc::ReturnOp>(loc, mlir::Value());
-
-    rewriter.eraseOp(dot);
+    rewriter.eraseOp(body);
     return mlir::success();
   }
 };
 
-/// Mechanically lowers a constructed
-/// `weft_scalar.packed_affine_dequant_body` into a standalone pure-scalar
-/// EmitC function implementing its typed block/decode/paired-scatter semantics:
-///   #include <stddef.h>
-///   #include <stdint.h>
-///   extern "C" void weft_emitc_<kernel>_<variant>(
-///       int n, float *y, const uint8_t *vx) {
-///     size_t nb = (size_t)n / 32;
-///     for (size_t ib = 0; ib < nb; ib += 1) {
-///       const uint8_t *xb = vx + ib*18;
-///       float d = (float)*(const _Float16 *)(xb + 0);
-///       const uint8_t *qs = xb + 2;
-///       size_t yb = ib * 32;
-///       for (size_t j = 0; j < 16; j += 1) {
-///         const uint8_t q = qs[j];
-///         int x0 = ((int)q & 15) - 8;
-///         int x1 = ((int)q >> 4) - 8;
-///         y[yb + j]      = (float)x0 * d;
-///         y[yb + j + 16] = (float)x1 * d;
-///       }
-///     }
-///   }
-/// The exported function name is derived from source_kernel + selected_variant,
-/// and the block-format facts (qk, stride, byte offsets) drive the emitted loop
-/// bounds and address arithmetic, so the emission is operand-driven. The nibble
-/// decode is pure integer arithmetic -- NO XOR-popcount, NO __riscv_ intrinsics,
-/// NO vector machinery.
+struct AffineProjectionState {
+  mlir::ConversionPatternRewriter &rewriter;
+  mlir::Location loc;
+  llvm::StringRef sourceOpName;
+  llvm::StringRef sourceRole;
+
+  mlir::Type sizeType;
+  mlir::Type intType;
+  mlir::Type floatType;
+  mlir::Type constU8Type;
+
+  mlir::Value nArg;
+  mlir::Value outArg;
+  mlir::Value weightsArg;
+  mlir::Value blockIndex;
+  mlir::Value weightBlockBase;
+  mlir::Value outputBlockBase;
+  mlir::Value blockScale;
+  mlir::Value quantBase;
+  mlir::Value packedIndex;
+  int64_t outputBlockStride = 0;
+
+  mlir::Value sizeLiteral(int64_t value) {
+    return rewriter
+        .create<emitc::LiteralOp>(loc, sizeType, std::to_string(value))
+        .getResult();
+  }
+
+  mlir::Value intLiteral(int64_t value) {
+    return rewriter
+        .create<emitc::LiteralOp>(loc, intType, std::to_string(value))
+        .getResult();
+  }
+
+  void emitStep(llvm::StringRef step) {
+    rewriter.create<emitc::VerbatimOp>(
+        loc, kernelStepComment(sourceOpName, sourceRole, step));
+  }
+};
+
+mlir::LogicalResult projectAffineRegion(mlir::Block &planBlock,
+                                        AffineProjectionState &state);
+
+mlir::LogicalResult projectAffineNode(mlir::Operation *node,
+                                      AffineProjectionState &state) {
+  mlir::ConversionPatternRewriter &rewriter = state.rewriter;
+  mlir::Location loc = state.loc;
+
+  if (auto block = llvm::dyn_cast<weft::scalar::AffineBlockLoopOp>(node)) {
+    state.emitStep("block_count");
+    mlir::Value nSize =
+        rewriter.create<emitc::CastOp>(loc, state.sizeType, state.nArg)
+            .getResult();
+    mlir::Value blockCount =
+        rewriter
+            .create<emitc::DivOp>(loc, state.sizeType, nSize,
+                                  state.sizeLiteral(block.getQk()))
+            .getResult();
+
+    state.emitStep("block_loop");
+    auto loop = rewriter.create<emitc::ForOp>(
+        loc, state.sizeLiteral(0), blockCount,
+        state.sizeLiteral(block.getStep()), /*bodyBuilder=*/nullptr);
+    mlir::OpBuilder::InsertionGuard guard(rewriter);
+    rewriter.setInsertionPointToStart(loop.getBody());
+    AffineProjectionState nested = state;
+    nested.blockIndex = loop.getInductionVar();
+    mlir::Value weightOffset =
+        rewriter
+            .create<emitc::MulOp>(
+                loc, state.sizeType, nested.blockIndex,
+                state.sizeLiteral(block.getWeightBlockStride()))
+            .getResult();
+    nested.weightBlockBase =
+        rewriter
+            .create<emitc::AddOp>(loc, state.weightsArg.getType(),
+                                  state.weightsArg, weightOffset)
+            .getResult();
+    nested.outputBlockStride = static_cast<int64_t>(block.getQk());
+    return projectAffineRegion(block.getBody().front(), nested);
+  }
+
+  if (auto scale = llvm::dyn_cast<weft::scalar::AffineBlockScaleOp>(node)) {
+    state.emitStep("block_scale");
+    mlir::Value address = state.weightBlockBase;
+    if (scale.getWeightDByteOffset() != 0)
+      address =
+          rewriter
+              .create<emitc::AddOp>(
+                  loc, state.weightsArg.getType(), state.weightBlockBase,
+                  state.sizeLiteral(scale.getWeightDByteOffset()))
+              .getResult();
+    state.blockScale =
+        rewriter
+            .create<emitc::CallOpaqueOp>(
+                loc, mlir::TypeRange{state.floatType},
+                "(float)*(const _Float16 *)", mlir::ValueRange{address})
+            .getResult(0);
+    return mlir::success();
+  }
+
+  if (auto quantBase =
+          llvm::dyn_cast<weft::scalar::AffineQuantBaseOp>(node)) {
+    state.quantBase = state.weightBlockBase;
+    if (quantBase.getWeightQuantByteOffset() != 0)
+      state.quantBase =
+          rewriter
+              .create<emitc::AddOp>(
+                  loc, state.weightsArg.getType(), state.weightBlockBase,
+                  state.sizeLiteral(quantBase.getWeightQuantByteOffset()))
+              .getResult();
+    return mlir::success();
+  }
+
+  if (auto packed =
+          llvm::dyn_cast<weft::scalar::AffinePackedByteLoopOp>(node)) {
+    state.outputBlockBase =
+        rewriter
+            .create<emitc::MulOp>(loc, state.sizeType, state.blockIndex,
+                                  state.sizeLiteral(state.outputBlockStride))
+            .getResult();
+    state.emitStep("nibble_loop");
+    auto loop = rewriter.create<emitc::ForOp>(
+        loc, state.sizeLiteral(0), state.sizeLiteral(packed.getUpperBound()),
+        state.sizeLiteral(packed.getStep()), /*bodyBuilder=*/nullptr);
+    mlir::OpBuilder::InsertionGuard guard(rewriter);
+    rewriter.setInsertionPointToStart(loop.getBody());
+    AffineProjectionState nested = state;
+    nested.packedIndex = loop.getInductionVar();
+    return projectAffineRegion(packed.getBody().front(), nested);
+  }
+
+  if (auto decode =
+          llvm::dyn_cast<weft::scalar::AffineDecodeScaleScatterOp>(node)) {
+    state.emitStep("nibble_decode");
+    auto quantBase =
+        llvm::cast<mlir::TypedValue<emitc::PointerType>>(state.quantBase);
+    mlir::Value quantElement =
+        rewriter
+            .create<emitc::SubscriptOp>(loc, quantBase, state.packedIndex)
+            .getResult();
+    mlir::Value quantByte =
+        rewriter.create<emitc::LoadOp>(loc, state.constU8Type, quantElement)
+            .getResult();
+    mlir::Value quantInt =
+        rewriter.create<emitc::CastOp>(loc, state.intType, quantByte)
+            .getResult();
+
+    mlir::Value lowSource = quantInt;
+    if (decode.getLowFieldShift() != 0)
+      lowSource =
+          rewriter
+              .create<emitc::BitwiseRightShiftOp>(
+                  loc, state.intType, quantInt,
+                  state.intLiteral(decode.getLowFieldShift()))
+              .getResult();
+    mlir::Value lowField =
+        rewriter
+            .create<emitc::BitwiseAndOp>(
+                loc, state.intType, lowSource,
+                state.intLiteral(decode.getFieldMask()))
+            .getResult();
+    mlir::Value lowValue =
+        rewriter
+            .create<emitc::SubOp>(
+                loc, state.intType, lowField,
+                state.intLiteral(decode.getDecodeZeroPoint()))
+            .getResult();
+    mlir::Value highField =
+        rewriter
+            .create<emitc::BitwiseRightShiftOp>(
+                loc, state.intType, quantInt,
+                state.intLiteral(decode.getHighFieldShift()))
+            .getResult();
+    mlir::Value highValue =
+        rewriter
+            .create<emitc::SubOp>(
+                loc, state.intType, highField,
+                state.intLiteral(decode.getDecodeZeroPoint()))
+            .getResult();
+
+    state.emitStep("scatter_low");
+    mlir::Value outputBase =
+        rewriter
+            .create<emitc::AddOp>(loc, state.sizeType, state.outputBlockBase,
+                                  state.packedIndex)
+            .getResult();
+    mlir::Value lowIndex = outputBase;
+    if (decode.getLowOutputDelta() != 0)
+      lowIndex =
+          rewriter
+              .create<emitc::AddOp>(
+                  loc, state.sizeType, outputBase,
+                  state.sizeLiteral(decode.getLowOutputDelta()))
+              .getResult();
+    mlir::Value lowFloat =
+        rewriter.create<emitc::CastOp>(loc, state.floatType, lowValue)
+            .getResult();
+    mlir::Value lowScaled =
+        rewriter
+            .create<emitc::MulOp>(loc, state.floatType, lowFloat,
+                                  state.blockScale)
+            .getResult();
+    auto output =
+        llvm::cast<mlir::TypedValue<emitc::PointerType>>(state.outArg);
+    mlir::Value lowElement =
+        rewriter.create<emitc::SubscriptOp>(loc, output, lowIndex).getResult();
+    rewriter.create<emitc::AssignOp>(loc, lowElement, lowScaled);
+
+    state.emitStep("scatter_high");
+    mlir::Value highIndex = outputBase;
+    if (decode.getHighOutputDelta() != 0)
+      highIndex =
+          rewriter
+              .create<emitc::AddOp>(
+                  loc, state.sizeType, outputBase,
+                  state.sizeLiteral(decode.getHighOutputDelta()))
+              .getResult();
+    mlir::Value highFloat =
+        rewriter.create<emitc::CastOp>(loc, state.floatType, highValue)
+            .getResult();
+    mlir::Value highScaled =
+        rewriter
+            .create<emitc::MulOp>(loc, state.floatType, highFloat,
+                                  state.blockScale)
+            .getResult();
+    mlir::Value highElement =
+        rewriter.create<emitc::SubscriptOp>(loc, output, highIndex).getResult();
+    rewriter.create<emitc::AssignOp>(loc, highElement, highScaled);
+    return mlir::success();
+  }
+
+  return node->emitError(
+      "unsupported node in exact Scalar affine computation plan");
+}
+
+mlir::LogicalResult projectAffineRegion(mlir::Block &planBlock,
+                                        AffineProjectionState &state) {
+  for (mlir::Operation &node : planBlock)
+    if (mlir::failed(projectAffineNode(&node, state)))
+      return mlir::failure();
+  return mlir::success();
+}
+
 class ScalarPackedAffineDequantBodyToEmitCFunc final
     : public mlir::OpConversionPattern<
           weft::scalar::PackedAffineDequantBodyOp> {
@@ -599,59 +867,31 @@ public:
       weft::scalar::PackedAffineDequantBodyOp>::OpConversionPattern;
 
   mlir::LogicalResult
-  matchAndRewrite(weft::scalar::PackedAffineDequantBodyOp dequant,
+  matchAndRewrite(weft::scalar::PackedAffineDequantBodyOp body,
                   OpAdaptor /*adaptor*/,
                   mlir::ConversionPatternRewriter &rewriter) const override {
-    mlir::Location loc = dequant.getLoc();
-    mlir::MLIRContext *ctx = rewriter.getContext();
-
-    auto variant =
-        dequant->getAttrOfType<mlir::FlatSymbolRefAttr>("selected_variant");
-    auto sourceKernel =
-        dequant->getAttrOfType<mlir::StringAttr>("source_kernel");
-    if (!variant || !sourceKernel)
-      return rewriter.notifyMatchFailure(
-          dequant, "packed_affine_dequant_body requires selected_variant and "
-                   "source_kernel attributes");
-
+    auto variant = body.getSelectedVariantAttr();
+    auto sourceKernel = body.getSourceKernelAttr();
     auto lowerable =
         llvm::dyn_cast<weftemitc::WEFTEmitCLowerableOpInterface>(
-            dequant.getOperation());
-    if (!lowerable)
+            body.getOperation());
+    auto module = body->getParentOfType<mlir::ModuleOp>();
+    if (!variant || !sourceKernel || !lowerable || !module)
       return rewriter.notifyMatchFailure(
-          dequant, "packed_affine_dequant_body must implement "
-                   "WEFTEmitCLowerableOpInterface");
-    llvm::StringRef opName = lowerable.getWEFTEmitCLowerableSourceOpName();
-    llvm::StringRef role = lowerable.getWEFTEmitCLowerableSourceRole();
+          body, "packed_affine_dequant_body lacks exact ownership or module "
+                "context");
 
-    int64_t qk = dequant.getQk();
-    int64_t weightStride = dequant.getWeightBlockStride();
-    int64_t weightDOffset = dequant.getWeightDByteOffset();
-    int64_t weightQuantOffset = dequant.getWeightQuantByteOffset();
-    int64_t half = dequant.getHalfWidth();
-    int64_t fieldBits = dequant.getFieldBits();
-    int64_t fieldMask = dequant.getFieldMask();
-    int64_t decodeZeroPoint = dequant.getDecodeZeroPoint();
-
-    std::string functionName =
-        ("weft_emitc_" + sourceKernel.getValue() + "_" + variant.getValue())
-            .str();
-
-    auto module = dequant->getParentOfType<mlir::ModuleOp>();
-    if (!module)
-      return rewriter.notifyMatchFailure(dequant, "op has no module");
-
-    mlir::Type sizeType = emitc::OpaqueType::get(ctx, "size_t");
-    mlir::Type intType = emitc::OpaqueType::get(ctx, "int");
-    mlir::Type floatType = emitc::OpaqueType::get(ctx, "float");
-    mlir::Type constU8Type = emitc::OpaqueType::get(ctx, "const uint8_t");
-    mlir::Type constU8PtrType = emitc::PointerType::get(constU8Type);
+    mlir::Location loc = body.getLoc();
+    mlir::MLIRContext *context = rewriter.getContext();
+    mlir::Type sizeType = emitc::OpaqueType::get(context, "size_t");
+    mlir::Type intType = emitc::OpaqueType::get(context, "int");
+    mlir::Type floatType = emitc::OpaqueType::get(context, "float");
+    mlir::Type constU8Type = emitc::OpaqueType::get(context, "const uint8_t");
     mlir::Type floatPtrType = emitc::PointerType::get(floatType);
-    llvm::StringRef fp16ReadCallee = "(float)*(const _Float16 *)";
+    mlir::Type constU8PtrType = emitc::PointerType::get(constU8Type);
 
-    // Standalone C size/integer declarations at module start.
     {
-      mlir::OpBuilder::InsertionGuard g(rewriter);
+      mlir::OpBuilder::InsertionGuard guard(rewriter);
       rewriter.setInsertionPointToStart(module.getBody());
       rewriter.create<emitc::VerbatimOp>(
           loc, "#include <stddef.h>\n#include <stdint.h>");
@@ -659,10 +899,11 @@ public:
 
     mlir::OpBuilder::InsertionGuard moduleGuard(rewriter);
     rewriter.setInsertionPointToEnd(module.getBody());
-
-    // extern "C" void <name>(int n, float *y, const uint8_t *vx).
-    mlir::FunctionType functionType =
-        rewriter.getFunctionType({intType, floatPtrType, constU8PtrType}, {});
+    std::string functionName =
+        ("weft_emitc_" + sourceKernel.getValue() + "_" + variant.getValue())
+            .str();
+    mlir::FunctionType functionType = rewriter.getFunctionType(
+        {intType, floatPtrType, constU8PtrType}, {});
     llvm::SmallVector<mlir::NamedAttribute, 1> funcAttrs;
     funcAttrs.push_back(rewriter.getNamedAttr(
         "specifiers", rewriter.getStrArrayAttr({"extern", "\"C\""})));
@@ -671,149 +912,30 @@ public:
     mlir::Block *entry = func.addEntryBlock();
     rewriter.setInsertionPointToStart(entry);
 
-    mlir::Value nArg = entry->getArgument(0);
-    auto yArg = llvm::cast<mlir::TypedValue<emitc::PointerType>>(
-        entry->getArgument(1));
-    mlir::Value vxArg = entry->getArgument(2);
-
-    auto sizeLit = [&](int64_t v) -> mlir::Value {
-      return rewriter.create<emitc::LiteralOp>(loc, sizeType, std::to_string(v));
-    };
-    auto intLit = [&](int64_t v) -> mlir::Value {
-      return rewriter.create<emitc::LiteralOp>(loc, intType, std::to_string(v));
-    };
-    auto step = [&](llvm::StringRef s) {
-      rewriter.create<emitc::VerbatimOp>(loc, kernelStepComment(opName, role, s));
-    };
-
+    llvm::StringRef sourceOpName =
+        lowerable.getWEFTEmitCLowerableSourceOpName();
+    llvm::StringRef sourceRole = lowerable.getWEFTEmitCLowerableSourceRole();
     rewriter.create<emitc::VerbatimOp>(
-        loc, routeSourceComment(opName, role, "WEFTEmitCLowerableOpInterface"));
-
-    // size_t nb = (size_t)n / qk;
-    step("block_count");
-    mlir::Value nSize =
-        rewriter.create<emitc::CastOp>(loc, sizeType, nArg).getResult();
-    mlir::Value nb =
-        rewriter.create<emitc::DivOp>(loc, sizeType, nSize, sizeLit(qk))
-            .getResult();
-
-    // for (size_t ib = 0; ib < nb; ib += 1) { ... }
-    step("block_loop");
-    auto blockLoop = rewriter.create<emitc::ForOp>(loc, sizeLit(0), nb,
-                                                   sizeLit(1),
-                                                   /*bodyBuilder=*/nullptr);
-    {
-      mlir::OpBuilder::InsertionGuard guard(rewriter);
-      rewriter.setInsertionPointToStart(blockLoop.getBody());
-      mlir::Value ib = blockLoop.getInductionVar();
-
-      // const uint8_t *xb = vx + ib*weightStride;
-      mlir::Value xoff =
-          rewriter.create<emitc::MulOp>(loc, sizeType, ib, sizeLit(weightStride))
-              .getResult();
-      mlir::Value xb =
-          rewriter.create<emitc::AddOp>(loc, vxArg.getType(), vxArg, xoff)
-              .getResult();
-
-      // float d = (float)*(const _Float16 *)(xb + weightDOffset);
-      step("block_scale");
-      mlir::Value dAddr = xb;
-      if (weightDOffset != 0)
-        dAddr = rewriter
-                    .create<emitc::AddOp>(loc, vxArg.getType(), xb,
-                                          sizeLit(weightDOffset))
-                    .getResult();
-      mlir::Value d =
-          rewriter
-              .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{floatType},
-                                           fp16ReadCallee,
-                                           mlir::ValueRange{dAddr})
-              .getResult(0);
-
-      // const uint8_t *qs = xb + weightQuantOffset;
-      mlir::Value qsBase = xb;
-      if (weightQuantOffset != 0)
-        qsBase = rewriter
-                     .create<emitc::AddOp>(loc, vxArg.getType(), xb,
-                                           sizeLit(weightQuantOffset))
-                     .getResult();
-      auto qs = llvm::cast<mlir::TypedValue<emitc::PointerType>>(qsBase);
-
-      // size_t yb = ib * qk;  (the block's base index in the float output row).
-      mlir::Value yb =
-          rewriter.create<emitc::MulOp>(loc, sizeType, ib, sizeLit(qk))
-              .getResult();
-
-      // for (size_t j = 0; j < qk/2; j += 1)
-      step("nibble_loop");
-      auto jLoop = rewriter.create<emitc::ForOp>(loc, sizeLit(0), sizeLit(half),
-                                                 sizeLit(1),
-                                                 /*bodyBuilder=*/nullptr);
-      {
-        mlir::OpBuilder::InsertionGuard jg(rewriter);
-        rewriter.setInsertionPointToStart(jLoop.getBody());
-        mlir::Value j = jLoop.getInductionVar();
-
-        step("nibble_decode");
-        // const uint8_t q = qs[j];  int qi = (int)q;
-        mlir::Value qsElem =
-            rewriter.create<emitc::SubscriptOp>(loc, qs, j).getResult();
-        mlir::Value qByte =
-            rewriter.create<emitc::LoadOp>(loc, constU8Type, qsElem).getResult();
-        mlir::Value qInt =
-            rewriter.create<emitc::CastOp>(loc, intType, qByte).getResult();
-
-        // int x0 = (qi & 15) - 8;   (low nibble, zero-centered to [-8, 7]).
-        mlir::Value lo =
-            rewriter.create<emitc::BitwiseAndOp>(loc, intType, qInt,
-                                                 intLit(fieldMask))
-                .getResult();
-        mlir::Value x0 =
-            rewriter.create<emitc::SubOp>(loc, intType, lo,
-                                          intLit(decodeZeroPoint))
-                .getResult();
-
-        // int x1 = (qi >> 4) - 8;   (high nibble).
-        mlir::Value hi =
-            rewriter
-                .create<emitc::BitwiseRightShiftOp>(loc, intType, qInt,
-                                                    intLit(fieldBits))
-                .getResult();
-        mlir::Value x1 =
-            rewriter.create<emitc::SubOp>(loc, intType, hi,
-                                          intLit(decodeZeroPoint))
-                .getResult();
-
-        // y[yb + j] = (float)x0 * d;  (low nibble scatters to the first half).
-        step("scatter_low");
-        mlir::Value o0 =
-            rewriter.create<emitc::AddOp>(loc, sizeType, yb, j).getResult();
-        mlir::Value x0f =
-            rewriter.create<emitc::CastOp>(loc, floatType, x0).getResult();
-        mlir::Value p0 =
-            rewriter.create<emitc::MulOp>(loc, floatType, x0f, d).getResult();
-        emitc::SubscriptOp out0 =
-            rewriter.create<emitc::SubscriptOp>(loc, yArg, o0);
-        rewriter.create<emitc::AssignOp>(loc, out0.getResult(), p0);
-
-        // y[yb + j + qk/2] = (float)x1 * d;  (high nibble -> the second half).
-        step("scatter_high");
-        mlir::Value o1 =
-            rewriter.create<emitc::AddOp>(loc, sizeType, o0, sizeLit(half))
-                .getResult();
-        mlir::Value x1f =
-            rewriter.create<emitc::CastOp>(loc, floatType, x1).getResult();
-        mlir::Value p1 =
-            rewriter.create<emitc::MulOp>(loc, floatType, x1f, d).getResult();
-        emitc::SubscriptOp out1 =
-            rewriter.create<emitc::SubscriptOp>(loc, yArg, o1);
-        rewriter.create<emitc::AssignOp>(loc, out1.getResult(), p1);
-      }
-    }
-
+        loc, routeSourceComment(sourceOpName, sourceRole,
+                                kEmitCLowerableInterfaceName));
+    AffineProjectionState state{
+        rewriter,
+        loc,
+        sourceOpName,
+        sourceRole,
+        sizeType,
+        intType,
+        floatType,
+        constU8Type,
+        entry->getArgument(0),
+        entry->getArgument(1),
+        entry->getArgument(2),
+    };
+    if (mlir::failed(projectAffineRegion(body.getBody().front(), state)))
+      return rewriter.notifyMatchFailure(
+          body, "failed to project exact Scalar affine computation plan");
     rewriter.create<emitc::ReturnOp>(loc, mlir::Value());
-
-    rewriter.eraseOp(dequant);
+    rewriter.eraseOp(body);
     return mlir::success();
   }
 };
@@ -825,17 +947,30 @@ public:
 
   void populateTypeConversions(
       mlir::TypeConverter & /*typeConverter*/) const override {
-    // The scalar skeleton carries no scalar-typed dataflow values; the identity
-    // conversion installed by the harness suffices.
+    // Scalar plan nodes carry no SSA dataflow values; the typed operation tree
+    // itself is the exact computation plan.
   }
 
   void configureConversionTarget(mlir::ConversionTarget &target) const override {
-    target.addIllegalOp<weft::scalar::ComputeSkeletonOp,
-                        weft::scalar::TernaryQ2Q8BlockDotOp,
-                        weft::scalar::DequantizeRowQ4Op,
-                        weft::scalar::ImmediateCallBodyOp,
-                        weft::scalar::PackedTernaryDotBodyOp,
-                        weft::scalar::PackedAffineDequantBodyOp>();
+    target.addIllegalOp<
+        weft::scalar::ComputeSkeletonOp,
+        weft::scalar::TernaryQ2Q8BlockDotOp,
+        weft::scalar::DequantizeRowQ4Op,
+        weft::scalar::ImmediateCallBodyOp,
+        weft::scalar::PackedTernaryDotBodyOp,
+        weft::scalar::TernaryBlockLoopOp,
+        weft::scalar::TernaryPlaneGroupLoopOp,
+        weft::scalar::TernaryPlaneLoopOp,
+        weft::scalar::TernaryLaneLoopOp,
+        weft::scalar::TernaryDecodeMacOp,
+        weft::scalar::TernaryScaleFoldOp,
+        weft::scalar::TernaryStoreOp,
+        weft::scalar::PackedAffineDequantBodyOp,
+        weft::scalar::AffineBlockLoopOp,
+        weft::scalar::AffineBlockScaleOp,
+        weft::scalar::AffineQuantBaseOp,
+        weft::scalar::AffinePackedByteLoopOp,
+        weft::scalar::AffineDecodeScaleScatterOp>();
     target.markUnknownOpDynamicallyLegal([](mlir::Operation *) { return true; });
   }
 
@@ -866,9 +1001,6 @@ public:
 
 llvm::LogicalResult
 ScalarBackendEmissionDriver::postConversionCleanup(mlir::ModuleOp module) const {
-  // Once a function was produced, drop the now-emptied weft.exec scaffolding
-  // (kernel/capability/diagnostics) and any leftover source ops so the module
-  // is the clean, standalone EmitC-only shape the emitc->C++ emitter expects.
   bool producedFunc = false;
   module.walk([&](emitc::FuncOp) { producedFunc = true; });
   if (!producedFunc)
@@ -889,8 +1021,6 @@ ScalarBackendEmissionDriver::postConversionCleanup(mlir::ModuleOp module) const 
 
 void registerScalarBackendEmitter(
     weftemitc::BackendEmissionRegistry &registry) {
-  // Function-local static: owned by this translation unit, outlives the
-  // registry, no global-init-order hazard.
   static const ScalarBackendEmissionDriver driver;
   registry.registerBackend(driver);
 }

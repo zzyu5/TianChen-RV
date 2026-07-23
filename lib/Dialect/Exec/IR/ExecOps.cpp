@@ -67,6 +67,7 @@ constexpr llvm::StringLiteral kPreferenceTieBreakAttrName(
 constexpr llvm::StringLiteral kPreferenceRankAttrName("preference_rank");
 constexpr llvm::StringLiteral kCapabilityProvidersAttrName(
     "capability_providers");
+constexpr llvm::StringLiteral kProblemAttrName("problem");
 
 using diagnostic::kArtifactKindAttrName;
 using diagnostic::kEmissionKindAttrName;
@@ -642,6 +643,28 @@ mlir::LogicalResult CapabilityOp::verify() {
   return mlir::success();
 }
 
+mlir::LogicalResult Int8MACProblemOp::verify() {
+  // The generated enum attributes already enforce the closed
+  // {signed,unsigned} value set.  Keep the verifier deliberately local: target
+  // capability, family applicability and execution shape are later binding /
+  // construction concerns, not source-problem well-formedness.
+  if (getM() <= 0 || getN() <= 0 || getK() <= 0)
+    return emitOpError()
+           << "requires positive logical MAC geometry m/n/k; got " << getM()
+           << "x" << getN() << "x" << getK();
+  return mlir::success();
+}
+
+mlir::LogicalResult DequantizeRowQ40ProblemOp::verify() {
+  if (getQk() != 32 || getWeightBlockStride() != 18 ||
+      getWeightDByteOffset() != 0 || getWeightQuantByteOffset() != 2)
+    return emitOpError()
+           << "requires canonical q4_0 geometry qk=32, "
+              "weight_block_stride=18, weight_d_byte_offset=0 and "
+              "weight_quant_byte_offset=2";
+  return mlir::success();
+}
+
 mlir::LogicalResult KernelOp::verify() {
   if (getBody().empty())
     return mlir::success();
@@ -651,6 +674,22 @@ mlir::LogicalResult KernelOp::verify() {
   llvm::StringSet<> capabilityProviderSymbols;
   llvm::StringSet<> directMemWindowABIRoles;
   llvm::StringSet<> directRuntimeParamABIRoles;
+
+  if (auto problemAttr =
+          getOperation()->getAttrOfType<mlir::FlatSymbolRefAttr>(
+              kProblemAttrName)) {
+    mlir::Operation *problem =
+        findDirectKernelSymbol(*this, problemAttr.getValue());
+    if (!problem)
+      return emitOpError()
+             << "problem references unknown direct canonical problem @"
+             << problemAttr.getValue();
+    if (!problem->hasTrait<mlir::OpTrait::weft::CanonicalProblem>())
+      return emitOpError()
+             << "problem @" << problemAttr.getValue()
+             << " resolves to a direct symbol that is not a canonical "
+                "operator problem";
+  }
 
   mlir::Attribute rawTargetAttr = getOperation()->getAttr(kTargetAttrName);
   if (rawTargetAttr) {

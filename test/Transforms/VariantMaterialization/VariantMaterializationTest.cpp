@@ -66,7 +66,7 @@ public:
   }
 
   bool supportsOperation(const VariantProposalRequest &request) const override {
-    return request.getHighLevelOp() && request.getKernel() &&
+    return request.getProblem() && request.getKernel() &&
            request.getCapabilities().isCapabilityAvailableByID(supportID);
   }
 

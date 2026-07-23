@@ -296,7 +296,7 @@ void ScalarExtensionPlugin::collectFormulaDescriptors(
 
 bool ScalarExtensionPlugin::supportsOperation(
     const VariantProposalRequest &request) const {
-  return request.getHighLevelOp() && hasAvailableScalarFallbackCapability(request);
+  return request.getProblem() && hasAvailableScalarFallbackCapability(request);
 }
 
 llvm::Error ScalarExtensionPlugin::proposeVariants(

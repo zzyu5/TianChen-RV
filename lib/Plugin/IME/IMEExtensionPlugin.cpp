@@ -830,7 +830,7 @@ void IMEExtensionPlugin::collectFormulaDescriptors(
 
 bool IMEExtensionPlugin::supportsOperation(
     const VariantProposalRequest &request) const {
-  return request.getHighLevelOp() && hasAvailableIMECapability(request);
+  return request.getProblem() && hasAvailableIMECapability(request);
 }
 
 llvm::Error IMEExtensionPlugin::proposeVariants(
