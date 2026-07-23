@@ -1,4 +1,4 @@
-// RUN: weft-opt %s --weft-execution-planning-pipeline | FileCheck %s
+// RUN: not weft-opt %s --weft-execution-planning-pipeline 2>&1 | FileCheck %s --check-prefix=FAIL --implicit-check-not='status = "supported"'
 
 module @offload_manifest_inputs {
   weft.exec.kernel @pipeline_offload_manifest attributes {construction_domain = "riscv-execution", problem = @canonical_problem} {
@@ -52,11 +52,5 @@ module @offload_manifest_inputs {
   }
 }
 
-// CHECK-LABEL: weft.exec.kernel @pipeline_offload_manifest
-// CHECK: weft_offload.lowering_boundary
-// CHECK-SAME: handoff_reason = "family-constructed delegation plan; no executable external implementation is currently bound"
-// CHECK-SAME: selected_variant = @offload_runtime_first_slice
-// CHECK-SAME: status = "no-active-route"
-// CHECK: weft.exec.diagnostic
-// CHECK-SAME: message = "the Offload extension currently has no active executable lowering or target artifact route"
-// CHECK-SAME: status = "unsupported"
+// FAIL: Weft-RV selected lowering-boundary materialization failed for kernel @pipeline_offload_manifest
+// FAIL-SAME: selected owner did not construct an executable final body before boundary exposure: offload delegation plan has no executable implementation

@@ -192,6 +192,14 @@ class TensorExtLiteBackendEmissionDriver final
     : public weftemitc::TypedBackendEmissionDriver {
 public:
   llvm::StringRef getBackendName() const override { return "tensorext_lite"; }
+  llvm::StringRef getOwnerPluginName() const override {
+    return "tensorext-lite-plugin";
+  }
+
+  bool supportsExactRoot(mlir::Operation *operation) const override {
+    return llvm::isa_and_present<weft::tensorext_lite::ConfigSkeletonOp>(
+        operation);
+  }
 
   void populateTypeConversions(
       mlir::TypeConverter & /*typeConverter*/) const override {}

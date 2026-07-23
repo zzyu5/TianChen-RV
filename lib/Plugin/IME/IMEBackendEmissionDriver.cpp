@@ -1903,6 +1903,15 @@ class IMEBackendEmissionDriver final
     : public weftemitc::TypedBackendEmissionDriver {
 public:
   llvm::StringRef getBackendName() const override { return "ime"; }
+  llvm::StringRef getOwnerPluginName() const override { return "ime-plugin"; }
+
+  bool supportsExactRoot(mlir::Operation *operation) const override {
+    return llvm::isa_and_present<
+        weft::ime::MMAOp, weft::ime::MMAUOp, weft::ime::MMASUOp,
+        weft::ime::MMAUSOp, weft::ime::MMASlideOp, weft::ime::MatMulOp,
+        weft::ime::Q40MatMulTileOp, weft::ime::Q80MatMulTileOp,
+        weft::ime::Q4KMatMulTileOp>(operation);
+  }
 
   void populateTypeConversions(
       mlir::TypeConverter & /*typeConverter*/) const override {}

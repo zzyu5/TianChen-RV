@@ -388,7 +388,7 @@ S,g,\omega,c
 ```text
 weft_rvv.*
 weft_ime.*
-weft_gpu.*
+future weft_gpu.*
 weft_scalar.*
 ```
 
@@ -400,7 +400,7 @@ weft_scalar.*
 
 * RVV body 已经知道 LMUL、strip、vector mechanism；
 * IME body 已经知道 tile、MAC deployment；
-* GPU body 已经知道 block/warp/shared-memory/MMA plan。
+* future GPU body 在真正实现后必须已经知道 block/warp/shared-memory/MMA plan。
 
 然后 lowerer 只物化它。
 
@@ -700,7 +700,7 @@ emitter。最终 EmitC/NVVM/ROCDL/object packaging 在完整 typed `K` 形成之
 
 ## 最准确的中文定义
 
-> **Weft 是一个基于 MLIR 的、有限领域的自动算子到 kernel 编译器。它接收经过图级处理后、语义充分但尚未决定执行实现的算子 IR，将算子语义、数据表示和静态上下文与目标能力结合，自动构造 RVV、IME、GPU 等 family-specific 的低层执行 IR，并进一步生成高性能 kernel。**
+> **Weft 的目标身份是一个基于 MLIR 的、有限领域的自动算子到 kernel 编译器。它接收经过图级处理后、语义充分但尚未决定执行实现的算子 IR，将算子语义、数据表示和静态上下文与目标能力结合，自动构造 RVV、IME 等当前 owner 以及 future GPU owner 的 family-specific 低层执行 IR，并进一步生成高性能 kernel。当前仓库尚未构造 GPU body。**
 
 ## 更短的版本
 

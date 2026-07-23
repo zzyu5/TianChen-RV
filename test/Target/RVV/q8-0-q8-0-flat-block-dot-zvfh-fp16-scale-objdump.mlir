@@ -16,7 +16,7 @@
 // REQUIRES: weft-local-rvv-object-clang
 
 // RUN: rm -f %t.o
-// RUN: weft-opt %s --weft-rvv-materialize-q8-0-q8-0-block-dot-source-front-door --weft-materialize-emission-plans | weft-translate --weft-export-target-artifact > %t.o
+// RUN: weft-opt %s --weft-rvv-materialize-q8-0-q8-0-block-dot-source-front-door --weft-select-variants --weft-materialize-emission-plans | weft-translate --weft-export-target-artifact > %t.o
 
 // The two per-block fp16 scale reads are HARDWARE half->single conversions.
 // RUN: llvm-objdump -d %t.o | FileCheck %s --check-prefix=FCVT

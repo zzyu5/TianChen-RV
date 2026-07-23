@@ -21,7 +21,7 @@
 // lowered block, not a general dot-reduce auto-tuner.
 
 // The auto-constructed body (the e8m2 VLEN128 anchor).
-// RUN: weft-opt %s --weft-rvv-materialize-widening-dot-reduce-source-front-door=march=rv64gcv | FileCheck %s --check-prefix=BODY
+// RUN: weft-opt %s --weft-rvv-materialize-widening-dot-reduce-source-front-door=march=rv64gcv | FileCheck %s --check-prefix=BODY --implicit-check-not="scalar_fallback" --implicit-check-not="weft.exec.dispatch"
 //
 // The BAR-A byte-anchor FLIP: the SAME generic source emits e8m2 at VLEN128 and
 // e8m1 at VLEN256 -- a BYTE-DIFFERENT emitted kernel driven by the deriveMinimumVLEN
@@ -52,6 +52,9 @@ module attributes {weft_rvv.source_front_door = "bounded_widening_dot_reduce_sou
 // emitter authored this -- the front-door matcher constructed it from the VLEN128
 // gearbox-selected m2 byte anchor.
 // BODY: weft.exec.kernel @rvv_widening_dot_reduce_i8_from_vector_source
+// BODY: weft.exec.i8_widening_dot_reduce_problem @canonical_problem
+// BODY-SAME: block_length = 32
+// BODY-SAME: dequantize_to_f32 = false
 // BODY: weft.exec.variant @rvv_widening_dot_reduce_i8
 // BODY: weft_rvv.setvl
 // BODY-SAME: lmul = "m2"
@@ -67,11 +70,6 @@ module attributes {weft_rvv.source_front_door = "bounded_widening_dot_reduce_sou
 // BODY-SAME: kind = "signed_widening_reduce_add"
 // BODY-SAME: -> !weft_rvv.vector<i32, "m1">
 // BODY: weft_rvv.store
-// The conservative fallback is authored by the fallback-owning plugin.
-// BODY: weft.exec.variant @rvv_widening_dot_reduce_i8_scalar_fallback
-// BODY-SAME: fallback_role = "conservative"
-// BODY: weft.exec.case @rvv_widening_dot_reduce_i8
-// BODY: weft.exec.fallback @rvv_widening_dot_reduce_i8_scalar_fallback
 
 // ===================== VLEN128 (rv64gcv) -- the e8m2 anchor =================
 // The gearbox selects the m2 byte anchor at the VLEN-128 tier -- vsetvl_e8m2, i8m2

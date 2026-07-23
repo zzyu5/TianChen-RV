@@ -31,14 +31,14 @@
 // is MECHANISM/parity, NOT a speed beat (deferred to G5).
 
 // The auto-constructed codebook integer-core body @ VLEN128 (m1 anchor).
-// RUN: weft-opt %s --weft-rvv-materialize-codebook-gather-dot-source-front-door=march=rv64gcv | FileCheck %s --check-prefix=BODY128
+// RUN: weft-opt %s --weft-rvv-materialize-codebook-gather-dot-source-front-door=march=rv64gcv | FileCheck %s --check-prefix=BODY128 --implicit-check-not="scalar_fallback" --implicit-check-not="weft.exec.dispatch"
 //
 // The VLEN128 body lowered to EmitC: the codebook decode chain at the m1 anchor.
 // RUN: weft-opt %s --weft-rvv-materialize-codebook-gather-dot-source-front-door=march=rv64gcv --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=CORE128
 //
 // The capability FLIP @ VLEN256 (mf2 anchor): the SAME generic source materializes
 // a byte-DIFFERENT codebook core (mf2 gather + i16m1 product).
-// RUN: weft-opt %s --weft-rvv-materialize-codebook-gather-dot-source-front-door=march=rv64gcv_zvl256b | FileCheck %s --check-prefix=BODY256
+// RUN: weft-opt %s --weft-rvv-materialize-codebook-gather-dot-source-front-door=march=rv64gcv_zvl256b | FileCheck %s --check-prefix=BODY256 --implicit-check-not="scalar_fallback" --implicit-check-not="weft.exec.dispatch"
 // RUN: weft-opt %s --weft-rvv-materialize-codebook-gather-dot-source-front-door=march=rv64gcv_zvl256b --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=CORE256
 //
 // FAIL-CLOSED (I7), no guaranteed VLEN tier: the codebook gather needs VLMAX >= 16
@@ -60,6 +60,8 @@ module attributes {weft_rvv.source_front_door = "bounded_codebook_gather_dot_sou
 // codebook_table_broadcast / load x3 / codebook_gather_x_i8_product /
 // standalone_reduce / store body. NO per-kernel emitter authored this body.
 // BODY128: weft.exec.kernel @rvv_codebook_gather_dot_i8_from_source
+// BODY128: weft.exec.codebook_i4_q8_dot_problem @canonical_problem
+// BODY128-SAME: block_length = 16
 // BODY128: weft.exec.variant @rvv_codebook_gather_dot_i8
 // The THREADED codebook integer-core anchor (audit-only provenance): the m1 flip form.
 // BODY128: weft_rvv.codebook_integer_core_anchor = "i8m1-i16m2-i32m1-vlen-flip"
@@ -81,9 +83,6 @@ module attributes {weft_rvv.source_front_door = "bounded_codebook_gather_dot_sou
 // BODY128: weft_rvv.standalone_reduce
 // BODY128-SAME: -> !weft_rvv.vector<i32, "m1">
 // BODY128: weft_rvv.store
-// BODY128: weft.exec.variant @rvv_codebook_gather_dot_i8_scalar_fallback
-// BODY128: weft.exec.case @rvv_codebook_gather_dot_i8
-// BODY128: weft.exec.fallback @rvv_codebook_gather_dot_i8_scalar_fallback
 
 // ===================== EMITTED CODEBOOK-CORE CHAIN @ VLEN128 (m1) ============
 // The auto-constructed body lowers to the codebook decode chain the existing iq4_nl

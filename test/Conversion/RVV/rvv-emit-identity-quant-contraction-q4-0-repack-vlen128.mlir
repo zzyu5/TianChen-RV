@@ -1,6 +1,6 @@
 // RUN: weft-opt %s --weft-rvv-lower-quant-contraction=march=rv64gcv --weft-rvv-lower-to-emitc | FileCheck %s
-// RUN: weft-opt %s --weft-rvv-lower-quant-contraction=march=rv64gcv --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=M1
-// RUN: weft-opt %s --weft-rvv-lower-quant-contraction=march=rv64gcv --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=NOMF2
+// RUN: weft-opt %s --weft-rvv-lower-quant-contraction=march=rv64gcv --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=MF2
+// RUN: weft-opt %s --weft-rvv-lower-quant-contraction=march=rv64gcv --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=NOM1
 
 // OPTION-2 M1 -- EMIT-IDENTITY on the SUPPORTED RVV1.0 regime (march=rv64gcv =>
 // Zvl128b => VLEN128). The abstract, algorithm-UNCOMMITTED
@@ -9,22 +9,11 @@
 // REPACK (deriveMinimumVLEN(rv64gcv)=128 => the q4_0-vlen128-decode keep) and the
 // C1 bridge CONSTRUCTS the typed weft_rvv.typed_repack_gemv_loop_body region.
 //
-// [GAP-P1]-loosen r51g board sweep flipped q4_0 (kNibbleQ40ScaleModel) to the WIDE
-// m1 whole-LMUL chain: decideRepackAccumulatorLMUL consults lookupRepackMeasuredM1
-// Faster, and q4_0 now has a board-MEASURED row (DEPLOYED repack GEVM 2.3-2.5x /
-// GEMM 1.24x faster than mf2 @rvv VLEN128, spill-free, byte-exact 3-arm -- see
-// experiments/active/r51g-b1-repack-family-sweep/FINDING.md). So the region carries
-// half_lanes=16 => integer_core_lmul "m1", numHalves==1 (one 16-lane strip), PLUS
-// the emitter-INERT audit attrs. --weft-rvv-lower-to-emitc lowers it to the m1
-// whole-LMUL (i8m1 -> i16m2 -> i32m4, single 16-lane f32m4 strip) repack-GEMV.
-//
-// THIS proves the COMPILER AUTO-SELECTS the board-measured m1 chain (registration-
-// as-DATA: a data row flips it, no per-format C++ switch). The m1 emit is byte-exact
-// to the mf2 default (the LMUL flip does not change arithmetic; board 3-arm mism=0).
-//
-// SCOPE: EMIT-IDENTITY ONLY. The m1 whole-LMUL form is now the board-MEASURED
-// DEPLOYED q4_0 chain on RVV1.0 (VLEN128). NO extra perf claim in this fixture --
-// the kernel is lit-emitted here; the perf is in the r51g FINDING.
+// With no qualified residual winner, the resource formula keeps the bounded mf2
+// schedule: half_lanes=8, integer_core_lmul="mf2", and two 8-lane strips.
+// --weft-rvv-lower-to-emitc therefore emits the i8mf2 -> i16m1 -> i32m2 ->
+// f32m2 chain. This fixture pins analytic construction and emission; it makes no
+// measurement claim.
 
 module {
   weft.exec.kernel @ggml_vec_dot_q4_0_q8_0_kernel {
@@ -57,22 +46,18 @@ module {
 // CHECK: emitc.func @weft_emitc_ggml_vec_dot_q4_0_q8_0_kernel_ggml_vec_dot_q4_0_q8_0(
 // The per-group weight base vx + x*nb*288 (block_q4_0x16 stride 288).
 // CHECK: literal "288"
-// The single 16-lane f32m4 accumulator -- the board-measured m1/half_lanes=16 form.
-// CHECK: call_opaque "__riscv_vfmv_v_f_f32m4"
-// The repacked i8m1 whole-LMUL load then lane-wise vwmacc into i16m2 (NO cross-lane
-// reduction wall) then vwadd into i32m4.
-// CHECK: call_opaque "__riscv_vle8_v_i8m1"
-// CHECK: call_opaque "__riscv_vwmacc_vx_i16m2"
-// CHECK: call_opaque "__riscv_vwadd_vv_i32m4"
-// The single 16-lane vector store vse32_v_f32m4.
-// CHECK: call_opaque "__riscv_vse32_v_f32m4"
+// The analytic resource prior selects two 8-lane f32m2 strips.
+// CHECK: call_opaque "__riscv_vfmv_v_f_f32m2"
+// CHECK: call_opaque "__riscv_vle8_v_i8mf2"
+// CHECK: call_opaque "__riscv_vwmacc_vx_i16m1"
+// CHECK: call_opaque "__riscv_vwadd_vv_i32m2"
+// CHECK: call_opaque "__riscv_vse32_v_f32m2"
 // CHECK: return
 
-// The board-MEASURED RVV1.0 whole-LMUL m1 form: the i8m1 strip is PRESENT.
-// M1: call_opaque "__riscv_vle8_v_i8m1"
+// The analytic mf2 form is present.
+// MF2: call_opaque "__riscv_vle8_v_i8mf2"
 
-// This is the m1 (single 16-lane strip) chain -- the mf2 (two 8-lane halves)
-// spellings must NOT appear (the flip is a REAL per-format LMUL change).
-// NOMF2-NOT: __riscv_vle8_v_i8mf2
-// NOMF2-NOT: __riscv_vfmv_v_f_f32m2
-// NOMF2-NOT: __riscv_vwmacc_vx_i16m1
+// No unqualified measurement may force the removed whole-LMUL winner.
+// NOM1-NOT: __riscv_vle8_v_i8m1
+// NOM1-NOT: __riscv_vfmv_v_f_f32m4
+// NOM1-NOT: __riscv_vwmacc_vx_i16m2

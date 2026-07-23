@@ -12,6 +12,10 @@
 # RUN: not rg -n 'verifyOrWrite|requireAtomicStamp|dequant_plan_reason|codebook_gather_(minimum_vlen|provider)|RVVFormulaConstructionMaterialization|materializeRVVFormulaConstructions' %S/../../include %S/../../lib
 # RUN: not rg -n 'RVVRepackTilingSelection|RVVRepackScheduleMaterialization|stampScheduleSelections|verifyRVVRepackSchedulePlans|readAndVerifyRVVRepackSchedulePlan|resolveRepackMainTermRolled|emit_loop_schedule|weft_rvv\.loop_order|weft_rvv\.tiling_|loop_order_selection_(reason|record)|tiling_selection_(reason|record)' %S/../../include %S/../../lib
 # RUN: not rg -n 'RVVScheduleMaterializationDescriptor|stampRVVSchedule|isSchedulePinned|weft_rvv\.(q4_0|q1_0|tq2_0|tq1_0|iq2_xxs|mxfp4|q4_0_gemm)_schedule\.(producer|candidate|legal|cost|budget|selection|measured|has_zvl)' %S/../../include %S/../../lib
+# Historical unqualified board rows and hard-coded instance hashes are not a
+# production winner-memory plane. Until a governed compiled view exists, every
+# residual lookup is an honest miss and analytic prior remains authoritative.
+# RUN: not rg -n 'kRepackVlen256DecodeMeasurements|lookupRepackVlen256Decode|kRepackMeasuredM1FasterMeasurements|lookupRepackMeasuredM1Faster|lookupQualifiedRepackLoopOrderWinner|3cd23a4ec9796a3ce1f863cd80c96b894267ab95b45cb0ecfeb856cc643b58c7' %S/../../include %S/../../lib
 # RUN: not rg -n 'deriveBlockDotFacts|defaultCoreLmul|get(IntegerCoreLmul|MultiBlockFactor|StripElision|StripLmul)[^;]*value_or|value_or\("(mf[248]|m[1248]|robust|elided|strict|relaxed)"\)' %S/../../include/Weft/Conversion/RVV %S/../../lib/Conversion/RVV
 # RUN: not rg -n 'weft-rvv-materialize-gearbox-schedules|MaterializeRVVGearboxSchedules|RVVLowPrecisionPerformancePolicy|RVVLowPrecisionContractionResourceSelection|deriveRVVLowPrecisionContractionResourceSelection|weft_rvv\.(gearbox_cross_region_handoff|vsetvl_region_marker)' %S/../../include %S/../../lib %S/../../tools
 # RUN: not rg -n 'weft_rvv\.(low_precision_resource|gearbox)|gearbox_selected_integer_core_lmul' %S/../../include %S/../../lib %S/../../tools

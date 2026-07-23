@@ -1,15 +1,8 @@
-// OPTION-2 STAGE B/C1 -- [G8 六.3] the q5_1 sibling of the PER-FORMAT MEASURED
-// VLEN256-DECODE cell (see rvv-lower-quant-contraction-vlen256-decode-per-format-
-// measured.mlir for the q5_0 headline + the full rationale). q5_1 measured BENEFICIAL
-// 1.306x at the k1 VLEN256 decode cell (casefile
-// experiments/active/g8-stage3-attack/k1-gevm-sweep, commit ac5ea76f), so the
-// board-seeded kRepackVlen256DecodeMeasurements registry drives the fact
-// vlen256DecodeRepackBeneficial=true and the pure (format-blind) selector SELECTS repack
-// at the SAME cell that DECLINES for q4_0/iq4_nl. NO perf/e2e claim -- lit-emitted, NOT run.
+// q5_1 honest residual-miss sibling. Historical board data is not a qualified
+// current winner token, so VLEN256 decode reaches an honest residual miss.
 //
-// VLEN256 (rv64gcv_zvl256b => 256): q5_1 decode -> REPACK via the measured-BENEFICIAL
-// fact -> typed weft_rvv.typed_repack_gemv_loop_body (half_lanes 16).
-// RUN: weft-opt %s --weft-rvv-lower-quant-contraction=march=rv64gcv_zvl256b | FileCheck %s --check-prefix=VLEN256
+// VLEN256 (rv64gcv_zvl256b => 256): no legal q5_1 block-dot path; fail closed.
+// RUN: not weft-opt %s --weft-rvv-lower-quant-contraction=march=rv64gcv_zvl256b 2>&1 | FileCheck %s --check-prefix=VLEN256
 //
 // VLEN128 (rv64gcv => 128): UNCHANGED -- repack via the capability/regime rule
 // (half_lanes 8), the q4_0-vlen128 audit token (zero rvv drift).
@@ -35,13 +28,9 @@ module {
   }
 }
 
-// (VLEN256 tier) measured-BENEFICIAL fact SELECTS repack; the abstract op is gone, no
-// block-dot is emitted, the typed repack-GEVM region is realized (half_lanes 16, x16).
-// VLEN256-NOT: weft_rvv.quant_contraction
-// VLEN256-NOT: weft_rvv.q5_1_q8_1_block_dot
-// VLEN256: weft_rvv.typed_repack_gemv_loop_body
-// VLEN256-SAME: half_lanes = 16 : i64
-// VLEN256-SAME: weft_rvv.weight_layout_contract = "x16"
+// (VLEN256 tier) honest residual miss fails closed because q5_1 has no legal
+// block-dot decline path.
+// VLEN256: q5_0 / q5_1 / q8_0 quant_contraction requires a repack-affording capability
 
 // (VLEN128 tier) UNCHANGED capability/regime repack (zero rvv drift).
 // VLEN128-NOT: weft_rvv.quant_contraction

@@ -16,8 +16,9 @@ llvm::StringRef getIMEExtensionFirstSliceVariantName();
 /// The IME (Spacemit X60 Integer Matrix Extension, IME1) second-family plugin.
 /// Mirrors the Template/Scalar wiring shape — capability-FACT gated proposal,
 /// plugin-owned legality, a selected `weft.ime.mma` lowering boundary — but
-/// carries RVV-grade substance: a real int8->int32 `vmadot` MAC boundary op
-/// with a fail-closed verifier, and capability facts DERIVED from validated ISA
+/// carries RVV-grade substance: exact canonical-P projection separated from
+/// target c_o projection, plus a real int8->int32 `vmadot` MAC boundary op with
+/// a fail-closed verifier. The target MAC envelope derives from validated ISA
 /// evidence (march `xsmtvdotii` + VLEN/SEW). Dispatch gates on the
 /// `spacemit.ime` capability fact via lookupProviderByID; the family identity
 /// never appears as a string in core code (I1, I3).

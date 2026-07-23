@@ -72,7 +72,7 @@ public:
         weft::plugin::FormulaConstructionStrength::ConstructedWeak);
     descriptor.getGeometryAxis().set(
         weft::plugin::FormulaAxisUse::Decisive, "MockProposalGeometry");
-    descriptor.getGeometryAxis().addConsumedField("high-level-op");
+    descriptor.getGeometryAxis().addConsumedField("canonical-problem");
     descriptor.getCapabilityAxis().set(
         weft::plugin::FormulaAxisUse::Decisive, "TargetCapabilitySet");
     descriptor.getCapabilityAxis().addConsumedField(supportCapabilityID);
@@ -237,11 +237,8 @@ int main() {
 
   constexpr llvm::StringLiteral source = R"mlir(
 module {
-  func.func @high_level_placeholder() {
-    return
-  }
-
-  weft.exec.kernel @proposal_source attributes {construction_domain = "test-domain"} {
+  weft.exec.kernel @proposal_source attributes {construction_domain = "test-domain", problem = @canonical_problem} {
+    weft.exec.int8_mac_problem @canonical_problem {lhs_signedness = #weft<integer_signedness signed>, rhs_signedness = #weft<integer_signedness signed>, m = 4 : i64, n = 4 : i64, k = 8 : i64}
     weft.exec.capability @generic_vector {
       id = "generic.vector",
       kind = "generic-execution"
@@ -263,13 +260,6 @@ module {
       mlir::parseSourceString<mlir::ModuleOp>(source, &context);
   if (!module)
     return fail("failed to parse plugin proposal test module");
-
-  mlir::func::FuncOp highLevelOp =
-      module->lookupSymbol<mlir::func::FuncOp>("high_level_placeholder");
-  if (int result =
-          expect(static_cast<bool>(highLevelOp),
-                 "high-level placeholder operation is present"))
-    return result;
 
   KernelOp kernel = findKernel(*module);
   if (int result = expect(static_cast<bool>(kernel), "kernel is present"))
@@ -320,8 +310,20 @@ module {
                                  "register foreign-domain plugin"))
     return result;
 
-  VariantProposalRequest request(highLevelOp.getOperation(), kernel,
-                                 capabilities);
+  llvm::Expected<mlir::Operation *> problem =
+      weft::plugin::resolveCanonicalProblem(kernel);
+  if (!problem)
+    return fail(llvm::toString(problem.takeError()));
+  VariantProposalRequest request(*problem, kernel, capabilities);
+  {
+    VariantProposalRequest forged(module->getOperation(), kernel,
+                                  capabilities);
+    llvm::SmallVector<VariantProposal, 1> forgedProposals;
+    if (int result = expectErrorContains(
+            registry.collectVariantProposals(forged, forgedProposals),
+            {"must carry the exact canonical problem bound by its kernel"}))
+      return result;
+  }
   llvm::SmallVector<VariantProposal, 4> proposals;
   if (int result =
           expectSuccess(registry.collectVariantProposals(request, proposals),
@@ -370,7 +372,8 @@ module {
                           "foreign-domain plugin is skipped before support "
                           "or proposal hooks"))
     return result;
-  if (int result = expect(first.getObservedHighLevelOpName() == "func.func" &&
+  if (int result = expect(first.getObservedHighLevelOpName() ==
+                                  "weft.exec.int8_mac_problem" &&
                               first.getObservedKernelName() ==
                                   "proposal_source" &&
                               first.getObservedCapabilityCount() == 3,

@@ -33,6 +33,22 @@ target_link_libraries(weft-formula-catalog-test
   MLIRSupport
 )
 
+add_executable(weft-backend-emission-exact-root-test
+  Plugin/BackendEmissionExactRootTest.cpp
+)
+
+target_link_libraries(weft-backend-emission-exact-root-test
+  PRIVATE
+  WeftConversionEmitC
+  WeftDemoBackendEmitter
+  WeftToyBackendEmitter
+  WeftInitAll
+  MLIREmitCDialect
+  MLIRIR
+  MLIRParser
+  MLIRSupport
+)
+
 add_executable(weft-plugin-variant-proposal-test
   Plugin/PluginVariantProposalTest.cpp
 )

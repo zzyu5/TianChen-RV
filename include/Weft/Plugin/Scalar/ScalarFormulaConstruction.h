@@ -36,6 +36,7 @@ inline constexpr llvm::StringLiteral kScalarQ40DequantizeRowFormulaID(
 /// artifact lowering.
 llvm::Expected<mlir::Operation *> constructScalarFinalBody(
     weft::exec::VariantOp variant, weft::exec::KernelOp kernel,
+    mlir::Operation *problem,
     const weft::support::TargetCapabilitySet &capabilities);
 
 } // namespace weft::plugin::scalar

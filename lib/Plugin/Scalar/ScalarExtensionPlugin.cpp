@@ -2,6 +2,7 @@
 
 #include "Weft/Plugin/Scalar/ScalarFormulaConstruction.h"
 
+#include "Weft/Dialect/Exec/IR/ExecOps.h"
 #include "Weft/Dialect/Scalar/IR/ScalarDialect.h"
 #include "Weft/Target/Scalar/ScalarTargetSupportBundle.h"
 #include "mlir/IR/Attributes.h"
@@ -45,6 +46,30 @@ classifyScalarFinalBody(mlir::Operation *operation) {
   if (llvm::isa_and_present<weft::scalar::PackedAffineDequantBodyOp>(operation))
     return ScalarFinalBodyKind::PackedAffineDequant;
   return std::nullopt;
+}
+
+bool isSupportedScalarProblem(mlir::Operation *problem) {
+  return llvm::isa_and_present<
+      weft::exec::TernaryQ2Q8BlockDotProblemOp,
+      weft::exec::DequantizeRowQ40ProblemOp>(problem);
+}
+
+bool hasDirectScalarFinalBody(weft::exec::VariantOp variant) {
+  if (!variant || variant.getBody().empty())
+    return false;
+  for (mlir::Operation &operation : variant.getBody().front())
+    if (classifyScalarFinalBody(&operation))
+      return true;
+  return false;
+}
+
+bool isExplicitUnsupportedFallbackEnvelope(weft::exec::VariantOp variant) {
+  if (!variant || variant.getBody().empty() ||
+      !variant.getBody().front().empty())
+    return false;
+  auto role = variant->getAttrOfType<mlir::StringAttr>(
+      kVariantFallbackRoleAttrName);
+  return role && role.getValue() == kConservativeFallbackRoleValue;
 }
 
 llvm::StringRef scalarRuntimeABI(ScalarFinalBodyKind kind) {
@@ -206,6 +231,7 @@ llvm::Error ScalarExtensionPlugin::constructFormulaPlans(
   llvm::Expected<mlir::Operation *> constructed =
       scalar::constructScalarFinalBody(
           request.getVariant(), request.getKernel(),
+          request.getProblem(),
           request.getCapabilities());
   if (!constructed)
     return constructed.takeError();
@@ -226,18 +252,18 @@ void ScalarExtensionPlugin::collectFormulaDescriptors(
       FormulaResultKind::CandidateSet,
       FormulaConstructionStrength::ConstructedWeak);
   construction.getGeometryAxis().set(FormulaAxisUse::Decisive,
-                                     "ScalarFallbackRequest");
-  construction.getGeometryAxis().addConsumedField("high-level-op");
+                                     "CanonicalScalarProblemKind");
+  construction.getGeometryAxis().addConsumedField("problem-op-identity");
   construction.getCapabilityAxis().set(FormulaAxisUse::Decisive,
                                        "TargetCapabilitySet");
   construction.getCapabilityAxis().addConsumedField(
       kScalarFallbackCapabilityID);
   construction.getStaticContextAxis().set(FormulaAxisUse::HonestNull,
                                           "ScalarNoStaticContext");
-  construction.addSemanticCase("capability-available-single-candidate");
+  construction.addSemanticCase("ternary-block-dot-fallback-candidate");
+  construction.addSemanticCase("q4-0-dequant-fallback-candidate");
   construction.addSemanticCase("capability-unavailable-not-applicable");
   construction.addProductionEntry("plugin:variant-proposal");
-  construction.addProductionEntry("construction:scalar-immediate-call-body");
   out.push_back(std::move(construction));
 
   FormulaDescriptor ternaryBlockDot(
@@ -300,7 +326,8 @@ void ScalarExtensionPlugin::collectFormulaDescriptors(
 
 bool ScalarExtensionPlugin::supportsOperation(
     const VariantProposalRequest &request) const {
-  return request.getProblem() && hasAvailableScalarFallbackCapability(request);
+  return isSupportedScalarProblem(request.getProblem()) &&
+         hasAvailableScalarFallbackCapability(request);
 }
 
 llvm::Error ScalarExtensionPlugin::proposeVariants(
@@ -349,6 +376,19 @@ llvm::Error ScalarExtensionPlugin::verifyVariantLegality(
         "materialized scalar fallback variant must require capability id "
         "'scalar.fallback'");
 
+  if (request.getProblem()) {
+    if (!isSupportedScalarProblem(request.getProblem()))
+      return makeScalarPluginError(
+          "source scalar variant requires a supported exact canonical "
+          "ternary-block-dot or q4_0-dequant problem");
+  } else if (!hasDirectScalarFinalBody(variant) &&
+             !isExplicitUnsupportedFallbackEnvelope(variant)) {
+    return makeScalarPluginError(
+        "problem-free Scalar qualification requires an exact final body in "
+        "the variant canonical body slot or an explicit empty conservative "
+        "fallback envelope that remains Unsupported");
+  }
+
   return llvm::Error::success();
 }
 
@@ -357,6 +397,16 @@ llvm::Error ScalarExtensionPlugin::estimateVariantCost(
   if (!request.getVariant())
     return makeScalarPluginError(
         "cost estimation requires a materialized weft.exec.variant");
+  if (request.getProblem()) {
+    if (!isSupportedScalarProblem(request.getProblem()))
+      return makeScalarPluginError(
+          "cost estimation requires a supported exact Scalar problem");
+  } else if (!hasDirectScalarFinalBody(request.getVariant()) &&
+             !isExplicitUnsupportedFallbackEnvelope(request.getVariant())) {
+    return makeScalarPluginError(
+        "problem-free Scalar cost qualification requires an exact final body "
+        "or an explicit Unsupported conservative fallback envelope");
+  }
 
   out = VariantCostEstimate();
   out.setScore(1000.0);
@@ -384,6 +434,7 @@ llvm::Error ScalarExtensionPlugin::checkVariantEmissionReadiness(
         "emission readiness requires an enclosing weft.exec.kernel");
 
   VariantLegalityRequest legality(request.getVariant(), request.getKernel(),
+                                  nullptr,
                                   request.getCapabilities());
   if (llvm::Error error = verifyVariantLegality(legality))
     return error;
@@ -415,6 +466,7 @@ llvm::Error ScalarExtensionPlugin::buildVariantEmissionPlan(
         "emission planning requires an enclosing weft.exec.kernel");
 
   VariantLegalityRequest legality(request.getVariant(), request.getKernel(),
+                                  nullptr,
                                   request.getCapabilities());
   if (llvm::Error error = verifyVariantLegality(legality))
     return error;
@@ -474,7 +526,13 @@ llvm::Error ScalarExtensionPlugin::materializeSelectedLoweringBoundary(
         "lowering-boundary materialization requires an enclosing "
         "weft.exec.kernel");
 
+  if (!classifyScalarFinalBody(request.getConstructedOperation()))
+    return makeScalarPluginError(
+        "selected Scalar boundary exposure requires the exact final typed "
+        "body returned by family construction");
+
   VariantLegalityRequest legality(request.getVariant(), request.getKernel(),
+                                  request.getProblem(),
                                   request.getCapabilities());
   if (llvm::Error error = verifyVariantLegality(legality)) {
     std::string message = llvm::toString(std::move(error));

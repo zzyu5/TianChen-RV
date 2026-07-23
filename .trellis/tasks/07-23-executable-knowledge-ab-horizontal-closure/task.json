@@ -2,7 +2,7 @@
   "id": "executable-knowledge-ab-horizontal-closure",
   "name": "executable-knowledge-ab-horizontal-closure",
   "title": "执行知识 A/B 横向闭环重构",
-  "description": "在已完成的 artifact-neutral construction 底座上，横向重构所有 current compute-bearing family 的 formula/mechanism/final-body 结构，并把多 topology delete-leaf reconstruction 与当前 artifact 的 correctness、deployed、strong-opponent、e2e 性能证据闭合成同一条因果链；本 task 不实现 GPU。",
+  "description": "在已完成的 artifact-neutral construction 底座上，补齐 physical canonical problem 与 target/profile BindDomain，横向重构所有 current compute-bearing family 的 formula/mechanism/final-body 结构，并把多 topology delete-leaf reconstruction 与当前 artifact 的 correctness、deployed、strong-opponent、e2e 性能证据闭合成同一条因果链；用 test-only 第二 domain/owner 验证接入 seam，但本 task 不实现 GPU。",
   "status": "in_progress",
   "dev_type": "refactor",
   "scope": "project-wide-research-implementation",
@@ -22,21 +22,34 @@
   "parent": null,
   "relatedFiles": [
     "docs/method/README.md",
+    "docs/method/高级ai思想3.md",
+    "docs/method/高级ai思想4.md",
     "docs/method/项目全景与Spec重构前方法基线v2.md",
+    ".trellis/spec/architecture/index.md",
+    ".trellis/spec/architecture/核心方言.md",
     ".trellis/spec/architecture/变体流水线.md",
     ".trellis/spec/architecture/公式层与覆盖.md",
     ".trellis/spec/architecture/执行问题与家族边界.md",
     ".trellis/spec/measurement/index.md",
+    "include/Weft/Dialect/Exec/IR/ExecOps.td",
+    "include/Weft/Plugin/ExtensionPlugin.h",
     "include/Weft/Plugin/FormulaCatalog.h",
     "include/Weft/Plugin/RVV/RVVRuntimeAVLVLControl.h",
+    "lib/Plugin/ExtensionPlugin.cpp",
     "lib/Plugin/RVV/Construction",
     "lib/Plugin/RVV/BodyRealization",
+    "lib/Plugin/RVV/FrontDoor",
     "lib/Plugin/RVV/CMakeLists.txt",
     "lib/Plugin/IME/IMEFormulaConstruction.cpp",
     "lib/Plugin/Scalar/ScalarFormulaConstruction.cpp",
-    "tools/bench/bench"
+    "lib/Transforms/VariantMaterialization.cpp",
+    "lib/Transforms/VariantSelection.cpp",
+    "test/Transforms/VariantMaterialization",
+    "test/Transforms/VariantSelection",
+    "tools/bench/bench",
+    "tools/bench/export_current_artifact.py"
   ],
-  "notes": "当前结构检查点已经完成 construction-owned RVV runtime control 与旧 RVV route-provider/protocol 物理退出；这不等于 mechanism factorization、delete-leaf strong reconstruction、formula causal coverage 或真硬件 A/B 已完成。禁止纵向只完成一个 format/operator/formula 后宣告重构完成；q5_1 只能作为局部 reconstruction witness。禁止实现 GPU、改变两柱六律或主公式、建立 universal Formula IR/provider/verifier、恢复 selected-stamp/compatibility/emitter 决策，或让 measurement 创造 compute。",
+  "notes": "当前结构检查点已经完成 artifact-neutral owner lifecycle、construction-owned RVV runtime control、旧 RVV route-provider/protocol 物理退出、current-artifact runner 接线、bounded canonical-problem surface、exact P/C_d request continuity、IME problem/capability 解耦、explicit domain identity membership、thin selector 与 exact selected-root artifact contract。membership gate 不是 target/profile BindDomain；RVV source adapter 仍预构造 body，Scalar 仍有 structural stamps，因此这些切面不等于 complete forward construction、mechanism factorization、delete-leaf strong reconstruction、formula causal coverage 或真硬件 A/B。禁止纵向只完成一个 format/operator/formula 后宣告重构完成；q5_1 只能作为局部 reconstruction witness。禁止实现 GPU、改变两柱六律或主公式、建立 universal Formula IR/provider/verifier、恢复 compatibility/emitter 决策，或让 measurement 创造 compute。",
   "meta": {
     "predecessor": "01f55f3fab63ae923cb61109000f02ee6e7bad01",
     "method_baseline": "docs/method/README.md",
@@ -52,6 +65,21 @@
         "commit": "288f05fe9",
         "state": "completed",
         "summary": "retired RVV route-provider and construction-protocol stack"
+      },
+      {
+        "commit": "631702363",
+        "state": "completed",
+        "summary": "wired registered benchmark routes to current compiler artifact export; no new qualified hardware/e2e result"
+      },
+      {
+        "commit": "a39e35e01",
+        "state": "completed",
+        "summary": "added two initial exact canonical-problem anchors and typed Scalar/RVV plan slices; full source coverage remains open"
+      },
+      {
+        "commit": "c318c178",
+        "state": "completed",
+        "summary": "added explicit domain identity/membership gates before proposal, selection and selected-owner construction; target/profile BindDomain remains open"
       }
     ]
   }

@@ -1,6 +1,6 @@
 # Weft-RV MLIR
 
-Weft is an extensible, MLIR-based automatic operator-to-kernel compiler and execution-layer software stack. It accepts a semantically complete but execution-undetermined operator problem after graph-level compilation, binds a target selection/deployment domain, and uses in-domain owner-local capability- and context-conditioned executable knowledge to construct specialized kernels. Fragmented RISC-V quantized inference is the flagship reference realization and primary stress domain; GPU is the second execution paradigm introduced by the V2 architecture, not a currently implemented backend.
+Weft is an extensible, MLIR-based automatic operator-to-kernel compiler and execution-layer software stack. Its stable architecture accepts a semantically complete but execution-undetermined operator problem after graph-level compilation, binds a target selection/deployment domain, and uses in-domain owner-local capability- and context-conditioned executable knowledge to construct specialized kernels. The current horizontal checkpoint has an artifact-neutral owner lifecycle, exact physical-problem request continuity, an explicit domain-identity membership gate and exact selected-root artifact consumption; target/profile-driven `BindDomain(t)` and forward construction from every source problem are still incomplete. Fragmented RISC-V quantized inference is the flagship reference realization and primary stress domain; GPU is the second execution paradigm introduced by the V2 architecture, not a currently implemented backend.
 
 The project is not a general-purpose graph/tensor compiler and does not introduce a new high-level tensor/tile IR. It owns the post-graph, pre-schedule operator execution layer: canonical problem intake, target/domain binding, owner-local construction, legality, in-domain selection, typed bodies, artifact realization, ABI/runtime integration and evidence. The design goal is an ecosystem in which new operators and targets remain local without giving up expert-quality specialization.
 
@@ -50,7 +50,7 @@ canonical operator problem P=(S,g,ω)
       · future domain-specific artifact
 ~~~
 
-Every production operator entry follows this path, including deterministic single-candidate construction with honest-null axes. Quantize, dequantize, contraction, elementwise, reduction and different backend families do not keep separate hidden decision worlds. This is not a new Formula IR, a universal expression DSL or a runtime autotuner.
+Every production operator entry is required to follow this path, including deterministic single-candidate construction with honest-null axes. Proposal, legality, cost and selected-owner construction now receive the same exact canonical problem, IME source facts have moved out of capability mirrors, and deterministic RVV front doors no longer invent Scalar candidates or preselect dispatch. Some source-origin entries still lack a physical adapter, RVV front doors still prebuild bodies and hard-code the current domain identity, and Scalar retains structural ownership stamps. These are active-task gaps, not alternative permitted paths. This is not a new Formula IR, a universal expression DSL or a runtime autotuner.
 
 The canonical problem, domain-binding, owner-construction and artifact-neutral contract is defined in
 [architecture/执行问题与家族边界.md](.trellis/spec/architecture/执行问题与家族边界.md).
@@ -71,13 +71,16 @@ The repository already contains:
 - deployed ggml, representative strong-opponent and end-to-end result ledgers;
 - an official bench runner, master table and run lineage directories.
 
-These assets do not mean the project is finished. The current production authority
+These assets do not mean the project is finished. The artifact-neutral lifecycle/caller
 boundary has completed its horizontal cutover: registered/direct construction entries
 are enumerated by the lightweight catalog while evaluation remains in owner-local
-typed formulas; generic and source schedules use the same construction lifecycle;
-lower-quant outputs complete legal schedules; composite realization is a real registry
-owner; and obsolete Q40/GEMM compatibility passes and non-semantic decision mirrors
-have been removed.
+typed formulas; generic and source schedules enter the same construction-before-artifact
+lifecycle; lower-quant outputs complete legal schedules; composite realization is a real
+registry owner; and obsolete Q40/GEMM compatibility passes and non-semantic decision
+mirrors have been removed. Exact problem identity is now preserved through proposal, legality,
+cost and construction, while artifact conversion is anchored to the selected owner's exact root
+and rejects competing roots. This statement does not claim complete physical source-problem
+coverage, forward reconstruction from every problem, or complete execution-knowledge factorization.
 
 The construction boundary is now artifact-neutral. Registry clone, public
 materialization, direct RVV conversion, translate and artifact export all invoke an
@@ -111,8 +114,9 @@ metadata-only lowering boundaries have been retired; pure artifact ABI/callee
 constants no longer decide construction. Other code-affecting knowledge still lives
 across complete leaves, front doors, schedules and conversions, and
 `ConstructedWeak` entries have not thereby passed delete-leaf reconstruction. The
-exact source-problem seam, artifact-neutral owner lifecycle and explicit target-bound
-domain gate now exist, but complete `P → owner → body` coverage remains part of the
+exact source-problem seam, artifact-neutral owner lifecycle and explicit domain-identity
+membership gate now exist, but target/profile-driven `BindDomain(t)` and complete
+`P → owner → body` coverage remain part of the
 active horizontal task rather than completed GPU support. The current project-wide
 task closes the A/B lines horizontally across the
 RISC-V realization: factor mechanisms and formulas, prove multi-topology
@@ -209,7 +213,10 @@ When modifying emitter/verifier code, make sure the tools are actually relinked 
 
 The plugin protocol is defined in [architecture/插件协议.md](.trellis/spec/architecture/插件协议.md).
 
-A construction owner supplies the five-piece acceptance set and declares its target-bound domain membership:
+Under the stable extension contract, a construction owner supplies the five-piece acceptance set and
+declares membership in the domain bound by target/profile. The current implementation preserves exact
+`P` and `C_d` continuity and exposes the domain-identity membership portion of that contract, but the
+identity is not yet uniquely derived from target/profile:
 
 1. problem applicability plus capability facts/schema;
 2. plugin legality;
@@ -289,7 +296,7 @@ Current tables and run lineage are under experiments/master/, experiments/runs/ 
 - Computation belongs to typed construction-owner bodies.
 - Core/common paths do not branch on RVV, IME, Scalar or vendor names.
 - Metadata, reason traces and artifacts are mirrors, not compute authority.
-- Target/profile binds a selection/deployment domain before proposal/selection; member owners project their capabilities and artifact code chooses neither domain nor owner.
+- The stable contract requires target/profile to bind a selection/deployment domain before proposal/selection; currently the explicit domain-identity membership gate and exact `C_d` continuity are implemented, while target/profile-driven binding remains active work. Artifact code chooses neither domain nor owner.
 - Construction completion is artifact-neutral; `emitc.func` is only an EmitC artifact gate.
 - GPU is a V2 architecture target, not a currently supported domain/owner or performance claim.
 - Measurement rows cannot create candidates or bypass legality.

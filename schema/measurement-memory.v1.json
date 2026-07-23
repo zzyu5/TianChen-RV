@@ -1,7 +1,7 @@
 {
   "$meta": {
     "schema_version": "v1.2.0",
-    "status": "ACTIVE-SCHEMA (data model landed + seeded). NOT YET wired to any lib/ loader: the in-memory VIEW generalization (lookupMeasurement) is 施工-period task T-SEL3-3, gated on selector-core front-door + [SEL-2] falsifier. This file changes NO core code and is consumed by NO lib/ code today.",
+    "status": "ACTIVE-SCHEMA (historical rows retained; row schema unchanged). The current production compiled-residual view is EMPTY: no lib/ loader consumes this file, and legacy selection_valid_input rows lack the current run-lineage, qualification and freshness contract. Production therefore uses analytic prior on every residual miss.",
     "declares": "[SEL-3] measurement-memory layer: offline profiling qualifies a winner inside an analytic legal candidate set; the compiled consumer performs qualified-winner lookup before falling back to the analytic prior. It does not run argmin at compile time. Generalizes schema/tiling-measurements.v1.json (SP schedule axis only) to a single rows[] table keyed by (declared_instance_hash, kernel, variant) + variant_axis, covering all bounded variant axes. EVIDENCE-axis mirror data (core-invariants I4): NEVER chooses route/compute/dtype, NEVER a correctness or cost authority in lib/. Authority order: qualified current measurement > static prior.",
     "provenance": "v1.0.0 landed from schema/tiling-measurements.v1.json (v1.1.0); the live schema is UNCHANGED (this is a copy-transform migration, not a move). All cold/parity/spill numbers transcribed from EXISTING cells (T3 / T8-via-tiling-measurements / T9 caliber). ZERO new timing, ZERO fabricated numbers.",
     "authority": [
@@ -21,9 +21,9 @@
       "regime"
     ],
     "honesty_boundary_L2_only": {
-      "claim": "The ONLY existing rows that are genuine memoized-argmin SELECTION INPUTS are the ab_paired same-compiler A/B L2 rows (variant_axis in {sp4_tiling, loop_order}) migrated from T8-via-tiling-measurements. These carry selection_valid_input=true. EVERYTHING ELSE is coverage/disclosure seed data.",
+      "claim": "Twelve legacy ab_paired L2 rows retain selection_valid_input=true as historical schema data, but none is a current production winner token: they lack current run lineage, qualification digest and freshness. The compiled selection view is empty until a governed publisher upgrades and validates them. EVERYTHING ELSE is coverage/disclosure seed data.",
       "L1_degenerate": "codegen_lmul (mf2 vs m1) is a DEGENERATE single-candidate axis on both boards ({mf2} only legal; m1 = RVV0.7 cross-ISA non-same-board). Memory column == prior column, regret 0. NO memoized novelty. Not seeded as a live selection axis.",
-      "L2_real": "sp4_tiling + loop_order = the real memoized content (q4_K/q2_K/q5_K S6 tiling; q4_K col_outer 2.47x). 12 rows, all selection_valid_input=true, all byte_exact_gate=pass.",
+      "L2_real": "sp4_tiling + loop_order are historical memoized candidates (12 rows with legacy selection_valid_input=true and byte_exact_gate=pass), not current qualified/fresh production inputs.",
       "L3_structural": "paradigm / plan-shape dispatch is STRUCTURAL keying ([SEL-2]), not measured argmin. Memory does NOT claim L3; it lives at the prior/structural layer.",
       "T3_ingest_is_coverage_not_selection": "The deployed_point rows ingested from T3 are single-point vs-opponent speedup ratios: no paired sibling variant, no IQR distribution, byte-exact gate not individually attested. They are ALL selection_valid_input=false, byte_exact_gate=pending. They SEED the library (source-provenanced, upgradeable by the T-SEL3-4 writeback harness) but drive NO argmin today. This is the honest scope, not a bug: 'the cells memory can actually flip are few, and they are all L2.'",
       "count": {

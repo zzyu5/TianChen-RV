@@ -113,7 +113,8 @@ def TargetOp : WEFTExec_Op<"exec.target", [Symbol]> {
 
   let arguments = (ins SymbolNameAttr:$sym_name,
                    OptionalAttr<ArrayAttr>:$capability_providers,
-                   OptionalAttr<WEFTExec_CapabilityRelationsAttr>:$relations);
+                   OptionalAttr<WEFTExec_CapabilityRelationsAttr>:$relations,
+                   OptionalAttr<StrAttr>:$construction_domain);
   let assemblyFormat = "$sym_name attr-dict";
   let hasVerifier = 1;
 }
@@ -159,6 +160,208 @@ def Int8MACProblemOp
     I64Attr:$m,
     I64Attr:$n,
     I64Attr:$k
+  );
+  let assemblyFormat = "$sym_name attr-dict";
+  let hasVerifier = 1;
+}
+
+def Int8SlidingMACProblemOp
+    : WEFTExec_Op<"exec.int8_sliding_mac_problem",
+                  [Symbol, WEFTExec_CanonicalProblem]> {
+  let summary = "family-neutral sliding int8 multiply-accumulate problem";
+  let description = [{
+    Defines the bounded sliding-window sibling of Int8MACProblemOp. Operation
+    identity fixes the windowed MAC semantics; `slide` is source access
+    geometry, not an IME capability or a selected instruction. An owner may
+    accept or reject this problem from its own capability projection.
+  }];
+
+  let arguments = (ins
+    SymbolNameAttr:$sym_name,
+    WEFTExec_IntegerSignednessAttr:$lhs_signedness,
+    WEFTExec_IntegerSignednessAttr:$rhs_signedness,
+    I64Attr:$m,
+    I64Attr:$n,
+    I64Attr:$k,
+    I64Attr:$slide
+  );
+  let assemblyFormat = "$sym_name attr-dict";
+  let hasVerifier = 1;
+}
+
+def I32VectorBinaryProblemOp
+    : WEFTExec_Op<"exec.i32_vector_binary_problem",
+                  [Symbol, WEFTExec_CanonicalProblem]> {
+  let summary = "family-neutral bounded i32 vector binary problem";
+  let arguments = (ins SymbolNameAttr:$sym_name, StrAttr:$kind,
+                       I64Attr:$source_vector_lanes);
+  let assemblyFormat = "$sym_name attr-dict";
+  let hasVerifier = 1;
+}
+
+def I32VectorCompareSelectProblemOp
+    : WEFTExec_Op<"exec.i32_vector_compare_select_problem",
+                  [Symbol, WEFTExec_CanonicalProblem]> {
+  let summary = "family-neutral bounded i32 compare-select problem";
+  let arguments = (ins SymbolNameAttr:$sym_name, StrAttr:$predicate,
+                       StrAttr:$rhs_form, I64Attr:$source_vector_lanes);
+  let assemblyFormat = "$sym_name attr-dict";
+  let hasVerifier = 1;
+}
+
+def I8WideningDotReduceProblemOp
+    : WEFTExec_Op<"exec.i8_widening_dot_reduce_problem",
+                  [Symbol, WEFTExec_CanonicalProblem]> {
+  let summary = "family-neutral bounded signed-i8 widening dot reduction";
+  let arguments = (ins SymbolNameAttr:$sym_name, I64Attr:$block_length,
+                       BoolAttr:$dequantize_to_f32);
+  let assemblyFormat = "$sym_name attr-dict";
+  let hasVerifier = 1;
+}
+
+def PackedI4Q8DotProblemOp
+    : WEFTExec_Op<"exec.packed_i4_q8_dot_problem",
+                  [Symbol, WEFTExec_CanonicalProblem]> {
+  let summary = "family-neutral offset-binary packed-i4 by q8 dot problem";
+  let arguments = (ins SymbolNameAttr:$sym_name, I64Attr:$block_length);
+  let assemblyFormat = "$sym_name attr-dict";
+  let hasVerifier = 1;
+}
+
+def CodebookI4Q8DotProblemOp
+    : WEFTExec_Op<"exec.codebook_i4_q8_dot_problem",
+                  [Symbol, WEFTExec_CanonicalProblem]> {
+  let summary = "family-neutral nonlinear codebook-i4 by q8 dot problem";
+  let arguments = (ins SymbolNameAttr:$sym_name, I64Attr:$block_length,
+                       DenseI8ArrayAttr:$codebook, StrAttr:$table_symbol);
+  let assemblyFormat = "$sym_name attr-dict";
+  let hasVerifier = 1;
+}
+
+def QuantizedBlockDotProblemOp
+    : WEFTExec_Op<"exec.quantized_block_dot_problem",
+                  [Symbol, WEFTExec_CanonicalProblem]> {
+  let summary = "family-neutral quantized block/super-block dot problem";
+  let description = [{
+    Carries source representation identity and the outer block geometry shared
+    by the current ggml-style block-dot domain. `weight_encoding` and
+    `activation_encoding` name source encodings, while `topology` distinguishes
+    affine/flat, scale-min, grid/codebook and ternary representation structure.
+    These are problem facts only: no candidate, LMUL, loop order, backend or
+    artifact route may be stored here.
+  }];
+  let arguments = (ins SymbolNameAttr:$sym_name,
+                       StrAttr:$weight_encoding,
+                       StrAttr:$activation_encoding,
+                       StrAttr:$topology,
+                       I64Attr:$qk,
+                       I64Attr:$weight_block_stride,
+                       I64Attr:$activation_block_stride);
+  let assemblyFormat = "$sym_name attr-dict";
+  let hasVerifier = 1;
+}
+
+def BlockQ40ContractionProblemOp
+    : WEFTExec_Op<"exec.block_q4_0_contraction_problem",
+                  [Symbol, WEFTExec_CanonicalProblem]> {
+  let summary = "family-neutral q4_0 block-quantized contraction problem";
+  let description = [{
+    Defines q4_0 block representation and contraction geometry before owner
+    binding. Operation identity fixes offset-binary nibble decode and per-block
+    scale-fold semantics; the required fields expose the external block layout
+    that owner formulas must consume. No target schedule or artifact spelling
+    is carried here.
+  }];
+
+  let arguments = (ins
+    SymbolNameAttr:$sym_name,
+    WEFTExec_IntegerSignednessAttr:$activation_signedness,
+    I64Attr:$m,
+    I64Attr:$n,
+    I64Attr:$k,
+    I64Attr:$qk,
+    I64Attr:$weight_block_stride,
+    I64Attr:$weight_scale_byte_offset,
+    I64Attr:$weight_quant_byte_offset
+  );
+  let assemblyFormat = "$sym_name attr-dict";
+  let hasVerifier = 1;
+}
+
+def BlockQ80ContractionProblemOp
+    : WEFTExec_Op<"exec.block_q8_0_contraction_problem",
+                  [Symbol, WEFTExec_CanonicalProblem]> {
+  let summary = "family-neutral q8_0 block-quantized contraction problem";
+  let description = [{
+    Defines direct signed-int8 q8_0 block decode, per-block scale-fold and
+    contraction geometry before owner binding. All block-layout fields are
+    required source facts; owner capability and schedule remain separate.
+  }];
+
+  let arguments = (ins
+    SymbolNameAttr:$sym_name,
+    WEFTExec_IntegerSignednessAttr:$activation_signedness,
+    I64Attr:$m,
+    I64Attr:$n,
+    I64Attr:$k,
+    I64Attr:$qk,
+    I64Attr:$weight_block_stride,
+    I64Attr:$weight_scale_byte_offset,
+    I64Attr:$weight_quant_byte_offset
+  );
+  let assemblyFormat = "$sym_name attr-dict";
+  let hasVerifier = 1;
+}
+
+def BlockQ4KContractionProblemOp
+    : WEFTExec_Op<"exec.block_q4_K_contraction_problem",
+                  [Symbol, WEFTExec_CanonicalProblem]> {
+  let summary = "family-neutral q4_K super-block contraction problem";
+  let description = [{
+    Defines q4_K raw-nibble representation and its two-level scale/min fold
+    before owner binding. Required fields make the super-block and packed
+    6-bit scale-table geometry explicit; an owner supplies mechanisms,
+    resources and schedule without recovering these facts from a format name.
+  }];
+
+  let arguments = (ins
+    SymbolNameAttr:$sym_name,
+    WEFTExec_IntegerSignednessAttr:$activation_signedness,
+    I64Attr:$m,
+    I64Attr:$n,
+    I64Attr:$k,
+    I64Attr:$qk,
+    I64Attr:$weight_block_stride,
+    I64Attr:$weight_scale_byte_offset,
+    I64Attr:$weight_quant_byte_offset,
+    I64Attr:$subblock_length,
+    I64Attr:$num_subblocks,
+    I64Attr:$scale_bits,
+    I64Attr:$scale_table_bytes
+  );
+  let assemblyFormat = "$sym_name attr-dict";
+  let hasVerifier = 1;
+}
+
+def TernaryQ2Q8BlockDotProblemOp
+    : WEFTExec_Op<"exec.ternary_q2_q8_block_dot_problem",
+                  [Symbol, WEFTExec_CanonicalProblem]> {
+  let summary = "family-neutral tq2_0 by q8_K block-dot problem";
+  let description = [{
+    Defines the bounded ternary-weight / q8_K-activation block-dot semantics
+    and external layout before owner binding. The fields are source
+    representation facts; ternary plane loops, decode mechanisms, scheduling
+    and artifact spelling belong to the selected construction owner.
+  }];
+
+  let arguments = (ins
+    SymbolNameAttr:$sym_name,
+    I64Attr:$qk,
+    I64Attr:$weight_block_stride,
+    I64Attr:$activation_block_stride,
+    I64Attr:$weight_d_byte_offset,
+    I64Attr:$activation_d_byte_offset,
+    I64Attr:$activation_quant_byte_offset
   );
   let assemblyFormat = "$sym_name attr-dict";
   let hasVerifier = 1;

@@ -177,6 +177,11 @@ class ToyBackendEmissionDriver final
     : public weftemitc::TypedBackendEmissionDriver {
 public:
   llvm::StringRef getBackendName() const override { return "toy"; }
+  llvm::StringRef getOwnerPluginName() const override { return "toy-plugin"; }
+
+  bool supportsExactRoot(mlir::Operation *operation) const override {
+    return llvm::isa_and_present<weft::toy::ComputeSkeletonOp>(operation);
+  }
 
   void populateTypeConversions(
       mlir::TypeConverter & /*typeConverter*/) const override {

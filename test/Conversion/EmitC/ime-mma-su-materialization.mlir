@@ -1,16 +1,16 @@
 // RUN: weft-opt %s --weft-materialize-plugin-variants --weft-select-variants --weft-materialize-selected-lowering-boundaries --weft-materialize-emitc-lowerable-routes | FileCheck %s --check-prefix=EMITC --implicit-check-not="weft_rvv" --implicit-check-not="weft_toy" --implicit-check-not="weft_template" --implicit-check-not="weft_tensorext_lite" --implicit-check-not="weft_offload" --implicit-check-not="weft_ime_vmadot_mma_4x4x8" --implicit-check-not="weft_ime_vmadotu_mma_4x4x8" --implicit-check-not="ime_vmadot_mma_slice" --implicit-check-not="ime_vmadotu_mma_slice"
 
 // N2 RAPID-ADD zero-core-branch proof: a kernel carrying the spacemit.ime
-// capability FACT whose `ime_signedness = "signed_unsigned"` property requests
+// target capability plus an exact signed-by-unsigned canonical problem request
 // the MIXED-SIGN form. The SAME generic proposal/selection/boundary/EmitC
 // pipeline (no family-name branch, no second capability id) drives the IME
 // plugin to:
-//   - derive the signed_unsigned-signedness FACT from the same xsmtvdotii envelope,
+//   - project signed_unsigned signedness from the exact canonical problem,
 //   - propose the ime_vmadotsu_mma_slice variant,
 //   - materialize a real weft_ime.mma_su (4x4x8, ime_op="vmadotsu"),
 //   - lower it to the vmadotsu asm kernel through the common EmitC route.
-// The signedness is a capability-derived fact flowed as DATA (the ime.signedness
-// variant attribute, read at boundary time), NOT a string family-match and NOT
+// Signedness comes from exact P, not target capability or a variant mirror; it is
+// NOT a string family-match and NOT
 // an `if(name=="vmadotsu")` in the core. The --implicit-check-not guards assert
 // neither the signed vmadot nor the unsigned vmadotu helper/variant leaks into
 // the mixed-sign path, and no OTHER family dialect leaks into core.
@@ -23,8 +23,7 @@ module {
       status = "available",
       march = "rv64gcv_zfh_zvfh_zba_zicbop_xsmtvdotii",
       vlen_bits = "256",
-      available_harts = "0-3",
-      ime_signedness = "signed_unsigned"
+      available_harts = "0-3"
     }
   }
 }

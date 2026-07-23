@@ -1,17 +1,17 @@
 // RUN: weft-opt %s --weft-materialize-plugin-variants --weft-select-variants --weft-materialize-selected-lowering-boundaries --weft-materialize-emitc-lowerable-routes | FileCheck %s --check-prefix=EMITC --implicit-check-not="weft_rvv" --implicit-check-not="weft_toy" --implicit-check-not="weft_template" --implicit-check-not="weft_tensorext_lite" --implicit-check-not="weft_offload" --implicit-check-not="weft_ime_vmadot_mma_4x4x8" --implicit-check-not="weft_ime_vmadotu_mma_4x4x8" --implicit-check-not="weft_ime_vmadotsu_mma_4x4x8" --implicit-check-not="ime_vmadot_mma_slice" --implicit-check-not="ime_vmadotu_mma_slice" --implicit-check-not="ime_vmadotsu_mma_slice"
 
 // N2 RAPID-ADD zero-core-branch proof: a kernel carrying the spacemit.ime
-// capability FACT whose `ime_signedness = "unsigned_signed"` property requests
+// target capability plus an exact unsigned-by-signed canonical problem request
 // the REVERSED-ORDER MIXED-SIGN form (unsigned A * signed B) — the signedness
 // sibling that COMPLETES the family. The SAME generic
 // proposal/selection/boundary/EmitC pipeline (no family-name branch, no second
 // capability id) drives the IME plugin to:
-//   - derive the unsigned_signed-signedness FACT from the same xsmtvdotii envelope,
+//   - project unsigned_signed signedness from the exact canonical problem,
 //   - propose the ime_vmadotus_mma_slice variant,
 //   - materialize a real weft_ime.mma_us (4x4x8, ime_op="vmadotus"),
 //   - lower it to the vmadotus asm kernel through the common EmitC route.
-// The signedness is a capability-derived fact flowed as DATA (the ime.signedness
-// variant attribute, read at boundary time), NOT a string family-match and NOT
+// Signedness comes from exact P, not target capability or a variant mirror; it is
+// NOT a string family-match and NOT
 // an `if(name=="vmadotus")` in the core. The --implicit-check-not guards assert
 // none of the OTHER three signedness helpers/variants (signed vmadot, unsigned
 // vmadotu, mixed-sign vmadotsu) leaks into the us path, and no OTHER family
@@ -25,8 +25,7 @@ module {
       status = "available",
       march = "rv64gcv_zfh_zvfh_zba_zicbop_xsmtvdotii",
       vlen_bits = "256",
-      available_harts = "0-3",
-      ime_signedness = "unsigned_signed"
+      available_harts = "0-3"
     }
   }
 }

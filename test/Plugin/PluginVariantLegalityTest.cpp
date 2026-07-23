@@ -242,7 +242,7 @@ module {
                                  "register non-origin"))
     return result;
 
-  VariantLegalityRequest request(variant, kernel, capabilities);
+  VariantLegalityRequest request(variant, kernel, nullptr, capabilities);
   if (int result = expectSuccess(registry.verifyVariantLegality(request),
                                  "verify single variant legality"))
     return result;
@@ -408,7 +408,7 @@ module {
   {
     ExtensionPluginRegistry registry;
     VariantLegalityRequest request(findDirectVariant(kernel, "unknown_path"),
-                                   kernel, capabilities);
+                                   kernel, nullptr, capabilities);
     if (int result =
             expectErrorContains(registry.verifyVariantLegality(request),
                                 {"unknown origin plugin 'missing-plugin'",
@@ -423,7 +423,7 @@ module {
                                    "register disabled legality plugin"))
       return result;
     VariantLegalityRequest request(findDirectVariant(kernel, "disabled_path"),
-                                   kernel, capabilities);
+                                   kernel, nullptr, capabilities);
     if (int result =
             expectErrorContains(registry.verifyVariantLegality(request),
                                 {"origin plugin 'disabled' is disabled",
@@ -442,7 +442,7 @@ module {
                                    "register rejecting legality plugin"))
       return result;
     VariantLegalityRequest request(findDirectVariant(kernel, "failing_path"),
-                                   kernel, capabilities);
+                                   kernel, nullptr, capabilities);
     if (int result =
             expectErrorContains(registry.verifyVariantLegality(request),
                                 {"origin plugin 'rejecting' rejected variant",
@@ -456,7 +456,7 @@ module {
 
   {
     ExtensionPluginRegistry registry;
-    VariantLegalityRequest request(VariantOp(), kernel, capabilities);
+    VariantLegalityRequest request(VariantOp(), kernel, nullptr, capabilities);
     if (int result =
             expectErrorContains(registry.verifyVariantLegality(request),
                                 {"requires a materialized weft.exec.variant",
@@ -468,7 +468,7 @@ module {
     ExtensionPluginRegistry registry;
     VariantLegalityRequest request(
         findDirectVariant(kernel, "well_formed_path"), KernelOp(),
-        emptyCapabilities);
+        nullptr, emptyCapabilities);
     if (int result =
             expectErrorContains(registry.verifyVariantLegality(request),
                                 {"requires an enclosing weft.exec.kernel",

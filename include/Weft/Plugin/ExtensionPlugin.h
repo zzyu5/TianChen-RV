@@ -117,10 +117,12 @@ class VariantLegalityRequest {
 public:
   VariantLegalityRequest(weft::exec::VariantOp variant,
                          weft::exec::KernelOp kernel,
+                         mlir::Operation *problem,
                          const support::TargetCapabilitySet &capabilities);
 
   weft::exec::VariantOp getVariant() const { return variant; }
   weft::exec::KernelOp getKernel() const { return kernel; }
+  mlir::Operation *getProblem() const { return problem; }
   const support::TargetCapabilitySet &getCapabilities() const {
     return capabilities;
   }
@@ -128,6 +130,7 @@ public:
 private:
   weft::exec::VariantOp variant;
   weft::exec::KernelOp kernel;
+  mlir::Operation *problem = nullptr;
   const support::TargetCapabilitySet &capabilities;
 };
 
@@ -178,6 +181,15 @@ private:
 /// family name.  Missing, dangling and non-problem symbols fail closed.
 llvm::Expected<mlir::Operation *>
 resolveCanonicalProblem(weft::exec::KernelOp kernel);
+
+/// Proves that an externally supplied capability view is the same normalized
+/// `C_d` obtained from the kernel's bound target/profile. Public orchestration
+/// overloads use this before proposal, legality, selection or boundary work so
+/// one body cannot be constructed under one capability environment and exposed
+/// under another.
+llvm::Error validateBoundTargetCapabilities(
+    weft::exec::KernelOp kernel,
+    const support::TargetCapabilitySet &capabilities);
 
 enum class FamilyConstructionStatus {
   Unknown,
@@ -233,10 +245,12 @@ class VariantCostRequest {
 public:
   VariantCostRequest(weft::exec::VariantOp variant,
                      weft::exec::KernelOp kernel,
+                     mlir::Operation *problem,
                      const support::TargetCapabilitySet &capabilities);
 
   weft::exec::VariantOp getVariant() const { return variant; }
   weft::exec::KernelOp getKernel() const { return kernel; }
+  mlir::Operation *getProblem() const { return problem; }
   const support::TargetCapabilitySet &getCapabilities() const {
     return capabilities;
   }
@@ -244,6 +258,7 @@ public:
 private:
   weft::exec::VariantOp variant;
   weft::exec::KernelOp kernel;
+  mlir::Operation *problem = nullptr;
   const support::TargetCapabilitySet &capabilities;
 };
 
@@ -294,23 +309,35 @@ class VariantLoweringBoundaryRequest {
 public:
   VariantLoweringBoundaryRequest(
       weft::exec::VariantOp variant, weft::exec::KernelOp kernel,
+      mlir::Operation *problem,
       const support::TargetCapabilitySet &capabilities,
-      VariantEmissionRole role, mlir::OpBuilder &builder);
+      VariantEmissionRole role, mlir::OpBuilder &builder,
+      mlir::Operation *constructedOperation);
 
   weft::exec::VariantOp getVariant() const { return variant; }
   weft::exec::KernelOp getKernel() const { return kernel; }
+  mlir::Operation *getProblem() const { return problem; }
   const support::TargetCapabilitySet &getCapabilities() const {
     return capabilities;
   }
   VariantEmissionRole getRole() const { return role; }
   mlir::OpBuilder &getBuilder() const { return builder; }
+  /// Exact operation returned by the immediately preceding owner construction
+  /// invocation. It is null only while that owner is constructing the root;
+  /// the later boundary-exposure phase must consume this pointer rather than
+  /// rediscovering an equivalent operation by scanning the kernel.
+  mlir::Operation *getConstructedOperation() const {
+    return constructedOperation;
+  }
 
 private:
   weft::exec::VariantOp variant;
   weft::exec::KernelOp kernel;
+  mlir::Operation *problem = nullptr;
   const support::TargetCapabilitySet &capabilities;
   VariantEmissionRole role = VariantEmissionRole::DirectVariant;
   mlir::OpBuilder &builder;
+  mlir::Operation *constructedOperation = nullptr;
 };
 
 class VariantLoweringBoundaryValidationRequest {

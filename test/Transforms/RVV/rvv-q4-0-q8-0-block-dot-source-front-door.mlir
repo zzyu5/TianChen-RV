@@ -1,6 +1,6 @@
 // Track B auto-lowering, the NIBBLE-UNPACK rung -- one step ABOVE the q8_0-style
 // dequant rung. The COMPILER auto-CONSTRUCTS the complete weft.exec.kernel +
-// variant + dispatch/fallback scaffold from a marked ggml `ggml_vec_dot_q4_0_q8_0`
+// exact canonical problem + one RVV variant from a marked ggml `ggml_vec_dot_q4_0_q8_0`
 // OPERATOR-IDENTITY source (the eight vec_dot ABI roles n/s/bs/vx/bx/vy/by/nrc),
 // instead of a per-kernel hand-authored block-dot emitter input.
 //
@@ -30,7 +30,7 @@
 
 // The auto-constructed typed flat block-dot loop chain (mbf1/m1/elided, no shape
 // knobs -- shape-adaptivity is a later M-FLAT step).
-// RUN: weft-opt %s --weft-rvv-materialize-q4-0-q8-0-block-dot-source-front-door | FileCheck %s --check-prefix=BODY
+// RUN: weft-opt %s --weft-rvv-materialize-q4-0-q8-0-block-dot-source-front-door | FileCheck %s --check-prefix=BODY --implicit-check-not="scalar_fallback" --implicit-check-not="weft.exec.dispatch"
 //
 // The constructed loop chain lowers to the q4_0 nibble core (op structure), a
 // light emit-presence check (byte-exactness is locked by the full-body /
@@ -52,8 +52,11 @@ module attributes {weft_rvv.source_front_door = "ggml_q4_0_q8_0_block_dot_source
 // ===================== AUTO-CONSTRUCTED TYPED LOOP CHAIN ====================
 // The marked operator-identity source becomes a weft.exec.kernel with the
 // auto-built typed flat block-dot loop chain + the full ABI value set + the
-// dispatch/fallback scaffold. NO per-kernel emitter authored this.
+// exact canonical problem. NO per-kernel emitter authored this.
 // BODY: weft.exec.kernel @ggml_vec_dot_q4_0_q8_0_kernel
+// BODY: weft.exec.quantized_block_dot_problem @canonical_problem
+// BODY-SAME: qk = 32
+// BODY-SAME: weight_encoding = "ggml_q4_0_q8_0_block_dot"
 // BODY: weft.exec.variant @rvv_q4_0_q8_0_block_dot
 // The ggml vec_dot ABI value set (n, s, bs, vx, bx, vy, by, nrc).
 // BODY: weft_rvv.runtime_abi_value {c_name = "vx", c_type = "const uint8_t *", ownership = "target-export-abi-owned", purpose = "q4-weight", role = "lhs-input-buffer"}
@@ -84,11 +87,6 @@ module attributes {weft_rvv.source_front_door = "ggml_q4_0_q8_0_block_dot_source
 // BODY: weft_rvv.block_computed_scale_dequant
 // BODY: weft_rvv.cross_block_f32_accumulate
 // BODY: weft_rvv.typed_flat_block_dot_loop_yield
-// The conservative fallback is authored by the fallback-owning plugin.
-// BODY: weft.exec.variant @rvv_q4_0_q8_0_block_dot_scalar_fallback
-// BODY-SAME: fallback_role = "conservative"
-// BODY: weft.exec.case @rvv_q4_0_q8_0_block_dot
-// BODY: weft.exec.fallback @rvv_q4_0_q8_0_block_dot_scalar_fallback
 
 // ===================== LOWERED q4_0 NIBBLE CORE (op structure) ==============
 // The typed loop lowers to the ONE auto-constructed emitc kernel whose integer

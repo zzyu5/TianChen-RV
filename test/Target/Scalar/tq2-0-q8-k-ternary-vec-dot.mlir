@@ -3,10 +3,11 @@
 // RUN: weft-translate --weft-scalar-emitc-to-cpp %s | diff %S/tq2-0-q8-k-ternary-vec-dot.golden.c -
 
 // X-SCALAR family #3: a REAL ternary 2-bit vec_dot scalar kernel (replaces the
-// tracer-bullet trivial compute op). A portable-scalar
-// weft_scalar.tq2_0_q8_k_vec_dot source problem is bound to an explicit family
-// variant; Scalar formula construction consumes it and creates a distinct
-// packed_ternary_dot_body. The scalar backend emission driver lowers only that
+// tracer-bullet trivial compute op). A family-neutral
+// weft.exec.ternary_q2_q8_block_dot_problem is bound to an explicit family
+// variant; Scalar formula construction consumes that exact problem and creates
+// a distinct packed_ternary_dot_body in the variant canonical body slot. The
+// scalar backend emission driver lowers only that
 // final body to a standalone EmitC module that the
 // --weft-scalar-emitc-to-cpp route renders as PURE SCALAR C/C++: the ggml
 // `ggml_vec_dot_tq2_0_q8_K` contraction as nested C loops. NO __riscv_
@@ -16,8 +17,8 @@
 // `sumf += (float) sumi * (y.d * fp16(x.d))`.
 //
 // The construction is typed-input-driven, NOT vacuous: the family formula
-// consumes source_kernel + selected_variant and the canonical block-format
-// facts (qk=256, strides 66/292, offsets 64/0/4), then constructs the typed
+// consumes the exact problem's canonical block-format facts (qk=256, strides
+// 66/292, offsets 64/0/4), then constructs the typed
 // mechanism body containing the loop/decode geometry. The emitter cannot match
 // the source op and only projects the final body's defined semantics.
 //
@@ -33,22 +34,20 @@
 // HELP-SAME: MLIR EmitC C/C++ emitter
 
 module {
-  weft.exec.kernel @tq2_0_kernel {
-    weft.exec.capability @scalar_fallback {id = "scalar.fallback", kind = "fallback", status = "available"}
-    weft.exec.variant @scalar_fallback_first_slice attributes {
-      origin = "scalar-plugin",
-      requires = [@scalar_fallback]
-    } {
-    }
-    weft_scalar.tq2_0_q8_k_vec_dot {
-      source_kernel = "tq2_0_kernel",
-      selected_variant = @scalar_fallback_first_slice,
+  weft.exec.kernel @tq2_0_kernel attributes {construction_domain = "riscv-execution", problem = @canonical_problem} {
+    weft.exec.ternary_q2_q8_block_dot_problem @canonical_problem {
       qk = 256 : i64,
       weight_block_stride = 66 : i64,
       activation_block_stride = 292 : i64,
       weight_d_byte_offset = 64 : i64,
       activation_d_byte_offset = 0 : i64,
       activation_quant_byte_offset = 4 : i64
+    }
+    weft.exec.capability @scalar_fallback {id = "scalar.fallback", kind = "fallback", status = "available"}
+    weft.exec.variant @scalar_fallback_first_slice attributes {
+      origin = "scalar-plugin",
+      requires = [@scalar_fallback]
+    } {
     }
   }
 }

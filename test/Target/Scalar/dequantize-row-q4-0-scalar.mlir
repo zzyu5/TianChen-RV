@@ -4,9 +4,10 @@
 // RUN: sed 's/id = "scalar.fallback"/id = "scalar.other"/' %s | not weft-translate --weft-scalar-emitc-to-cpp 2>&1 | FileCheck %s --check-prefix=MISSING-CAPABILITY
 
 // X-SCALAR family #4: a REAL 4-bit nibble dequantize scalar fallback kernel. A
-// portable-scalar weft_scalar.dequantize_row_q4_0 source problem is bound to an
-// explicit family variant; Scalar formula construction consumes it and creates
-// a distinct packed_affine_dequant_body. The scalar backend emission driver
+// family-neutral weft.exec.dequantize_row_q4_0_problem is bound to an explicit
+// family variant; Scalar formula construction consumes that exact problem and
+// creates a distinct packed_affine_dequant_body in the variant canonical body
+// slot. The scalar backend emission driver
 // lowers only that final body to a standalone EmitC module that the
 // --weft-scalar-emitc-to-cpp route renders as PURE SCALAR C/C++: the ggml
 // `dequantize_row_q4_0` block expansion as nested C loops. NO __riscv_
@@ -15,8 +16,8 @@
 // scatters `x0*d` / `x1*d` into the two halves of the float output row.
 //
 // The construction is typed-input-driven, NOT vacuous: the family formula
-// consumes source_kernel + selected_variant and the canonical q4_0 block facts
-// (qk=32, stride 18, offsets 0/2), then constructs the typed mechanism body,
+// consumes the exact problem's canonical q4_0 block facts (qk=32, stride 18,
+// offsets 0/2), then constructs the typed mechanism body,
 // including qk/2=16 and the nibble decode constants. The emitter cannot match
 // the source op and only projects the final body's defined semantics.
 //
@@ -33,20 +34,18 @@
 // MISSING-CAPABILITY: materialized scalar fallback variant requires an available capability id 'scalar.fallback'
 
 module {
-  weft.exec.kernel @q4_0_dequant_kernel {
+  weft.exec.kernel @q4_0_dequant_kernel attributes {construction_domain = "riscv-execution", problem = @canonical_problem} {
+    weft.exec.dequantize_row_q4_0_problem @canonical_problem {
+      qk = 32 : i64,
+      weight_block_stride = 18 : i64,
+      weight_d_byte_offset = 0 : i64,
+      weight_quant_byte_offset = 2 : i64
+    }
     weft.exec.capability @scalar_fallback {id = "scalar.fallback", kind = "fallback", status = "available"}
     weft.exec.variant @scalar_fallback_first_slice attributes {
       origin = "scalar-plugin",
       requires = [@scalar_fallback]
     } {
-    }
-    weft_scalar.dequantize_row_q4_0 {
-      source_kernel = "q4_0_dequant_kernel",
-      selected_variant = @scalar_fallback_first_slice,
-      qk = 32 : i64,
-      weight_block_stride = 18 : i64,
-      weight_d_byte_offset = 0 : i64,
-      weight_quant_byte_offset = 2 : i64
     }
   }
 }

@@ -91,6 +91,17 @@ KernelOp findKernel(mlir::ModuleOp module, llvm::StringRef symbolName) {
   return result;
 }
 
+mlir::Operation *resolveExactProblem(KernelOp kernel) {
+  llvm::Expected<mlir::Operation *> problem =
+      weft::plugin::resolveCanonicalProblem(kernel);
+  if (problem)
+    return *problem;
+  llvm::errs() << "FAIL: cannot resolve exact canonical problem for kernel @"
+               << (kernel ? kernel.getSymName() : "<missing>") << ": "
+               << llvm::toString(problem.takeError()) << "\n";
+  return nullptr;
+}
+
 VariantOp findVariant(KernelOp kernel, llvm::StringRef symbolName) {
   VariantOp result;
   if (!kernel)
@@ -189,7 +200,8 @@ int runRegistrationAndCapabilityMetadataTest() {
 int runProposalGatingAndDeclineTest(mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
-  weft.exec.kernel @available_template attributes {construction_domain = "riscv-execution"} {
+  weft.exec.kernel @available_template attributes {construction_domain = "riscv-execution", problem = @canonical_problem} {
+    weft.exec.int8_mac_problem @canonical_problem {lhs_signedness = #weft<integer_signedness signed>, rhs_signedness = #weft<integer_signedness signed>, m = 4 : i64, n = 4 : i64, k = 8 : i64}
     weft.exec.capability @template_extension {
       id = "template.extension",
       kind = "future-extension-template",
@@ -199,10 +211,12 @@ module {
     }
   }
 
-  weft.exec.kernel @missing_template attributes {construction_domain = "riscv-execution"} {
+  weft.exec.kernel @missing_template attributes {construction_domain = "riscv-execution", problem = @canonical_problem} {
+    weft.exec.int8_mac_problem @canonical_problem {lhs_signedness = #weft<integer_signedness signed>, rhs_signedness = #weft<integer_signedness signed>, m = 4 : i64, n = 4 : i64, k = 8 : i64}
   }
 
-  weft.exec.kernel @unavailable_template attributes {construction_domain = "riscv-execution"} {
+  weft.exec.kernel @unavailable_template attributes {construction_domain = "riscv-execution", problem = @canonical_problem} {
+    weft.exec.int8_mac_problem @canonical_problem {lhs_signedness = #weft<integer_signedness signed>, rhs_signedness = #weft<integer_signedness signed>, m = 4 : i64, n = 4 : i64, k = 8 : i64}
     weft.exec.capability @template_extension {
       id = "template.extension",
       kind = "future-extension-template",
@@ -212,7 +226,8 @@ module {
     }
   }
 
-  weft.exec.kernel @malformed_template attributes {construction_domain = "riscv-execution"} {
+  weft.exec.kernel @malformed_template attributes {construction_domain = "riscv-execution", problem = @canonical_problem} {
+    weft.exec.int8_mac_problem @canonical_problem {lhs_signedness = #weft<integer_signedness signed>, rhs_signedness = #weft<integer_signedness signed>, m = 4 : i64, n = 4 : i64, k = 8 : i64}
     weft.exec.capability @template_extension {
       id = "template.extension",
       kind = "future-extension-template",
@@ -245,7 +260,11 @@ module {
 
   TargetCapabilitySet availableCapabilities =
       TargetCapabilitySet::buildFromKernel(available);
-  VariantProposalRequest availableRequest(available.getOperation(), available,
+  mlir::Operation *availableProblem = resolveExactProblem(available);
+  if (int result = expect(availableProblem,
+                          "available Template kernel binds exact problem"))
+    return result;
+  VariantProposalRequest availableRequest(availableProblem, available,
                                           availableCapabilities);
   llvm::SmallVector<VariantProposal, 1> proposals;
   llvm::SmallVector<VariantProposalDecline, 1> declines;
@@ -302,7 +321,10 @@ module {
 
   auto expectNoProposal = [&](KernelOp kernel, llvm::StringRef context) -> int {
     TargetCapabilitySet capabilities = TargetCapabilitySet::buildFromKernel(kernel);
-    VariantProposalRequest request(kernel.getOperation(), kernel, capabilities);
+    mlir::Operation *problem = resolveExactProblem(kernel);
+    if (!problem)
+      return 1;
+    VariantProposalRequest request(problem, kernel, capabilities);
     proposals.clear();
     declines.clear();
     if (int result = expectSuccess(
@@ -322,7 +344,11 @@ module {
 
   TargetCapabilitySet malformedCapabilities =
       TargetCapabilitySet::buildFromKernel(malformed);
-  VariantProposalRequest malformedRequest(malformed.getOperation(), malformed,
+  mlir::Operation *malformedProblem = resolveExactProblem(malformed);
+  if (int result = expect(malformedProblem,
+                          "malformed Template kernel binds exact problem"))
+    return result;
+  VariantProposalRequest malformedRequest(malformedProblem, malformed,
                                           malformedCapabilities);
   proposals.clear();
   declines.clear();
@@ -341,7 +367,8 @@ module {
 int runPipelineHookTest(mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
-  weft.exec.kernel @template_extension_kernel attributes {construction_domain = "riscv-execution"} {
+  weft.exec.kernel @template_extension_kernel attributes {construction_domain = "riscv-execution", problem = @canonical_problem} {
+    weft.exec.int8_mac_problem @canonical_problem {lhs_signedness = #weft<integer_signedness signed>, rhs_signedness = #weft<integer_signedness signed>, m = 4 : i64, n = 4 : i64, k = 8 : i64}
     weft.exec.capability @template_extension {
       id = "template.extension",
       kind = "future-extension-template",
@@ -368,7 +395,11 @@ module {
     return result;
 
   TargetCapabilitySet capabilities = TargetCapabilitySet::buildFromKernel(kernel);
-  VariantProposalRequest request(kernel.getOperation(), kernel, capabilities);
+  mlir::Operation *problem = resolveExactProblem(kernel);
+  if (int result =
+          expect(problem, "Template pipeline kernel binds exact problem"))
+    return result;
+  VariantProposalRequest request(problem, kernel, capabilities);
   mlir::OpBuilder builder(&context);
   llvm::SmallVector<VariantOp, 1> materializedVariants;
   if (int result = expectSuccess(
@@ -428,7 +459,9 @@ module {
   VariantCostEstimate estimate;
   if (int result = expectSuccess(
           registry.estimateVariantCost(
-              VariantCostRequest(templateVariant, kernel, capabilities), estimate),
+              VariantCostRequest(templateVariant, kernel, problem,
+                                 capabilities),
+              estimate),
           "Template cost estimate routes through plugin"))
     return result;
   if (int result =

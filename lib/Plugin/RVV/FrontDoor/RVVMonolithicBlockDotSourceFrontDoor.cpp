@@ -39,7 +39,6 @@
 #include "Weft/Support/CapabilityModel.h"
 #include "Weft/Support/DeclaredInstanceHash.h"
 #include "Weft/Support/RuntimeABI.h"
-#include "Weft/Transforms/VariantMaterialization.h"
 
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
@@ -80,11 +79,8 @@ constexpr llvm::StringLiteral kSourceKernelAttrName("weft_rvv.source_kernel");
 constexpr llvm::StringLiteral kSeedAttrName("weft_rvv.lowering_seed");
 
 constexpr llvm::StringLiteral kRVVCapabilitySymbol("rvv");
-constexpr llvm::StringLiteral kFallbackCapabilitySymbol("scalar_fallback");
-constexpr llvm::StringLiteral kConservativeFallbackCapabilityKind("fallback");
 constexpr llvm::StringLiteral kOriginAttrName("origin");
 constexpr llvm::StringLiteral kRequiresAttrName("requires");
-constexpr llvm::StringLiteral kFallbackRoleAttrName("fallback_role");
 
 // The single generic pass description (shown in --help for every family front door;
 // not a byte-exact-gated string, so it is shared rather than per-op prose).
@@ -2855,118 +2851,6 @@ weftexec::VariantOp createVariant(mlir::OpBuilder &builder, mlir::Location loc,
   return variant;
 }
 
-mlir::LogicalResult createConservativeFallbackCapability(
-    const MonolithicBlockDotOpEntry &entry, mlir::OpBuilder &builder,
-    mlir::Location loc, mlir::Operation *failOp,
-    const ExtensionPluginRegistry &registry, llvm::StringRef capabilitySymbol) {
-  llvm::SmallVector<PluginCapability, 1> fallbackCapabilities;
-  registry.collectCapabilitiesByKind(kConservativeFallbackCapabilityKind,
-                                     fallbackCapabilities);
-  if (fallbackCapabilities.size() != 1)
-    return fail(entry, failOp,
-                llvm::Twine("source front door requires exactly one "
-                            "plugin-declared conservative-fallback capability "
-                            "(kind '") +
-                    kConservativeFallbackCapabilityKind + "'); found " +
-                    llvm::Twine(fallbackCapabilities.size()));
-  const PluginCapability &fallbackCapability = fallbackCapabilities.front();
-  createCapability(builder, loc, capabilitySymbol, fallbackCapability.getID(),
-                   fallbackCapability.getKind());
-  return mlir::success();
-}
-
-mlir::FailureOr<std::string> materializeConservativeFallbackVariantViaPlugin(
-    const MonolithicBlockDotOpEntry &entry, mlir::OpBuilder &builder,
-    weftexec::KernelOp kernel, mlir::Operation *highLevelOp,
-    const ExtensionPluginRegistry &registry,
-    llvm::StringRef fallbackVariantSymbol) {
-  llvm::Expected<support::TargetCapabilitySet> capabilities =
-      support::TargetCapabilitySet::buildFromKernelChecked(kernel);
-  if (!capabilities) {
-    (void)fail(entry, kernel,
-               llvm::Twine("could not build a capability scope for kernel @") +
-                   kernel.getSymName() + ": " +
-                   llvm::toString(capabilities.takeError()));
-    return mlir::failure();
-  }
-
-  VariantProposalRequest request(highLevelOp, kernel, *capabilities);
-  llvm::SmallVector<VariantProposal, 4> proposals;
-  if (llvm::Error error = registry.collectVariantProposals(request, proposals)) {
-    (void)fail(entry, kernel,
-               llvm::Twine("failed to collect variant proposals for kernel @") +
-                   kernel.getSymName() + ": " +
-                   llvm::toString(std::move(error)));
-    return mlir::failure();
-  }
-
-  const VariantProposal *fallbackProposal = nullptr;
-  for (const VariantProposal &proposal : proposals) {
-    if (proposal.getFallbackRole() != VariantFallbackRole::ConservativeFallback)
-      continue;
-    if (fallbackProposal) {
-      (void)fail(entry, kernel,
-                 "requires exactly one conservative-fallback variant proposal; "
-                 "the registry produced more than one");
-      return mlir::failure();
-    }
-    fallbackProposal = &proposal;
-  }
-  if (!fallbackProposal) {
-    (void)fail(entry, kernel,
-               "requires a conservative-fallback variant proposal from a "
-               "fallback-owning plugin; none was produced");
-    return mlir::failure();
-  }
-
-  VariantProposal scopedProposal = *fallbackProposal;
-  scopedProposal.setVariantName(fallbackVariantSymbol);
-  if (llvm::Error error = transforms::materializeVariantProposals(
-          builder, request, scopedProposal)) {
-    (void)fail(entry, kernel,
-               llvm::Twine("failed to materialize the conservative fallback "
-                           "variant for kernel @") +
-                   kernel.getSymName() + ": " + llvm::toString(std::move(error)));
-    return mlir::failure();
-  }
-  return fallbackProposal->getOriginPlugin().str();
-}
-
-void createDispatch(mlir::OpBuilder &builder, mlir::Location loc,
-                    llvm::StringRef dispatchPolicy,
-                    llvm::StringRef selectedVariantSymbol,
-                    llvm::StringRef fallbackVariantSymbol,
-                    llvm::StringRef fallbackOrigin) {
-  mlir::OperationState dispatchState(loc,
-                                     weftexec::DispatchOp::getOperationName());
-  dispatchState.addRegion();
-  auto dispatch =
-      llvm::cast<weftexec::DispatchOp>(builder.create(dispatchState));
-  dispatch.getBody().emplaceBlock();
-
-  mlir::OpBuilder::InsertionGuard guard(builder);
-  builder.setInsertionPointToStart(&dispatch.getBody().front());
-
-  mlir::OperationState caseState(loc,
-                                 weftexec::DispatchCaseOp::getOperationName());
-  caseState.addAttribute("target", symbolRef(builder, selectedVariantSymbol));
-  caseState.addAttribute(kOriginAttrName,
-                         builder.getStringAttr(getRVVExtensionPluginName()));
-  caseState.addAttribute("policy", builder.getStringAttr(dispatchPolicy));
-  (void)builder.create(caseState);
-
-  mlir::OperationState fallbackState(loc,
-                                     weftexec::FallbackOp::getOperationName());
-  fallbackState.addAttribute("target",
-                             symbolRef(builder, fallbackVariantSymbol));
-  fallbackState.addAttribute(kOriginAttrName,
-                             builder.getStringAttr(fallbackOrigin));
-  fallbackState.addAttribute(kFallbackRoleAttrName,
-                             builder.getStringAttr(
-                                 kConservativeFallbackRoleValue));
-  (void)builder.create(fallbackState);
-}
-
 // ---------------------------------------------------------------------------
 // [D-4] SCHEDULE-STAGE fill-LMUL attribution sink. A canonical-JSON side channel
 // mirroring the exec-stage buildSelectionAttributionRecord FORM (sorted keys,
@@ -3039,16 +2923,16 @@ materializeKernel(mlir::OpBuilder &builder, llvm::StringRef kernelName,
                   llvm::StringRef isaVectorHints, bool numericsReassocOk,
                   llvm::raw_ostream *attributionStream,
                   bool attributionNoTimestamp) {
+  (void)registry;
   mlir::Location loc = source.func.getLoc();
   weftrvv::PolicyAttr policy = createAgnosticPolicy(builder);
   std::string selectedVariantSymbol = entry.variantSymbol.str();
-  std::string fallbackVariantSymbol =
-      (entry.variantSymbol + "_scalar_fallback").str();
 
   mlir::OperationState kernelState(loc, weftexec::KernelOp::getOperationName());
   kernelState.addAttribute("sym_name", builder.getStringAttr(kernelName));
   kernelState.addAttribute("construction_domain",
                            builder.getStringAttr("riscv-execution"));
+  kernelState.addAttribute("problem", symbolRef(builder, "canonical_problem"));
   kernelState.addRegion();
   auto kernel = llvm::cast<weftexec::KernelOp>(builder.create(kernelState));
   kernel.getBody().emplaceBlock();
@@ -3056,10 +2940,39 @@ materializeKernel(mlir::OpBuilder &builder, llvm::StringRef kernelName,
   mlir::OpBuilder::InsertionGuard kernelGuard(builder);
   builder.setInsertionPointToStart(&kernel.getBody().front());
 
+  auto requiredProblemFact = [&](llvm::StringRef name)
+      -> std::optional<std::int64_t> {
+    for (const MonolithicBlockDotI64Attr &fact : entry.facts)
+      if (fact.name == name)
+        return fact.value;
+    return std::nullopt;
+  };
+  std::optional<std::int64_t> qk = requiredProblemFact("qk");
+  std::optional<std::int64_t> weightStride =
+      requiredProblemFact("weight_block_stride");
+  std::optional<std::int64_t> activationStride =
+      requiredProblemFact("activation_block_stride");
+  if (!qk || !weightStride || !activationStride)
+    return fail(entry, source.func,
+                "formula row lacks required canonical problem block geometry");
+  mlir::OperationState problemState(
+      loc, weftexec::QuantizedBlockDotProblemOp::getOperationName());
+  problemState.addAttribute("sym_name",
+                            builder.getStringAttr("canonical_problem"));
+  problemState.addAttribute("weight_encoding",
+                            builder.getStringAttr(entry.kind));
+  problemState.addAttribute("activation_encoding",
+                            builder.getStringAttr(entry.activationPurpose));
+  problemState.addAttribute("topology",
+                            builder.getStringAttr(entry.scaleModel));
+  problemState.addAttribute("qk", builder.getI64IntegerAttr(*qk));
+  problemState.addAttribute("weight_block_stride",
+                            builder.getI64IntegerAttr(*weightStride));
+  problemState.addAttribute("activation_block_stride",
+                            builder.getI64IntegerAttr(*activationStride));
+  (void)builder.create(problemState);
+
   createCapability(builder, loc, kRVVCapabilitySymbol, "rvv", "isa-vector");
-  if (mlir::failed(createConservativeFallbackCapability(
-          entry, builder, loc, source.func, registry, kFallbackCapabilitySymbol)))
-    return mlir::failure();
   mlir::ArrayAttr rvvRequires = createRequires(builder, kRVVCapabilitySymbol);
 
   weftexec::VariantOp rvvVariant =
@@ -3603,16 +3516,6 @@ materializeKernel(mlir::OpBuilder &builder, llvm::StringRef kernelName,
     (void)createBlockDot(builder, loc, entry, weight, activation, out, n,
                          setvl.getVl());
   }
-
-  mlir::FailureOr<std::string> fallbackOrigin =
-      materializeConservativeFallbackVariantViaPlugin(
-          entry, builder, kernel, source.func, registry, fallbackVariantSymbol);
-  if (mlir::failed(fallbackOrigin))
-    return mlir::failure();
-
-  builder.setInsertionPointToEnd(&kernel.getBody().front());
-  createDispatch(builder, loc, entry.dispatchPolicy, selectedVariantSymbol,
-                 fallbackVariantSymbol, *fallbackOrigin);
 
   // [D-4] schedule-stage fill-LMUL attribution (side channel, option-gated OFF by
   // default). Emit ONE record for the typed-flat LMUL decision after the kernel is

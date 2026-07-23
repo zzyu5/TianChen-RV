@@ -17,7 +17,6 @@ module {
       origin = "ime-plugin",
       requires = [@spacemit_ime]
     } {
-    }
     // CHECK: weft_ime.matmul {accum_bits = 32 : i64
     // CHECK-SAME: ime_op = "vmadot"
     // CHECK-SAME: mac_k = 8 : i64
@@ -46,6 +45,7 @@ module {
       mat_k = 256 : i64,
       available_harts = "0-3"
     }
+    }
   }
 }
 
@@ -57,10 +57,11 @@ module {
   // CHECK-LABEL: weft.exec.kernel @ime_matmul_unsigned
   weft.exec.kernel @ime_matmul_unsigned {
     weft.exec.capability @spacemit_ime {id = "spacemit.ime", kind = "isa-matrix-vector-backed", status = "available"}
-    weft.exec.variant @ime_vmadotu_matmul_slice attributes {origin = "ime-plugin", requires = [@spacemit_ime]} {}
+    weft.exec.variant @ime_vmadotu_matmul_slice attributes {origin = "ime-plugin", requires = [@spacemit_ime]} {
     // CHECK: weft_ime.matmul
     // CHECK-SAME: ime_op = "vmadotu"
     weft_ime.matmul {origin = "ime-plugin", required_capabilities = [@spacemit_ime], role = "direct variant", status = "role-op-boundary", selected_variant = @ime_vmadotu_matmul_slice, source_kernel = "ime_matmul_unsigned", ime_op = "vmadotu", elem_in_bits = 8 : i64, accum_bits = 32 : i64, mac_m = 4 : i64, mac_n = 4 : i64, mac_k = 8 : i64, mat_m = 64 : i64, mat_n = 64 : i64, mat_k = 64 : i64, available_harts = "0-3"}
+    }
   }
 }
 
@@ -72,9 +73,10 @@ module {
 module {
   weft.exec.kernel @ime_matmul_indivisible_k {
     weft.exec.capability @spacemit_ime {id = "spacemit.ime", kind = "isa-matrix-vector-backed", status = "available"}
-    weft.exec.variant @ime_vmadot_matmul_slice attributes {origin = "ime-plugin", requires = [@spacemit_ime]} {}
+    weft.exec.variant @ime_vmadot_matmul_slice attributes {origin = "ime-plugin", requires = [@spacemit_ime]} {
     // expected-error@+1 {{must each be a whole multiple of the MAC fragment}}
     weft_ime.matmul {origin = "ime-plugin", required_capabilities = [@spacemit_ime], role = "direct variant", status = "role-op-boundary", selected_variant = @ime_vmadot_matmul_slice, source_kernel = "ime_matmul_indivisible_k", ime_op = "vmadot", elem_in_bits = 8 : i64, accum_bits = 32 : i64, mac_m = 4 : i64, mac_n = 4 : i64, mac_k = 8 : i64, mat_m = 256 : i64, mat_n = 256 : i64, mat_k = 250 : i64, available_harts = "0-3"}
+    }
   }
 }
 
@@ -84,9 +86,10 @@ module {
 module {
   weft.exec.kernel @ime_matmul_nonpos {
     weft.exec.capability @spacemit_ime {id = "spacemit.ime", kind = "isa-matrix-vector-backed", status = "available"}
-    weft.exec.variant @ime_vmadot_matmul_slice attributes {origin = "ime-plugin", requires = [@spacemit_ime]} {}
+    weft.exec.variant @ime_vmadot_matmul_slice attributes {origin = "ime-plugin", requires = [@spacemit_ime]} {
     // expected-error@+1 {{problem dims (mat_m/mat_n/mat_k) must be positive}}
     weft_ime.matmul {origin = "ime-plugin", required_capabilities = [@spacemit_ime], role = "direct variant", status = "role-op-boundary", selected_variant = @ime_vmadot_matmul_slice, source_kernel = "ime_matmul_nonpos", ime_op = "vmadot", elem_in_bits = 8 : i64, accum_bits = 32 : i64, mac_m = 4 : i64, mac_n = 4 : i64, mac_k = 8 : i64, mat_m = 0 : i64, mat_n = 256 : i64, mat_k = 256 : i64, available_harts = "0-3"}
+    }
   }
 }
 
@@ -97,8 +100,9 @@ module {
 module {
   weft.exec.kernel @ime_matmul_wrong_elem {
     weft.exec.capability @spacemit_ime {id = "spacemit.ime", kind = "isa-matrix-vector-backed", status = "available"}
-    weft.exec.variant @ime_vmadot_matmul_slice attributes {origin = "ime-plugin", requires = [@spacemit_ime]} {}
+    weft.exec.variant @ime_vmadot_matmul_slice attributes {origin = "ime-plugin", requires = [@spacemit_ime]} {
     // expected-error@+1 {{elem_in_bits must be 8 (IME1 vmadot consumes int8 inputs)}}
     weft_ime.matmul {origin = "ime-plugin", required_capabilities = [@spacemit_ime], role = "direct variant", status = "role-op-boundary", selected_variant = @ime_vmadot_matmul_slice, source_kernel = "ime_matmul_wrong_elem", ime_op = "vmadot", elem_in_bits = 4 : i64, accum_bits = 32 : i64, mac_m = 4 : i64, mac_n = 4 : i64, mac_k = 8 : i64, mat_m = 256 : i64, mat_n = 256 : i64, mat_k = 256 : i64, available_harts = "0-3"}
+    }
   }
 }

@@ -944,6 +944,16 @@ class ScalarBackendEmissionDriver final
     : public weftemitc::TypedBackendEmissionDriver {
 public:
   llvm::StringRef getBackendName() const override { return "scalar"; }
+  llvm::StringRef getOwnerPluginName() const override {
+    return "scalar-plugin";
+  }
+
+  bool supportsExactRoot(mlir::Operation *operation) const override {
+    return llvm::isa_and_present<
+        weft::scalar::ImmediateCallBodyOp,
+        weft::scalar::PackedTernaryDotBodyOp,
+        weft::scalar::PackedAffineDequantBodyOp>(operation);
+  }
 
   void populateTypeConversions(
       mlir::TypeConverter & /*typeConverter*/) const override {

@@ -124,11 +124,8 @@ int expectErrorContains(llvm::Error error,
 mlir::OwningOpRef<mlir::ModuleOp> parseTestModule(mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
-  func.func @high_level_placeholder() {
-    return
-  }
-
-  weft.exec.kernel @materialization_anchor attributes {construction_domain = "test-domain"} {
+  weft.exec.kernel @materialization_anchor attributes {construction_domain = "test-domain", problem = @canonical_problem} {
+    weft.exec.int8_mac_problem @canonical_problem {lhs_signedness = #weft<integer_signedness signed>, rhs_signedness = #weft<integer_signedness signed>, m = 4 : i64, n = 4 : i64, k = 8 : i64}
     weft.exec.capability @generic_alpha {
       id = "generic.alpha",
       kind = "generic-execution"
@@ -140,7 +137,8 @@ module {
     }
   }
 
-  weft.exec.kernel @duplicate_anchor attributes {construction_domain = "test-domain"} {
+  weft.exec.kernel @duplicate_anchor attributes {construction_domain = "test-domain", problem = @canonical_problem} {
+    weft.exec.int8_mac_problem @canonical_problem {lhs_signedness = #weft<integer_signedness signed>, rhs_signedness = #weft<integer_signedness signed>, m = 4 : i64, n = 4 : i64, k = 8 : i64}
     weft.exec.capability @generic_alpha {
       id = "generic.alpha",
       kind = "generic-execution"
@@ -253,13 +251,6 @@ int runPositiveMaterializationTest(mlir::MLIRContext &context) {
   if (!module)
     return fail("failed to parse variant materialization test module");
 
-  mlir::func::FuncOp highLevelOp =
-      module->lookupSymbol<mlir::func::FuncOp>("high_level_placeholder");
-  if (int result =
-          expect(static_cast<bool>(highLevelOp),
-                 "high-level placeholder operation is present"))
-    return result;
-
   KernelOp kernel = findKernel(*module, "materialization_anchor");
   if (int result = expect(static_cast<bool>(kernel), "kernel is present"))
     return result;
@@ -298,8 +289,11 @@ int runPositiveMaterializationTest(mlir::MLIRContext &context) {
                                  "register second materialization plugin"))
     return result;
 
-  VariantProposalRequest request(highLevelOp.getOperation(), kernel,
-                                 capabilities);
+  llvm::Expected<mlir::Operation *> problem =
+      weft::plugin::resolveCanonicalProblem(kernel);
+  if (!problem)
+    return fail(llvm::toString(problem.takeError()));
+  VariantProposalRequest request(*problem, kernel, capabilities);
   mlir::OpBuilder builder(&context);
   llvm::SmallVector<VariantOp, 4> materializedVariants;
   if (int result = expectSuccess(

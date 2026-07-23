@@ -7,10 +7,10 @@
 #include "Weft/Transforms/VariantMaterialization.h"
 #include "Weft/Transforms/VariantSelection.h"
 
-#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/OperationSupport.h"
+#include "mlir/IR/SymbolTable.h"
 #include "mlir/IR/Verifier.h"
 #include "mlir/Parser/Parser.h"
 #include "llvm/ADT/StringRef.h"
@@ -124,13 +124,13 @@ KernelOp findKernel(mlir::ModuleOp module, llvm::StringRef symbolName) {
   return result;
 }
 
-mlir::func::FuncOp findHighLevelPlaceholder(mlir::ModuleOp module) {
-  mlir::func::FuncOp result;
-  module.walk([&](mlir::func::FuncOp function) {
-    if (!result)
-      result = function;
-  });
-  return result;
+mlir::Operation *findCanonicalProblem(KernelOp kernel) {
+  if (!kernel)
+    return nullptr;
+  auto problem = kernel->getAttrOfType<mlir::FlatSymbolRefAttr>("problem");
+  if (!problem)
+    return nullptr;
+  return mlir::SymbolTable::lookupSymbolIn(kernel, problem.getValue());
 }
 
 VariantOp findVariant(KernelOp kernel, llvm::StringRef symbolName) {
@@ -195,11 +195,8 @@ int runRegistrationAndCapabilityMetadataTest() {
 int runProposalGatingTest(mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
-  func.func @high_level_placeholder() {
-    return
-  }
-
-  weft.exec.kernel @available_scalar attributes {construction_domain = "riscv-execution"} {
+  weft.exec.kernel @available_scalar attributes {construction_domain = "riscv-execution", problem = @available_problem} {
+    weft.exec.dequantize_row_q4_0_problem @available_problem {qk = 32 : i64, weight_block_stride = 18 : i64, weight_d_byte_offset = 0 : i64, weight_quant_byte_offset = 2 : i64}
     weft.exec.capability @scalar_fallback {
       id = "scalar.fallback",
       kind = "fallback",
@@ -207,7 +204,8 @@ module {
     }
   }
 
-  weft.exec.kernel @unavailable_scalar attributes {construction_domain = "riscv-execution"} {
+  weft.exec.kernel @unavailable_scalar attributes {construction_domain = "riscv-execution", problem = @unavailable_problem} {
+    weft.exec.dequantize_row_q4_0_problem @unavailable_problem {qk = 32 : i64, weight_block_stride = 18 : i64, weight_d_byte_offset = 0 : i64, weight_quant_byte_offset = 2 : i64}
     weft.exec.capability @scalar_fallback {
       id = "scalar.fallback",
       kind = "fallback",
@@ -215,7 +213,8 @@ module {
     }
   }
 
-  weft.exec.kernel @missing_scalar attributes {construction_domain = "riscv-execution"} {
+  weft.exec.kernel @missing_scalar attributes {construction_domain = "riscv-execution", problem = @missing_problem} {
+    weft.exec.dequantize_row_q4_0_problem @missing_problem {qk = 32 : i64, weight_block_stride = 18 : i64, weight_d_byte_offset = 0 : i64, weight_quant_byte_offset = 2 : i64}
   }
 }
 )mlir";
@@ -224,12 +223,15 @@ module {
   if (!module)
     return fail("failed to parse scalar proposal gating module");
 
-  mlir::func::FuncOp highLevelOp = findHighLevelPlaceholder(*module);
   KernelOp available = findKernel(*module, "available_scalar");
   KernelOp unavailable = findKernel(*module, "unavailable_scalar");
   KernelOp missing = findKernel(*module, "missing_scalar");
+  mlir::Operation *availableProblem = findCanonicalProblem(available);
+  mlir::Operation *unavailableProblem = findCanonicalProblem(unavailable);
+  mlir::Operation *missingProblem = findCanonicalProblem(missing);
   if (int result =
-          expect(highLevelOp && available && unavailable && missing,
+          expect(available && unavailable && missing && availableProblem &&
+                     unavailableProblem && missingProblem,
                  "proposal gating module contains all anchors"))
     return result;
 
@@ -242,7 +244,7 @@ module {
 
   TargetCapabilitySet availableCapabilities =
       TargetCapabilitySet::buildFromKernel(available);
-  VariantProposalRequest availableRequest(highLevelOp.getOperation(), available,
+  VariantProposalRequest availableRequest(availableProblem, available,
                                           availableCapabilities);
   llvm::SmallVector<VariantProposal, 1> proposals;
   if (int result = expectSuccess(
@@ -277,8 +279,7 @@ module {
 
   TargetCapabilitySet unavailableCapabilities =
       TargetCapabilitySet::buildFromKernel(unavailable);
-  VariantProposalRequest unavailableRequest(highLevelOp.getOperation(),
-                                            unavailable,
+  VariantProposalRequest unavailableRequest(unavailableProblem, unavailable,
                                             unavailableCapabilities);
   proposals.clear();
   if (int result = expectSuccess(
@@ -292,7 +293,7 @@ module {
 
   TargetCapabilitySet missingCapabilities =
       TargetCapabilitySet::buildFromKernel(missing);
-  VariantProposalRequest missingRequest(highLevelOp.getOperation(), missing,
+  VariantProposalRequest missingRequest(missingProblem, missing,
                                         missingCapabilities);
   proposals.clear();
   if (int result = expectSuccess(
@@ -304,11 +305,11 @@ module {
                  "missing scalar fallback capability produces no proposal"))
     return result;
 
-  VariantProposalRequest noHighLevelOpRequest(nullptr, available,
-                                              availableCapabilities);
+  VariantProposalRequest noProblemRequest(nullptr, available,
+                                          availableCapabilities);
   proposals.clear();
   if (int result = expectErrorContains(
-          registry.collectVariantProposals(noHighLevelOpRequest, proposals),
+          registry.collectVariantProposals(noProblemRequest, proposals),
           {"variant proposal collection requires an exact canonical problem"}))
     return result;
 
@@ -318,11 +319,8 @@ module {
 int runMaterializationSelectionAndEmissionTest(mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
-  func.func @high_level_placeholder() {
-    return
-  }
-
-  weft.exec.kernel @scalar_only attributes {construction_domain = "riscv-execution"} {
+  weft.exec.kernel @scalar_only attributes {construction_domain = "riscv-execution", problem = @canonical_problem} {
+    weft.exec.dequantize_row_q4_0_problem @canonical_problem {qk = 32 : i64, weight_block_stride = 18 : i64, weight_d_byte_offset = 0 : i64, weight_quant_byte_offset = 2 : i64}
     weft.exec.capability @scalar_fallback {
       id = "scalar.fallback",
       kind = "fallback",
@@ -336,10 +334,10 @@ module {
   if (!module)
     return fail("failed to parse scalar materialization module");
 
-  mlir::func::FuncOp highLevelOp = findHighLevelPlaceholder(*module);
   KernelOp kernel = findKernel(*module, "scalar_only");
+  mlir::Operation *problem = findCanonicalProblem(kernel);
   if (int result =
-          expect(highLevelOp && kernel, "materialization module has anchors"))
+          expect(kernel && problem, "materialization module has anchors"))
     return result;
 
   ExtensionPluginRegistry registry;
@@ -350,8 +348,7 @@ module {
     return result;
 
   TargetCapabilitySet capabilities = TargetCapabilitySet::buildFromKernel(kernel);
-  VariantProposalRequest request(highLevelOp.getOperation(), kernel,
-                                 capabilities);
+  VariantProposalRequest request(problem, kernel, capabilities);
   mlir::OpBuilder builder(&context);
   llvm::SmallVector<VariantOp, 1> materializedVariants;
   if (int result = expectSuccess(
@@ -424,7 +421,8 @@ module {
   VariantCostEstimate estimate;
   if (int result = expectSuccess(
           registry.estimateVariantCost(
-              VariantCostRequest(variant, kernel, capabilities), estimate),
+              VariantCostRequest(variant, kernel, problem, capabilities),
+              estimate),
           "scalar fallback cost estimate routes through plugin"))
     return result;
   if (int result =
@@ -463,6 +461,14 @@ module {
   if (int result = expect(marker, "selected-path marker was created"))
     return result;
 
+  FamilyConstructionResult construction;
+  if (int result = expectSuccess(
+          registry.constructFormulaPlansForVariant(
+              *module, variant, construction,
+              VariantEmissionRole::DirectVariant),
+          "construct exact Scalar final body before boundary exposure"))
+    return result;
+
   VariantLoweringBoundaryResult boundaryResult;
   {
     mlir::OpBuilder::InsertionGuard guard(builder);
@@ -470,8 +476,9 @@ module {
     if (int result = expectSuccess(
             registry.materializeSelectedLoweringBoundary(
                 VariantLoweringBoundaryRequest(
-                    variant, kernel, capabilities,
-                    VariantEmissionRole::DirectVariant, builder),
+                    variant, kernel, problem, capabilities,
+                    VariantEmissionRole::DirectVariant, builder,
+                    construction.getOperation()),
                 boundaryResult),
             "Scalar construction requires no separate lowering boundary"))
       return result;
@@ -511,7 +518,28 @@ module {
     return result;
   if (int result = expectScalarUnsupportedEmissionPlan(
           emissionPlan,
-          "descriptorless no-body scalar fallback is unsupported fail-closed"))
+          "artifact query without the exact root is unsupported fail-closed"))
+    return result;
+
+  VariantEmissionRequest exactEmissionRequest(
+      variant, kernel, capabilities, VariantEmissionRole::DirectVariant,
+      construction.getOperation());
+  if (int result = expectSuccess(
+          registry.checkVariantEmissionReadiness(exactEmissionRequest, status),
+          "exact q4_0 Scalar final body is emission-ready"))
+    return result;
+  if (int result = expectSuccess(
+          registry.buildVariantEmissionPlan(exactEmissionRequest, emissionPlan),
+          "exact q4_0 Scalar final body has an artifact plan"))
+    return result;
+  if (int result = expect(
+          status.isSupported() && emissionPlan.isSupported() &&
+              emissionPlan.getRuntimeABI() ==
+                  "scalar-q4-0-dequant-row-c-abi.v1" &&
+              emissionPlan.getLoweringBoundaryOpName() ==
+                  weft::scalar::PackedAffineDequantBodyOp::getOperationName(),
+          "source construction returns the exact q4_0 body consumed by "
+          "artifact planning"))
     return result;
 
   return 0;
@@ -523,20 +551,20 @@ module {
   weft.exec.kernel @scalar_immediate {
     weft.exec.capability @scalar_fallback {id = "scalar.fallback", kind = "fallback", status = "available"}
     weft.exec.variant @scalar_immediate_variant attributes {origin = "scalar-plugin", requires = [@scalar_fallback]} {
+      weft_scalar.immediate_call_body {source_kernel = "scalar_immediate", selected_variant = @scalar_immediate_variant, scalar_immediate = 7 : i64}
     }
-    weft_scalar.compute_skeleton {source_kernel = "scalar_immediate", selected_variant = @scalar_immediate_variant, scalar_immediate = 7 : i64}
   }
-  weft.exec.kernel @scalar_tq2 {
+  weft.exec.kernel @scalar_tq2 attributes {construction_domain = "riscv-execution", problem = @tq2_problem} {
+    weft.exec.ternary_q2_q8_block_dot_problem @tq2_problem {qk = 256 : i64, weight_block_stride = 66 : i64, activation_block_stride = 292 : i64, weight_d_byte_offset = 64 : i64, activation_d_byte_offset = 0 : i64, activation_quant_byte_offset = 4 : i64}
     weft.exec.capability @scalar_fallback {id = "scalar.fallback", kind = "fallback", status = "available"}
     weft.exec.variant @scalar_tq2_variant attributes {origin = "scalar-plugin", requires = [@scalar_fallback]} {
     }
-    weft_scalar.tq2_0_q8_k_vec_dot {source_kernel = "scalar_tq2", selected_variant = @scalar_tq2_variant, qk = 256 : i64, weight_block_stride = 66 : i64, activation_block_stride = 292 : i64, weight_d_byte_offset = 64 : i64, activation_d_byte_offset = 0 : i64, activation_quant_byte_offset = 4 : i64}
   }
-  weft.exec.kernel @scalar_q4 {
+  weft.exec.kernel @scalar_q4 attributes {construction_domain = "riscv-execution", problem = @q4_problem} {
+    weft.exec.dequantize_row_q4_0_problem @q4_problem {qk = 32 : i64, weight_block_stride = 18 : i64, weight_d_byte_offset = 0 : i64, weight_quant_byte_offset = 2 : i64}
     weft.exec.capability @scalar_fallback {id = "scalar.fallback", kind = "fallback", status = "available"}
     weft.exec.variant @scalar_q4_variant attributes {origin = "scalar-plugin", requires = [@scalar_fallback]} {
     }
-    weft_scalar.dequantize_row_q4_0 {source_kernel = "scalar_q4", selected_variant = @scalar_q4_variant, qk = 32 : i64, weight_block_stride = 18 : i64, weight_d_byte_offset = 0 : i64, weight_quant_byte_offset = 2 : i64}
   }
 }
 )mlir";
@@ -573,7 +601,8 @@ module {
   if (int result = expect(
           immediateResult.hasFinalBody() && immediate &&
               immediate.getScalarImmediate() == 7,
-          "compute_skeleton is consumed into an exact immediate_call_body"))
+          "problem-free direct qualification returns the exact final body "
+          "from the variant canonical body slot"))
     return result;
 
   FamilyConstructionResult tq2Result;
@@ -680,15 +709,21 @@ module {
           "block/decode/scale/scatter plan tree"))
     return result;
 
-  unsigned sourceCount = 0;
+  unsigned legacySourceCount = 0;
+  unsigned canonicalProblemCount = 0;
   module->walk([&](mlir::Operation *op) {
     if (llvm::isa<weft::scalar::ComputeSkeletonOp,
                   weft::scalar::TernaryQ2Q8BlockDotOp,
                   weft::scalar::DequantizeRowQ4Op>(op))
-      ++sourceCount;
+      ++legacySourceCount;
+    if (llvm::isa<weft::exec::TernaryQ2Q8BlockDotProblemOp,
+                  weft::exec::DequantizeRowQ40ProblemOp>(op))
+      ++canonicalProblemCount;
   });
-  if (int result = expect(sourceCount == 0,
-                          "Scalar source problems do not survive construction"))
+  if (int result = expect(
+          legacySourceCount == 0 && canonicalProblemCount == 2,
+          "Scalar source construction consumes exact exec problems without "
+          "requiring family-local source siblings"))
     return result;
 
   KernelOp tq2Kernel = findKernel(*module, "scalar_tq2");
@@ -732,11 +767,11 @@ module {
 int runInvalidTernaryGeometryConstructionTest(mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
-  weft.exec.kernel @scalar_tq2_invalid {
+  weft.exec.kernel @scalar_tq2_invalid attributes {construction_domain = "riscv-execution", problem = @invalid_problem} {
+    weft.exec.ternary_q2_q8_block_dot_problem @invalid_problem {qk = 256 : i64, weight_block_stride = 66 : i64, activation_block_stride = 292 : i64, weight_d_byte_offset = 64 : i64, activation_d_byte_offset = 0 : i64, activation_quant_byte_offset = 4 : i64}
     weft.exec.capability @scalar_fallback {id = "scalar.fallback", kind = "fallback", status = "available"}
     weft.exec.variant @scalar_tq2_invalid_variant attributes {origin = "scalar-plugin", requires = [@scalar_fallback]} {
     }
-    weft_scalar.tq2_0_q8_k_vec_dot {source_kernel = "scalar_tq2_invalid", selected_variant = @scalar_tq2_invalid_variant, qk = 255 : i64, weight_block_stride = 66 : i64, activation_block_stride = 292 : i64, weight_d_byte_offset = 64 : i64, activation_d_byte_offset = 0 : i64, activation_quant_byte_offset = 4 : i64}
   }
 }
 )mlir";
@@ -747,9 +782,15 @@ module {
 
   KernelOp kernel = findKernel(*module, "scalar_tq2_invalid");
   VariantOp variant = findVariant(kernel, "scalar_tq2_invalid_variant");
-  if (int result = expect(kernel && variant,
+  mlir::Operation *problem = findCanonicalProblem(kernel);
+  if (int result = expect(kernel && variant && problem,
                           "invalid ternary construction anchors exist"))
     return result;
+
+  // Parse a structurally valid exact problem, then corrupt one required source
+  // fact so the construction entry itself proves it revalidates the bound P.
+  mlir::OpBuilder builder(&context);
+  problem->setAttr("qk", builder.getI64IntegerAttr(255));
 
   ExtensionPluginRegistry registry;
   if (int result = expectSuccess(
@@ -761,27 +802,28 @@ module {
   if (int result = expectErrorContains(
           registry.constructFormulaPlansForVariant(*module, variant,
                                                    construction),
-          {"canonical qk/stride/offset geometry"}))
+          {"malformed tq2_0 x q8_K geometry"}))
     return result;
 
-  unsigned sourceCount = 0;
+  unsigned canonicalProblemCount = 0;
+  unsigned legacySourceCount = 0;
   unsigned finalBodyCount = 0;
   kernel.walk([&](mlir::Operation *op) {
+    if (llvm::isa<weft::exec::TernaryQ2Q8BlockDotProblemOp>(op))
+      ++canonicalProblemCount;
     if (llvm::isa<weft::scalar::TernaryQ2Q8BlockDotOp>(op))
-      ++sourceCount;
+      ++legacySourceCount;
     if (llvm::isa<weft::scalar::PackedTernaryDotBodyOp>(op))
       ++finalBodyCount;
   });
   if (int result = expect(
-          sourceCount == 1 && finalBodyCount == 0 &&
-              !construction.getOperation(),
-          "invalid ternary geometry preserves the source problem and creates "
-          "no final body"))
+          canonicalProblemCount == 1 && legacySourceCount == 0 &&
+              finalBodyCount == 0 && !construction.getOperation(),
+          "invalid exact ternary problem remains the sole source anchor and "
+          "creates no final body"))
     return result;
 
-  return expect(mlir::succeeded(mlir::verify(*module)),
-                "invalid ternary source remains structurally valid after "
-                "formula rejection");
+  return 0;
 }
 
 int runBoundaryMaterializationRejectionTest(mlir::MLIRContext &context) {
@@ -830,24 +872,21 @@ module {
   VariantLoweringBoundaryResult boundaryResult;
   return expectErrorContains(
       registry.materializeSelectedLoweringBoundary(
-          VariantLoweringBoundaryRequest(malformed, kernel, capabilities,
+          VariantLoweringBoundaryRequest(malformed, kernel, nullptr,
+                                         capabilities,
                                          VariantEmissionRole::DirectVariant,
-                                         builder),
+                                         builder, nullptr),
           boundaryResult),
-      {"selected scalar fallback variant @malformed_scalar_selected",
-       "failed plugin legality before boundary materialization",
-       "must require capability id", "scalar.fallback"});
+      {"requires the exact operation returned by owner construction",
+       "malformed_scalar_selected"});
 }
 
 int runRVVDeclineKeepsScalarFallbackEnvelopeBoundarylessTest(
     mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
-  func.func @high_level_placeholder() {
-    return
-  }
-
-  weft.exec.kernel @rvv_decline_scalar_envelope attributes {construction_domain = "riscv-execution"} {
+  weft.exec.kernel @rvv_decline_scalar_envelope attributes {construction_domain = "riscv-execution", problem = @canonical_problem} {
+    weft.exec.dequantize_row_q4_0_problem @canonical_problem {qk = 32 : i64, weight_block_stride = 18 : i64, weight_d_byte_offset = 0 : i64, weight_quant_byte_offset = 2 : i64}
     weft.exec.capability @rvv {
       id = "rvv",
       kind = "isa-vector",
@@ -866,10 +905,10 @@ module {
   if (!module)
     return fail("failed to parse RVV-decline scalar envelope module");
 
-  mlir::func::FuncOp highLevelOp = findHighLevelPlaceholder(*module);
   KernelOp kernel = findKernel(*module, "rvv_decline_scalar_envelope");
+  mlir::Operation *problem = findCanonicalProblem(kernel);
   if (int result =
-          expect(highLevelOp && kernel,
+          expect(kernel && problem,
                  "RVV-decline scalar envelope module has anchors"))
     return result;
 
@@ -884,8 +923,7 @@ module {
     return result;
 
   TargetCapabilitySet capabilities = TargetCapabilitySet::buildFromKernel(kernel);
-  VariantProposalRequest request(highLevelOp.getOperation(), kernel,
-                                 capabilities);
+  VariantProposalRequest request(problem, kernel, capabilities);
   mlir::OpBuilder builder(&context);
   llvm::SmallVector<VariantOp, 2> materializedVariants;
   if (int result = expectSuccess(
@@ -1000,6 +1038,7 @@ module {
                                              VariantLegalityRequest(
                                                  missingRequirement,
                                                  missingRequirementKernel,
+                                                 nullptr,
                                                  availableCapabilities)),
           {"scalar fallback", "must require capability id",
            "scalar.fallback"}))
@@ -1012,6 +1051,7 @@ module {
                                              VariantLegalityRequest(
                                                  requiresUnavailable,
                                                  unavailableKernel,
+                                                 nullptr,
                                                  unavailableCapabilities)),
           {"scalar fallback", "requires an available capability id",
            "scalar.fallback"}))
@@ -1051,11 +1091,8 @@ int runFamilyIndependenceAcceptanceTest(mlir::MLIRContext &context) {
   // --- conjunct (1): closure ∩ rvv.* = ∅ for the scalar fallback family. ---
   constexpr llvm::StringLiteral source = R"mlir(
 module {
-  func.func @high_level_placeholder() {
-    return
-  }
-
-  weft.exec.kernel @only_feasible_scalar attributes {construction_domain = "riscv-execution"} {
+  weft.exec.kernel @only_feasible_scalar attributes {construction_domain = "riscv-execution", problem = @canonical_problem} {
+    weft.exec.dequantize_row_q4_0_problem @canonical_problem {qk = 32 : i64, weight_block_stride = 18 : i64, weight_d_byte_offset = 0 : i64, weight_quant_byte_offset = 2 : i64}
     weft.exec.capability @scalar_fallback {
       id = "scalar.fallback",
       kind = "fallback",
@@ -1069,9 +1106,9 @@ module {
   if (!module)
     return fail("failed to parse F-6 vector-absent scalar module");
 
-  mlir::func::FuncOp highLevelOp = findHighLevelPlaceholder(*module);
   KernelOp kernel = findKernel(*module, "only_feasible_scalar");
-  if (int result = expect(highLevelOp && kernel,
+  mlir::Operation *problem = findCanonicalProblem(kernel);
+  if (int result = expect(kernel && problem,
                           "F-6 vector-absent scalar module has anchors"))
     return result;
 
@@ -1173,8 +1210,7 @@ module {
                         "register scalar fallback plugin for F-6 selection"))
     return result;
 
-  VariantProposalRequest request(highLevelOp.getOperation(), kernel,
-                                 capabilities);
+  VariantProposalRequest request(problem, kernel, capabilities);
   mlir::OpBuilder builder(&context);
   llvm::SmallVector<VariantOp, 1> materializedVariants;
   if (int result = expectSuccess(
@@ -1257,7 +1293,6 @@ int main() {
     return result;
   weft::registerAllDialects(dialectRegistry);
   weft::registerPluginDialects(dialectPlugins, dialectRegistry);
-  dialectRegistry.insert<mlir::func::FuncDialect>();
 
   mlir::MLIRContext context(dialectRegistry);
   context.loadAllAvailableDialects();

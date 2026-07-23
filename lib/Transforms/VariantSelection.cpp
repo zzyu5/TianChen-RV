@@ -668,9 +668,6 @@ private:
         TargetCapabilitySet::buildFromKernelChecked(kernel);
     if (!capabilities)
       return emitSelectionError(kernel, capabilities.takeError());
-    if (llvm::Error error =
-            registry->verifyKernelVariantLegality(kernel, *capabilities))
-      return emitSelectionError(kernel, std::move(error));
 
     llvm::Expected<VariantSelectionPlan> planOrError =
         planKernelVariantSelection(kernel, *capabilities, *registry);
@@ -735,7 +732,18 @@ llvm::Expected<VariantSelectionPlan> planKernelVariantSelection(
                               "block");
 
   if (llvm::Error error =
+          plugin::validateBoundTargetCapabilities(kernel, capabilities))
+    return std::move(error);
+
+  if (llvm::Error error =
           registry.validateKernelVariantConstructionDomain(kernel))
+    return std::move(error);
+
+  // This public planner owns the complete qualification order. Foreign-domain
+  // owners are rejected above before any owner hook observes the problem;
+  // owner-local legality then forms the qualified set before analytic ranking.
+  if (llvm::Error error =
+          registry.verifyKernelVariantLegality(kernel, capabilities))
     return std::move(error);
 
   llvm::SmallVector<VariantCostRankingEntry, 4> rankedCosts;
@@ -1078,22 +1086,27 @@ std::string buildSelectionAttributionRecord(
     }
   }
 
-  // reason: DERIVED (orthogonal to the in-IR `reason` attr). The distinction
-  // between "only one feasible" and "chosen among many" lives on the PRIMARY key,
-  // not a footnote. only_feasible = exactly one feasible candidate; static_order =
-  // >=2 feasible chosen by today's capability-blind constant-score cold-start
-  // ordering (no capability-prior layer exists at the exec selector yet). `prior`
-  // is STRICTLY reserved for a capability-DERIVED prior and is NEVER emitted at
-  // stage (1) until [SEL-1]/G3 lands; `measured` (memoized-measurement winner) is
-  // likewise never emitted here until [SEL-3] (measurement is a schedule-stage
-  // fact). So stage (1) today emits only `only_feasible` or `static_order`. reason
-  // is null when nothing was chosen (NoViableVariant). Every feasible candidate
-  // always carries its constant ranking score (see appendCandidateObject) so a
-  // static_order decision is fully reconstructible from the record.
+  // reason is derived from the actual selecting authority. A unique feasible
+  // candidate is `only_feasible`; among multiple feasible candidates, an
+  // explicit owner formula/cost is `prior`, while a neutral original-order tie
+  // remains `static_order`. `measured` stays reserved until qualified winner
+  // memory is physically wired into this planner.
   bool hasChosen = static_cast<bool>(chosen);
-  llvm::StringRef reason =
-      hasChosen ? (feasibleCount >= 2 ? "static_order" : "only_feasible")
-                : llvm::StringRef();
+  llvm::StringRef reason;
+  if (hasChosen && feasibleCount == 1) {
+    reason = "only_feasible";
+  } else if (hasChosen) {
+    const VariantSelectionCase *chosenCase = nullptr;
+    for (const VariantSelectionCase &candidate : plan.rankedVariants)
+      if (candidate.variant == chosen) {
+        chosenCase = &candidate;
+        break;
+      }
+    reason = chosenCase && chosenCase->cost.hasExplicitPreference() &&
+                     !chosenCase->cost.getFormulaID().empty()
+                 ? "prior"
+                 : "static_order";
+  }
 
   std::string declaredInstanceHash =
       support::computeDeclaredInstanceHash(capabilities);

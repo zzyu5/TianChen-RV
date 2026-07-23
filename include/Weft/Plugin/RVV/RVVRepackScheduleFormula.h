@@ -200,26 +200,6 @@ inline RVVRepackFinalSchedule selectRVVRepackSchedule(
   return result;
 }
 
-/// The current compiled winner view contains one qualified loop-order seed and
-/// no main-term seed.  Lookup remains outside the analytic constructor; callers
-/// pass the bounded winner back through selectRVVRepackSchedule, which rechecks
-/// membership in the legal set.
-inline std::optional<RVVRepackLoopOrder>
-lookupQualifiedRepackLoopOrderWinner(llvm::StringRef declaredInstanceHash,
-                                     llvm::StringRef kernel) {
-  constexpr llvm::StringLiteral kRVVVLen128InstanceHash =
-      "3cd23a4ec9796a3ce1f863cd80c96b894267ab95b45cb0ecfeb856cc643b58c7";
-  if (declaredInstanceHash == kRVVVLen128InstanceHash && kernel == "q4_K")
-    return RVVRepackLoopOrder::ColOuter;
-  return std::nullopt;
-}
-
-inline std::optional<RVVRepackMainTermForm>
-lookupQualifiedRepackMainTermWinner(std::int64_t /*unrolledMainTermVwmacc*/,
-                                    llvm::StringRef /*integerCoreLMUL*/) {
-  return std::nullopt;
-}
-
 } // namespace weft::plugin::rvv
 
 #endif // WEFT_PLUGIN_RVV_RVVREPACKSCHEDULEFORMULA_H

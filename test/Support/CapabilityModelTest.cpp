@@ -73,6 +73,7 @@ module {
     id = "rvv.profile.module",
     target_kind = "profile",
     status = "available",
+    construction_domain = "riscv-execution",
     relations = #weft.capability_relations<provides = ["module.rvv"]>,
     architecture = "riscv64"
   }

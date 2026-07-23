@@ -12,19 +12,12 @@
 namespace weft::plugin::scalar {
 namespace {
 
-bool isSelectedForVariant(mlir::Operation *op,
-                          weft::exec::VariantOp variant) {
-  auto selected =
-      op->getAttrOfType<mlir::FlatSymbolRefAttr>("selected_variant");
-  return selected && selected.getValue() == variant.getSymName();
-}
-
-llvm::Error rejectSource(mlir::Operation *source, llvm::Twine message) {
+llvm::Error rejectProblem(mlir::Operation *problem, llvm::Twine message) {
   std::string detail = message.str();
-  source->emitError() << detail;
+  problem->emitError() << detail;
   return llvm::createStringError(
       llvm::inconvertibleErrorCode(),
-      "scalar formula rejected typed source: %s", detail.c_str());
+      "scalar formula rejected canonical problem: %s", detail.c_str());
 }
 
 void addI64(mlir::OperationState &state, mlir::OpBuilder &builder,
@@ -70,25 +63,33 @@ struct AffineDequantComputationPlan {
 };
 
 template <typename BodyOp>
-BodyOp createBodyBefore(mlir::Operation *source,
-                        llvm::function_ref<void(mlir::OperationState &,
-                                                mlir::OpBuilder &)> addAttrs) {
-  mlir::OpBuilder builder(source->getContext());
-  builder.setInsertionPoint(source);
-  mlir::OperationState state(source->getLoc(), BodyOp::getOperationName());
-  state.addAttribute("source_kernel", source->getAttr("source_kernel"));
-  state.addAttribute("selected_variant", source->getAttr("selected_variant"));
+BodyOp createBody(weft::exec::VariantOp variant,
+                  weft::exec::KernelOp kernel, mlir::Location loc,
+                  llvm::function_ref<void(mlir::OperationState &,
+                                          mlir::OpBuilder &)> addAttrs) {
+  mlir::OpBuilder builder(variant.getContext());
+  builder.setInsertionPointToEnd(&variant.getBody().front());
+  mlir::OperationState state(loc, BodyOp::getOperationName());
+  state.addAttribute("source_kernel",
+                     builder.getStringAttr(kernel.getSymName()));
+  state.addAttribute(
+      "selected_variant",
+      mlir::FlatSymbolRefAttr::get(builder.getContext(), variant.getSymName()));
   addAttrs(state, builder);
   return llvm::cast<BodyOp>(builder.create(state));
 }
 
 template <typename BodyOp>
-BodyOp createRegionBodyBefore(mlir::Operation *source) {
-  mlir::OpBuilder builder(source->getContext());
-  builder.setInsertionPoint(source);
-  mlir::OperationState state(source->getLoc(), BodyOp::getOperationName());
-  state.addAttribute("source_kernel", source->getAttr("source_kernel"));
-  state.addAttribute("selected_variant", source->getAttr("selected_variant"));
+BodyOp createRegionBody(weft::exec::VariantOp variant,
+                        weft::exec::KernelOp kernel, mlir::Location loc) {
+  mlir::OpBuilder builder(variant.getContext());
+  builder.setInsertionPointToEnd(&variant.getBody().front());
+  mlir::OperationState state(loc, BodyOp::getOperationName());
+  state.addAttribute("source_kernel",
+                     builder.getStringAttr(kernel.getSymName()));
+  state.addAttribute(
+      "selected_variant",
+      mlir::FlatSymbolRefAttr::get(builder.getContext(), variant.getSymName()));
   state.addRegion();
   BodyOp body = llvm::cast<BodyOp>(builder.create(state));
   body.getBody().emplaceBlock();
@@ -117,25 +118,21 @@ PlanOp createLeafPlanOp(
 }
 
 llvm::Expected<TernaryDotComputationPlan>
-evaluateTernaryDotFormula(weft::scalar::TernaryQ2Q8BlockDotOp source) {
-  if (source.getQk() != 256 || source.getWeightBlockStride() != 66 ||
-      source.getActivationBlockStride() != 292 ||
-      source.getWeightDByteOffset() != 64 ||
-      source.getActivationDByteOffset() != 0 ||
-      source.getActivationQuantByteOffset() != 4)
-    return rejectSource(source, "tq2_0 x q8_K construction only admits the "
-                                "canonical qk/stride/offset geometry");
+evaluateTernaryDotFormula(
+    weft::exec::TernaryQ2Q8BlockDotProblemOp problem) {
+  if (mlir::failed(problem.verify()))
+    return rejectProblem(problem, "malformed tq2_0 x q8_K geometry");
 
   // This deterministic formula produces the complete Scalar-local loop and
   // computation plan before any final body operation is created.
   auto signedFact = [](uint64_t value) { return static_cast<int64_t>(value); };
   return TernaryDotComputationPlan{
-      signedFact(source.getQk()),
-      signedFact(source.getWeightBlockStride()),
-      signedFact(source.getActivationBlockStride()),
-      signedFact(source.getActivationQuantByteOffset()),
+      signedFact(problem.getQk()),
+      signedFact(problem.getWeightBlockStride()),
+      signedFact(problem.getActivationBlockStride()),
+      signedFact(problem.getActivationQuantByteOffset()),
       /*blockStep=*/1,
-      /*planeGroupUpperBound=*/signedFact(source.getQk() / 4),
+      /*planeGroupUpperBound=*/signedFact(problem.getQk() / 4),
       /*planeGroupStep=*/32,
       /*planeUpperBound=*/4,
       /*planeStep=*/1,
@@ -146,27 +143,25 @@ evaluateTernaryDotFormula(weft::scalar::TernaryQ2Q8BlockDotOp source) {
       /*decodeZeroPoint=*/1,
       /*activationPlaneStride=*/4,
       /*planeLanes=*/32,
-      signedFact(source.getWeightDByteOffset()),
-      signedFact(source.getActivationDByteOffset()),
+      signedFact(problem.getWeightDByteOffset()),
+      signedFact(problem.getActivationDByteOffset()),
   };
 }
 
 llvm::Expected<AffineDequantComputationPlan>
-evaluateAffineDequantFormula(weft::scalar::DequantizeRowQ4Op source) {
-  if (source.getQk() != 32 || source.getWeightBlockStride() != 18 ||
-      source.getWeightDByteOffset() != 0 ||
-      source.getWeightQuantByteOffset() != 2)
-    return rejectSource(source, "q4_0 dequant construction only admits the "
-                                "canonical qk/stride/offset geometry");
+evaluateAffineDequantFormula(
+    weft::exec::DequantizeRowQ40ProblemOp problem) {
+  if (mlir::failed(problem.verify()))
+    return rejectProblem(problem, "malformed q4_0 dequant geometry");
 
   auto signedFact = [](uint64_t value) { return static_cast<int64_t>(value); };
-  const int64_t halfWidth = signedFact(source.getQk() / 2);
+  const int64_t halfWidth = signedFact(problem.getQk() / 2);
   return AffineDequantComputationPlan{
-      signedFact(source.getQk()),
-      signedFact(source.getWeightBlockStride()),
+      signedFact(problem.getQk()),
+      signedFact(problem.getWeightBlockStride()),
       /*blockStep=*/1,
-      signedFact(source.getWeightDByteOffset()),
-      signedFact(source.getWeightQuantByteOffset()),
+      signedFact(problem.getWeightDByteOffset()),
+      signedFact(problem.getWeightQuantByteOffset()),
       /*packedByteUpperBound=*/halfWidth,
       /*packedByteStep=*/1,
       /*lowFieldShift=*/0,
@@ -179,33 +174,19 @@ evaluateAffineDequantFormula(weft::scalar::DequantizeRowQ4Op source) {
 }
 
 llvm::Expected<mlir::Operation *>
-constructImmediateBody(weft::scalar::ComputeSkeletonOp source) {
-  auto immediate = source->getAttrOfType<mlir::IntegerAttr>("scalar_immediate");
-  if (!immediate)
-    return rejectSource(source, "scalar compute construction requires "
-                                "scalar_immediate");
-
-  auto body = createBodyBefore<weft::scalar::ImmediateCallBodyOp>(
-      source, [&](mlir::OperationState &state, mlir::OpBuilder &) {
-        state.addAttribute("scalar_immediate", immediate);
-      });
-  source.erase();
-  return body.getOperation();
-}
-
-llvm::Expected<mlir::Operation *>
 constructPackedTernaryDotBody(
-    weft::scalar::TernaryQ2Q8BlockDotOp source) {
+    weft::exec::VariantOp variant, weft::exec::KernelOp kernel,
+    weft::exec::TernaryQ2Q8BlockDotProblemOp problem) {
   llvm::Expected<TernaryDotComputationPlan> planOr =
-      evaluateTernaryDotFormula(source);
+      evaluateTernaryDotFormula(problem);
   if (!planOr)
     return planOr.takeError();
   const TernaryDotComputationPlan &plan = *planOr;
 
-  auto body =
-      createRegionBodyBefore<weft::scalar::PackedTernaryDotBodyOp>(source);
-  mlir::OpBuilder builder(source->getContext());
-  mlir::Location loc = source.getLoc();
+  auto body = createRegionBody<weft::scalar::PackedTernaryDotBodyOp>(
+      variant, kernel, problem.getLoc());
+  mlir::OpBuilder builder(problem.getContext());
+  mlir::Location loc = problem.getLoc();
   builder.setInsertionPointToEnd(&body.getBody().front());
   auto blockLoop = createRegionPlanOp<weft::scalar::TernaryBlockLoopOp>(
       builder, loc, [&](mlir::OperationState &state) {
@@ -265,23 +246,23 @@ constructPackedTernaryDotBody(
   builder.setInsertionPointToEnd(&body.getBody().front());
   createLeafPlanOp<weft::scalar::TernaryStoreOp>(
       builder, loc, [](mlir::OperationState &) {});
-  source.erase();
   return body.getOperation();
 }
 
 llvm::Expected<mlir::Operation *>
 constructPackedAffineDequantBody(
-    weft::scalar::DequantizeRowQ4Op source) {
+    weft::exec::VariantOp variant, weft::exec::KernelOp kernel,
+    weft::exec::DequantizeRowQ40ProblemOp problem) {
   llvm::Expected<AffineDequantComputationPlan> planOr =
-      evaluateAffineDequantFormula(source);
+      evaluateAffineDequantFormula(problem);
   if (!planOr)
     return planOr.takeError();
   const AffineDequantComputationPlan &plan = *planOr;
 
-  auto body =
-      createRegionBodyBefore<weft::scalar::PackedAffineDequantBodyOp>(source);
-  mlir::OpBuilder builder(source->getContext());
-  mlir::Location loc = source.getLoc();
+  auto body = createRegionBody<weft::scalar::PackedAffineDequantBodyOp>(
+      variant, kernel, problem.getLoc());
+  mlir::OpBuilder builder(problem.getContext());
+  mlir::Location loc = problem.getLoc();
   builder.setInsertionPointToEnd(&body.getBody().front());
   auto blockLoop = createRegionPlanOp<weft::scalar::AffineBlockLoopOp>(
       builder, loc, [&](mlir::OperationState &state) {
@@ -320,19 +301,60 @@ constructPackedAffineDequantBody(
         addI64(state, builder, "low_output_delta", plan.lowOutputDelta);
         addI64(state, builder, "high_output_delta", plan.highOutputDelta);
       });
-  source.erase();
   return body.getOperation();
+}
+
+bool isScalarFinalBody(mlir::Operation *operation) {
+  return llvm::isa<weft::scalar::ImmediateCallBodyOp,
+                   weft::scalar::PackedTernaryDotBodyOp,
+                   weft::scalar::PackedAffineDequantBodyOp>(operation);
+}
+
+llvm::Expected<mlir::Operation *>
+inspectScalarFinalBodySlot(weft::exec::VariantOp variant,
+                           weft::exec::KernelOp kernel) {
+  if (variant.getBody().empty())
+    return llvm::createStringError(
+        llvm::inconvertibleErrorCode(),
+        "scalar construction requires a materialized variant body");
+
+  mlir::Operation *found = nullptr;
+  for (mlir::Operation &operation : variant.getBody().front()) {
+    if (!isScalarFinalBody(&operation))
+      continue;
+    if (found)
+      return llvm::createStringError(
+          llvm::inconvertibleErrorCode(),
+          "scalar variant canonical body slot contains multiple final roots");
+    auto selected = operation.getAttrOfType<mlir::FlatSymbolRefAttr>(
+        "selected_variant");
+    auto sourceKernel =
+        operation.getAttrOfType<mlir::StringAttr>("source_kernel");
+    if (!selected || selected.getValue() != variant.getSymName() ||
+        !sourceKernel || sourceKernel.getValue() != kernel.getSymName())
+      return llvm::createStringError(
+          llvm::inconvertibleErrorCode(),
+          "scalar variant canonical body slot has stale structural ownership");
+    found = &operation;
+  }
+  return found;
 }
 
 } // namespace
 
 llvm::Expected<mlir::Operation *> constructScalarFinalBody(
     weft::exec::VariantOp variant, weft::exec::KernelOp kernel,
+    mlir::Operation *problem,
     const support::TargetCapabilitySet &capabilities) {
   if (!variant || !kernel || variant->getParentOp() != kernel.getOperation())
     return llvm::createStringError(
         llvm::inconvertibleErrorCode(),
         "scalar construction requires one directly bound variant/kernel");
+
+  // Source-only modules need not contain a pre-authored Scalar op. Load the
+  // owner dialect at the construction boundary before creating its final typed
+  // body; requiring a dummy family source op would reintroduce the old path.
+  variant.getContext()->getOrLoadDialect<weft::scalar::WEFTScalarDialect>();
 
   const support::CapabilityDescriptor *scalarCapability =
       capabilities.lookupProviderByID("scalar.fallback");
@@ -342,53 +364,22 @@ llvm::Expected<mlir::Operation *> constructScalarFinalBody(
         "scalar construction requires available canonical capability id "
         "'scalar.fallback'");
 
-  mlir::Operation *selected = nullptr;
-  unsigned matches = 0;
-  kernel.walk([&](mlir::Operation *op) {
-    if (!llvm::isa<weft::scalar::ComputeSkeletonOp,
-                   weft::scalar::TernaryQ2Q8BlockDotOp,
-                   weft::scalar::DequantizeRowQ4Op,
-                   weft::scalar::ImmediateCallBodyOp,
-                   weft::scalar::PackedTernaryDotBodyOp,
-                   weft::scalar::PackedAffineDequantBodyOp>(op) ||
-        !isSelectedForVariant(op, variant))
-      return;
-    selected = op;
-    ++matches;
-  });
-  if (matches > 1)
-    return llvm::createStringError(
-        llvm::inconvertibleErrorCode(),
-        "scalar construction found multiple source/final bodies for variant "
-        "@%s",
-        variant.getSymName().str().c_str());
-  if (!selected)
+  llvm::Expected<mlir::Operation *> existing =
+      inspectScalarFinalBodySlot(variant, kernel);
+  if (!existing)
+    return existing.takeError();
+  if (*existing)
+    return *existing;
+
+  if (!problem)
     return static_cast<mlir::Operation *>(nullptr);
-
-  auto sourceKernel =
-      selected->getAttrOfType<mlir::StringAttr>("source_kernel");
-  if (!sourceKernel || sourceKernel.getValue() != kernel.getSymName())
-    return llvm::createStringError(
-        llvm::inconvertibleErrorCode(),
-        "scalar construction requires source_kernel to match the bound "
-        "kernel");
-
-  // A final family-local body is already an exact construction result.  This
-  // makes a repeated bound invocation idempotent without recreating a source
-  // problem, a stamp, or a module-wide rediscovery protocol.
-  if (llvm::isa<weft::scalar::ImmediateCallBodyOp,
-                weft::scalar::PackedTernaryDotBodyOp,
-                weft::scalar::PackedAffineDequantBodyOp>(selected))
-    return selected;
-
-  if (auto source =
-          llvm::dyn_cast<weft::scalar::ComputeSkeletonOp>(selected))
-    return constructImmediateBody(source);
-  if (auto source =
-          llvm::dyn_cast<weft::scalar::TernaryQ2Q8BlockDotOp>(selected))
-    return constructPackedTernaryDotBody(source);
-  return constructPackedAffineDequantBody(
-      llvm::cast<weft::scalar::DequantizeRowQ4Op>(selected));
+  if (auto ternary =
+          llvm::dyn_cast<weft::exec::TernaryQ2Q8BlockDotProblemOp>(problem))
+    return constructPackedTernaryDotBody(variant, kernel, ternary);
+  if (auto q40 =
+          llvm::dyn_cast<weft::exec::DequantizeRowQ40ProblemOp>(problem))
+    return constructPackedAffineDequantBody(variant, kernel, q40);
+  return static_cast<mlir::Operation *>(nullptr);
 }
 
 } // namespace weft::plugin::scalar

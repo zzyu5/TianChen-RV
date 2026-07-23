@@ -172,7 +172,6 @@ IME_KEYED_VARIANT = """    weft.exec.variant @ime_keyed_body attributes {
 IME_PLUGIN_VARIANT = """    weft.exec.variant @ime_vmadot_matmul_slice attributes {
       condition = "spacemit_ime_capability_available",
       guard = "plugin_local_ime_vmadot_boundary",
-      ime.signedness = "signed",
       origin = "ime-plugin",
       policy = "ime_int8_matmul_vmadot_mac",
       requires = [@spacemit_ime]
@@ -182,15 +181,14 @@ IME_PLUGIN_VARIANT = """    weft.exec.variant @ime_vmadot_matmul_slice attribute
 
 # The two board fact instances. rvv board = VLEN128, no IME silicon (spacemit.ime
 # status=missing -> interpreted as unavailable per [S-2]); k1 board = VLEN256 with
-# the IME matrix unit present and deriving a whole-matrix GEMM shape.
+# the IME matrix unit present. The shared exact P supplies GEMM geometry.
 INSTANCES = {
     "rvv": dict(board="rvv", vlen="128", hints="rv64gcv_zvl128b",
                 ime_status="missing", ime_extra="",
                 march="rv64gcv"),
     "k1": dict(board="k1", vlen="256", hints="rv64gcv_zvl256b",
                ime_status="available",
-               ime_extra=',\n      available_harts = "0-3",'
-                         '\n      ime_matmul_shape = "256x256x256"',
+               ime_extra=',\n      available_harts = "0-3"',
                march="rv64gcv_zvl256b"),
 }
 
@@ -199,7 +197,9 @@ def render(instance, kernel, variants):
     facts = FACTS_TMPL.format(hints=instance["hints"], vlen=instance["vlen"],
                               ime_status=instance["ime_status"],
                               ime_extra=instance["ime_extra"])
-    return ("module {\n  weft.exec.kernel @%s {\n" % kernel) + facts + \
+    problem = """    weft.exec.int8_mac_problem @canonical_problem {lhs_signedness = #weft<integer_signedness signed>, rhs_signedness = #weft<integer_signedness signed>, m = 256 : i64, n = 256 : i64, k = 256 : i64}
+"""
+    return ("module {\n  weft.exec.kernel @%s attributes {construction_domain = \"riscv-execution\", problem = @canonical_problem} {\n" % kernel) + problem + facts + \
            "".join(variants) + "  }\n}\n"
 
 

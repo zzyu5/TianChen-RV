@@ -1,32 +1,13 @@
-// [GAP-P1]-loosen JUDGMENT -- the per-format repack accumulator-LMUL measured gate.
-// The front door projects the board-MEASURED lookup into one typed omega hit, then
-// decideRepackAccumulatorLMUL filters it through the typed legal set. The current
-// data lookup is keyed on the committed decode-family scale_model WHAT. Board-measured
-// rows @rvv VLEN128 (spill-free,
-// byte-exact, 2-seed cold):
-//   * q8_0 full-i8 (kNibbleQ80ScaleModel)         -> m1 (GEVM 1.4-2.4x / GEMM 1.40x)
-//   * q4_0 signed-nibble (kNibbleQ40ScaleModel)   -> m1 (GEVM 2.3-2.5x / GEMM 1.24x)
-//   * q4_1 nibble+min (kNibbleQ41ScaleModel)      -> m1 (GEVM 2.3x / GEMM parity)
-//       (see experiments/active/r51f-gapp1-q8-deployed-board/FINDING.md +
-//        experiments/active/r51g-b1-repack-family-sweep/FINDING.md)
-// Every OTHER format has NO row => nullopt => the mf2 default holds (no-blind-widest).
-// q5_0/q5_1 (+qh) stay mf2 ON PURPOSE: their m1 wins the decode GEVM but the prefill
-// GEMM m1 core SPILLS and runs 2.3-2.4x SLOWER -- [GAP-P1]'s regfile-spill concern,
-// board-vindicated; one measured row flips BOTH regimes, so they are NOT flipped.
-//
-// This fixture is the DISCRIMINATOR: the SAME pass, SAME board (rv64gcv => VLEN128),
-// SAME decode repack-GEVM construction path, differing ONLY in the format input:
-//   * q8_0  (full-i8)         -> WIDE m1 chain (half_lanes 16, integer_core_lmul m1,
-//                                reason "measured").
-//   * q5_1  (nibble+min+qh)   -> mf2 default  (half_lanes 8,  integer_core_lmul mf2,
-//                                reason "capability-default-mf2").
-// Flip the format input and the accumulator LMUL flips; the measured gate is a REAL
-// per-format consumer, not a blanket widen.
+// Regression for removal of the historical per-format accumulator winner table.
+// q8_0 and q5_1 share the same VLEN128 repack construction path; without a
+// qualified residual, both follow the analytic mf2 schedule (half_lanes=8,
+// integer_core_lmul="mf2"). The format still changes decode and fold semantics,
+// but no hidden format-keyed lookup changes LMUL.
 //
 // RUN: weft-opt %s --weft-rvv-lower-quant-contraction=march=rv64gcv | FileCheck %s
 
 module {
-  // ---- q8_0 (full-i8): board-measured => WIDE m1 -------------------------------
+  // ---- q8_0 (full-i8): analytic mf2 --------------------------------------------
   weft.exec.kernel @ggml_vec_dot_q8_0_q8_0_kernel {
     weft.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
     weft.exec.variant @ggml_vec_dot_q8_0_q8_0 attributes {origin = "rvv-plugin", requires = [@rvv], weft_rvv.policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>} {
@@ -41,7 +22,7 @@ module {
       } : !weft_rvv.vl
     }
   }
-  // ---- q5_1 (nibble+min+qh): NO measured row => mf2 default (spill-vindicated) --
+  // ---- q5_1 (nibble+min+qh): analytic mf2 --------------------------------------
   weft.exec.kernel @ggml_vec_dot_q5_1_q8_1_kernel {
     weft.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
     weft.exec.variant @ggml_vec_dot_q5_1_q8_1 attributes {origin = "rvv-plugin", requires = [@rvv], weft_rvv.policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>} {
@@ -58,14 +39,12 @@ module {
   }
 }
 
-// q8_0 full-i8: the board-MEASURED row flips the accumulator to the WIDE m1 chain.
+// q8_0 full-i8: without a qualified winner, the analytic mf2 prior applies.
 // CHECK: weft_rvv.typed_repack_gemv_loop_body
-// CHECK-SAME: half_lanes = 16 : i64
-// CHECK-SAME: integer_core_lmul = "m1"
+// CHECK-SAME: half_lanes = 8 : i64
+// CHECK-SAME: integer_core_lmul = "mf2"
 
-// q5_1 nibble+min+qh: NO measured row => the mf2 default holds (no-blind-widest;
-// the prefill GEMM m1 core spills, so it is NOT flipped). The SAME construction
-// path, ONLY the format differs -- and the accumulator does NOT widen.
+// q5_1 nibble+min+qh follows the same analytic mf2 resource prior.
 // CHECK: weft_rvv.typed_repack_gemv_loop_body
 // CHECK-SAME: half_lanes = 8 : i64
 // CHECK-SAME: integer_core_lmul = "mf2"

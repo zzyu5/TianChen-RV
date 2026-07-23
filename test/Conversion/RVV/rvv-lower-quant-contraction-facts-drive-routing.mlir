@@ -9,8 +9,8 @@
 // half_lanes 8, the two decomposed inner bricks, the DECLARED weight_layout_contract
 // = "x16") it constructs when `quant = "q4_0"` is present -- byte-for-byte, same
 // audit reason. This is the judge: delete the format string, keep the facts, and
-// the compiler still constructs the right L2 region => quant is a label, routing
-// is fact-driven (the measured win/loss knowledge lives in the IR, not in C++).
+// the compiler still constructs the right L2 region => quant is a label and
+// analytic routing is driven by structured facts rather than a family-name branch.
 //
 // RUN: weft-opt %s --weft-rvv-lower-quant-contraction=march=rv64gcv | FileCheck %s
 
@@ -42,13 +42,12 @@ module {
 // CHECK-NOT: weft_rvv.q4_0_q8_0_block_dot
 // CHECK-NOT: weft_rvv.repack_gemv_q4_0_q8_0
 // CHECK: weft_rvv.typed_repack_gemv_loop_body
-// CHECK-SAME: half_lanes = 16 : i64
+// CHECK-SAME: half_lanes = 8 : i64
 // CHECK-SAME: weft_rvv.weight_layout_contract = "x16"
 // CHECK-SAME: weight_block_stride = 288 : i64
 // CHECK-SAME: weight_interleave = 16 : i64
 // CHECK-SAME: weight_quant_byte_offset = 32 : i64
 // CHECK: weft_rvv.repack_lane_wise_q4_x_i8_dot
-// (r51g board-measured m1 => ONE 16-lane strip => a SINGLE dual-fp16 scale fold,
-// where the mf2 default carried two 8-lane-strip folds.)
+// The analytic mf2 schedule uses two 8-lane strips.
 // CHECK: weft_rvv.repack_dual_fp16_scale_fold
 // CHECK: weft_rvv.typed_repack_gemv_loop_yield

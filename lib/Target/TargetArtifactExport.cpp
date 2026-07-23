@@ -2008,7 +2008,7 @@ materializeSelectedEmitCArtifactModule(
   if (mlir::OwningOpRef<mlir::ModuleOp> convertedModule =
           conversion::emitc::
               tryConvertConstructedModuleWithRegisteredBackend(
-                  *constructedModule)) {
+                  *constructedModule, construction.getOperation())) {
     // A backend fully lowered the selected body to a standalone emitc module.
     // Validate the genuinely necessary invariants against the converted module
     // + config (a well-formed single emitc.func boundary carrying the exact

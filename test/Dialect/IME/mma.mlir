@@ -16,7 +16,6 @@ module {
       origin = "ime-plugin",
       requires = [@spacemit_ime]
     } {
-    }
     // CHECK: weft_ime.mma {accum_bits = 32 : i64
     // CHECK-SAME: available_harts = "0-3"
     // CHECK-SAME: elem_in_bits = 8 : i64
@@ -45,6 +44,7 @@ module {
       mac_k = 8 : i64,
       available_harts = "0-3"
     }
+    }
   }
 }
 
@@ -60,9 +60,10 @@ module {
 module {
   weft.exec.kernel @ime_mma_wrong_op {
     weft.exec.capability @spacemit_ime {id = "spacemit.ime", kind = "isa-matrix-vector-backed", status = "available"}
-    weft.exec.variant @ime_vmadot_mma_slice attributes {origin = "ime-plugin", requires = [@spacemit_ime]} {}
+    weft.exec.variant @ime_vmadot_mma_slice attributes {origin = "ime-plugin", requires = [@spacemit_ime]} {
     // expected-error@+1 {{ime_op must be 'vmadot'; this op only models the validated IME1 int8->int32 MAC instruction of its signedness}}
     weft_ime.mma {origin = "ime-plugin", required_capabilities = [@spacemit_ime], role = "direct variant", status = "role-op-boundary", selected_variant = @ime_vmadot_mma_slice, source_kernel = "ime_mma_wrong_op", ime_op = "vmadotus", elem_in_bits = 8 : i64, accum_bits = 32 : i64, mac_m = 4 : i64, mac_n = 4 : i64, mac_k = 8 : i64, available_harts = "0-3"}
+    }
   }
 }
 
@@ -73,9 +74,10 @@ module {
 module {
   weft.exec.kernel @ime_mma_wrong_elem {
     weft.exec.capability @spacemit_ime {id = "spacemit.ime", kind = "isa-matrix-vector-backed", status = "available"}
-    weft.exec.variant @ime_vmadot_mma_slice attributes {origin = "ime-plugin", requires = [@spacemit_ime]} {}
+    weft.exec.variant @ime_vmadot_mma_slice attributes {origin = "ime-plugin", requires = [@spacemit_ime]} {
     // expected-error@+1 {{elem_in_bits must be 8 (IME1 vmadot consumes int8 inputs)}}
     weft_ime.mma {origin = "ime-plugin", required_capabilities = [@spacemit_ime], role = "direct variant", status = "role-op-boundary", selected_variant = @ime_vmadot_mma_slice, source_kernel = "ime_mma_wrong_elem", ime_op = "vmadot", elem_in_bits = 4 : i64, accum_bits = 32 : i64, mac_m = 4 : i64, mac_n = 4 : i64, mac_k = 8 : i64, available_harts = "0-3"}
+    }
   }
 }
 
@@ -86,8 +88,9 @@ module {
 module {
   weft.exec.kernel @ime_mma_unknown_attr {
     weft.exec.capability @spacemit_ime {id = "spacemit.ime", kind = "isa-matrix-vector-backed", status = "available"}
-    weft.exec.variant @ime_vmadot_mma_slice attributes {origin = "ime-plugin", requires = [@spacemit_ime]} {}
+    weft.exec.variant @ime_vmadot_mma_slice attributes {origin = "ime-plugin", requires = [@spacemit_ime]} {
     // expected-error@+1 {{does not accept generic tensor/tile/benchmark or unknown attribute 'shape'}}
     weft_ime.mma {origin = "ime-plugin", required_capabilities = [@spacemit_ime], role = "direct variant", status = "role-op-boundary", selected_variant = @ime_vmadot_mma_slice, source_kernel = "ime_mma_unknown_attr", ime_op = "vmadot", shape = "generic_tensor", elem_in_bits = 8 : i64, accum_bits = 32 : i64, mac_m = 4 : i64, mac_n = 4 : i64, mac_k = 8 : i64, available_harts = "0-3"}
+    }
   }
 }

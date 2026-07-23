@@ -64,7 +64,7 @@
 // exports a real RISC-V RVV relocatable object through the registered peer object
 // exporter.
 // RUN: rm -f %t.o
-// RUN: weft-opt %s --weft-rvv-materialize-mxfp4-q8-0-block-dot-source-front-door --weft-rvv-materialize-schedule=march=rv64gcv --weft-materialize-emission-plans | weft-translate --weft-export-target-artifact > %t.o
+// RUN: weft-opt %s --weft-rvv-materialize-mxfp4-q8-0-block-dot-source-front-door --weft-rvv-materialize-schedule=march=rv64gcv --weft-select-variants --weft-materialize-emission-plans | weft-translate --weft-export-target-artifact > %t.o
 // RUN: llvm-readobj -h %t.o | FileCheck %s --check-prefix=OBJECT
 // RUN: llvm-readobj --symbols %t.o | FileCheck %s --check-prefix=SYMBOL
 
@@ -72,7 +72,7 @@
 // packages to a real RISC-V RVV relocatable object under the same registered
 // exporter and the same exported handoff symbol.
 // RUN: rm -f %t256.o
-// RUN: weft-opt %s --weft-rvv-materialize-mxfp4-q8-0-block-dot-source-front-door --weft-rvv-materialize-schedule=march=rv64gcv_zvl256b --weft-materialize-emission-plans | weft-translate --weft-export-target-artifact > %t256.o
+// RUN: weft-opt %s --weft-rvv-materialize-mxfp4-q8-0-block-dot-source-front-door --weft-rvv-materialize-schedule=march=rv64gcv_zvl256b --weft-select-variants --weft-materialize-emission-plans | weft-translate --weft-export-target-artifact > %t256.o
 // RUN: llvm-readobj -h %t256.o | FileCheck %s --check-prefix=OBJECT
 // RUN: llvm-readobj --symbols %t256.o | FileCheck %s --check-prefix=SYMBOL
 
@@ -88,8 +88,7 @@ module attributes {weft_rvv.source_front_door = "ggml_mxfp4_q8_0_block_dot_sourc
 // emission-plan diagnostic naming the FLAT monolithic route id + object kind.
 // PLAN: weft.exec.kernel @ggml_vec_dot_mxfp4_q8_0_kernel
 // PLAN: weft_rvv.mxfp4_q8_0_block_dot
-// PLAN: weft.exec.diagnostic
-// PLAN-SAME: artifact_kind = "riscv-elf-relocatable-object"
+// PLAN: weft.exec.diagnostic {{.*}}artifact_kind = "riscv-elf-relocatable-object"
 // The flat block-dot carries the flat (not super-block) op-derived metadata keys
 // (rendered inside artifact_metadata, ahead of lowering_pipeline), with the mxfp4
 // kind.

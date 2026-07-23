@@ -389,6 +389,11 @@ llvm::Error materializeSelectedLoweringBoundaries(
 llvm::Error materializeSelectedLoweringBoundaries(
     KernelOp kernel, const TargetCapabilitySet &capabilities,
     const ExtensionPluginRegistry &registry) {
+  if (llvm::Error error =
+          validateBoundTargetCapabilities(kernel, capabilities))
+    return makeSelectedLoweringBoundaryError(
+        kernel, llvm::Twine("target capability binding is invalid: ") +
+                    llvm::toString(std::move(error)));
   llvm::SmallVector<SelectedLoweringBoundaryReference, 4> references;
   if (llvm::Error error =
           collectSelectedLoweringBoundaryReferences(kernel, references))
@@ -400,6 +405,18 @@ llvm::Error materializeSelectedLoweringBoundaries(
   mlir::Block &body = kernel.getBody().front();
   mlir::OpBuilder builder(kernel.getContext());
   builder.setInsertionPointToEnd(&body);
+
+  mlir::Operation *problem = nullptr;
+  if (kernel->hasAttr("problem")) {
+    llvm::Expected<mlir::Operation *> resolvedProblem =
+        resolveCanonicalProblem(kernel);
+    if (!resolvedProblem)
+      return makeSelectedLoweringBoundaryError(
+          kernel, llvm::Twine("cannot expose selected body with an invalid "
+                              "canonical problem anchor: ") +
+                      llvm::toString(resolvedProblem.takeError()));
+    problem = *resolvedProblem;
+  }
 
   for (const SelectedLoweringBoundaryReference &reference : references) {
     auto module = kernel->getParentOfType<mlir::ModuleOp>();
@@ -413,11 +430,16 @@ llvm::Error materializeSelectedLoweringBoundaries(
           kernel, llvm::Twine("family construction failed before selected "
                               "body exposure: ") +
                       llvm::toString(std::move(error)));
+    if (!construction.hasFinalBody())
+      return makeSelectedLoweringBoundaryError(
+          kernel, llvm::Twine("selected owner did not construct an executable "
+                              "final body before boundary exposure: ") +
+                      construction.getReason());
 
     VariantLoweringBoundaryResult result;
-    VariantLoweringBoundaryRequest request(reference.variant, kernel,
-                                           capabilities, reference.role,
-                                           builder);
+    VariantLoweringBoundaryRequest request(
+        reference.variant, kernel, problem, capabilities, reference.role,
+        builder, construction.getOperation());
     if (llvm::Error error =
             registry.materializeSelectedLoweringBoundary(request, result))
       return error;

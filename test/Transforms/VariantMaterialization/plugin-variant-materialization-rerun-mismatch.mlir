@@ -2,7 +2,7 @@
 
 module {
   weft.exec.kernel @rerun_mismatch attributes {construction_domain = "riscv-execution", problem = @problem} {
-    weft.exec.int8_mac_problem @problem {lhs_signedness = #weft<integer_signedness signed>, rhs_signedness = #weft<integer_signedness signed>, m = 4 : i64, n = 4 : i64, k = 8 : i64}
+    weft.exec.dequantize_row_q4_0_problem @problem {qk = 32 : i64, weight_block_stride = 18 : i64, weight_d_byte_offset = 0 : i64, weight_quant_byte_offset = 2 : i64}
     weft.exec.capability @scalar_fallback {
       id = "scalar.fallback",
       kind = "fallback",

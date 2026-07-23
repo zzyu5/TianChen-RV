@@ -2,7 +2,6 @@
 
 #include "Weft/Dialect/IME/IR/IMEDialect.h"
 #include "Weft/Plugin/IME/IMEExtensionPlugin.h"
-#include "Weft/Support/CapabilityModel.h"
 
 #include "mlir/IR/BuiltinAttributes.h"
 #include "llvm/Support/Error.h"
@@ -75,30 +74,6 @@ mlir::FailureOr<int64_t> readTypedScheduleInteger(mlir::Operation *op,
   return value.getInt();
 }
 
-mlir::FailureOr<int64_t> readIMEConstructionVlenBits(
-    mlir::Operation *tile,
-    const support::TargetCapabilitySet &capabilities) {
-  const support::CapabilityDescriptor *imeCapability =
-      capabilities.lookupProviderByID(getIMEExtensionCapabilityID());
-  if (!imeCapability || !imeCapability->isAvailable())
-    return tile->emitError(
-        "IME construction requires an available canonical IME capability");
-
-  mlir::Attribute vlen = imeCapability->getPropertyAttribute("vlen_bits");
-  int64_t value = 0;
-  if (auto integer = llvm::dyn_cast_if_present<mlir::IntegerAttr>(vlen))
-    value = integer.getInt();
-  else if (auto text = llvm::dyn_cast_if_present<mlir::StringAttr>(vlen)) {
-    long long parsed = 0;
-    if (!text.getValue().getAsInteger(10, parsed))
-      value = parsed;
-  }
-  if (value <= 0)
-    return tile->emitError(
-        "IME construction requires a positive typed vlen_bits capability fact");
-  return value;
-}
-
 IMEWideComputationDecision constructWideVmadotPlan(
     int64_t vlenBits, int64_t macM, int64_t macN, int64_t macK,
     int64_t elemInBits, int64_t accumBits, bool supportsWideAReuse) {
@@ -143,8 +118,7 @@ IMEWideComputationDecision constructWideVmadotPlan(
 
 template <typename TileOp>
 mlir::LogicalResult constructIMEQuantTilePlan(
-    TileOp tile, const support::TargetCapabilitySet &capabilities,
-    bool supportsWideAReuse) {
+    TileOp tile, int64_t targetVlenBits, bool supportsWideAReuse) {
   mlir::Block &body = tile.getBody().front();
   auto macLeaves = body.template getOps<weft::ime::VmadotMacLeafOp>();
   if (macLeaves.empty())
@@ -156,12 +130,11 @@ mlir::LogicalResult constructIMEQuantTilePlan(
   const int64_t fragmentCount = macK > 0 ? tile.getMatK() / macK : 1;
   const bool macBatched = fragmentCount >= 2;
 
-  auto vlenBits =
-      readIMEConstructionVlenBits(tile.getOperation(), capabilities);
-  if (mlir::failed(vlenBits))
-    return mlir::failure();
+  if (targetVlenBits <= 0)
+    return tile.emitError(
+        "IME construction requires positive target-projected VLEN");
   IMEWideComputationDecision wide = constructWideVmadotPlan(
-      *vlenBits, tile.getMacM(), tile.getMacN(), tile.getMacK(),
+      targetVlenBits, tile.getMacM(), tile.getMacN(), tile.getMacK(),
       tile.getElemInBits(), tile.getAccumBits(), supportsWideAReuse);
 
   for (auto [name, value] : {
@@ -180,20 +153,13 @@ mlir::LogicalResult constructIMEQuantTilePlan(
 
 mlir::LogicalResult validateIMEConstructionContext(
     mlir::Operation *op, weft::exec::VariantOp variant,
-    weft::exec::KernelOp kernel,
-    const support::TargetCapabilitySet &capabilities) {
+    weft::exec::KernelOp kernel) {
   auto sourceKernel = op->getAttrOfType<mlir::StringAttr>("source_kernel");
   if (!variant || !kernel || !sourceKernel ||
       sourceKernel.getValue() != kernel.getSymName())
     return op->emitError(
         "IME construction requires source_kernel to match an enclosing "
         "weft.exec.kernel");
-
-  const support::CapabilityDescriptor *imeCapability =
-      capabilities.lookupProviderByID(getIMEExtensionCapabilityID());
-  if (!imeCapability || !imeCapability->isAvailable())
-    return op->emitError(
-        "IME construction requires an available canonical IME capability");
 
   auto selectedVariant =
       op->getAttrOfType<mlir::FlatSymbolRefAttr>("selected_variant");
@@ -208,12 +174,10 @@ mlir::LogicalResult validateIMEConstructionContext(
 
 mlir::LogicalResult constructIMEFormulaPlan(
     mlir::Operation *op, weft::exec::VariantOp variant,
-    weft::exec::KernelOp kernel,
-    const support::TargetCapabilitySet &capabilities) {
+    weft::exec::KernelOp kernel, int64_t targetVlenBits) {
   if (!op || !isIMEFinalBody(op))
     return mlir::failure();
-  if (mlir::failed(
-          validateIMEConstructionContext(op, variant, kernel, capabilities)))
+  if (mlir::failed(validateIMEConstructionContext(op, variant, kernel)))
     return mlir::failure();
 
   if (llvm::isa<weft::ime::MMAOp, weft::ime::MMAUOp,
@@ -223,13 +187,13 @@ mlir::LogicalResult constructIMEFormulaPlan(
   if (llvm::isa<weft::ime::MatMulOp>(op))
     return mlir::success();
   if (auto tile = llvm::dyn_cast<weft::ime::Q40MatMulTileOp>(op))
-    return constructIMEQuantTilePlan(tile, capabilities,
+    return constructIMEQuantTilePlan(tile, targetVlenBits,
                                      /*supportsWideAReuse=*/true);
   if (auto tile = llvm::dyn_cast<weft::ime::Q80MatMulTileOp>(op))
-    return constructIMEQuantTilePlan(tile, capabilities,
+    return constructIMEQuantTilePlan(tile, targetVlenBits,
                                      /*supportsWideAReuse=*/true);
   if (auto tile = llvm::dyn_cast<weft::ime::Q4KMatMulTileOp>(op))
-    return constructIMEQuantTilePlan(tile, capabilities,
+    return constructIMEQuantTilePlan(tile, targetVlenBits,
                                      /*supportsWideAReuse=*/false);
   return mlir::failure();
 }

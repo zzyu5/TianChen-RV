@@ -10,7 +10,6 @@
 #include "Weft/Transforms/VariantMaterialization.h"
 #include "Weft/Transforms/VariantSelection.h"
 
-#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/DialectRegistry.h"
 #include "mlir/IR/MLIRContext.h"
@@ -94,8 +93,15 @@ KernelOp findKernel(mlir::ModuleOp module, llvm::StringRef symbolName) {
   return result;
 }
 
-mlir::func::FuncOp findHighLevelPlaceholder(mlir::ModuleOp module) {
-  return module.lookupSymbol<mlir::func::FuncOp>("high_level_placeholder");
+mlir::Operation *resolveExactProblem(KernelOp kernel) {
+  llvm::Expected<mlir::Operation *> problem =
+      weft::plugin::resolveCanonicalProblem(kernel);
+  if (problem)
+    return *problem;
+  llvm::errs() << "FAIL: cannot resolve exact canonical problem for kernel @"
+               << (kernel ? kernel.getSymName() : "<missing>") << ": "
+               << llvm::toString(problem.takeError()) << "\n";
+  return nullptr;
 }
 
 VariantOp findVariant(KernelOp kernel, llvm::StringRef symbolName) {
@@ -188,11 +194,8 @@ int runRegistrationAndCapabilityMetadataTest() {
 int runProposalGatingAndDeclineTest(mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
-  func.func @high_level_placeholder() {
-    return
-  }
-
-  weft.exec.kernel @available_offload attributes {construction_domain = "riscv-execution"} {
+  weft.exec.kernel @available_offload attributes {construction_domain = "riscv-execution", problem = @canonical_problem} {
+    weft.exec.int8_mac_problem @canonical_problem {lhs_signedness = #weft<integer_signedness signed>, rhs_signedness = #weft<integer_signedness signed>, m = 4 : i64, n = 4 : i64, k = 8 : i64}
     weft.exec.capability @offload_runtime {
       id = "offload.runtime",
       kind = "runtime-offload",
@@ -202,10 +205,12 @@ module {
     }
   }
 
-  weft.exec.kernel @missing_offload attributes {construction_domain = "riscv-execution"} {
+  weft.exec.kernel @missing_offload attributes {construction_domain = "riscv-execution", problem = @canonical_problem} {
+    weft.exec.int8_mac_problem @canonical_problem {lhs_signedness = #weft<integer_signedness signed>, rhs_signedness = #weft<integer_signedness signed>, m = 4 : i64, n = 4 : i64, k = 8 : i64}
   }
 
-  weft.exec.kernel @malformed_offload attributes {construction_domain = "riscv-execution"} {
+  weft.exec.kernel @malformed_offload attributes {construction_domain = "riscv-execution", problem = @canonical_problem} {
+    weft.exec.int8_mac_problem @canonical_problem {lhs_signedness = #weft<integer_signedness signed>, rhs_signedness = #weft<integer_signedness signed>, m = 4 : i64, n = 4 : i64, k = 8 : i64}
     weft.exec.capability @offload_runtime {
       id = "offload.runtime",
       kind = "runtime-offload",
@@ -215,7 +220,8 @@ module {
     }
   }
 
-  weft.exec.kernel @misclassified_custom_isa_offload attributes {construction_domain = "riscv-execution"} {
+  weft.exec.kernel @misclassified_custom_isa_offload attributes {construction_domain = "riscv-execution", problem = @canonical_problem} {
+    weft.exec.int8_mac_problem @canonical_problem {lhs_signedness = #weft<integer_signedness signed>, rhs_signedness = #weft<integer_signedness signed>, m = 4 : i64, n = 4 : i64, k = 8 : i64}
     weft.exec.capability @offload_runtime {
       id = "offload.runtime",
       kind = "custom-isa",
@@ -225,7 +231,8 @@ module {
     }
   }
 
-  weft.exec.kernel @vendor_string_only attributes {construction_domain = "riscv-execution", vendor_hint = "sophgo"} {
+  weft.exec.kernel @vendor_string_only attributes {construction_domain = "riscv-execution", problem = @canonical_problem, vendor_hint = "sophgo"} {
+    weft.exec.int8_mac_problem @canonical_problem {lhs_signedness = #weft<integer_signedness signed>, rhs_signedness = #weft<integer_signedness signed>, m = 4 : i64, n = 4 : i64, k = 8 : i64}
     weft.exec.capability @vendor_runtime {
       id = "sophgo.runtime",
       kind = "runtime-offload",
@@ -241,15 +248,14 @@ module {
   if (!module)
     return fail("failed to parse offload proposal gating module");
 
-  mlir::func::FuncOp highLevelOp = findHighLevelPlaceholder(*module);
   KernelOp available = findKernel(*module, "available_offload");
   KernelOp missing = findKernel(*module, "missing_offload");
   KernelOp malformed = findKernel(*module, "malformed_offload");
   KernelOp misclassified =
       findKernel(*module, "misclassified_custom_isa_offload");
   KernelOp vendorOnly = findKernel(*module, "vendor_string_only");
-  if (int result = expect(highLevelOp && available && missing && malformed &&
-                              misclassified && vendorOnly,
+  if (int result = expect(available && missing && malformed && misclassified &&
+                              vendorOnly,
                           "proposal gating module contains all anchors"))
     return result;
 
@@ -262,7 +268,11 @@ module {
 
   TargetCapabilitySet availableCapabilities =
       TargetCapabilitySet::buildFromKernel(available);
-  VariantProposalRequest availableRequest(highLevelOp.getOperation(), available,
+  mlir::Operation *availableProblem = resolveExactProblem(available);
+  if (int result =
+          expect(availableProblem, "available Offload kernel binds exact problem"))
+    return result;
+  VariantProposalRequest availableRequest(availableProblem, available,
                                           availableCapabilities);
   llvm::SmallVector<VariantProposal, 1> proposals;
   llvm::SmallVector<VariantProposalDecline, 1> declines;
@@ -308,7 +318,11 @@ module {
 
   TargetCapabilitySet missingCapabilities =
       TargetCapabilitySet::buildFromKernel(missing);
-  VariantProposalRequest missingRequest(highLevelOp.getOperation(), missing,
+  mlir::Operation *missingProblem = resolveExactProblem(missing);
+  if (int result =
+          expect(missingProblem, "missing Offload kernel binds exact problem"))
+    return result;
+  VariantProposalRequest missingRequest(missingProblem, missing,
                                         missingCapabilities);
   proposals.clear();
   declines.clear();
@@ -324,7 +338,11 @@ module {
 
   TargetCapabilitySet malformedCapabilities =
       TargetCapabilitySet::buildFromKernel(malformed);
-  VariantProposalRequest malformedRequest(highLevelOp.getOperation(), malformed,
+  mlir::Operation *malformedProblem = resolveExactProblem(malformed);
+  if (int result = expect(
+          malformedProblem, "malformed Offload kernel binds exact problem"))
+    return result;
+  VariantProposalRequest malformedRequest(malformedProblem, malformed,
                                           malformedCapabilities);
   proposals.clear();
   declines.clear();
@@ -344,8 +362,13 @@ module {
 
   TargetCapabilitySet misclassifiedCapabilities =
       TargetCapabilitySet::buildFromKernel(misclassified);
+  mlir::Operation *misclassifiedProblem = resolveExactProblem(misclassified);
+  if (int result = expect(
+          misclassifiedProblem,
+          "misclassified Offload kernel binds exact problem"))
+    return result;
   VariantProposalRequest misclassifiedRequest(
-      highLevelOp.getOperation(), misclassified, misclassifiedCapabilities);
+      misclassifiedProblem, misclassified, misclassifiedCapabilities);
   proposals.clear();
   declines.clear();
   if (int result = expectSuccess(
@@ -367,8 +390,12 @@ module {
 
   TargetCapabilitySet vendorOnlyCapabilities =
       TargetCapabilitySet::buildFromKernel(vendorOnly);
-  VariantProposalRequest vendorOnlyRequest(highLevelOp.getOperation(),
-                                           vendorOnly, vendorOnlyCapabilities);
+  mlir::Operation *vendorOnlyProblem = resolveExactProblem(vendorOnly);
+  if (int result = expect(
+          vendorOnlyProblem, "vendor-only Offload kernel binds exact problem"))
+    return result;
+  VariantProposalRequest vendorOnlyRequest(vendorOnlyProblem, vendorOnly,
+                                           vendorOnlyCapabilities);
   proposals.clear();
   declines.clear();
   if (int result = expectSuccess(
@@ -384,11 +411,8 @@ module {
 int runMaterializationSelectionAndEmissionTest(mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
-  func.func @high_level_placeholder() {
-    return
-  }
-
-  weft.exec.kernel @offload_plus_scalar attributes {construction_domain = "riscv-execution"} {
+  weft.exec.kernel @offload_plus_scalar attributes {construction_domain = "riscv-execution", problem = @canonical_problem} {
+    weft.exec.dequantize_row_q4_0_problem @canonical_problem {qk = 32 : i64, weight_block_stride = 18 : i64, weight_d_byte_offset = 0 : i64, weight_quant_byte_offset = 2 : i64}
     weft.exec.capability @offload_runtime {
       id = "offload.runtime",
       kind = "runtime-offload",
@@ -443,10 +467,8 @@ module {
   if (!module)
     return fail("failed to parse offload materialization module");
 
-  mlir::func::FuncOp highLevelOp = findHighLevelPlaceholder(*module);
   KernelOp kernel = findKernel(*module, "offload_plus_scalar");
-  if (int result =
-          expect(highLevelOp && kernel, "materialization module has anchors"))
+  if (int result = expect(kernel, "materialization module has kernel anchor"))
     return result;
 
   ExtensionBundleRegistry bundles;
@@ -460,8 +482,11 @@ module {
     return result;
 
   TargetCapabilitySet capabilities = TargetCapabilitySet::buildFromKernel(kernel);
-  VariantProposalRequest request(highLevelOp.getOperation(), kernel,
-                                 capabilities);
+  mlir::Operation *problem = resolveExactProblem(kernel);
+  if (int result =
+          expect(problem, "Offload materialization kernel binds exact problem"))
+    return result;
+  VariantProposalRequest request(problem, kernel, capabilities);
   mlir::OpBuilder builder(&context);
   llvm::SmallVector<VariantOp, 2> materializedVariants;
   if (int result = expectSuccess(
@@ -514,7 +539,8 @@ module {
   VariantCostEstimate estimate;
   if (int result = expectSuccess(
           registry.estimateVariantCost(
-              VariantCostRequest(offloadVariant, kernel, capabilities),
+              VariantCostRequest(offloadVariant, kernel, problem,
+                                 capabilities),
               estimate),
           "offload cost estimate routes through plugin"))
     return result;
@@ -553,10 +579,12 @@ module {
   if (int result = expect(marker, "selected marker was created"))
     return result;
 
-  if (int result = expectSuccess(
+  if (int result = expectErrorContains(
           weft::plugin::materializeSelectedLoweringBoundaries(
               kernel, capabilities, registry),
-          "materialize offload and scalar selected boundaries"))
+          {"selected owner did not construct an executable final body before "
+           "boundary exposure",
+           "offload delegation plan has no executable implementation"}))
     return result;
 
   LoweringBoundaryOp offloadBoundary =
@@ -574,11 +602,11 @@ module {
               offloadBoundary.getHandoffReason().has_value() &&
               offloadBoundary.getHandoffReason()->contains(
                   "no executable external implementation"),
-          "offload family construction materializes a typed, explicitly "
-          "non-executable delegation plan"))
+          "unsupported Offload construction preserves its typed diagnostic "
+          "carrier while boundary exposure fails closed"))
     return result;
   if (int result = expect(mlir::succeeded(mlir::verify(*module)),
-                          "offload delegation-plan module verifies"))
+                          "fail-closed Offload boundary module verifies"))
     return result;
 
   VariantEmissionStatus status;
@@ -652,7 +680,8 @@ module {
 int runLegalityRejectionTest(mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
-  weft.exec.kernel @offload_custom_isa_misclassification_rejected {
+  weft.exec.kernel @offload_custom_isa_misclassification_rejected attributes {problem = @canonical_problem} {
+    weft.exec.int8_mac_problem @canonical_problem {lhs_signedness = #weft<integer_signedness signed>, rhs_signedness = #weft<integer_signedness signed>, m = 4 : i64, n = 4 : i64, k = 8 : i64}
     weft.exec.capability @offload_runtime {
       id = "offload.runtime",
       kind = "custom-isa",
@@ -669,7 +698,8 @@ module {
     }
   }
 
-  weft.exec.kernel @offload_legality_rejections attributes {} {
+  weft.exec.kernel @offload_legality_rejections attributes {problem = @canonical_problem} {
+    weft.exec.int8_mac_problem @canonical_problem {lhs_signedness = #weft<integer_signedness signed>, rhs_signedness = #weft<integer_signedness signed>, m = 4 : i64, n = 4 : i64, k = 8 : i64}
     weft.exec.capability @offload_runtime {
       id = "offload.runtime",
       kind = "runtime-offload",
@@ -726,26 +756,35 @@ module {
 
   TargetCapabilitySet customISACapabilities =
       TargetCapabilitySet::buildFromKernel(customISA);
+  mlir::Operation *customISAProblem = resolveExactProblem(customISA);
+  if (int result =
+          expect(customISAProblem, "custom-ISA kernel binds exact problem"))
+    return result;
   if (int result = expectErrorContains(
           registry.verifyVariantLegality(
               weft::plugin::VariantLegalityRequest(
-                  customISAVariant, customISA, customISACapabilities)),
+                  customISAVariant, customISA, customISAProblem,
+                  customISACapabilities)),
           {"runtime-offload", "kind must be 'runtime-offload'"}))
     return result;
 
   TargetCapabilitySet capabilities = TargetCapabilitySet::buildFromKernel(kernel);
+  mlir::Operation *problem = resolveExactProblem(kernel);
+  if (int result =
+          expect(problem, "Offload legality kernel binds exact problem"))
+    return result;
   if (int result = expectErrorContains(
           registry.verifyVariantLegality(
               weft::plugin::VariantLegalityRequest(
-                  missingRequirement, kernel, capabilities)),
+                  missingRequirement, kernel, problem, capabilities)),
           {"runtime-offload", "must require capability id",
            "offload.runtime"}))
     return result;
 
   return expectErrorContains(
       registry.verifyVariantLegality(
-          weft::plugin::VariantLegalityRequest(missingABI, kernel,
-                                                     capabilities)),
+          weft::plugin::VariantLegalityRequest(missingABI, kernel, problem,
+                                               capabilities)),
       {"runtime-offload", "weft_offload.runtime_abi"});
 }
 
@@ -767,7 +806,6 @@ int main() {
     return result;
   weft::registerAllDialects(dialectRegistry);
   weft::registerPluginDialects(dialectPlugins, dialectRegistry);
-  dialectRegistry.insert<mlir::func::FuncDialect>();
 
   mlir::MLIRContext context(dialectRegistry);
   context.loadAllAvailableDialects();

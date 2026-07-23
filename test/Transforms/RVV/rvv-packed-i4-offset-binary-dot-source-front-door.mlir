@@ -25,7 +25,7 @@
 // the LEGALITY GATE only (fail-closed if the integer-core path is pruned).
 
 // The auto-constructed nibble integer-core body (the materialized kernel scaffold).
-// RUN: weft-opt %s --weft-rvv-materialize-packed-i4-offset-binary-dot-source-front-door=march=rv64gcv | FileCheck %s --check-prefix=BODY
+// RUN: weft-opt %s --weft-rvv-materialize-packed-i4-offset-binary-dot-source-front-door=march=rv64gcv | FileCheck %s --check-prefix=BODY --implicit-check-not="scalar_fallback" --implicit-check-not="weft.exec.dispatch"
 //
 // The auto-constructed body lowered to EmitC: the SAME offset-binary nibble decode
 // + asymmetric product + widening-reduce intrinsic chain the existing nibble-core
@@ -49,6 +49,8 @@ module attributes {weft_rvv.source_front_door = "bounded_packed_i4_offset_binary
 // load x3 / packed_i4_offset_binary_x_i8_product / standalone_reduce / store body.
 // NO per-kernel emitter authored this body.
 // BODY: weft.exec.kernel @rvv_packed_i4_offset_binary_dot_i8_from_source
+// BODY: weft.exec.packed_i4_q8_dot_problem @canonical_problem
+// BODY-SAME: block_length = 32
 // BODY: weft.exec.variant @rvv_packed_i4_offset_binary_dot_i8
 // The pinned no-flip nibble integer-core anchor (audit-only provenance).
 // BODY-SAME: weft_rvv.packed_i4_integer_core_anchor = "i8mf4-i16mf2-i32m1-no-vlen-flip"
@@ -72,11 +74,6 @@ module attributes {weft_rvv.source_front_door = "bounded_packed_i4_offset_binary
 // BODY-SAME: kind = "signed_widening_reduce_add"
 // BODY-SAME: -> !weft_rvv.vector<i32, "m1">
 // BODY: weft_rvv.store
-// The conservative fallback is authored by the fallback-owning plugin.
-// BODY: weft.exec.variant @rvv_packed_i4_offset_binary_dot_i8_scalar_fallback
-// BODY-SAME: fallback_role = "conservative"
-// BODY: weft.exec.case @rvv_packed_i4_offset_binary_dot_i8
-// BODY: weft.exec.fallback @rvv_packed_i4_offset_binary_dot_i8_scalar_fallback
 
 // ===================== EMITTED NIBBLE-CORE INTRINSIC CHAIN ===================
 // The auto-constructed body lowers to the exact nibble integer-core chain the

@@ -1,6 +1,6 @@
 // Track B auto-lowering, the SUPER-BLOCK rung -- one step ABOVE the codebook rung
 // (rvv-iq4-nl-q8-0-block-dot-source-front-door.mlir). The COMPILER auto-CONSTRUCTS
-// the complete weft.exec.kernel + variant + dispatch/fallback scaffold around the
+// the complete weft.exec.kernel + exact canonical problem + one RVV variant around the
 // typed SUPER-BLOCK dual-accumulator loop body
 // (weft_rvv.typed_super_block_block_dot_loop_body) DECOMPOSED over the 5 q4_K bricks
 // from a marked ggml `ggml_vec_dot_q4_K_q8_K` OPERATOR-IDENTITY source, instead of a
@@ -30,7 +30,7 @@
 // (modulo the source-op provenance token).
 
 // The auto-constructed attr-less super-block block-dot scaffold (no shape knob).
-// RUN: weft-opt %s --weft-rvv-materialize-q4-k-q8-k-block-dot-source-front-door | FileCheck %s --check-prefix=BODY
+// RUN: weft-opt %s --weft-rvv-materialize-q4-k-q8-k-block-dot-source-front-door | FileCheck %s --check-prefix=BODY --implicit-check-not="scalar_fallback" --implicit-check-not="weft.exec.dispatch"
 //
 // The EMITTED super-block dot core from the SAME auto-constructed attr-less op:
 // q4_K is NOT in any schedule autotuner, so there is NO --weft-rvv-materialize-schedule
@@ -59,13 +59,16 @@ module attributes {weft_rvv.source_front_door = "ggml_q4_K_q8_K_block_dot_source
 // The marked operator-identity source becomes a weft.exec.kernel with the
 // auto-built typed SUPER-BLOCK DUAL-accumulator loop body op
 // (weft_rvv.typed_super_block_block_dot_loop_body) DECOMPOSED into the 5 q4_K
-// bricks + the four-value ABI set + the dispatch/fallback scaffold. NO per-kernel
+// bricks + the four-value ABI set + the exact canonical problem. NO per-kernel
 // emitter authored this, and NO opaque monolith weft_rvv.q4_k_q8_k_block_dot op is
 // constructed (the M-FLAT milestone-3 flip: the front door now builds typed
 // pattern-library primitives). NO shape knob is stamped (no integer_core_lmul on
 // the loop op or the scaled-dot brick; the q4_K Win-A knob stays dormant, so the
 // emitter lowers at its default mf2 anchor).
 // BODY: weft.exec.kernel @ggml_vec_dot_q4_K_q8_K_kernel
+// BODY: weft.exec.quantized_block_dot_problem @canonical_problem
+// BODY-SAME: qk = 256
+// BODY-SAME: weight_encoding = "ggml_q4_k_q8_k_block_dot"
 // BODY: weft.exec.variant @rvv_q4_K_q8_K_block_dot
 // The ggml vec_dot ABI value set -- the EXACT 4-role list (n, s, vx, vy), NO dead
 // aux8/scales/aux32 scratch parameters: the super-block scratch is emitter-owned in
@@ -99,11 +102,6 @@ module attributes {weft_rvv.source_front_door = "ggml_q4_K_q8_K_block_dot_source
 // BODY: weft_rvv.q4_k_sums_fold_scale_d %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}} block %{{.*}}
 // The dual carried-out yield (sums vector + sumf scalar).
 // BODY: weft_rvv.typed_super_block_block_dot_loop_yield %{{.*}}, %{{.*}} : !weft_rvv.vector<f32, "m2">, f32
-// The conservative fallback is authored by the fallback-owning plugin.
-// BODY: weft.exec.variant @rvv_q4_K_q8_K_block_dot_scalar_fallback
-// BODY-SAME: fallback_role = "conservative"
-// BODY: weft.exec.case @rvv_q4_K_q8_K_block_dot
-// BODY: weft.exec.fallback @rvv_q4_K_q8_K_block_dot_scalar_fallback
 
 // =================== EMITTED super-block dot core (default mf2) ==============
 // The default mf2 integer-core anchor carries through the lowering byte-identical

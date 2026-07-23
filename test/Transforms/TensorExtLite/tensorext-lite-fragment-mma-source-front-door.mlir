@@ -41,8 +41,7 @@ module attributes {
 // PLAN: weft.exec.diagnostic
 // PLAN-SAME: message = "selected TensorExtLite source front-door route"
 // PLAN-SAME: reason = "variant-selected"
-// PLAN: weft.exec.diagnostic
-// PLAN-SAME: artifact_kind = "riscv-elf-relocatable-object"
+// PLAN: weft.exec.diagnostic {{.*}}artifact_kind = "riscv-elf-relocatable-object"
 // PLAN-SAME: emission_kind = "materialized-emitc-cpp-tensorext-lite-fragment-mma-module"
 // PLAN-SAME: lowering_boundary = "weft_tensorext_lite.config_skeleton"
 // PLAN-SAME: lowering_pipeline = "tensorext-lite-fragment-mma-emitc-route"

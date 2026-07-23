@@ -244,7 +244,10 @@ MLIR 本身已经以这种方式组织 GPU：通用 `gpu` dialect 表示 launch�
                                   NVVM / ROCDL / object
 ```
 
-当前 compiler 本身已经有完整的 source、proposal/selection、typed family IR、capability、lowering、ABI/runtime 和 evidence 链。GPU 应新增一条 family-local 分支，而不是重新定义上层系统。
+当前 compiler 已经有 proposal/selection、typed family IR、capability、artifact lowering、ABI/runtime
+和历史 evidence 资产，但 physical canonical source coverage、target/profile 驱动的 domain binding
+以及重构后 current-artifact evidence 链仍未完整闭合。GPU 未来应新增一条 domain/owner-local
+construction 与 artifact 分支，而不是重新定义上层系统。
 
 ---
 
@@ -290,8 +293,9 @@ m_{i,v}(g,\omega)
 \right\}
 \]
 
-外层 target binding 已经得到 `(f,c_f)`，所以式中的 `c` 就是当前 family 的 `c_f`，
-`v/m/f^A/θ/K` 的 owner 也都在 `f` 内。这里尤其要避免名称误导：`Emit_v(c)` 表示把已确定
+在目标态中，外层 target/domain binding 先得到 `(d,C_d)`，域内 owner 再投影 `c_o`，所以式中的
+`c` 就是当前 owner 的 `c_o`，`v/m/f^A/θ/K` 的 owner 也都在 `o` 内。这里尤其要避免名称误导：
+`Emit_v(c)` 表示把已确定
 的 mechanisms 与参数组成完整候选实现 `K` 的构造投影；最终 C/object/cubin/hsaco 的
 packaging 属于其后的 artifact lowerer。由此明确：
 
@@ -837,7 +841,7 @@ GPU lowerer 不再重新选 tile。
 
 ## 中文定位
 
-> **Weft 是一个面向碎片化硬件生态的、能力驱动的 MLIR execution-layer 算子编译器。它将稳定的 operator 与数据语义和 family-local 的目标能力、执行机制及专家知识分离，并在编译时重新专化，以同时获得扩展局部性和高性能 kernel。RISC-V 是主要系统实例，GPU 是跨计算范式的第二实例。**
+> **Weft 是一个面向碎片化硬件生态的、能力驱动的 MLIR execution-layer 算子编译器。它将稳定的 operator 与数据语义和 owner-local 的目标能力、执行机制及专家知识分离，并在编译时重新专化，以同时获得扩展局部性和高性能 kernel。RISC-V 是当前主要系统实例，GPU 是 V2 计划验证的第二执行范式目标。**
 
 ## 英文定位
 
@@ -868,7 +872,7 @@ operator、format、capability、construction family 与 artifact 的变化保�
 
 你老师提出的方向值得接受，但应采取下面这个版本：
 
-> **把 Weft 从“RISC-V 专用 compiler”提升为“碎片化 execution hardware 的可扩展、高性能算子编译方法”；RISC-V 仍是主实例，GPU 是聚焦且真实的第二 family。**
+> **把 Weft 从“RISC-V 专用 compiler”提升为“碎片化 execution hardware 的可扩展、高性能算子编译方法”；RISC-V 仍是当前主实例，GPU 是后续要聚焦实现和验证的第二 execution-paradigm realization。**
 
 不要采取下面这个版本：
 

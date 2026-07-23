@@ -68,14 +68,10 @@ llvm::Error materializeSelectedVariantMarker(
 // the declared-instance-hash), so it is directly unit-testable without running
 // the pass or touching a file.
 //
-// reason is DERIVED (not the in-IR reason attr) and puts the distinction on the
-// PRIMARY key: only_feasible = exactly one feasible candidate; static_order = >=2
-// feasible chosen by today's capability-blind constant-score cold-start ordering.
-// prior (capability-DERIVED prior) and measured (memoized-measurement winner) are
-// valid enum values but are NEVER emitted at this selection stage today -- prior
-// awaits [SEL-1]/G3, measured awaits [SEL-3]. Every feasible candidate always
-// carries its constant ranking score so a static_order decision is fully
-// reconstructible from the record.
+// reason is DERIVED (not the in-IR reason attr): only_feasible = one qualified
+// candidate; prior = an explicit owner analytic formula chose among multiple
+// qualified candidates; static_order = a neutral original-order tie. measured
+// remains reserved for a future qualified-winner input to this planner.
 //
 // When noTimestamp is true the ts field is the fixed sentinel "0" for
 // byte-deterministic lit output; otherwise it is a wall-clock ISO-8601 string.

@@ -42,8 +42,8 @@
 // from the REAL quant_contraction request (NOT test-authored).
 // RUN: weft-opt %s --weft-rvv-lower-quant-contraction=march=rv64gcv | FileCheck %s --check-prefix=CONSTRUCT
 
-// CORE emit: the constructed region lowers to the m1 / half_lanes=16 / columnsPerPass=4
-// repacked GEMM kernel (integer_core_lmul="m1", measured accumulator-LMUL gate).
+// CORE emit: the constructed region lowers to the mf2 / half_lanes=8 /
+// columnsPerPass=4 repacked GEMM kernel chosen by the formula's analytic prior.
 // RUN: weft-opt %s --weft-rvv-lower-quant-contraction=march=rv64gcv --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=EMIT
 
 // FULL pipeline: after construction, the weft-source-artifact-front-door-pipeline
@@ -61,14 +61,14 @@
 // Target-artifact OBJECT export: the RepackGemm monolithic emission plan exports a
 // real RISC-V RVV relocatable object through the registered peer object exporter.
 // RUN: rm -f %t.o
-// RUN: weft-opt %s --weft-rvv-lower-quant-contraction=march=rv64gcv --weft-materialize-emission-plans | weft-translate --weft-export-target-artifact > %t.o
+// RUN: weft-opt %s --weft-rvv-lower-quant-contraction=march=rv64gcv --weft-select-variants --weft-materialize-emission-plans | weft-translate --weft-export-target-artifact > %t.o
 // RUN: llvm-readobj -h %t.o | FileCheck %s --check-prefix=OBJECT
 // RUN: llvm-readobj --symbols %t.o | FileCheck %s --check-prefix=SYMBOL
 
 module {
-  weft.exec.kernel @ggml_gemm_q4_0_q8_0_repack_gemm_kernel {
+  weft.exec.kernel @ggml_gemm_q4_0_q8_0_repack_gemm_kernel attributes {construction_domain = "riscv-execution", problem = @canonical_problem} {
+    weft.exec.block_q4_0_contraction_problem @canonical_problem {activation_signedness = #weft<integer_signedness signed>, m = 4 : i64, n = 4 : i64, k = 32 : i64, qk = 32 : i64, weight_block_stride = 18 : i64, weight_scale_byte_offset = 0 : i64, weight_quant_byte_offset = 2 : i64}
     weft.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
-    weft.exec.capability @scalar_fallback {id = "scalar.fallback", kind = "fallback", status = "available"}
     weft.exec.variant @ggml_gemm_q4_0_q8_0_repack_gemm attributes {origin = "rvv-plugin", requires = [@rvv], weft_rvv.policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>} {
       %n = weft_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "n", role = "runtime-element-count"} : index
       %s = weft_rvv.runtime_abi_value {c_name = "s", c_type = "float *", ownership = "target-export-abi-owned", purpose = "out", role = "output-buffer"} : !weft_rvv.runtime_abi_value
@@ -79,12 +79,6 @@ module {
       weft_rvv.with_vl %vl attributes {lmul = "m1", policy = #weft_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} {
         %dot = weft_rvv.quant_contraction %vx, %vy, %s, %n, %nc, %vl {quant = "q4_0", scale_model = "dual-fp16-per-block-d_x.d_y", m_regime = "prefill", qk = 32 : i64, weight_layout = "plain", weight_block_stride = 18 : i64, activation_block_stride = 34 : i64, quant_byte_offset = 2 : i64, activation_high_byte_offset = 16 : i64, block_dot_compute_heavy = true} : !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, !weft_rvv.runtime_abi_value, index, index, !weft_rvv.vl -> !weft_rvv.vector<i32, "m1">
       } : !weft_rvv.vl
-    }
-    weft.exec.variant @ggml_gemm_q4_0_q8_0_repack_gemm_scalar_fallback attributes {fallback_role = "conservative", origin = "scalar-plugin", policy = "portable_scalar_fallback_first_slice", requires = [@scalar_fallback]} {
-    }
-    weft.exec.dispatch {
-      weft.exec.case @ggml_gemm_q4_0_q8_0_repack_gemm {origin = "rvv-plugin", policy = "rvv-q4-0-q8-0-repack-gemm-bridge-case"}
-      weft.exec.fallback @ggml_gemm_q4_0_q8_0_repack_gemm_scalar_fallback {fallback_role = "conservative", origin = "scalar-plugin"}
     }
   }
 }
@@ -99,8 +93,8 @@ module {
 // CONSTRUCT-NOT: weft_rvv.typed_repack_gemv_loop_body
 // CONSTRUCT-NOT: weft_rvv.q4_0_q8_0_block_dot
 // CONSTRUCT: weft_rvv.typed_repack_gemm_loop_body
-// CONSTRUCT-SAME: half_lanes = 16 : i64
-// CONSTRUCT-SAME: integer_core_lmul = "m1"
+// CONSTRUCT-SAME: half_lanes = 8 : i64
+// CONSTRUCT-SAME: integer_core_lmul = "mf2"
 // The same front door constructs both schedule choices before one mutation phase.
 // weight stride 288 >= activation stride 136 selects col_outer by the layout
 // prior; the AlreadyLean fold has exactly one realized Plain tiling body.
@@ -114,20 +108,20 @@ module {
 // CONSTRUCT: weft_rvv.typed_repack_gemm_loop_yield
 
 // ===================== CORE EmitC =============================================
-// The 4x16 f32m4 accumulator set (columnsPerPass == 4 columns folded in ONE pass), the
-// contiguous repacked i8m1 sub-load, the lane-wise vwmacc accumulate (NO cross-lane
+// The 4x8 f32m2 accumulator set (columnsPerPass == 4 columns folded in ONE pass), the
+// contiguous repacked i8mf2 sub-load, the lane-wise vwmacc accumulate (NO cross-lane
 // reduction wall), the lo/hi vwadd combine, the dual-fp16 scale fold, and the vector
 // stores.
 // EMIT-NOT: unrealized_conversion_cast
 // EMIT: emitc.func @weft_emitc_ggml_gemm_q4_0_q8_0_repack_gemm_kernel_ggml_gemm_q4_0_q8_0_repack_gemm(
 // EMIT: literal "288"
 // EMIT: literal "136"
-// EMIT: call_opaque "__riscv_vfmv_v_f_f32m4"
-// EMIT: call_opaque "__riscv_vle8_v_i8m1"
-// EMIT: call_opaque "__riscv_vwmacc_vx_i16m2"
-// EMIT: call_opaque "__riscv_vwadd_vv_i32m4"
-// EMIT: call_opaque "__riscv_vfmacc_vv_f32m4"
-// EMIT: call_opaque "__riscv_vse32_v_f32m4"
+// EMIT: call_opaque "__riscv_vfmv_v_f_f32m2"
+// EMIT: call_opaque "__riscv_vle8_v_i8mf2"
+// EMIT: call_opaque "__riscv_vwmacc_vx_i16m1"
+// EMIT: call_opaque "__riscv_vwadd_vv_i32m2"
+// EMIT: call_opaque "__riscv_vfmacc_vv_f32m2"
+// EMIT: call_opaque "__riscv_vse32_v_f32m2"
 // EMIT: return
 
 // ===================== FULL-PIPELINE COHERENCE (post-coherence IR) ============
@@ -137,8 +131,7 @@ module {
 // The constructed body is the typed repacked-GEMM LOOP body op; it exports through the
 // RepackGemm monolithic plan (its own route id / kind / 7-role GEMM ABI).
 // PLAN: weft_rvv.typed_repack_gemm_loop_body
-// PLAN: weft.exec.diagnostic
-// PLAN-SAME: artifact_kind = "riscv-elf-relocatable-object"
+// PLAN: weft.exec.diagnostic {{.*}}artifact_kind = "riscv-elf-relocatable-object"
 // The repacked-GEMM carries the RepackGemm op-derived metadata keys (rendered inside
 // artifact_metadata, ahead of lowering_pipeline).
 // The honest RepackGemm monolithic-body route id (NOT the flat/super-block block-dot

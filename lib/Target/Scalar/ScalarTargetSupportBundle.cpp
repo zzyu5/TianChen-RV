@@ -63,7 +63,8 @@ llvm::Error exportScalarEmitCToCpp(mlir::ModuleOp module,
         "selected scalar variant has no executable final typed body");
   mlir::OwningOpRef<mlir::ModuleOp> emitcModule =
       conversion::emitc::
-          tryConvertConstructedModuleWithRegisteredBackend(*constructed);
+          tryConvertConstructedModuleWithRegisteredBackend(
+              *constructed, construction.getOperation());
   if (!emitcModule)
     return makeScalarTargetRouteError(
         "no registered backend emission driver fully legalizes the selected "

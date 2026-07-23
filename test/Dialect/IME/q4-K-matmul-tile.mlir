@@ -24,7 +24,6 @@ module {
       origin = "ime-plugin",
       requires = [@spacemit_ime]
     } {
-    }
     // CHECK: weft_ime.q4_K_matmul_tile
     // CHECK-SAME: ime_op = "vmadot"
     // CHECK-SAME: mat_k = 256 : i64
@@ -90,6 +89,7 @@ module {
       } : (vector<32xi8>, vector<16xi32>, vector<16xi32>) -> vector<16xi32>
       weft_ime.q4_K_matmul_tile_yield %nextS, %nextM : vector<16xi32>, vector<16xi32>
     }
+    }
   }
 }
 
@@ -102,7 +102,7 @@ module {
 module {
   weft.exec.kernel @ime_q4_K_tile_hollow_no_scale {
     weft.exec.capability @spacemit_ime {id = "spacemit.ime", kind = "isa-matrix-vector-backed", status = "available"}
-    weft.exec.variant @ime_vmadot_matmul_slice attributes {origin = "ime-plugin", requires = [@spacemit_ime]} {}
+    weft.exec.variant @ime_vmadot_matmul_slice attributes {origin = "ime-plugin", requires = [@spacemit_ime]} {
     // expected-error@+1 {{typed region must contain exactly one weft.ime.q4_K_scale_weighted_accum brick}}
     weft_ime.q4_K_matmul_tile attributes {origin = "ime-plugin", required_capabilities = [@spacemit_ime], role = "direct variant", status = "role-op-boundary", selected_variant = @ime_vmadot_matmul_slice, source_kernel = "ime_q4_K_tile_hollow_no_scale", ime_op = "vmadot", elem_in_bits = 8 : i64, accum_bits = 32 : i64, mac_m = 4 : i64, mac_n = 4 : i64, mac_k = 8 : i64, mat_m = 256 : i64, mat_n = 256 : i64, mat_k = 256 : i64, weight_format = "q4_K", qk = 256 : i64, weight_block_stride = 144 : i64, weight_quant_byte_offset = 16 : i64, available_harts = "0-3"} {
     ^bb0(%bi: index, %a: vector<32xi8>, %accS: vector<16xi32>, %accM: vector<16xi32>):
@@ -111,6 +111,7 @@ module {
       %sumi = weft_ime.vmadot_mac_leaf %a, %b, %bi, %accS {ime_op = "vmadot", elem_in_bits = 8 : i64, accum_bits = 32 : i64, mac_m = 4 : i64, mac_n = 4 : i64, mac_k = 8 : i64} : (vector<32xi8>, vector<32xi8>, index, vector<16xi32>) -> vector<16xi32>
       %nextM = weft_ime.q4_K_min_bias_accum %a, %m, %accM {bias_model = "activation_sum_min_bias"} : (vector<32xi8>, vector<16xi32>, vector<16xi32>) -> vector<16xi32>
       weft_ime.q4_K_matmul_tile_yield %sumi, %nextM : vector<16xi32>, vector<16xi32>
+    }
     }
   }
 }
@@ -123,7 +124,7 @@ module {
 module {
   weft.exec.kernel @ime_q4_K_tile_hollow_no_min {
     weft.exec.capability @spacemit_ime {id = "spacemit.ime", kind = "isa-matrix-vector-backed", status = "available"}
-    weft.exec.variant @ime_vmadot_matmul_slice attributes {origin = "ime-plugin", requires = [@spacemit_ime]} {}
+    weft.exec.variant @ime_vmadot_matmul_slice attributes {origin = "ime-plugin", requires = [@spacemit_ime]} {
     // expected-error@+1 {{typed region must contain exactly one weft.ime.q4_K_min_bias_accum brick}}
     weft_ime.q4_K_matmul_tile attributes {origin = "ime-plugin", required_capabilities = [@spacemit_ime], role = "direct variant", status = "role-op-boundary", selected_variant = @ime_vmadot_matmul_slice, source_kernel = "ime_q4_K_tile_hollow_no_min", ime_op = "vmadot", elem_in_bits = 8 : i64, accum_bits = 32 : i64, mac_m = 4 : i64, mac_n = 4 : i64, mac_k = 8 : i64, mat_m = 256 : i64, mat_n = 256 : i64, mat_k = 256 : i64, weight_format = "q4_K", qk = 256 : i64, weight_block_stride = 144 : i64, weight_quant_byte_offset = 16 : i64, available_harts = "0-3"} {
     ^bb0(%bi: index, %a: vector<32xi8>, %accS: vector<16xi32>, %accM: vector<16xi32>):
@@ -132,6 +133,7 @@ module {
       %sumi = weft_ime.vmadot_mac_leaf %a, %b, %bi, %accS {ime_op = "vmadot", elem_in_bits = 8 : i64, accum_bits = 32 : i64, mac_m = 4 : i64, mac_n = 4 : i64, mac_k = 8 : i64} : (vector<32xi8>, vector<32xi8>, index, vector<16xi32>) -> vector<16xi32>
       %nextS = weft_ime.q4_K_scale_weighted_accum %sumi, %sc, %accS {accum_model = "scale_weighted_sum"} : (vector<16xi32>, vector<16xi32>, vector<16xi32>) -> vector<16xi32>
       weft_ime.q4_K_matmul_tile_yield %nextS, %nextS : vector<16xi32>, vector<16xi32>
+    }
     }
   }
 }
@@ -143,7 +145,7 @@ module {
 module {
   weft.exec.kernel @ime_q4_K_tile_opaque_body {
     weft.exec.capability @spacemit_ime {id = "spacemit.ime", kind = "isa-matrix-vector-backed", status = "available"}
-    weft.exec.variant @ime_vmadot_matmul_slice attributes {origin = "ime-plugin", requires = [@spacemit_ime]} {}
+    weft.exec.variant @ime_vmadot_matmul_slice attributes {origin = "ime-plugin", requires = [@spacemit_ime]} {
     // expected-error@+1 {{typed region admits ONLY the decomposed q4_K}}
     weft_ime.q4_K_matmul_tile attributes {origin = "ime-plugin", required_capabilities = [@spacemit_ime], role = "direct variant", status = "role-op-boundary", selected_variant = @ime_vmadot_matmul_slice, source_kernel = "ime_q4_K_tile_opaque_body", ime_op = "vmadot", elem_in_bits = 8 : i64, accum_bits = 32 : i64, mac_m = 4 : i64, mac_n = 4 : i64, mac_k = 8 : i64, mat_m = 256 : i64, mat_n = 256 : i64, mat_k = 256 : i64, weight_format = "q4_K", qk = 256 : i64, weight_block_stride = 144 : i64, weight_quant_byte_offset = 16 : i64, available_harts = "0-3"} {
     ^bb0(%bi: index, %a: vector<32xi8>, %accS: vector<16xi32>, %accM: vector<16xi32>):
@@ -155,6 +157,7 @@ module {
       %nextM = weft_ime.q4_K_min_bias_accum %a, %m, %accM {bias_model = "activation_sum_min_bias"} : (vector<32xi8>, vector<16xi32>, vector<16xi32>) -> vector<16xi32>
       weft_ime.q4_K_matmul_tile_yield %nextS, %nextM : vector<16xi32>, vector<16xi32>
     }
+    }
   }
 }
 
@@ -165,7 +168,7 @@ module {
 module {
   weft.exec.kernel @ime_q4_K_tile_bad_decode {
     weft.exec.capability @spacemit_ime {id = "spacemit.ime", kind = "isa-matrix-vector-backed", status = "available"}
-    weft.exec.variant @ime_vmadot_matmul_slice attributes {origin = "ime-plugin", requires = [@spacemit_ime]} {}
+    weft.exec.variant @ime_vmadot_matmul_slice attributes {origin = "ime-plugin", requires = [@spacemit_ime]} {
     weft_ime.q4_K_matmul_tile attributes {origin = "ime-plugin", required_capabilities = [@spacemit_ime], role = "direct variant", status = "role-op-boundary", selected_variant = @ime_vmadot_matmul_slice, source_kernel = "ime_q4_K_tile_bad_decode", ime_op = "vmadot", elem_in_bits = 8 : i64, accum_bits = 32 : i64, mac_m = 4 : i64, mac_n = 4 : i64, mac_k = 8 : i64, mat_m = 256 : i64, mat_n = 256 : i64, mat_k = 256 : i64, weight_format = "q4_K", qk = 256 : i64, weight_block_stride = 144 : i64, weight_quant_byte_offset = 16 : i64, available_harts = "0-3"} {
     ^bb0(%bi: index, %a: vector<32xi8>, %accS: vector<16xi32>, %accM: vector<16xi32>):
       // expected-error@+1 {{decode_model must be 'q4_K_raw_nibble'}}
@@ -175,6 +178,7 @@ module {
       %nextS = weft_ime.q4_K_scale_weighted_accum %sumi, %sc, %accS {accum_model = "scale_weighted_sum"} : (vector<16xi32>, vector<16xi32>, vector<16xi32>) -> vector<16xi32>
       %nextM = weft_ime.q4_K_min_bias_accum %a, %m, %accM {bias_model = "activation_sum_min_bias"} : (vector<32xi8>, vector<16xi32>, vector<16xi32>) -> vector<16xi32>
       weft_ime.q4_K_matmul_tile_yield %nextS, %nextM : vector<16xi32>, vector<16xi32>
+    }
     }
   }
 }
@@ -186,7 +190,7 @@ module {
 module {
   weft.exec.kernel @ime_q4_K_tile_bad_stride {
     weft.exec.capability @spacemit_ime {id = "spacemit.ime", kind = "isa-matrix-vector-backed", status = "available"}
-    weft.exec.variant @ime_vmadot_matmul_slice attributes {origin = "ime-plugin", requires = [@spacemit_ime]} {}
+    weft.exec.variant @ime_vmadot_matmul_slice attributes {origin = "ime-plugin", requires = [@spacemit_ime]} {
     // expected-error@+1 {{weight_block_stride must be 144}}
     weft_ime.q4_K_matmul_tile attributes {origin = "ime-plugin", required_capabilities = [@spacemit_ime], role = "direct variant", status = "role-op-boundary", selected_variant = @ime_vmadot_matmul_slice, source_kernel = "ime_q4_K_tile_bad_stride", ime_op = "vmadot", elem_in_bits = 8 : i64, accum_bits = 32 : i64, mac_m = 4 : i64, mac_n = 4 : i64, mac_k = 8 : i64, mat_m = 256 : i64, mat_n = 256 : i64, mat_k = 256 : i64, weight_format = "q4_K", qk = 256 : i64, weight_block_stride = 18 : i64, weight_quant_byte_offset = 16 : i64, available_harts = "0-3"} {
     ^bb0(%bi: index, %a: vector<32xi8>, %accS: vector<16xi32>, %accM: vector<16xi32>):
@@ -196,6 +200,7 @@ module {
       %nextS = weft_ime.q4_K_scale_weighted_accum %sumi, %sc, %accS {accum_model = "scale_weighted_sum"} : (vector<16xi32>, vector<16xi32>, vector<16xi32>) -> vector<16xi32>
       %nextM = weft_ime.q4_K_min_bias_accum %a, %m, %accM {bias_model = "activation_sum_min_bias"} : (vector<32xi8>, vector<16xi32>, vector<16xi32>) -> vector<16xi32>
       weft_ime.q4_K_matmul_tile_yield %nextS, %nextM : vector<16xi32>, vector<16xi32>
+    }
     }
   }
 }
@@ -207,7 +212,7 @@ module {
 module {
   weft.exec.kernel @ime_q4_K_tile_bad_scalemin {
     weft.exec.capability @spacemit_ime {id = "spacemit.ime", kind = "isa-matrix-vector-backed", status = "available"}
-    weft.exec.variant @ime_vmadot_matmul_slice attributes {origin = "ime-plugin", requires = [@spacemit_ime]} {}
+    weft.exec.variant @ime_vmadot_matmul_slice attributes {origin = "ime-plugin", requires = [@spacemit_ime]} {
     weft_ime.q4_K_matmul_tile attributes {origin = "ime-plugin", required_capabilities = [@spacemit_ime], role = "direct variant", status = "role-op-boundary", selected_variant = @ime_vmadot_matmul_slice, source_kernel = "ime_q4_K_tile_bad_scalemin", ime_op = "vmadot", elem_in_bits = 8 : i64, accum_bits = 32 : i64, mac_m = 4 : i64, mac_n = 4 : i64, mac_k = 8 : i64, mat_m = 256 : i64, mat_n = 256 : i64, mat_k = 256 : i64, weight_format = "q4_K", qk = 256 : i64, weight_block_stride = 144 : i64, weight_quant_byte_offset = 16 : i64, available_harts = "0-3"} {
     ^bb0(%bi: index, %a: vector<32xi8>, %accS: vector<16xi32>, %accM: vector<16xi32>):
       %b = weft_ime.q4_K_dequant_core %bi {decode_model = "q4_K_raw_nibble", qk = 256 : i64, weight_block_stride = 144 : i64, weight_quant_byte_offset = 16 : i64, weight_scale_byte_offset = 4 : i64} : index -> vector<32xi8>
@@ -217,6 +222,7 @@ module {
       %nextS = weft_ime.q4_K_scale_weighted_accum %sumi, %sc, %accS {accum_model = "scale_weighted_sum"} : (vector<16xi32>, vector<16xi32>, vector<16xi32>) -> vector<16xi32>
       %nextM = weft_ime.q4_K_min_bias_accum %a, %m, %accM {bias_model = "activation_sum_min_bias"} : (vector<32xi8>, vector<16xi32>, vector<16xi32>) -> vector<16xi32>
       weft_ime.q4_K_matmul_tile_yield %nextS, %nextM : vector<16xi32>, vector<16xi32>
+    }
     }
   }
 }

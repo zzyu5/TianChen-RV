@@ -1,19 +1,19 @@
 // RUN: weft-translate --help | FileCheck %s --check-prefix=HELP
 // RUN: weft-translate --weft-scalar-emitc-to-cpp %s | FileCheck %s --check-prefix=SOURCE --implicit-check-not="__riscv_" --implicit-check-not="descriptor" --implicit-check-not="metadata-diagnostic" --implicit-check-not="weft_rvv" --implicit-check-not="weft_toy" --implicit-check-not="weft_template" --implicit-check-not="int main"
 
-// X-SCALAR tracer bullet (line D, step 2): a hand-written portable-scalar
-// source problem is bound to an explicit scalar variant. Family construction
-// consumes weft_scalar.compute_skeleton and creates an immediate_call_body;
-// the scalar backend emission driver lowers only that final body to a
+// X-SCALAR tracer bullet (line D, step 2): this is an explicit direct/debug
+// qualification fixture. It therefore carries the exact immediate_call_body
+// in the variant canonical body slot instead of inventing a source problem;
+// family construction returns that same root and the scalar backend lowers it to a
 // standalone EmitC module that the
 // --weft-scalar-emitc-to-cpp route renders as PURE SCALAR C/C++ (no __riscv_
 // intrinsics). The second RUN proves the translate route is self-contained on
 // the same source (byte-identical output).
 //
 // This is a TRIVIAL compute boundary (step 3 lands a real kernel). The
-// construction is typed-input-driven, not vacuous: the family formula consumes
-// source_kernel + selected_variant + scalar_immediate and constructs a distinct
-// typed body. The body identity fixes the call topology; the emitter projects
+// construction is typed-root-driven, not vacuous: source_kernel and
+// selected_variant only establish structural ownership of the already exact
+// final body. The body identity fixes the call topology; the emitter projects
 // its ABI and immediate mechanically.
 //
 // NOTE: --weft-materialize-emission-plans is intentionally NOT in the pipe. That
@@ -34,8 +34,8 @@ module {
       origin = "scalar-plugin",
       requires = [@scalar_fallback]
     } {
+      weft_scalar.immediate_call_body {source_kernel = "scalar_kernel", selected_variant = @scalar_fallback_first_slice, scalar_immediate = 7 : i64}
     }
-    weft_scalar.compute_skeleton {source_kernel = "scalar_kernel", selected_variant = @scalar_fallback_first_slice, scalar_immediate = 7 : i64}
   }
 }
 

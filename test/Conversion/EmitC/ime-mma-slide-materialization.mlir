@@ -1,29 +1,28 @@
 // RUN: weft-opt %s --weft-materialize-plugin-variants --weft-select-variants --weft-materialize-selected-lowering-boundaries --weft-materialize-emitc-lowerable-routes | FileCheck %s --check-prefix=EMITC --implicit-check-not="weft_rvv" --implicit-check-not="weft_toy" --implicit-check-not="weft_template" --implicit-check-not="weft_tensorext_lite" --implicit-check-not="weft_offload" --implicit-check-not="weft_ime_vmadot_mma_4x4x8" --implicit-check-not="weft_ime_vmadotu_mma_4x4x8" --implicit-check-not="weft_ime_vmadotsu_mma_4x4x8" --implicit-check-not="ime_vmadot_mma_slice" --implicit-check-not="ime_vmadotu_mma_slice" --implicit-check-not="ime_vmadotsu_mma_slice"
 
 // N2 RAPID-ADD zero-core-branch proof: a kernel carrying the spacemit.ime
-// capability FACT whose `ime_slide = "1"` property requests the SLIDING-WINDOW
+// target capability plus an exact sliding-MAC problem request the SLIDING-WINDOW
 // form. The SAME generic proposal/selection/boundary/EmitC pipeline (no
 // family-name branch, no second capability id) drives the IME plugin to:
-//   - derive the slide-1 window FACT from the same xsmtvdotii envelope,
+//   - project the slide-1 window from the exact canonical problem,
 //   - propose the ime_vmadot1_mma_slide_slice variant,
 //   - materialize a real weft_ime.mma_slide (4x4x8 A-pair, ime_op="vmadot1", slide=1),
 //   - lower it to the vmadot1 slide asm kernel through the common EmitC route.
-// The slide stride is a capability-derived fact flowed as DATA (the ime.slide
-// variant attribute, read at boundary time), NOT a string family-match and NOT
+// The slide stride comes from exact P, not target capability or a variant mirror;
+// it is NOT a string family-match and NOT
 // an `if(name=="vmadot1")` in the core. The --implicit-check-not guards assert
 // that none of the non-slide IME helpers/variants leak into the slide path, and
 // no OTHER family dialect leaks into core.
 module {
   weft.exec.kernel @ime_mma_slide_kernel attributes {construction_domain = "riscv-execution", problem = @canonical_problem} {
-    weft.exec.int8_mac_problem @canonical_problem {lhs_signedness = #weft<integer_signedness signed>, rhs_signedness = #weft<integer_signedness signed>, m = 4 : i64, n = 4 : i64, k = 8 : i64}
+    weft.exec.int8_sliding_mac_problem @canonical_problem {lhs_signedness = #weft<integer_signedness signed>, rhs_signedness = #weft<integer_signedness signed>, m = 4 : i64, n = 4 : i64, k = 8 : i64, slide = 1 : i64}
     weft.exec.capability @spacemit_ime {
       id = "spacemit.ime",
       kind = "isa-matrix-vector-backed",
       status = "available",
       march = "rv64gcv_zfh_zvfh_zba_zicbop_xsmtvdotii",
       vlen_bits = "256",
-      available_harts = "0-3",
-      ime_slide = "1"
+      available_harts = "0-3"
     }
   }
 }

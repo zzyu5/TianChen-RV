@@ -58,7 +58,7 @@
 // Target-artifact OBJECT export: the monolithic emission plan exports a real
 // RISC-V RVV relocatable object through the registered peer object exporter.
 // RUN: rm -f %t.o
-// RUN: weft-opt %s --weft-rvv-materialize-q4-k-q8-k-block-dot-source-front-door --weft-materialize-emission-plans | weft-translate --weft-export-target-artifact > %t.o
+// RUN: weft-opt %s --weft-rvv-materialize-q4-k-q8-k-block-dot-source-front-door --weft-select-variants --weft-materialize-emission-plans | weft-translate --weft-export-target-artifact > %t.o
 // RUN: llvm-readobj -h %t.o | FileCheck %s --check-prefix=OBJECT
 // RUN: llvm-readobj --symbols %t.o | FileCheck %s --check-prefix=SYMBOL
 
@@ -79,8 +79,7 @@ module attributes {weft_rvv.source_front_door = "ggml_q4_K_q8_K_block_dot_source
 // carries q4_K's op-derived kind metadata resolved from its SuperBlockTwoLevelScaleMin
 // entry (NOT an opaque weft_rvv.q4_k_q8_k_block_dot op).
 // PLAN: weft_rvv.typed_super_block_block_dot_loop_body
-// PLAN: weft.exec.diagnostic
-// PLAN-SAME: artifact_kind = "riscv-elf-relocatable-object"
+// PLAN: weft.exec.diagnostic {{.*}}artifact_kind = "riscv-elf-relocatable-object"
 // The honest monolithic-body route id (NOT the decomposed generic-typed-body
 // route) is the coherence-recognized target-artifact export route.
 // PLAN-SAME: lowering_pipeline = "rvv-generic-typed-body-emitc-route-family"

@@ -606,42 +606,10 @@ constexpr llvm::StringLiteral kNibbleQ40ScaleModel =
 // selector's conservative VLEN256-decode DECLINE (add a format = add a data row, 换键不改
 // 条目). The selector consumes ONLY the resulting fact (vlen256DecodeRepackBeneficial) and
 // stays BLIND to the format label.
-enum class Vlen256DecodeRepackDisposition { Beneficial, Negative };
-struct RepackVlen256DecodeMeasurement {
-  llvm::StringRef scaleModel; ///< committed decode-family WHAT (registry key)
-  Vlen256DecodeRepackDisposition disposition; ///< board-measured repack disposition
-  llvm::StringRef metric;      ///< measured cold repack-vs-block-dot ratio
-  llvm::StringRef metricsHook; ///< the board evidence provenance
-};
-constexpr RepackVlen256DecodeMeasurement kRepackVlen256DecodeMeasurements[] = {
-    {kNibbleQ50ScaleModel, Vlen256DecodeRepackDisposition::Beneficial, "1.190x",
-     "experiments/active/g8-stage3-attack/k1-gevm-sweep/evidence.md "
-     "(q5_0@k1 VLEN256 decode repack-GEVM leaf 1.190x vs stock native-vec, "
-     "byte-exact; k1 GEVM sweep ac5ea76f)"},
-    {kNibbleQ51ScaleModel, Vlen256DecodeRepackDisposition::Beneficial, "1.306x",
-     "experiments/active/g8-stage3-attack/k1-gevm-sweep/evidence.md "
-     "(q5_1@k1 VLEN256 decode repack-GEVM leaf 1.306x vs stock native-vec, "
-     "byte-exact; k1 GEVM sweep ac5ea76f)"},
-    {kNibbleQ40ScaleModel, Vlen256DecodeRepackDisposition::Negative, "0.74x",
-     "experiments/active/g8-stage3-attack/k1-gevm-sweep/evidence.md "
-     "(q4_0@k1 VLEN256 decode repack 0.74x LOSS -- near-optimal linear block-dot; "
-     "the original fact-3 seed, now scoped per-format; k1 GEVM sweep ac5ea76f)"},
-    {kCodebookIq4NlScaleModel, Vlen256DecodeRepackDisposition::Negative, "0.248x",
-     "experiments/active/g8-stage3-attack/k1-gevm-sweep/evidence.md "
-     "(iq4_nl@k1 VLEN256 decode repack-GEVM leaf 0.248x LOSS -- codebook-gather-bound, "
-     "vsetvl 260 / 64 gather; k1 GEVM sweep ac5ea76f)"},
-};
-
-// Pure DATA lookup: the board-measured VLEN256-decode repack disposition for the committed
-// decode-family scale_model, or nullopt when the format has NO measured row (=> the
-// selector's conservative VLEN256-decode decline). Mirrors lookupWideFormatMeasuredNegative.
-std::optional<Vlen256DecodeRepackDisposition>
-lookupRepackVlen256Decode(llvm::StringRef scaleModel) {
-  for (const RepackVlen256DecodeMeasurement &m : kRepackVlen256DecodeMeasurements)
-    if (m.scaleModel == scaleModel)
-      return m.disposition;
-  return std::nullopt;
-}
+// No compiled measurement residual is admitted here. Historical per-format
+// board rows lacked current run lineage, qualification and freshness, so the
+// analytic formula receives an honest miss until a governed winner view is
+// generated from formal measurement data.
 
 // The iq2_xxs GRID CODEBOOK + SIGN-PLANE decode-FAMILY discriminator (the abstract
 // request's committed scale_model WHAT): the FIRST grid decode sibling (retirement_batch
@@ -1225,7 +1193,7 @@ std::int64_t deriveRepackHalfLanes(std::int64_t vlenBits) {
 // flips it (reason measured)"). This per-format board-MEASURED m1-vs-mf2
 // crossover registry is the ONLY thing that flips the mf2 default. It is
 // registration-as-DATA -- the SAME status/metric/hook mechanism as
-// kRepackVlen256DecodeMeasurements / the IME kIMEWideFormatMeasurements registry,
+// the retired per-format decode winner registry and the IME wide-format registry,
 // NOT a per-format C++ switch and NEVER a VLEN/footprint PROJECTION. A row is a
 // BOARD FACT keyed on the committed decode-family scale_model WHAT; a scale_model
 // with NO row is UNMEASURED => nullopt => the mf2 default holds (byte-exact).
@@ -1258,51 +1226,6 @@ std::int64_t deriveRepackHalfLanes(std::int64_t vlenBits) {
 //     m1. Because one measured row flips BOTH regimes, q5_0/q5_1 stay mf2 (a fill
 //     would deploy a 2.3x prefill regression). NOT flipped -- honest null.
 // Only board-MEASURED spill-free double-safe formats are asserted here.
-struct RepackMeasuredM1FasterMeasurement {
-  llvm::StringRef scaleModel;  ///< committed decode-family WHAT (registry key)
-  bool m1Faster;               ///< board-measured: m1 chain faster than mf2 default
-  llvm::StringRef metric;      ///< measured cold m1/mf2 ratio (<1 => m1 faster)
-  llvm::StringRef metricsHook; ///< board evidence provenance
-};
-constexpr RepackMeasuredM1FasterMeasurement
-    kRepackMeasuredM1FasterMeasurements[] = {
-        {kNibbleQ80ScaleModel, /*m1Faster=*/true,
-         "decode-GEVM 0.42-0.62 / prefill-GEMM 0.69-0.72 cold m1/mf2 (1.4-2.4x faster)",
-         "experiments/active/r51f-gapp1-q8-deployed-board/FINDING.md + "
-         "experiments/active/w2-widen-to-m1-board/FINDING.md "
-         "(q8_0 full-i8 DEPLOYED repack GEVM+GEMM m1 whole-LMUL chain faster than "
-         "the mf2 default @rvv VLEN128 clang-17.0.6, spill-free by "
-         "rvvRegisterPressureLegal, byte-exact 3-arm 2-seed cold, GEVM "
-         "footprint-robust THROUGH 35.6 MB DRAM-bound; CORE==PROD deployed emit)"},
-        {kNibbleQ40ScaleModel, /*m1Faster=*/true,
-         "decode-GEVM 0.39-0.44 / prefill-GEMM 0.78-0.82 cold m1/mf2 (2.3-2.5x / 1.24x faster)",
-         "experiments/active/r51g-b1-repack-family-sweep/FINDING.md "
-         "(q4_0 signed-nibble DEPLOYED repack GEVM+GEMM m1 whole-LMUL chain faster "
-         "than the mf2 default @rvv VLEN128 clang-17.0.6, spill-free by objdump, "
-         "byte-exact 3-arm 2-seed cold; resolves W2 scalar-unpack confound -- the "
-         "deployed emit vectorizes the nibble unpack, which mf2 does TWICE per "
-         "16-col group and m1 collapses to ONE 16-lane pass)"},
-        {kNibbleQ41ScaleModel, /*m1Faster=*/true,
-         "decode-GEVM 0.40-0.45 / prefill-GEMM 0.99-1.02 cold m1/mf2 (2.3x faster / parity)",
-         "experiments/active/r51g-b1-repack-family-sweep/FINDING.md "
-         "(q4_1 unsigned-nibble+min DEPLOYED repack GEVM+GEMM: m1 2.3x faster in "
-         "decode, PARITY in prefill (spill-free, no regression) @rvv VLEN128 "
-         "clang-17.0.6, byte-exact 3-arm 2-seed cold; the decode-dominant flat "
-         "family win, prefill neutral)"},
-};
-
-// Pure DATA lookup: the board-measured m1-vs-mf2 disposition for the committed
-// decode-family scale_model, or nullopt when the format has NO measured row (=>
-// the mf2 default). Mirrors lookupRepackVlen256Decode / lookupWideFormatMeasured.
-inline std::optional<bool>
-lookupRepackMeasuredM1Faster(llvm::StringRef scaleModel) {
-  for (const RepackMeasuredM1FasterMeasurement &m :
-       kRepackMeasuredM1FasterMeasurements)
-    if (m.scaleModel == scaleModel)
-      return m.m1Faster;
-  return std::nullopt;
-}
-
 /// Project the front-door's typed owners into the plugin-local decision contract.
 /// This is the sole production constructor: scale_model is consumed only as the
 /// current measurement key, while geometry and target capability remain separate.
@@ -1320,19 +1243,10 @@ buildRepackAccumulatorLMULDecision(weftrvv::GgmlQuantContractionOp op,
                          op->getParentOfType<mlir::ModuleOp>())},
           pluginrvv::RepackAccumulatorLMULNoStaticContext{});
 
-  // Winner memory is consulted only after the formula has constructed the
-  // complete legal set and analytic prior.  It cannot alter either one.
-  pluginrvv::RepackAccumulatorLMULSelectionInput selectionInput;
-  if (std::optional<bool> measuredM1Faster =
-          lookupRepackMeasuredM1Faster(op.getScaleModel())) {
-    selectionInput.measurement =
-        pluginrvv::RepackAccumulatorLMULQualifiedMeasurement{
-        /*key=*/{op.getScaleModel()},
-        /*winner=*/*measuredM1Faster
-            ? pluginrvv::RepackAccumulatorLMULCandidate::M1
-            : pluginrvv::RepackAccumulatorLMULCandidate::MF2};
-  }
-  return pluginrvv::selectRepackAccumulatorLMUL(formula, selectionInput);
+  // No qualified current-lineage winner is wired; analytic prior is the
+  // complete and deterministic selection authority.
+  return pluginrvv::selectRepackAccumulatorLMUL(
+      formula, pluginrvv::RepackAccumulatorLMULSelectionInput{});
 }
 
 class RVVLowerQuantContractionPass final
@@ -1428,16 +1342,6 @@ private:
       return op.emitOpError(
           "cannot construct repack schedule without complete typed geometry");
 
-    std::string declaredInstanceHash;
-    if (auto kernelOp = op->getParentOfType<weft::exec::KernelOp>()) {
-      if (llvm::Expected<support::TargetCapabilitySet> capabilities =
-              support::TargetCapabilitySet::buildFromKernelChecked(kernelOp))
-        declaredInstanceHash =
-            support::computeDeclaredInstanceHash(*capabilities);
-      else
-        llvm::consumeError(capabilities.takeError());
-    }
-
     const std::int64_t minimumVLEN = pluginrvv::resolveRVVMinimumVLEN(
         op->getParentOfType<mlir::ModuleOp>(), march, isaVectorHints);
 
@@ -1454,15 +1358,9 @@ private:
       return op.emitOpError(
           "cannot construct a legal repack schedule from typed g/c/omega");
 
-    pluginrvv::RVVRepackScheduleSelectionInput selection;
-    selection.qualifiedLoopOrderWinner =
-        pluginrvv::lookupQualifiedRepackLoopOrderWinner(declaredInstanceHash,
-                                                        kernel);
-    selection.qualifiedMainTermWinner =
-        pluginrvv::lookupQualifiedRepackMainTermWinner(
-            formula->unrolledMainTermVwmacc, g.integerCoreLMUL);
     pluginrvv::RVVRepackFinalSchedule finalSchedule =
-        pluginrvv::selectRVVRepackSchedule(*formula, selection);
+        pluginrvv::selectRVVRepackSchedule(
+            *formula, pluginrvv::RVVRepackScheduleSelectionInput{});
     if (regime == pluginrvv::RVVRepackScheduleRegime::GemmPrefill &&
         !finalSchedule.loopOrder)
       return op.emitOpError("repack GEMM formula produced no final loop order");
@@ -1510,21 +1408,9 @@ private:
             facts, {/*minimumVLEN=*/minVLEN},
             {/*mRegime=*/*mRegime});
 
-    // The board-qualified residual correction is read only after g/c/omega have
-    // produced the complete legal set and analytic prior.  The selector can
-    // choose one of those candidates; it cannot create a contraction path.
-    pluginrvv::ContractionSelectionInput selectionInput;
-    if (std::optional<Vlen256DecodeRepackDisposition> disposition =
-            lookupRepackVlen256Decode(op.getScaleModel())) {
-      selectionInput.measurement = pluginrvv::ContractionQualifiedMeasurement{
-          /*key=*/{op.getScaleModel()},
-          /*winner=*/
-              *disposition == Vlen256DecodeRepackDisposition::Beneficial
-                  ? pluginrvv::ContractionAlgorithm::Repack
-                  : pluginrvv::ContractionAlgorithm::BlockDot};
-    }
     pluginrvv::ContractionSelection selection =
-        pluginrvv::selectContractionAlgorithm(formula, selectionInput);
+        pluginrvv::selectContractionAlgorithm(
+            formula, pluginrvv::ContractionSelectionInput{});
 
     // STAGE C1 (the in-IR BRIDGE): when the selection is Repack AND the target
     // capability supplies a valid e16m1 strip width (minVLEN >= 128 => half_lanes

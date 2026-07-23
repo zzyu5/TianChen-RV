@@ -344,8 +344,8 @@ llvm::Error DemoExtensionPlugin::constructFormulaPlans(
   mlir::OpBuilder builder(request.getModule().getContext());
   builder.setInsertionPointToEnd(&request.getKernel().getBody().front());
   VariantLoweringBoundaryRequest bodyRequest(
-      request.getVariant(), request.getKernel(), request.getCapabilities(),
-      request.getRole(), builder);
+      request.getVariant(), request.getKernel(), request.getProblem(),
+      request.getCapabilities(), request.getRole(), builder, nullptr);
   mlir::Operation *body = materializeDemoComputeSkeletonBoundary(bodyRequest);
   VariantLoweringBoundaryValidationRequest validation(
       request.getVariant(), request.getKernel(), request.getCapabilities(),
@@ -475,6 +475,7 @@ llvm::Error DemoExtensionPlugin::checkVariantEmissionReadiness(
         "emission readiness requires an enclosing weft.exec.kernel");
 
   VariantLegalityRequest legality(request.getVariant(), request.getKernel(),
+                                  nullptr,
                                   request.getCapabilities());
   if (llvm::Error error = verifyVariantLegality(legality)) {
     std::string message = llvm::toString(std::move(error));
@@ -510,6 +511,7 @@ llvm::Error DemoExtensionPlugin::buildVariantEmissionPlan(
         "emission planning requires an enclosing weft.exec.kernel");
 
   VariantLegalityRequest legality(request.getVariant(), request.getKernel(),
+                                  nullptr,
                                   request.getCapabilities());
   if (llvm::Error error = verifyVariantLegality(legality)) {
     std::string message = llvm::toString(std::move(error));
@@ -560,7 +562,8 @@ llvm::Error DemoExtensionPlugin::materializeSelectedLoweringBoundary(
         "lowering-boundary materialization requires an enclosing "
         "weft.exec.kernel");
 
-  VariantLegalityRequest legality(variant, kernel, request.getCapabilities());
+  VariantLegalityRequest legality(variant, kernel, request.getProblem(),
+                                  request.getCapabilities());
   if (llvm::Error error = verifyVariantLegality(legality)) {
     std::string message = llvm::toString(std::move(error));
     return makeDemoPluginError(
@@ -568,7 +571,7 @@ llvm::Error DemoExtensionPlugin::materializeSelectedLoweringBoundary(
         " failed plugin legality before boundary materialization: " + message);
   }
 
-  mlir::Operation *boundary = materializeDemoComputeSkeletonBoundary(request);
+  mlir::Operation *boundary = request.getConstructedOperation();
   VariantLoweringBoundaryValidationRequest validationRequest(
       variant, kernel, request.getCapabilities(), request.getRole(), boundary);
   if (llvm::Error error = validateSelectedLoweringBoundary(validationRequest))

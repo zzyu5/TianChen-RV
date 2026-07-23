@@ -25,7 +25,7 @@
 // second auto-lowered block; the per-block fp16-scale loop is a later rung.
 
 // The auto-constructed dequant body (the e8m2 VLEN128 anchor).
-// RUN: weft-opt %s --weft-rvv-materialize-widening-dot-reduce-dequantize-source-front-door=march=rv64gcv | FileCheck %s --check-prefix=BODY
+// RUN: weft-opt %s --weft-rvv-materialize-widening-dot-reduce-dequantize-source-front-door=march=rv64gcv | FileCheck %s --check-prefix=BODY --implicit-check-not="scalar_fallback" --implicit-check-not="weft.exec.dispatch"
 //
 // The capability-FLIP, asserted on the emitted INTRINSICS (not a metadata mirror):
 // the SAME generic source emits e8m2/i16m4 at VLEN128 and e8m1/i16m2 at VLEN256,
@@ -64,6 +64,9 @@ module attributes {weft_rvv.source_front_door = "bounded_widening_dot_reduce_deq
 // the VLEN128 gearbox-selected m2 byte anchor, adding the runtime-f32-scale
 // dequant on top of the MVP's bare-dot body.
 // BODY: weft.exec.kernel @rvv_widening_dot_reduce_dequantize_i8_from_vector_source
+// BODY: weft.exec.i8_widening_dot_reduce_problem @canonical_problem
+// BODY-SAME: block_length = 32
+// BODY-SAME: dequantize_to_f32 = true
 // BODY: weft.exec.variant @rvv_widening_dot_reduce_dequantize_i8
 // The runtime f32 dequant scale ABI value (c_type "float", role dequant-scale-value).
 // BODY: weft_rvv.runtime_abi_value {c_name = "scale", c_type = "float", ownership = "target-export-abi-owned", purpose = "widening-dot-reduce-dequantize:scale", role = "dequant-scale-value"}
@@ -85,11 +88,6 @@ module attributes {weft_rvv.source_front_door = "bounded_widening_dot_reduce_deq
 // BODY-SAME: kind = "i32_to_f32_scaled"
 // BODY-SAME: -> !weft_rvv.vector<f32, "m1">
 // BODY: weft_rvv.store
-// The conservative fallback is authored by the fallback-owning plugin.
-// BODY: weft.exec.variant @rvv_widening_dot_reduce_dequantize_i8_scalar_fallback
-// BODY-SAME: fallback_role = "conservative"
-// BODY: weft.exec.case @rvv_widening_dot_reduce_dequantize_i8
-// BODY: weft.exec.fallback @rvv_widening_dot_reduce_dequantize_i8_scalar_fallback
 
 // ===================== VLEN128 (rv64gcv) -- the e8m2 anchor + dequant ========
 // The gearbox selects the m2 byte anchor at the VLEN-128 tier -- vsetvl_e8m2, i8m2

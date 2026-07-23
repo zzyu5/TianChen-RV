@@ -237,8 +237,8 @@ llvm::Error RVVExtensionPlugin::constructFormulaPlans(
   mlir::OpBuilder builder(request.getModule().getContext());
   builder.setInsertionPointToEnd(&request.getVariant().getBody().front());
   VariantLoweringBoundaryRequest bodyRequest(
-      request.getVariant(), request.getKernel(), request.getCapabilities(),
-      request.getRole(), builder);
+      request.getVariant(), request.getKernel(), request.getProblem(),
+      request.getCapabilities(), request.getRole(), builder, nullptr);
   llvm::Expected<weft::rvv::WithVLOp> realized =
       realizePreRealizedRVVSelectedBody(bodyRequest);
   if (!realized)
@@ -878,14 +878,17 @@ llvm::Error RVVExtensionPlugin::materializeSelectedLoweringBoundary(
         "weft.exec.kernel");
 
   VariantLegalityRequest legality(request.getVariant(), request.getKernel(),
+                                  request.getProblem(),
                                   request.getCapabilities());
   if (llvm::Error error = verifyVariantLegality(legality))
     return error;
 
-  llvm::Expected<weft::rvv::WithVLOp> boundary =
-      findSelectedRVVSelectedBodyBoundary(request.getVariant());
+  auto boundary = llvm::dyn_cast_if_present<weft::rvv::WithVLOp>(
+      request.getConstructedOperation());
   if (!boundary)
-    return boundary.takeError();
+    return makeRVVPluginError(
+        "selected RVV boundary exposure requires the exact weft_rvv.with_vl "
+        "root returned by family construction");
   if (variantContainsPreRealizedRVVSelectedBody(request.getVariant())) {
     return makeRVVPluginError(
         "selected RVV final body exposure found a leftover pre-realized body");
@@ -893,7 +896,7 @@ llvm::Error RVVExtensionPlugin::materializeSelectedLoweringBoundary(
 
   VariantLoweringBoundaryValidationRequest validationRequest(
       request.getVariant(), request.getKernel(), request.getCapabilities(),
-      request.getRole(), boundary->getOperation());
+      request.getRole(), boundary.getOperation());
   if (llvm::Error error =
           validateSelectedRVVSelectedBodyBoundary(validationRequest))
     return error;
@@ -901,7 +904,7 @@ llvm::Error RVVExtensionPlugin::materializeSelectedLoweringBoundary(
   out = VariantLoweringBoundaryResult::getMaterialized(
       kRVVPluginName, request.getKernel().getSymName(),
       request.getVariant().getSymName(), request.getRole(),
-      boundary->getOperation());
+      boundary.getOperation());
   return llvm::Error::success();
 }
 

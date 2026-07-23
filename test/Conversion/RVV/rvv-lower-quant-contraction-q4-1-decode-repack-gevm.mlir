@@ -18,10 +18,8 @@
 // q4_0-vlen128 audit token -- the GENUINE front-door decode path on the rvv board.
 // RUN: weft-opt %s --weft-rvv-lower-quant-contraction=march=rv64gcv | FileCheck %s --check-prefix=VLEN128
 //
-// VLEN256 (rv64gcv_zvl256b => 256): the format-blind selector DECLINES repack (the board-seeded
-// kRepackVlen256DecodeMeasurements registry has NO q4_1 decode measurement -- the same decline
-// q4_0/iq4_nl take; q5_0/q5_1 are kept only because they measured BENEFICIAL). But the decline
-// branch is q4_0-ONLY: it builds a weft_rvv.q4_0_q8_0_block_dot still carrying q4_1's
+// VLEN256 (rv64gcv_zvl256b => 256): the analytic prior DECLINES repack, but the
+// decline branch is q4_0-ONLY: it builds a weft_rvv.q4_0_q8_0_block_dot still carrying q4_1's
 // "...-plus-min" scale_model, and the q4_0 block-dot VERIFIER correctly REJECTS it (accepting it
 // would silently DROP the m_x*s_y MIN term = a q4_1 miscompile). So the q4_1 VLEN256 decode
 // decline FAILS CLOSED with a verifier diagnostic rather than miscompiling. This is the
@@ -29,7 +27,7 @@
 // block-dot" is not expressible for a non-q4_0 flat format. Pinned as a fail-closed contract:
 // RUN: not weft-opt %s --weft-rvv-lower-quant-contraction=march=rv64gcv_zvl256b 2>&1 | FileCheck %s --check-prefix=VLEN256
 //
-// Full front-door export to C (the measured leaf) is the two-pass form:
+// Full front-door export to C (the analytic leaf) is the two-pass form:
 // RUN: weft-opt %s --weft-rvv-lower-quant-contraction=march=rv64gcv --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=EMITC
 
 module {
@@ -55,7 +53,7 @@ module {
 // (VLEN128 tier) the abstract op is GONE; the typed repack-GEVM region is realized (x16).
 // VLEN128-NOT: weft_rvv.quant_contraction
 // VLEN128: weft_rvv.typed_repack_gemv_loop_body
-// VLEN128-SAME: half_lanes = 16 : i64
+// VLEN128-SAME: half_lanes = 8 : i64
 // VLEN128-SAME: weft_rvv.weight_layout_contract = "x16"
 
 // (VLEN256 tier) FAIL-CLOSED: the q4_0-only decline route refuses the q4_1 plus-min scale_model
@@ -65,15 +63,14 @@ module {
 // (EMITC) the exported C leaf: block_q4_1x16 stride 320 (d[16]@0, m[16]@32, nibbles @64) over
 // a PLAIN block_q8_1 activation (stride 36); RAW-nibble decode (vand 0x0F / vsrl 0x04, NO -8),
 // lane-wise vwmacc, dual-fp16 d_x*d_y fold + the vfadd MIN term.
-// (board-measured m1 whole-LMUL: half_lanes=16, u8m1 -> i16m2 -> i32m4, single
-// 16-lane f32m4 strip -- r51g [GAP-P1]-loosen flip, byte-exact to the mf2 default.)
+// The analytic resource prior uses the mf2 two-strip chain.
 // EMITC: emitc.func @weft_emitc_ggml_vec_dot_q4_1_q8_1_kernel_ggml_vec_dot_q4_1_q8_1
 // EMITC: literal "320"
-// EMITC: call_opaque "__riscv_vle8_v_u8m1"
-// EMITC: call_opaque "__riscv_vand_vx_u8m1"
-// EMITC: call_opaque "__riscv_vsrl_vx_u8m1"
-// EMITC: call_opaque "__riscv_vwmacc_vx_i16m2"
-// EMITC: call_opaque "__riscv_vfwmul_vf_f32m4"
-// EMITC: call_opaque "__riscv_vfmacc_vv_f32m4"
-// EMITC: call_opaque "__riscv_vfadd_vv_f32m4"
-// EMITC: call_opaque "__riscv_vse32_v_f32m4"
+// EMITC: call_opaque "__riscv_vle8_v_u8mf2"
+// EMITC: call_opaque "__riscv_vand_vx_u8mf2"
+// EMITC: call_opaque "__riscv_vsrl_vx_u8mf2"
+// EMITC: call_opaque "__riscv_vwmacc_vx_i16m1"
+// EMITC: call_opaque "__riscv_vfwmul_vf_f32m2"
+// EMITC: call_opaque "__riscv_vfmacc_vv_f32m2"
+// EMITC: call_opaque "__riscv_vfadd_vv_f32m2"
+// EMITC: call_opaque "__riscv_vse32_v_f32m2"

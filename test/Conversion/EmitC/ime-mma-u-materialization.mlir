@@ -1,14 +1,14 @@
 // RUN: weft-opt %s --weft-materialize-plugin-variants --weft-select-variants --weft-materialize-selected-lowering-boundaries --weft-materialize-emitc-lowerable-routes | FileCheck %s --check-prefix=EMITC --implicit-check-not="weft_rvv" --implicit-check-not="weft_toy" --implicit-check-not="weft_template" --implicit-check-not="weft_tensorext_lite" --implicit-check-not="weft_offload" --implicit-check-not="weft_ime_vmadot_mma_4x4x8" --implicit-check-not="ime_vmadot_mma_slice"
 
 // N2 plugin-BREADTH zero-core-branch proof: a kernel carrying the spacemit.ime
-// capability FACT whose `ime_signedness = "unsigned"` property requests the
+// target capability plus an exact unsigned canonical problem request the
 // UNSIGNED form. The SAME generic proposal/selection/boundary/EmitC pipeline
 // (no family-name branch, no second capability id) drives the IME plugin to:
-//   - derive the unsigned-signedness FACT from the same xsmtvdotii envelope,
+//   - project unsigned signedness from the exact canonical problem,
 //   - propose the ime_vmadotu_mma_slice variant,
 //   - materialize a real weft_ime.mma_u (4x4x8, ime_op="vmadotu"),
 //   - lower it to the vmadotu asm kernel through the common EmitC route.
-// The signedness is a capability-derived fact, NOT a string family-match; the
+// Signedness comes from exact P, not target capability or a variant mirror; the
 // --implicit-check-not guards assert no OTHER family dialect leaks into core.
 module {
   weft.exec.kernel @ime_mma_u_kernel attributes {construction_domain = "riscv-execution", problem = @canonical_problem} {
@@ -19,8 +19,7 @@ module {
       status = "available",
       march = "rv64gcv_zfh_zvfh_zba_zicbop_xsmtvdotii",
       vlen_bits = "256",
-      available_harts = "0-3",
-      ime_signedness = "unsigned"
+      available_harts = "0-3"
     }
   }
 }

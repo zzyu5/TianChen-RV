@@ -269,11 +269,21 @@ mlir::LogicalResult verifySelectedPathBinding(mlir::Operation *op,
 
   auto kernel = op->getParentOfType<weft::exec::KernelOp>();
   if (!kernel) {
-    diag << "must be nested directly in a weft.exec.kernel";
+    diag << "must be nested in a weft.exec.kernel";
     return mlir::failure();
   }
-  if (op->getParentOp() != kernel.getOperation()) {
-    diag << "must be a direct child of the enclosing weft.exec.kernel";
+  auto resolvedVariant =
+      llvm::dyn_cast_if_present<weft::exec::VariantOp>(op->getParentOp());
+  if (!resolvedVariant ||
+      resolvedVariant->getParentOp() != kernel.getOperation()) {
+    diag << "must occupy the canonical final-body slot as a direct child of "
+            "the selected weft.exec.variant";
+    return mlir::failure();
+  }
+  if (resolvedVariant.getSymName() != selectedVariant.getValue()) {
+    diag << "selected_variant @" << selectedVariant.getValue()
+         << " must name the direct parent weft.exec.variant @"
+         << resolvedVariant.getSymName();
     return mlir::failure();
   }
 
@@ -299,23 +309,6 @@ mlir::LogicalResult verifySelectedPathBinding(mlir::Operation *op,
   }
   const weft::support::TargetCapabilitySet &capabilities =
       *capabilitiesOrError;
-
-  weft::exec::VariantOp resolvedVariant;
-  for (mlir::Operation &sibling : kernel.getBody().front()) {
-    if (auto variant =
-            llvm::dyn_cast<weft::exec::VariantOp>(sibling)) {
-      if (variant.getSymName() == selectedVariant.getValue()) {
-        resolvedVariant = variant;
-        break;
-      }
-    }
-  }
-  if (!resolvedVariant) {
-    diag << "selected_variant @" << selectedVariant.getValue()
-         << " must resolve to a direct sibling weft.exec.variant in the "
-            "enclosing weft.exec.kernel";
-    return mlir::failure();
-  }
 
   for (mlir::Attribute requiredCapability : requiredCapabilities) {
     auto symbolRef = llvm::dyn_cast<mlir::FlatSymbolRefAttr>(requiredCapability);

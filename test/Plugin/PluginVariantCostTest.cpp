@@ -361,7 +361,7 @@ module {
     return result;
 
   VariantCostEstimate estimate;
-  VariantCostRequest request(variant, kernel, capabilities);
+  VariantCostRequest request(variant, kernel, nullptr, capabilities);
   if (int result = expectSuccess(registry.estimateVariantCost(request, estimate),
                                  "estimate single variant cost"))
     return result;
@@ -447,7 +447,7 @@ module {
     return result;
 
   VariantCostEstimate estimate;
-  VariantCostRequest request(variant, kernel, capabilities);
+  VariantCostRequest request(variant, kernel, nullptr, capabilities);
   if (int result = expectSuccess(registry.estimateVariantCost(request, estimate),
                                  "estimate default neutral cost"))
     return result;
@@ -706,7 +706,7 @@ module {
   {
     ExtensionPluginRegistry registry;
     VariantCostEstimate estimate;
-    VariantCostRequest request(VariantOp(), kernel, capabilities);
+    VariantCostRequest request(VariantOp(), kernel, nullptr, capabilities);
     if (int result =
             expectErrorContains(registry.estimateVariantCost(request, estimate),
                                 {"requires a materialized weft.exec.variant",
@@ -718,7 +718,7 @@ module {
     ExtensionPluginRegistry registry;
     VariantCostEstimate estimate;
     VariantCostRequest request(findDirectVariant(kernel, "well_formed_path"),
-                               KernelOp(), emptyCapabilities);
+                               KernelOp(), nullptr, emptyCapabilities);
     if (int result =
             expectErrorContains(registry.estimateVariantCost(request, estimate),
                                 {"requires an enclosing weft.exec.kernel",
@@ -730,7 +730,7 @@ module {
     ExtensionPluginRegistry registry;
     VariantCostEstimate estimate;
     VariantCostRequest request(findDirectVariant(kernel, "well_formed_path"),
-                               otherKernel, capabilities);
+                               otherKernel, nullptr, capabilities);
     if (int result =
             expectErrorContains(registry.estimateVariantCost(request, estimate),
                                 {"variant is not enclosed by the request "
@@ -746,7 +746,7 @@ module {
 
     ExtensionPluginRegistry registry;
     VariantCostEstimate estimate;
-    VariantCostRequest request(variant, kernel, capabilities);
+    VariantCostRequest request(variant, kernel, nullptr, capabilities);
     if (int result =
             expectErrorContains(registry.estimateVariantCost(request, estimate),
                                 {"requires non-empty string attribute 'origin'",
@@ -763,7 +763,7 @@ module {
 
     ExtensionPluginRegistry registry;
     VariantCostEstimate estimate;
-    VariantCostRequest request(variant, kernel, capabilities);
+    VariantCostRequest request(variant, kernel, nullptr, capabilities);
     if (int result =
             expectErrorContains(registry.estimateVariantCost(request, estimate),
                                 {"requires non-empty string attribute 'origin'",
@@ -777,7 +777,7 @@ module {
     ExtensionPluginRegistry registry;
     VariantCostEstimate estimate;
     VariantCostRequest request(findDirectVariant(kernel, "unknown_path"),
-                               kernel, capabilities);
+                               kernel, nullptr, capabilities);
     if (int result =
             expectErrorContains(registry.estimateVariantCost(request, estimate),
                                 {"unknown origin plugin 'missing-plugin'",
@@ -794,7 +794,7 @@ module {
 
     VariantCostEstimate estimate;
     VariantCostRequest request(findDirectVariant(kernel, "disabled_path"),
-                               kernel, capabilities);
+                               kernel, nullptr, capabilities);
     if (int result =
             expectErrorContains(registry.estimateVariantCost(request, estimate),
                                 {"origin plugin 'disabled' is disabled",
@@ -814,7 +814,7 @@ module {
 
     VariantCostEstimate estimate;
     VariantCostRequest request(findDirectVariant(kernel, "failing_path"),
-                               kernel, capabilities);
+                               kernel, nullptr, capabilities);
     if (int result =
             expectErrorContains(registry.estimateVariantCost(request, estimate),
                                 {"origin plugin 'failing' failed cost estimate",
@@ -856,7 +856,7 @@ module {
       return result;
 
     VariantCostEstimate estimate;
-    VariantCostRequest request(variant, kernel, capabilities);
+    VariantCostRequest request(variant, kernel, nullptr, capabilities);
     if (int result =
             expectErrorContains(registry.estimateVariantCost(request, estimate),
                                 {"produced invalid cost estimate",

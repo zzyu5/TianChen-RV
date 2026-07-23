@@ -772,8 +772,8 @@ module {
   // Compile-time selection attribution ([D-4] (1)) over the RuntimeDispatch kind:
   // this is the ONLY plan kind that exercises requires_runtime_guard=true and the
   // "unavailable" keys_evaluated verdict, so assert both here (>=2 feasible
-  // fallbacks chosen by capability-blind constant-score ordering => reason
-  // "static_order"; `prior`/`measured` are reserved and never emitted today).
+  // fallbacks ranked by an explicit owner formula => reason "prior". A neutral
+  // original-order tie remains `static_order`; `measured` is still reserved).
   std::string dispatchRecord =
       weft::transforms::buildSelectionAttributionRecord(
           plan, capabilities, /*noTimestamp=*/true);
@@ -788,10 +788,11 @@ module {
                  "attribution record derives the unavailable keys_evaluated verdict"))
     return result;
   if (int result =
-          expect(dispatchRecord.find("\"reason\":\"static_order\"") !=
-                     std::string::npos &&
-                     dispatchRecord.find("\"prior\"") == std::string::npos,
-                 "runtime dispatch with >=2 feasible fallbacks is static_order"))
+          expect(dispatchRecord.find("\"reason\":\"prior\"") !=
+                         std::string::npos &&
+                     dispatchRecord.find("\"reason\":\"static_order\"") ==
+                         std::string::npos,
+                 "runtime dispatch with explicit formula ranking is prior"))
     return result;
 
   mlir::OpBuilder builder(&context);
@@ -1161,7 +1162,8 @@ module {
 int runBuiltinRVVScalarFallbackSelectionTest(mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
-  weft.exec.kernel @rvv_plus_scalar attributes {construction_domain = "riscv-execution"} {
+  weft.exec.kernel @rvv_plus_scalar attributes {construction_domain = "riscv-execution", problem = @canonical_problem} {
+    weft.exec.dequantize_row_q4_0_problem @canonical_problem {qk = 32 : i64, weight_block_stride = 18 : i64, weight_d_byte_offset = 0 : i64, weight_quant_byte_offset = 2 : i64}
     weft.exec.capability @rvv {
       id = "rvv",
       kind = "isa-vector",
@@ -1208,7 +1210,8 @@ module {
     }
   }
 
-  weft.exec.kernel @scalar_only attributes {construction_domain = "riscv-execution"} {
+  weft.exec.kernel @scalar_only attributes {construction_domain = "riscv-execution", problem = @canonical_problem} {
+    weft.exec.dequantize_row_q4_0_problem @canonical_problem {qk = 32 : i64, weight_block_stride = 18 : i64, weight_d_byte_offset = 0 : i64, weight_quant_byte_offset = 2 : i64}
     weft.exec.capability @scalar_fallback {
       id = "scalar.fallback",
       kind = "fallback",
@@ -1285,9 +1288,12 @@ module {
   TargetCapabilitySet rvvScalarCapabilities =
       TargetCapabilitySet::buildFromKernel(rvvScalarKernel);
   llvm::SmallVector<VariantOp, 2> materializedVariants;
-  VariantProposalRequest rvvScalarRequest(rvvScalarKernel.getOperation(),
-                                          rvvScalarKernel,
-                                          rvvScalarCapabilities);
+  llvm::Expected<mlir::Operation *> rvvScalarProblem =
+      weft::plugin::resolveCanonicalProblem(rvvScalarKernel);
+  if (!rvvScalarProblem)
+    return fail(llvm::toString(rvvScalarProblem.takeError()));
+  VariantProposalRequest rvvScalarRequest(
+      *rvvScalarProblem, rvvScalarKernel, rvvScalarCapabilities);
   if (int result = expectSuccess(
           weft::transforms::collectAndMaterializeVariantProposals(
               builder, scalarMaterializationRegistry, rvvScalarRequest,
@@ -1379,9 +1385,12 @@ module {
   TargetCapabilitySet scalarOnlyCapabilities =
       TargetCapabilitySet::buildFromKernel(scalarOnlyKernel);
   llvm::SmallVector<VariantOp, 1> scalarOnlyVariants;
-  VariantProposalRequest scalarOnlyRequest(scalarOnlyKernel.getOperation(),
-                                           scalarOnlyKernel,
-                                           scalarOnlyCapabilities);
+  llvm::Expected<mlir::Operation *> scalarOnlyProblem =
+      weft::plugin::resolveCanonicalProblem(scalarOnlyKernel);
+  if (!scalarOnlyProblem)
+    return fail(llvm::toString(scalarOnlyProblem.takeError()));
+  VariantProposalRequest scalarOnlyRequest(
+      *scalarOnlyProblem, scalarOnlyKernel, scalarOnlyCapabilities);
   if (int result = expectSuccess(
           weft::transforms::collectAndMaterializeVariantProposals(
               builder, scalarMaterializationRegistry, scalarOnlyRequest,
@@ -1708,21 +1717,6 @@ module {
       requires = [@generic_base]
     } {
     }
-    weft.exec.variant @disabled_origin attributes {
-      origin = "disabled",
-      requires = [@generic_base]
-    } {
-    }
-    weft.exec.variant @failing_origin attributes {
-      origin = "failing",
-      requires = [@generic_base]
-    } {
-    }
-    weft.exec.variant @invalid_origin attributes {
-      origin = "invalid",
-      requires = [@generic_base]
-    } {
-    }
   }
 }
 )mlir";
@@ -1838,7 +1832,7 @@ module {
 // The constant scores are INJECTED via a test plugin (the sanctioned constant-score
 // path — the real plugin cannot re-emit its old blind 20 for a GEMM shape now that
 // SEL-1-T5 landed). The capability-DERIVATION of the 0.5-vs-20 scores from the
-// spacemit.ime ime_matmul_shape fact is proven separately against the PRODUCTION RVV +
+// spacemit.ime exact canonical problem geometry is proven separately against the PRODUCTION RVV +
 // IME plugins by test/Transforms/VariantSelection/capability-prior-ime-gemm-over-rvv.mlir.
 // This falsifier and that lit are the two halves of the same closure: the lit proves the
 // score is derived; this test proves the two score regimes flip the winner.

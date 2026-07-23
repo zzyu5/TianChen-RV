@@ -46,7 +46,7 @@
 // Target-artifact OBJECT export: the flat monolithic emission plan exports a real
 // RISC-V RVV relocatable object through the registered peer object exporter.
 // RUN: rm -f %t.o
-// RUN: weft-opt %s --weft-rvv-materialize-q4-0-q8-0-block-dot-source-front-door --weft-materialize-emission-plans | weft-translate --weft-export-target-artifact > %t.o
+// RUN: weft-opt %s --weft-rvv-materialize-q4-0-q8-0-block-dot-source-front-door --weft-select-variants --weft-materialize-emission-plans | weft-translate --weft-export-target-artifact > %t.o
 // RUN: llvm-readobj -h %t.o | FileCheck %s --check-prefix=OBJECT
 // RUN: llvm-readobj --symbols %t.o | FileCheck %s --check-prefix=SYMBOL
 
@@ -65,8 +65,7 @@ module attributes {weft_rvv.source_front_door = "ggml_q4_0_q8_0_block_dot_source
 // it exports through the SAME shared Flat monolithic plan (identical route id /
 // kind / 8-role ABI) as the compound q4_0 block-dot op it replaced.
 // PLAN: weft_rvv.typed_flat_block_dot_loop_body
-// PLAN: weft.exec.diagnostic
-// PLAN-SAME: artifact_kind = "riscv-elf-relocatable-object"
+// PLAN: weft.exec.diagnostic {{.*}}artifact_kind = "riscv-elf-relocatable-object"
 // The flat block-dot carries the flat (not super-block) op-derived metadata keys
 // (rendered inside artifact_metadata, ahead of lowering_pipeline).
 // The honest FLAT monolithic-body route id (NOT q4_K's super-block route, NOT the

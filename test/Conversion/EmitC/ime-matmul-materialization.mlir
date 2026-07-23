@@ -1,11 +1,10 @@
 // RUN: weft-opt %s --weft-materialize-plugin-variants --weft-select-variants --weft-materialize-selected-lowering-boundaries --weft-materialize-emitc-lowerable-routes | FileCheck %s --check-prefix=EMITC --implicit-check-not="weft_rvv" --implicit-check-not="weft_toy" --implicit-check-not="weft_template" --implicit-check-not="weft_tensorext_lite" --implicit-check-not="weft_offload"
 
 // N2 zero-core-branch proof for the TILED whole-matrix kernel: a canonical
-// 256x256x256 signed-int8 MAC problem plus the spacemit.ime capability and its
-// whole-matrix SHAPE fact (ime_matmul_shape), with no family-name branch, drive the generic
+// 256x256x256 signed-int8 exact problem plus the spacemit.ime target capability,
+// with no family-name branch, drive the generic
 // proposal/selection/boundary/EmitC pipeline to the tiled weft_ime.matmul op.
-// The shape fact (single fragment vs whole matrix) and the signedness fact
-// (vmadot vs vmadotu) are both pure data flow of the capability — no family-name
+// Shape and signedness come from exact P; the MAC envelope comes from c_o. No family-name
 // string appears in any core selection/materialization pass (the
 // --implicit-check-not guards assert no OTHER family's dialect leaks either).
 module {
@@ -17,8 +16,7 @@ module {
       status = "available",
       march = "rv64gcv_zfh_zvfh_zba_zicbop_xsmtvdotii",
       vlen_bits = "256",
-      available_harts = "0-3",
-      ime_matmul_shape = "256x256x256"
+      available_harts = "0-3"
     }
   }
 }

@@ -33,8 +33,7 @@ module attributes {
 // PLAN: weft.exec.diagnostic
 // PLAN-SAME: message = "selected Toy source front-door route"
 // PLAN-SAME: reason = "variant-selected"
-// PLAN: weft.exec.diagnostic
-// PLAN-SAME: artifact_kind = "riscv-elf-relocatable-object"
+// PLAN: weft.exec.diagnostic {{.*}}artifact_kind = "riscv-elf-relocatable-object"
 // PLAN-SAME: emission_kind = "materialized-emitc-cpp-toy-template-module"
 // PLAN-SAME: lowering_boundary = "weft_toy.compute_skeleton"
 // PLAN-SAME: lowering_pipeline = "toy-template-compute-emitc-route"

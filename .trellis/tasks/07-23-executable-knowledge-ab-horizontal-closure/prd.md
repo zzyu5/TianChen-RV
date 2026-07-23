@@ -42,7 +42,7 @@ P=(S,g,ω) + BindDomain(t)=(d,C_d)
 代码施工可以按依赖顺序进行，但最终合入不得停在一个 owner、一个 operator 或一个
 topology 的纵向切片，也不得保留旧路径作为兼容退路。
 
-## 当前实施状态（2026-07-23）
+## 当前实施状态（2026-07-23 · exact-P / exact-root checkpoint 待 pin）
 
 本 task 已开工，但尚未完成。已经横向闭合的结构切面是：
 
@@ -51,6 +51,10 @@ topology 的纵向切片，也不得保留旧路径作为兼容退路。
 - RVV formula construction 绑定 selected variant 与其 `c_f`，artifact direct path 不再自行
   触发 module-wide construction；
 - readiness/plan/artifact query 直接接收 exact construction result；
+- `VariantProposalRequest`、`VariantLegalityRequest`、`VariantCostRequest` 与
+  `FamilyConstructionRequest` 绑定 kernel direct canonical problem 的同一 exact pointer；registry
+  在 plugin hook 前验证 P identity，public overload 同时验证 normalized `C_d` 连续性，伪造或
+  错配输入 fail closed；
 - Demo、Toy、Template、TensorExtLite 的 route provider、construction manifest、typed-role
   replay、role/status/interface 字符串镜像、通用 readiness verifier 与 metadata-only
   lowering boundary 已删除；保留的 family contract 只含 legality 与纯 artifact ABI/callee
@@ -79,32 +83,49 @@ topology 的纵向切片，也不得保留旧路径作为兼容退路。
   因此 B 线完成门仍未勾选；
 - generic source materialization 现在要求 kernel 通过 exact symbol 指向一个带纯 identity
   `CanonicalProblem` trait 的 direct source problem；common 只解析身份和 ownership，不枚举
-  problem 类型，也不再把 kernel 冒充 problem。当前只落地了 int8 MAC 与 q4_0
-  dequantize-row 两个初始 typed problem op；它们证明窄腰 seam 可执行，但尚未覆盖全部
-  production `S/g/ω`，不能写成 source layer 已横向完成；
+  problem 类型，也不再把 kernel 冒充 problem。bounded problem surface 已扩展到 MAC/滑窗、
+  vector、widening reduction、packed/codebook/block-dot、block-quant contraction、ternary 与
+  q4_0 dequant 等当前所需身份；它们证明窄腰 seam 与多类 source adapter 可执行，但尚未覆盖
+  全部 production entry，也不代表 RVV 已由 P forward-construct body；
 - Scalar q2 block-dot 与 q4_0 dequant 已由 formula 先产生 topology-specific computation plan，
   再物化为 typed loop/mechanism tree；artifact driver 递归投影该树，不再从 format/kind 或
-  隐藏常数重建算法。Scalar 仍依赖 selected/source stamps 与 kernel scan，且没有
+  隐藏常数重建算法。Scalar 直接消费 exact P，但 final-body slot 仍依赖 selected/source
+  structural ownership stamps，且没有
   delete-leaf witness，因此仍是 `ConstructedWeak`；
+- IME proposal、legality、cost 与 construction 已从 exact P 消费 signedness、MNK、weight
+  format、block layout 与 slide，capability 只提供 VLEN/harts/instruction envelope；旧
+  capability/variant problem mirrors 显式拒绝。这个迁移仍未提供 IME delete-leaf witness；
+- deterministic RVV source front door 不再向 Scalar 索取伪候选或手写 dispatch；adapter 只
+  建立 exact P、RVV capability 与当前 typed RVV body，需要 artifact 时由公共 selector 显式
+  选择。由于完整 body 仍在 adapter 预构造，这仍是过渡态 `ConstructedWeak`；
+- backend registry 从 selected construction exact root 解析唯一 driver，验证 driver owner 与
+  variant origin，按完整 variant slice 克隆，并拒绝 selected kernel 中任何同/异 backend
+  competing root；emitter 不从 kind/format 恢复第二权威；
 - RVV flat block-dot 的逐点 `RVVFlatBlockDotLeaf` identity 已退出 production formula，改由
   weight encoding、scale/min 与 bias geometry 的可组合事实构造既有 `flat_*` final plan；
   未有真实 erasure witness 的 source construction 已降回 `ConstructedWeak`。当前
   body-first fact extraction 仍是 normalization，不是从 canonical problem 的 forward
   reconstruction；
+- measurement compiled residual view 当前为空；selector 对合法多候选使用 formula analytic
+  prior，legacy measurement rows不因历史 `selection_valid_input` 自动获得 qualified/fresh 权限；
 - 上述切面已经通过 `weft-opt`/`weft-translate` 构建、formula/catalog/authority guard、
-  measurement control plane 与完整 `check-weft`（当前 `982/982`）。这是本地编译器/工具链证据，
+  measurement control plane 与完整 lit（当前 `985/985`）。这是本地编译器/工具链证据，
   不是强重建、GPU 或真硬件证据。
 
 仍未闭合、因此 task 不能标为 completed 的主体包括：
 
-- IME 仍把 signedness、problem shape、weight format 与 slide 等 `S/g/ω` 错放在 capability
-  provider；Scalar/RVV 仍有 selected-stamp、source scan、body-first normalization 以及其它
-  production leaf 中尚未因式分解的完整算法 authority；
-- 物理 canonical problem 尚未覆盖全部 current source-origin entry；但 target-bound
-  `construction_domain` gate 已在 proposal/support、selection 与 selected-owner construction
-  三处前置成立。所有 live owner 显式声明 membership，foreign-domain origin 在观察 problem
-  或进入排序前退出；同一 RISC-V domain 内的 RVV/IME/Scalar 仍可作为 owner-qualified
-  candidates 比较，direct/pre-realized 无 domain 输入单列为 debug qualification；
+- Scalar 仍有 selected/source structural stamps，RVV 仍有 body-first normalization，且其它
+  production leaf 中仍有尚未因式分解的完整算法 authority；
+- 物理 canonical problem 尚未覆盖全部 current source-origin entry；显式
+  `construction_domain` identity/membership gate 已在 proposal/support、selection 与
+  selected-owner construction 三处前置成立。所有 live owner 显式声明 membership，
+  foreign-domain origin 在观察 problem 或进入排序前退出；同一声明 identity 内的
+  RVV/IME/Scalar 仍可作为 owner-qualified candidates 比较，direct/pre-realized 无 domain
+  输入单列为 debug qualification。这个 gate 不是 target/profile 驱动的完整
+  `BindDomain(t)=(d,C_d)`；current source front door 仍可直接写入 RISC-V identity；
+- target/profile 尚未成为 domain 与 capability environment 的唯一绑定 authority；
+  source/front door 的 domain 硬编码、target/domain/capability 不一致和 ambiguous binding
+  仍须 fail closed 并由正负测试覆盖；
 - decisive `g/c/ω` counterfactual、mechanism fan-out 与 honest-null 因果测试；
 - 多 topology delete-leaf strong reconstruction；
 - current artifact 的真板 correctness/deployed identity、四臂消融、winner residual 稀疏性与
@@ -255,10 +276,22 @@ A 线回答“知识是否集中、可组合、可扩展并真实构造”；B �
 
 - [ ] current production compute-bearing entries 全部进入清楚、统一的横向知识组织，不留
   leaf/emitter 第二计算权威；
-- [ ] 每个 source-origin production entry 使用 exact typed `P=(S,g,ω)`；direct exact-body
-  debug/qualification 单列，不能冒充 source coverage 或 strong reconstruction；
-- [x] target/profile 在 proposal/selection 前绑定唯一 domain；所有 origin 声明 domain
-  membership，selector 只消费同域 owner-qualified candidates，foreign-domain fail closed；
+- [ ] 每个 source-origin production entry 产生 exact typed `P=(S,g,ω)`，proposal 与 owner
+  construction 实际消费同一个 physical problem；catalog descriptor 或任意非空
+  `Operation*` 不能冒充该 dataflow；
+- [x] public proposal、legality、cost、selection 与 construction request 验证 kernel-bound
+  direct canonical problem 的同一 exact pointer；normalized `C_d` 不连续或伪造输入 fail closed；
+- [ ] direct exact-body debug/qualification 单列，不能冒充 source coverage 或 strong
+  reconstruction；
+- [x] kernel domain identity 与 owner membership 在 proposal/support、selection 和
+  selected-owner construction 前检查，foreign-domain origin fail closed；这只证明 identity
+  gate，不证明 target binding；
+- [ ] target/profile 是唯一 `BindDomain(t)` authority，并同时产生一致的 `(d,C_d)`；
+  source/front door 不硬编码或从 origin/artifact 反推 domain，missing/unknown/ambiguous/
+  conflicting binding fail closed；
+- [ ] 以 test-only 第二 domain/owner 复用同一 physical problem，走通
+  proposal→legality→artifact-neutral construction，并证明 common/RISC-V compute 无
+  domain/owner-name 分支改动；该 witness 不创建 GPU capability、dialect、body 或 artifact；
 - [ ] developer 能从少数 owner-local 模块直接读出 decisive `g/c/ω`、mechanisms、formula、
   candidate/legal set、final plan/body 与 consumer；
 - [ ] selected-stamp、provider-driven compute、formula replay、plan mirror、hidden default 与
@@ -270,19 +303,42 @@ A 线回答“知识是否集中、可组合、可扩展并真实构造”；B �
   保留 typed dialect 的局部良构性验证；
 - [x] artifact route id/manifest/evidence metadata 不再参与 owner construction legality、
   candidate、final-body completion 或 compute；
-- [ ] RVV `flat_*`、IME/Scalar final computation plan 与 artifact mechanical projection 边界保持；
+- [x] RVV `flat_*` 与当前 IME/Scalar final computation plan 的 artifact mechanical projection
+  边界保持；这不表示它们已从 exact problem forward-construct 或已达到 strong；
+- [x] IME signedness/shape/weight-format/block-layout/slide 从 capability/variant mirrors 迁回
+  exact `P.S/g/ω`，legacy mirrors fail closed；
+- [ ] Scalar construction 删除 `selected_variant/source_kernel` structural stamps；RVV source
+  front door 从 exact P forward-construct body，不在 adapter 中预构造完整实现或硬编码 domain；
+- [x] deterministic RVV source front door 不预造 Scalar fallback/dispatch；公共 selector 是唯一
+  选择权威，emission/artifact 路径不从唯一候选自行猜测 selected state；
+- [x] backend artifact conversion 绑定 selected owner 的 exact root，保留完整 variant slice并
+  拒绝同/异 backend competing root；
 - [ ] decisive/honest-null/capability counterfactual/rule fan-out 测试覆盖真实 code-affecting
   决策；
-- [ ] 多种异质 topology 通过完整 point-authority erasure 与真实 production reconstruction；
+- [ ] strong witness 集完整覆盖 flat/affine、K-quant/super-block、至少一种非仿射
+  codebook/grid/ternary、IME/RVV owner-local 异质机制；每个 witness 删除完整 point
+  builder/leaf 及所有等价反向选择 authority，并从真实 source production chain 重建；
 - [ ] 未通过删除实验的路径继续标为 `ConstructedWeak`，不以文字升级；
-- [ ] official runner 默认构建并测量 current compiler output，结果可追到 current deployed
-  symbol；
-- [ ] 四臂消融区分 mechanism、analytic formula 与 qualified residual 的独立作用；
-- [ ] winner memory 从正式测量数据生成，residual 不携带 compute 语义且保持稀疏；
+- [x] official runner 的 registered route 默认从 current compiler entry 构建 artifact 并记录
+  commit/source/tool/artifact SHA、capability 与预期 symbol；product-reduce exact-body fixture
+  仍不得冒充 source/strong evidence；
+- [ ] current compiler output 完成真板 correctness 与实际 deployed-symbol identity，正式结果
+  进入四元行键和 master/run lineage；
+- [ ] 四臂消融在相同输入、正确性口径、板与强对手下区分 generic/default、mechanism+fixed、
+  analytic formula 与 analytic+qualified residual；C 独立正确，D 只改变合法 winner；
+- [ ] winner memory 从正式测量数据生成，经过 qualified/fresh/selection-valid 过滤；报告
+  residual coverage、实际 intervention、miss/expired/inapplicable 与 C→D 增益，且 residual
+  不携带 compute 语义并保持稀疏；
 - [ ] 重构后 correctness、strong opponent、deployed 与 e2e paired regression 完成，win/loss/
   wall/wash 均有归因；
-- [ ] full build/lit、formula/catalog authority tests、runtime/deployed checks 与所需真硬件实验
-  全部通过；
+- [ ] 至少对多 topology 代表项使用同一 witness 闭合
+  `P→erasure reconstruction→current body/artifact→deployed symbol→real-board/e2e`，不能由
+  互不相交的 A/B 样例分别结项；
+- [x] 当前 exact-P / exact-root checkpoint 的本地 build/lit、formula/catalog authority tests
+  与 measurement control-plane checks 通过（`985/985`）；本项不是硬件证据；
+- [ ] final full build/lit、runtime/deployed checks 与所需真硬件实验全部通过；
+- [ ] README、V2、思想 3/4、现行 spec/issues 与 task metadata 严格区分目标态、identity gate、
+  `BindDomain`、source coverage、strong reconstruction、current hardware evidence 与 GPU future；
 - [ ] spec/issues 按最终代码与测量事实更新，task 固定主体提交，工作区干净；
 - [ ] 未实现 GPU，也未为 GPU 恢复 artifact-side construction、跨 domain selector 或 owner-name branch。
 

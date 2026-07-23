@@ -210,7 +210,7 @@ int main() {
   const ScalarFormulaExpectation scalarFormulaExpectations[] = {
       {scalar::kScalarFallbackConstructionFormulaID,
        FormulaResultKind::CandidateSet,
-       "construction:scalar-immediate-call-body"},
+       "plugin:variant-proposal"},
       {scalar::kScalarTernaryBlockDotFormulaID, FormulaResultKind::TypedPlan,
        "construction:scalar-packed-ternary-dot-body"},
       {scalar::kScalarQ40DequantizeRowFormulaID,

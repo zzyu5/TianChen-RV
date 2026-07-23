@@ -52,7 +52,7 @@
 // Target-artifact OBJECT export: the super-block monolithic emission plan exports
 // a real RISC-V RVV relocatable object through the registered peer object exporter.
 // RUN: rm -f %t.o
-// RUN: weft-opt %s --weft-rvv-materialize-tq2-0-q8-k-block-dot-source-front-door --weft-rvv-materialize-schedule=march=rv64gcv --weft-materialize-emission-plans | weft-translate --weft-export-target-artifact > %t.o
+// RUN: weft-opt %s --weft-rvv-materialize-tq2-0-q8-k-block-dot-source-front-door --weft-rvv-materialize-schedule=march=rv64gcv --weft-select-variants --weft-materialize-emission-plans | weft-translate --weft-export-target-artifact > %t.o
 // RUN: llvm-readobj -h %t.o | FileCheck %s --check-prefix=OBJECT
 // RUN: llvm-readobj --symbols %t.o | FileCheck %s --check-prefix=SYMBOL
 
@@ -81,8 +81,7 @@ module attributes {weft_rvv.source_front_door = "ggml_tq2_0_q8_K_block_dot_sourc
 // is byte-unchanged and the CORE EmitC is byte-identical to the retired monolith modulo the
 // source-op provenance token.
 // PLAN: weft_rvv.typed_super_block_block_dot_loop_body
-// PLAN: weft.exec.diagnostic
-// PLAN-SAME: artifact_kind = "riscv-elf-relocatable-object"
+// PLAN: weft.exec.diagnostic {{.*}}artifact_kind = "riscv-elf-relocatable-object"
 // The super-block block-dot carries the super-block (not flat) op-derived metadata
 // keys, with the tq2_0 kind -- the SAME super-block route family q4_K uses.
 // The honest SUPER-BLOCK monolithic-body route id (NOT the flat route, NOT the

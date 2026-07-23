@@ -2,12 +2,10 @@
 // SUPER-BLOCK K-quant tile; the DEDICATED effort with the two-level 6-bit
 // scale/min fold).
 //
-// A canonical 256x256x256 signed-int8 MAC problem plus the spacemit.ime
-// capability, a whole-matrix SHAPE fact (ime_matmul_shape), and a WEIGHT-FORMAT
-// fact (ime_weight_format = "q4_K") -- with no family-name branch -- drive the generic
+// A canonical q4_K contraction problem plus the spacemit.ime target capability
+// -- with no family-name branch -- drive the generic
 // proposal/selection/boundary pipeline to CONSTRUCT the typed-region
-// weft_ime.q4_K_matmul_tile op. The weight-format fact is pure data flow of the
-// capability, keyed ON TOP of the whole-matrix GEMM prior.
+// weft_ime.q4_K_matmul_tile op. Geometry and super-block layout come from exact P.
 //
 // RUN 1 (STRUCTURE): stop at boundary materialization and assert the CONSTRUCTED
 // typed region is the SIX DECOMPOSED bricks (q4_K_dequant_core +
@@ -22,16 +20,14 @@
 
 module {
   weft.exec.kernel @ime_q4_K_matmul_kernel attributes {construction_domain = "riscv-execution", problem = @canonical_problem} {
-    weft.exec.int8_mac_problem @canonical_problem {lhs_signedness = #weft<integer_signedness signed>, rhs_signedness = #weft<integer_signedness signed>, m = 256 : i64, n = 256 : i64, k = 256 : i64}
+    weft.exec.block_q4_K_contraction_problem @canonical_problem {activation_signedness = #weft<integer_signedness signed>, m = 256 : i64, n = 256 : i64, k = 256 : i64, qk = 256 : i64, weight_block_stride = 144 : i64, weight_scale_byte_offset = 4 : i64, weight_quant_byte_offset = 16 : i64, subblock_length = 32 : i64, num_subblocks = 8 : i64, scale_bits = 6 : i64, scale_table_bytes = 12 : i64}
     weft.exec.capability @spacemit_ime {
       id = "spacemit.ime",
       kind = "isa-matrix-vector-backed",
       status = "available",
       march = "rv64gcv_zfh_zvfh_zba_zicbop_xsmtvdotii",
       vlen_bits = "256",
-      available_harts = "0-3",
-      ime_matmul_shape = "256x256x256",
-      ime_weight_format = "q4_K"
+      available_harts = "0-3"
     }
   }
 }
@@ -39,7 +35,6 @@ module {
 // The prior routes GEMM ^ ime ^ q4_K to the format-keyed q4_K whole-matrix variant
 // (still cost 0.5, GEMM takeover) and CONSTRUCTS the typed region.
 // REGION: weft.exec.variant @ime_vmadot_matmul_slice
-// REGION-SAME: ime.weight_format = "q4_K"
 // REGION: weft_ime.q4_K_matmul_tile
 // REGION-SAME: ime_op = "vmadot"
 // REGION-SAME: mac_batched = 1

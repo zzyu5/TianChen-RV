@@ -117,6 +117,11 @@ class DemoBackendEmissionDriver final
     : public weftemitc::TypedBackendEmissionDriver {
 public:
   llvm::StringRef getBackendName() const override { return "demo"; }
+  llvm::StringRef getOwnerPluginName() const override { return "demo-plugin"; }
+
+  bool supportsExactRoot(mlir::Operation *operation) const override {
+    return llvm::isa_and_present<weft::demo_ext::ComputeSkeletonOp>(operation);
+  }
 
   void populateTypeConversions(mlir::TypeConverter &) const override {}
 

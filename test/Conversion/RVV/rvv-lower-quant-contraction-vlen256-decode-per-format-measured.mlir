@@ -1,23 +1,13 @@
-// OPTION-2 STAGE B/C1 -- [G8 六.3] the PER-FORMAT MEASURED VLEN256-DECODE cell of the
-// in-compiler contraction-path SELECTION. This fixture is the in-IR proof that the old
-// BLANKET fact-3 rule ("VLEN256 decode always declines repack", which generalized a
-// q4_0-only 0.74x LOSS) is now a PER-FORMAT BOARD-MEASURED decision: the same
-// (VLEN256, decode) cell that DECLINES for q4_0/iq4_nl (measured-negative) now SELECTS
-// repack for q5_0 (measured-BENEFICIAL 1.190x on k1, casefile
-// experiments/active/g8-stage3-attack/k1-gevm-sweep, commit ac5ea76f). The decision is
-// driven by the board-seeded RVVLowerQuantContraction kRepackVlen256DecodeMeasurements
-// registry keyed on the committed decode-family scale_model WHAT; the pure selector
-// selectContractionAlgorithm stays BLIND to the format label and reads only the derived
-// fact (vlen256DecodeRepackBeneficial). NO perf/e2e claim -- lit-emitted, NOT run.
+// Unqualified historical per-format measurements are no longer compiled into
+// production. This fixture proves the honest residual miss: VLEN256 decode has
+// no legal q5_0 BlockDot realization, while the independently analytic VLEN128 rule
+// still selects Repack. No format-keyed winner table participates.
 //
 // The SAME q5_0-decode module is lowered at TWO -march tiers to prove the fix is scoped
 // to the VLEN256-DECODE cell ONLY (rvv/VLEN128 sees ZERO drift):
 //
-// VLEN256 (rv64gcv_zvl256b => 256, the k1 decode cell): q5_0 decode -> REPACK SELECTED
-// via the board-MEASURED-BENEFICIAL fact -> REALIZED as the typed
-// weft_rvv.typed_repack_gemv_loop_body region (half_lanes 16), reason names the measured
-// cell. This is the CELL the blanket rule wrongly declined.
-// RUN: weft-opt %s --weft-rvv-lower-quant-contraction=march=rv64gcv_zvl256b | FileCheck %s --check-prefix=VLEN256
+// [VLEN256] No qualified residual and no q5_0 block-dot route; fail closed.
+// RUN: not weft-opt %s --weft-rvv-lower-quant-contraction=march=rv64gcv_zvl256b 2>&1 | FileCheck %s --check-prefix=VLEN256
 //
 // VLEN128 (rv64gcv => 128, the rvv deployed decode cell): UNCHANGED -- repack via the
 // capability/regime rule (half_lanes 8), the q4_0-vlen128 audit token. Proves the fix
@@ -44,19 +34,9 @@ module {
   }
 }
 
-// (VLEN256 tier) the board-MEASURED-BENEFICIAL fact SELECTS repack: the abstract op is
-// GONE, no block-dot op is emitted (the blanket rule would have declined to block-dot),
-// and the typed repack-GEVM region is realized with the VLEN256 half_lanes 16 strip +
-// the x16 contract. The audit reason NAMES the measured cell (format-blind).
-// VLEN256-NOT: weft_rvv.quant_contraction
-// VLEN256-NOT: weft_rvv.q5_0_q8_0_block_dot
-// VLEN256: weft_rvv.typed_repack_gemv_loop_body
-// VLEN256-SAME: half_lanes = 16 : i64
-// VLEN256-SAME: weft_rvv.weight_layout_contract = "x16"
-// VLEN256-SAME: weight_interleave = 16 : i64
-// VLEN256: weft_rvv.repack_lane_wise_q4_x_i8_dot
-// VLEN256: weft_rvv.repack_dual_fp16_scale_fold
-// VLEN256: weft_rvv.typed_repack_gemv_loop_yield
+// (VLEN256 tier) honest residual miss fails closed because q5_0 has no legal
+// block-dot decline path.
+// VLEN256: q5_0 / q5_1 / q8_0 quant_contraction requires a repack-affording capability
 
 // (VLEN128 tier) UNCHANGED: repack via the capability/regime rule (fact 3 minVLEN==128),
 // half_lanes 8, the historical q4_0-vlen128 audit token -- proving the per-format

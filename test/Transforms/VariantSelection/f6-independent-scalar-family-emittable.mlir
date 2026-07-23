@@ -3,8 +3,9 @@
 // C++ machine check test/Plugin/ScalarExtensionPluginTest.cpp
 // runFamilyIndependenceAcceptanceTest). This proves the selected scalar variant
 // of a vector-absent instance is NOT a dead shell: the SAME family that the
-// plugin's metadata emission fail-closes on carries a typed body that the
-// --weft-scalar-emitc-to-cpp route lowers to REAL pure-scalar C.
+// plugin's metadata emission fail-closes on constructs an exact typed body from
+// the canonical problem that --weft-scalar-emitc-to-cpp lowers to REAL
+// pure-scalar C.
 //
 // The instance is vector-absent: only scalar.fallback, no rvv capability. So
 // after legality the scalar variant is the sole feasible candidate.
@@ -28,14 +29,6 @@ module {
       weight_quant_byte_offset = 2 : i64
     }
     weft.exec.capability @scalar_fallback {id = "scalar.fallback", kind = "fallback", status = "available"}
-    weft_scalar.dequantize_row_q4_0 {
-      source_kernel = "only_feasible_scalar",
-      selected_variant = @scalar_fallback_first_slice,
-      qk = 32 : i64,
-      weight_block_stride = 18 : i64,
-      weight_d_byte_offset = 0 : i64,
-      weight_quant_byte_offset = 2 : i64
-    }
   }
 }
 

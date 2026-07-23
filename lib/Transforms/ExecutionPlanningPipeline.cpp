@@ -24,8 +24,8 @@ constexpr llvm::StringLiteral kSourceArtifactFrontDoorPipelineName(
 constexpr llvm::StringLiteral kSourceArtifactFrontDoorPipelineDescription(
     "Compose enabled plugin source front-door materialization passes with "
     "Weft-RV "
-    "generic legality, capability, emission-plan, and execution-plan coherence "
-    "checks so bounded source inputs reach selected emission diagnostics "
+    "generic legality, selection, capability, emission-plan, and execution-plan "
+    "coherence checks so bounded source inputs reach selected emission diagnostics "
     "before any supported target artifact export");
 constexpr llvm::StringLiteral kRVVLowerToEmitCPipelineName(
     "weft-rvv-lower-to-emitc");
@@ -75,6 +75,8 @@ void buildSourceArtifactFrontDoorPipeline(
 
   pm.addPass(createCheckHartParallelCapabilitiesPass());
   pm.addPass(createVerifyPluginVariantLegalityPass(registry));
+  pm.addPass(createSelectVariantsPass(registry));
+  pm.addPass(createMaterializeDispatchRuntimeGuardsPass());
   pm.addPass(createCheckCapabilityRequiresPass());
   pm.addPass(createMaterializeEmissionPlansPass(registry));
   pm.addPass(createCheckExecutionPlanCoherencePass(registry, targetExporters));

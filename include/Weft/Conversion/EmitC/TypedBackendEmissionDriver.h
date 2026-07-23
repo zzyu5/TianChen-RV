@@ -8,6 +8,7 @@
 
 namespace mlir {
 class ConversionTarget;
+class Operation;
 class RewritePatternSet;
 class TypeConverter;
 } // namespace mlir
@@ -33,6 +34,16 @@ public:
   /// Stable backend identity (e.g. "rvv"). Used for registry diagnostics.
   virtual llvm::StringRef getBackendName() const = 0;
 
+  /// Extension owner whose selected variant may hand an exact root to this
+  /// driver. This binds artifact ownership to the already-selected
+  /// construction owner; it is not a family selector or compute dispatch key.
+  virtual llvm::StringRef getOwnerPluginName() const = 0;
+
+  /// True only when `operation` is this driver's artifact-neutral final typed
+  /// root. Registry selection is performed from the exact construction result,
+  /// never from a module-wide dialect/body scan.
+  virtual bool supportsExactRoot(mlir::Operation *operation) const = 0;
+
   /// Registers the type conversions mapping this backend's typed dataflow types
   /// to the emitc C types they lower to. Runs AFTER the harness installs an
   /// identity conversion, so unrelated types are never illegalized.
@@ -56,11 +67,9 @@ public:
     return llvm::success();
   }
 
-  /// Cheap pre-check: does `module` carry THIS backend's ops (or operands/
-  /// results still typed in this backend's dialect)? The registry uses it to
-  /// skip non-matching backends; the harness reuses it as the post-conversion
-  /// "no backend leftover" gate (a fully-legalized module carries none of this
-  /// backend's ops/types).
+  /// Post-conversion leftover check: does `module` still carry THIS backend's
+  /// ops (or operands/results in its dialect)? This is not a driver/body
+  /// selector; registry selection uses supportsExactRoot above.
   virtual bool moduleHasBackendBody(mlir::ModuleOp module) const = 0;
 };
 

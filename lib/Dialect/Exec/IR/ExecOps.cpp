@@ -16,6 +16,7 @@
 #include "llvm/ADT/TypeSwitch.h"
 
 #include <cctype>
+#include <utility>
 
 using namespace weft::exec;
 namespace exec = weft::exec;
@@ -613,6 +614,16 @@ mlir::LogicalResult TargetOp::verify() {
   if (mlir::failed(requireTypedCapabilityStatusWhenPresent(getOperation())))
     return mlir::failure();
 
+  if (auto domain = getOperation()->getAttrOfType<mlir::StringAttr>(
+          kConstructionDomainAttrName)) {
+    llvm::StringRef identity = domain.getValue();
+    if (identity.trim().empty() || identity.trim() != identity)
+      return emitOpError()
+             << "requires optional string attribute '"
+             << kConstructionDomainAttrName
+             << "' to be a non-empty, already-trimmed identity";
+  }
+
   if (getOperation()->hasAttr(kCapabilityProvidersAttrName)) {
     if (!exec::isCapabilityProviderTarget(*this))
       return emitOpError()
@@ -654,6 +665,150 @@ mlir::LogicalResult Int8MACProblemOp::verify() {
     return emitOpError()
            << "requires positive logical MAC geometry m/n/k; got " << getM()
            << "x" << getN() << "x" << getK();
+  return mlir::success();
+}
+
+mlir::LogicalResult Int8SlidingMACProblemOp::verify() {
+  if (getM() <= 0 || getN() <= 0 || getK() <= 0)
+    return emitOpError()
+           << "requires positive logical sliding-MAC geometry m/n/k; got "
+           << getM() << "x" << getN() << "x" << getK();
+  if (getSlide() < 1 || getSlide() > 3)
+    return emitOpError()
+           << "requires bounded source slide geometry in {1,2,3}; got "
+           << getSlide();
+  return mlir::success();
+}
+
+mlir::LogicalResult I32VectorBinaryProblemOp::verify() {
+  if (getKind() != "add" && getKind() != "sub" && getKind() != "mul")
+    return emitOpError()
+           << "requires binary kind in {add,sub,mul}; got '" << getKind()
+           << "'";
+  if (getSourceVectorLanes() <= 0)
+    return emitOpError() << "requires positive source_vector_lanes";
+  return mlir::success();
+}
+
+mlir::LogicalResult I32VectorCompareSelectProblemOp::verify() {
+  if (getPredicate() != "eq" && getPredicate() != "slt" &&
+      getPredicate() != "sle")
+    return emitOpError()
+           << "requires predicate in {eq,slt,sle}; got '" << getPredicate()
+           << "'";
+  if (getRhsForm() != "vector" && getRhsForm() != "runtime-scalar")
+    return emitOpError()
+           << "requires rhs_form in {vector,runtime-scalar}; got '"
+           << getRhsForm() << "'";
+  if (getSourceVectorLanes() <= 0)
+    return emitOpError() << "requires positive source_vector_lanes";
+  return mlir::success();
+}
+
+mlir::LogicalResult I8WideningDotReduceProblemOp::verify() {
+  if (getBlockLength() != 32)
+    return emitOpError()
+           << "requires the bounded widening-dot block_length=32; got "
+           << getBlockLength();
+  return mlir::success();
+}
+
+mlir::LogicalResult PackedI4Q8DotProblemOp::verify() {
+  if (getBlockLength() != 32)
+    return emitOpError()
+           << "requires offset-binary packed-i4 block_length=32; got "
+           << getBlockLength();
+  return mlir::success();
+}
+
+mlir::LogicalResult CodebookI4Q8DotProblemOp::verify() {
+  if (getBlockLength() != 16)
+    return emitOpError()
+           << "requires codebook half-block length=16; got "
+           << getBlockLength();
+  if (getCodebook().size() != 16)
+    return emitOpError() << "requires exactly 16 int8 codebook entries";
+  if (getTableSymbol().trim().empty() ||
+      getTableSymbol().trim() != getTableSymbol())
+    return emitOpError()
+           << "requires non-empty, already-trimmed table_symbol";
+  return mlir::success();
+}
+
+mlir::LogicalResult QuantizedBlockDotProblemOp::verify() {
+  for (auto [name, value] :
+       {std::pair<llvm::StringRef, llvm::StringRef>{"weight_encoding",
+                                                    getWeightEncoding()},
+        {"activation_encoding", getActivationEncoding()},
+        {"topology", getTopology()}})
+    if (value.trim().empty() || value.trim() != value)
+      return emitOpError() << "requires " << name
+                           << " to be a non-empty, already-trimmed identity";
+  if (getQk() <= 0 || getWeightBlockStride() <= 0 ||
+      getActivationBlockStride() <= 0)
+    return emitOpError()
+           << "requires positive qk and external block strides";
+  return mlir::success();
+}
+
+mlir::LogicalResult BlockQ40ContractionProblemOp::verify() {
+  if (getM() <= 0 || getN() <= 0 || getK() <= 0)
+    return emitOpError()
+           << "requires positive q4_0 contraction geometry m/n/k";
+  if (getQk() != 32 || getWeightBlockStride() != 18 ||
+      getWeightScaleByteOffset() != 0 || getWeightQuantByteOffset() != 2)
+    return emitOpError()
+           << "requires canonical q4_0 layout qk=32, block_stride=18, "
+              "scale_offset=0 and quant_offset=2";
+  if (getK() % getQk() != 0)
+    return emitOpError()
+           << "requires k to contain whole q4_0 blocks; got k=" << getK();
+  return mlir::success();
+}
+
+mlir::LogicalResult BlockQ80ContractionProblemOp::verify() {
+  if (getM() <= 0 || getN() <= 0 || getK() <= 0)
+    return emitOpError()
+           << "requires positive q8_0 contraction geometry m/n/k";
+  if (getQk() != 32 || getWeightBlockStride() != 34 ||
+      getWeightScaleByteOffset() != 0 || getWeightQuantByteOffset() != 2)
+    return emitOpError()
+           << "requires canonical q8_0 layout qk=32, block_stride=34, "
+              "scale_offset=0 and quant_offset=2";
+  if (getK() % getQk() != 0)
+    return emitOpError()
+           << "requires k to contain whole q8_0 blocks; got k=" << getK();
+  return mlir::success();
+}
+
+mlir::LogicalResult BlockQ4KContractionProblemOp::verify() {
+  if (getM() <= 0 || getN() <= 0 || getK() <= 0)
+    return emitOpError()
+           << "requires positive q4_K contraction geometry m/n/k";
+  if (getQk() != 256 || getWeightBlockStride() != 144 ||
+      getWeightScaleByteOffset() != 4 || getWeightQuantByteOffset() != 16 ||
+      getSubblockLength() != 32 || getNumSubblocks() != 8 ||
+      getScaleBits() != 6 || getScaleTableBytes() != 12)
+    return emitOpError()
+           << "requires canonical q4_K layout qk=256, block_stride=144, "
+              "scale_offset=4, quant_offset=16, 8x32 subblocks, 6-bit "
+              "scale/min entries and a 12-byte scale table";
+  if (getK() % getQk() != 0)
+    return emitOpError()
+           << "requires k to contain whole q4_K super-blocks; got k="
+           << getK();
+  return mlir::success();
+}
+
+mlir::LogicalResult TernaryQ2Q8BlockDotProblemOp::verify() {
+  if (getQk() != 256 || getWeightBlockStride() != 66 ||
+      getActivationBlockStride() != 292 || getWeightDByteOffset() != 64 ||
+      getActivationDByteOffset() != 0 ||
+      getActivationQuantByteOffset() != 4)
+    return emitOpError()
+           << "requires canonical tq2_0 x q8_K geometry qk=256, "
+              "weight_stride=66, activation_stride=292, weight_d_offset=64, "
+              "activation_d_offset=0 and activation_quant_offset=4";
   return mlir::success();
 }
 
@@ -731,6 +886,22 @@ mlir::LogicalResult KernelOp::verify() {
              << "target @" << targetAttr.getValue()
              << " must reference a capability-provider weft.exec.target with "
                 "non-empty id and target_kind";
+
+    auto targetDomain = target->getAttrOfType<mlir::StringAttr>(
+        kConstructionDomainAttrName);
+    if (!targetDomain)
+      return emitOpError()
+             << "target @" << targetAttr.getValue()
+             << " must bind non-empty construction_domain";
+    if (auto kernelDomain =
+            getOperation()->getAttrOfType<mlir::StringAttr>(
+                kConstructionDomainAttrName))
+      if (kernelDomain.getValue() != targetDomain.getValue())
+        return emitOpError()
+               << "construction_domain '" << kernelDomain.getValue()
+               << "' conflicts with target @" << targetAttr.getValue()
+               << " construction_domain '" << targetDomain.getValue()
+               << "'";
 
     if (findDirectKernelSymbol(*this, targetAttr.getValue()))
       return emitOpError()

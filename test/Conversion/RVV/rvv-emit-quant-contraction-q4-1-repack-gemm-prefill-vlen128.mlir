@@ -1,6 +1,6 @@
 // RUN: weft-opt %s --weft-rvv-lower-quant-contraction=march=rv64gcv --weft-rvv-lower-to-emitc | FileCheck %s
 // RUN: weft-opt %s --weft-rvv-lower-quant-contraction=march=rv64gcv --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=MIN
-// RUN: weft-opt %s --weft-rvv-lower-quant-contraction=march=rv64gcv --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=NOMF2
+// RUN: weft-opt %s --weft-rvv-lower-quant-contraction=march=rv64gcv --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=NOM1
 
 // G3-lode-flat 曳光弹 -- q4_1 gemm_tile (PREFILL) FRONT-DOOR construction on the
 // SUPPORTED RVV1.0 regime (march=rv64gcv => Zvl128b => VLEN128). The abstract,
@@ -39,28 +39,26 @@ module {
 // CHECK-NOT: weft_rvv.repack_gemm_q4_1_q8_1 %
 // CHECK-NOT: weft_rvv.typed_repack_gemm_loop_body
 // CHECK: emitc.func @weft_emitc_ggml_gemm_q4_1_q8_1_kernel_ggml_gemm_q4_1_q8_1(
-// The per-group activation base vy + y*nb*144 (block_q8_1x4 stride 144) and the
-// per-group weight base vx + x*nb*320 (block_q4_1x16 stride 320).
-// CHECK: literal "144"
+// Analytic scheduling initializes the f32m2 accumulator before the group loops.
+// CHECK: call_opaque "__riscv_vfmv_v_f_f32m2"
+// The selected loop order forms the weight base before the activation base.
 // CHECK: literal "320"
-// The 16-lane f32m4 accumulator set (r51g m1 flip; mf2 default was 4x8 f32m2, columnsPerPass 4).
-// CHECK: call_opaque "__riscv_vfmv_v_f_f32m4"
+// CHECK: literal "144"
 // The q4_1 UNSIGNED-nibble load + lane-wise vwmacc + lo/hi combine.
-// CHECK: call_opaque "__riscv_vle8_v_u8m1"
-// CHECK: call_opaque "__riscv_vwmacc_vx_i16m2"
-// CHECK: call_opaque "__riscv_vwadd_vv_i32m4"
+// CHECK: call_opaque "__riscv_vle8_v_u8mf2"
+// CHECK: call_opaque "__riscv_vwmacc_vx_i16m1"
+// CHECK: call_opaque "__riscv_vwadd_vv_i32m2"
 // The dual-fp16 scale fold, the MIN fold, and the 4x8 vector store.
-// CHECK: call_opaque "__riscv_vfmacc_vv_f32m4"
-// CHECK: call_opaque "__riscv_vse32_v_f32m4"
+// CHECK: call_opaque "__riscv_vfmacc_vv_f32m2"
+// CHECK: call_opaque "__riscv_vse32_v_f32m2"
 // CHECK: return
 
 // The q4_1 min term: the SECOND vfwmul (m_x * s_y[c]) folded by vfadd per column.
-// MIN: call_opaque "__riscv_vand_vx_u8m1"
-// MIN: call_opaque "__riscv_vfadd_vv_f32m4"
-// MIN-NOT: __riscv_vsll_vx_i8m1
+// MIN: call_opaque "__riscv_vand_vx_u8mf2"
+// MIN: call_opaque "__riscv_vfadd_vv_f32m2"
+// MIN-NOT: __riscv_vsll_vx_i8mf2
 
-// The board-MEASURED r51g m1 whole-LMUL form (q4_1 flipped) -- the mf2 half_lanes=8
-// spellings must NOT appear, and NO cross-lane vredsum reduction wall.
-// NOMF2-NOT: __riscv_vfmv_v_f_f32m2
-// NOMF2-NOT: __riscv_vle8_v_u8mf2
-// NOMF2-NOT: redsum
+// No unqualified measurement forces the removed whole-LMUL winner.
+// NOM1-NOT: __riscv_vfmv_v_f_f32m4
+// NOM1-NOT: __riscv_vle8_v_u8m1
+// NOM1-NOT: redsum

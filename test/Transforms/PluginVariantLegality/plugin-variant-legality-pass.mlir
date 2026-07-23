@@ -16,6 +16,11 @@ module {
       requires = [@scalar_fallback],
       policy = "portable_scalar_fallback_first_slice"
     } {
+      weft_scalar.immediate_call_body {
+        source_kernel = "legality_valid_scalar",
+        selected_variant = @scalar_fallback_first_slice,
+        scalar_immediate = 7 : i64
+      }
     }
   }
 }

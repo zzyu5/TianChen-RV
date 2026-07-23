@@ -34,6 +34,11 @@ weft.exec.kernel @empty_construction_domain attributes {construction_domain = ""
 
 // -----
 
+// expected-error @+1 {{requires optional string attribute 'construction_domain' to be a non-empty, already-trimmed identity}}
+weft.exec.target @untrimmed_construction_domain {construction_domain = " riscv-execution "}
+
+// -----
+
 weft.exec.kernel @selected_marker_ok attributes {} {
   weft.exec.capability @portable {id = "portable", kind = "toolchain"}
   weft.exec.variant @portable_variant attributes {fallback_role = "conservative", origin = "portable-plugin", requires = [@portable]} {
@@ -178,10 +183,30 @@ weft.exec.kernel @target_profile_requires_ok attributes {} {
 
 // -----
 
-weft.exec.target @module_rvv_profile {id = "rvv.profile.module", target_kind = "profile", relations = #weft.capability_relations<provides = ["rvv", "rvv.explicit_vector_config.i32m1"]>}
+weft.exec.target @module_rvv_profile {id = "rvv.profile.module", target_kind = "profile", construction_domain = "riscv-execution", relations = #weft.capability_relations<provides = ["rvv", "rvv.explicit_vector_config.i32m1"]>}
 
 weft.exec.kernel @module_target_profile_requires_ok attributes {target = @module_rvv_profile} {
   weft.exec.variant @rvv_variant attributes {origin = "rvv-plugin", requires = [@module_rvv_profile]} {
+  }
+}
+
+// -----
+
+module {
+  weft.exec.target @module_profile_without_domain {id = "rvv.profile.missing-domain", target_kind = "profile", relations = #weft.capability_relations<provides = ["rvv"]>}
+
+  // expected-error @+1 {{target @module_profile_without_domain must bind non-empty construction_domain}}
+  weft.exec.kernel @target_profile_missing_domain attributes {target = @module_profile_without_domain} {
+  }
+}
+
+// -----
+
+module {
+  weft.exec.target @module_profile_domain_owner {id = "rvv.profile.domain-owner", target_kind = "profile", construction_domain = "riscv-execution", relations = #weft.capability_relations<provides = ["rvv"]>}
+
+  // expected-error @+1 {{construction_domain 'gpu-execution' conflicts with target @module_profile_domain_owner construction_domain 'riscv-execution'}}
+  weft.exec.kernel @target_profile_conflicting_domain attributes {construction_domain = "gpu-execution", target = @module_profile_domain_owner} {
   }
 }
 
@@ -215,7 +240,7 @@ weft.exec.kernel @module_target_profile_parse_only attributes {target = @parse_o
 
 // -----
 
-weft.exec.target @shadowed_module_target {id = "rvv.profile.shadowed", target_kind = "profile", relations = #weft.capability_relations<provides = ["rvv", "rvv.explicit_vector_config.i32m1"]>}
+weft.exec.target @shadowed_module_target {id = "rvv.profile.shadowed", target_kind = "profile", construction_domain = "riscv-execution", relations = #weft.capability_relations<provides = ["rvv", "rvv.explicit_vector_config.i32m1"]>}
 
 // expected-error @+1 {{target @shadowed_module_target is shadowed by a direct symbol in the same weft.exec.kernel}}
 weft.exec.kernel @module_target_profile_shadowed attributes {target = @shadowed_module_target} {
@@ -224,7 +249,7 @@ weft.exec.kernel @module_target_profile_shadowed attributes {target = @shadowed_
 
 // -----
 
-weft.exec.target @module_duplicate_id_profile {id = "rvv", target_kind = "profile", relations = #weft.capability_relations<provides = ["rvv", "rvv.explicit_vector_config.i32m1"]>}
+weft.exec.target @module_duplicate_id_profile {id = "rvv", target_kind = "profile", construction_domain = "riscv-execution", relations = #weft.capability_relations<provides = ["rvv", "rvv.explicit_vector_config.i32m1"]>}
 
 weft.exec.kernel @module_target_profile_duplicate_id attributes {target = @module_duplicate_id_profile} {
   // expected-error @+1 {{duplicates capability id 'rvv' in enclosing weft.exec.kernel}}

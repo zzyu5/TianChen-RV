@@ -5747,6 +5747,11 @@ class RVVBackendEmissionDriver final
     : public ::weft::conversion::emitc::TypedBackendEmissionDriver {
 public:
   llvm::StringRef getBackendName() const override { return "rvv"; }
+  llvm::StringRef getOwnerPluginName() const override { return "rvv-plugin"; }
+
+  bool supportsExactRoot(mlir::Operation *operation) const override {
+    return llvm::isa_and_present<weft::rvv::WithVLOp>(operation);
+  }
 
   void
   populateTypeConversions(mlir::TypeConverter &typeConverter) const override {

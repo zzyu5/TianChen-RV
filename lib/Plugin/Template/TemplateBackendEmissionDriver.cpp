@@ -171,6 +171,14 @@ class TemplateBackendEmissionDriver final
     : public weftemitc::TypedBackendEmissionDriver {
 public:
   llvm::StringRef getBackendName() const override { return "template"; }
+  llvm::StringRef getOwnerPluginName() const override {
+    return "template-plugin";
+  }
+
+  bool supportsExactRoot(mlir::Operation *operation) const override {
+    return llvm::isa_and_present<weft::template_ext::ComputeSkeletonOp>(
+        operation);
+  }
 
   void populateTypeConversions(
       mlir::TypeConverter & /*typeConverter*/) const override {}

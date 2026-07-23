@@ -51,7 +51,7 @@
 // Target-artifact OBJECT export: the super-block monolithic emission plan exports
 // a real RISC-V RVV relocatable object through the registered peer object exporter.
 // RUN: rm -f %t.o
-// RUN: weft-opt %s --weft-rvv-materialize-q5-k-q8-k-block-dot-source-front-door --weft-materialize-emission-plans | weft-translate --weft-export-target-artifact > %t.o
+// RUN: weft-opt %s --weft-rvv-materialize-q5-k-q8-k-block-dot-source-front-door --weft-select-variants --weft-materialize-emission-plans | weft-translate --weft-export-target-artifact > %t.o
 // RUN: llvm-readobj -h %t.o | FileCheck %s --check-prefix=OBJECT
 // RUN: llvm-readobj --symbols %t.o | FileCheck %s --check-prefix=SYMBOL
 
@@ -78,8 +78,7 @@ module attributes {weft_rvv.source_front_door = "ggml_q5_K_q8_K_block_dot_source
 // weight_block_stride (176 -> the q5_K entry) so kind/ABI/route stay q5_K.
 // PLAN: weft.exec.kernel @ggml_vec_dot_q5_K_q8_K_kernel
 // PLAN: weft_rvv.typed_super_block_block_dot_loop_body
-// PLAN: weft.exec.diagnostic
-// PLAN-SAME: artifact_kind = "riscv-elf-relocatable-object"
+// PLAN: weft.exec.diagnostic {{.*}}artifact_kind = "riscv-elf-relocatable-object"
 // The super-block block-dot carries the super-block (not flat) op-derived metadata
 // keys, with the q5_K kind -- the SAME super-block route family q4_K uses.
 // The honest SUPER-BLOCK monolithic-body route id (NOT the flat route, NOT the

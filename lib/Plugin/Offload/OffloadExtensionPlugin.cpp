@@ -586,6 +586,7 @@ llvm::Error OffloadExtensionPlugin::checkVariantEmissionReadiness(
         "emission readiness requires an enclosing weft.exec.kernel");
 
   VariantLegalityRequest legality(request.getVariant(), request.getKernel(),
+                                  nullptr,
                                   request.getCapabilities());
   if (llvm::Error error = verifyVariantLegality(legality)) {
     std::string message = llvm::toString(std::move(error));
@@ -613,6 +614,7 @@ llvm::Error OffloadExtensionPlugin::buildVariantEmissionPlan(
         "emission planning requires an enclosing weft.exec.kernel");
 
   VariantLegalityRequest legality(request.getVariant(), request.getKernel(),
+                                  nullptr,
                                   request.getCapabilities());
   if (llvm::Error error = verifyVariantLegality(legality)) {
     std::string message = llvm::toString(std::move(error));
@@ -648,7 +650,8 @@ llvm::Error OffloadExtensionPlugin::materializeSelectedLoweringBoundary(
         "lowering-boundary materialization requires an enclosing "
         "weft.exec.kernel");
 
-  VariantLegalityRequest legality(variant, kernel, request.getCapabilities());
+  VariantLegalityRequest legality(variant, kernel, request.getProblem(),
+                                  request.getCapabilities());
   if (llvm::Error error = verifyVariantLegality(legality)) {
     std::string message = llvm::toString(std::move(error));
     return makeOffloadPluginError(
@@ -657,8 +660,8 @@ llvm::Error OffloadExtensionPlugin::materializeSelectedLoweringBoundary(
         " failed plugin legality before boundary materialization: " + message);
   }
 
-  weft::offload::LoweringBoundaryOp boundary =
-      findSelectedOffloadDelegationPlan(variant, request.getRole());
+  auto boundary = llvm::dyn_cast_if_present<weft::offload::LoweringBoundaryOp>(
+      request.getConstructedOperation());
   if (!boundary)
     return makeOffloadPluginError(
         "selected offload delegation plan was not produced by family "

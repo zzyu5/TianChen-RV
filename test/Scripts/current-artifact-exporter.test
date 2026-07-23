@@ -6,19 +6,19 @@
 # RUN: rm -f %t.grid.c %t.grid-k1.c %t.kvec.c %t.product.c %t.scalar.cpp
 # RUN: python3 %S/../../tools/bench/export_current_artifact.py --self-test | FileCheck %s --check-prefix=SELF
 
-# RUN: python3 %S/../../tools/bench/export_current_artifact.py gemm_tile iq1_s --board rvv --output %t.grid.c --skip-build | FileCheck %s --check-prefix=GRID
+# RUN: python3 %S/../../tools/bench/export_current_artifact.py gemm_tile iq1_s --board rvv --output %t.grid.c --build-dir %S/../../build --skip-build | FileCheck %s --check-prefix=GRID
 # RUN: rg -n 'weft_emitc_ggml_repack_gemm_iq1_s_q8_K_kernel_ggml_repack_gemm_iq1_s_q8_K' %t.grid.c | FileCheck %s --check-prefix=GRID-SYMBOL
 # RUN: not rg -n '^module \{|"emitc.func"\(\)' %t.grid.c
-# RUN: python3 %S/../../tools/bench/export_current_artifact.py gemm_tile iq1_s --board k1 --output %t.grid-k1.c --skip-build | FileCheck %s --check-prefix=GRID-K1
+# RUN: python3 %S/../../tools/bench/export_current_artifact.py gemm_tile iq1_s --board k1 --output %t.grid-k1.c --build-dir %S/../../build --skip-build | FileCheck %s --check-prefix=GRID-K1
 # RUN: not cmp %t.grid.c %t.grid-k1.c
 
-# RUN: python3 %S/../../tools/bench/export_current_artifact.py vec_dot q2_K --board k1 --output %t.kvec.c --skip-build | FileCheck %s --check-prefix=KVEC
+# RUN: python3 %S/../../tools/bench/export_current_artifact.py vec_dot q2_K --board k1 --output %t.kvec.c --build-dir %S/../../build --skip-build | FileCheck %s --check-prefix=KVEC
 # RUN: rg -n 'weft_emitc_ggml_vec_dot_q2_K_q8_K_kernel_rvv_q2_K_q8_K_block_dot' %t.kvec.c | FileCheck %s --check-prefix=KVEC-SYMBOL
 
-# RUN: python3 %S/../../tools/bench/export_current_artifact.py product_reduce codebook_n3 --board rvv --output %t.product.c --skip-build | FileCheck %s --check-prefix=PRODUCT
+# RUN: python3 %S/../../tools/bench/export_current_artifact.py product_reduce codebook_n3 --board rvv --output %t.product.c --build-dir %S/../../build --skip-build | FileCheck %s --check-prefix=PRODUCT
 # RUN: rg -n 'weft_emitc_rvv_codebook_q8_0_integer_core_kernel_rvv_codebook_q8_0_integer_core' %t.product.c | FileCheck %s --check-prefix=PRODUCT-SYMBOL
 
-# RUN: python3 %S/../../tools/bench/export_current_artifact.py vec_dot tq2_0 --board scalar --output %t.scalar.cpp --skip-build | FileCheck %s --check-prefix=SCALAR
+# RUN: python3 %S/../../tools/bench/export_current_artifact.py vec_dot tq2_0 --board scalar --output %t.scalar.cpp --build-dir %S/../../build --skip-build | FileCheck %s --check-prefix=SCALAR
 # RUN: rg -n 'weft_emitc_tq2_0_kernel_scalar_fallback_first_slice' %t.scalar.cpp | FileCheck %s --check-prefix=SCALAR-SYMBOL
 
 # SELF: current-artifact exporter self-test: canonical runner routes and production export recipes are bijective

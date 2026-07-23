@@ -22,7 +22,7 @@
 //
 // The `prior` reason enum flip stays a SEPARATE canon-gated burn-down step (NOT
 // performed here); the M-aware provenance lives on the capability-DERIVED score +
-// explanation, and the attribution reason stays `static_order`. Behavior in the
+// explanation, and the attribution reason is `prior`. Behavior in the
 // M >= M* region is UNCHANGED (all emittable tiled GEMMs already have matM >=
 // macM; the tiled-shape derivation fail-closes below macM — no remainder path).
 //
@@ -40,8 +40,9 @@ module {
   // contraction fully feeds the systolic array => COMPUTE-BOUND prefill => the
   // IME matrix variant's capability-derived cost 0.5 < the RVV vector base 1.0 =>
   // IME is ranked 0 and chosen. The winner tracks the capability fact AND M >= M*.
-  // CHECK: {"candidates":[{"explicit_preference":true,"feasible":true,"origin":"ime-plugin","rank":0,"requires_runtime_guard":false,"score":0.5,"variant":"ime_vmadot_matmul_slice"},{"explicit_preference":true,"feasible":true,"origin":"rvv-plugin","rank":1,"requires_runtime_guard":false,"score":1,"variant":"rvv_typed_body"}],"chosen":"ime_vmadot_matmul_slice","declared_instance_hash":"{{[0-9a-f]+}}","kernel":"t5c_mstar_gemm_prefers_matrix","keys_evaluated":{"rvv":"available","spacemit_ime":"available"},"reason":"static_order","ts":"0"}
-  weft.exec.kernel @t5c_mstar_gemm_prefers_matrix attributes {construction_domain = "riscv-execution"} {
+  // CHECK: {"candidates":[{"explicit_preference":true,"feasible":true,"origin":"ime-plugin","rank":0,"requires_runtime_guard":false,"score":0.5,"variant":"ime_vmadot_matmul_slice"},{"explicit_preference":true,"feasible":true,"origin":"rvv-plugin","rank":1,"requires_runtime_guard":false,"score":1,"variant":"rvv_typed_body"}],"chosen":"ime_vmadot_matmul_slice","declared_instance_hash":"{{[0-9a-f]+}}","kernel":"t5c_mstar_gemm_prefers_matrix","keys_evaluated":{"rvv":"available","spacemit_ime":"available"},"reason":"prior","ts":"0"}
+  weft.exec.kernel @t5c_mstar_gemm_prefers_matrix attributes {construction_domain = "riscv-execution", problem = @canonical_problem} {
+    weft.exec.int8_mac_problem @canonical_problem {lhs_signedness = #weft<integer_signedness signed>, rhs_signedness = #weft<integer_signedness signed>, m = 64 : i64, n = 256 : i64, k = 256 : i64}
     weft.exec.capability @rvv {
       id = "rvv",
       kind = "isa-vector",
@@ -55,8 +56,7 @@ module {
       status = "available",
       march = "rv64gcv_zfh_zvfh_zba_zicbop_xsmtvdotii",
       vlen_bits = "256",
-      available_harts = "0-3",
-      ime_matmul_shape = "64x256x256"
+      available_harts = "0-3"
     }
     weft.exec.variant @rvv_typed_body attributes {
       condition = "rvv_capability_properties_available",
@@ -81,7 +81,6 @@ module {
     weft.exec.variant @ime_vmadot_matmul_slice attributes {
       condition = "spacemit_ime_capability_available",
       guard = "plugin_local_ime_vmadot_boundary",
-      ime.signedness = "signed",
       origin = "ime-plugin",
       policy = "ime_int8_matmul_vmadot_mac",
       requires = [@spacemit_ime]
@@ -89,15 +88,15 @@ module {
     }
   }
 
-  // DECODE / matrix-vector boundary: the spacemit.ime capability derives to a
-  // single MAC fragment (no ime_matmul_shape — a whole-matrix M < macM tiled
+  // DECODE / matrix-vector boundary: exact P is a single MAC fragment (a whole-matrix M < macM tiled
   // shape is fail-closed at derivation: no remainder path). This is the decode
   // surface below the whole-matrix crossover. Its derived cost 20 > the RVV
   // vector base 1.0 => RVV is ranked 0 and chosen: decode is NOT routed to the
   // matrix paradigm (the compute-isolated micro-advantage does not transduce to
   // the memory-bound decode roofline).
-  // CHECK: {"candidates":[{"explicit_preference":true,"feasible":true,"origin":"rvv-plugin","rank":0,"requires_runtime_guard":false,"score":1,"variant":"rvv_typed_body"},{"explicit_preference":true,"feasible":true,"origin":"ime-plugin","rank":1,"requires_runtime_guard":false,"score":20,"variant":"ime_vmadot_mma_slice"}],"chosen":"rvv_typed_body","declared_instance_hash":"{{[0-9a-f]+}}","kernel":"t5c_decode_fragment_yields_to_rvv","keys_evaluated":{"rvv":"available","spacemit_ime":"available"},"reason":"static_order","ts":"0"}
-  weft.exec.kernel @t5c_decode_fragment_yields_to_rvv attributes {construction_domain = "riscv-execution"} {
+  // CHECK: {"candidates":[{"explicit_preference":true,"feasible":true,"origin":"rvv-plugin","rank":0,"requires_runtime_guard":false,"score":1,"variant":"rvv_typed_body"},{"explicit_preference":true,"feasible":true,"origin":"ime-plugin","rank":1,"requires_runtime_guard":false,"score":20,"variant":"ime_vmadot_mma_slice"}],"chosen":"rvv_typed_body","declared_instance_hash":"{{[0-9a-f]+}}","kernel":"t5c_decode_fragment_yields_to_rvv","keys_evaluated":{"rvv":"available","spacemit_ime":"available"},"reason":"prior","ts":"0"}
+  weft.exec.kernel @t5c_decode_fragment_yields_to_rvv attributes {construction_domain = "riscv-execution", problem = @canonical_problem} {
+    weft.exec.int8_mac_problem @canonical_problem {lhs_signedness = #weft<integer_signedness signed>, rhs_signedness = #weft<integer_signedness signed>, m = 4 : i64, n = 4 : i64, k = 8 : i64}
     weft.exec.capability @rvv {
       id = "rvv",
       kind = "isa-vector",
@@ -136,7 +135,6 @@ module {
     weft.exec.variant @ime_vmadot_mma_slice attributes {
       condition = "spacemit_ime_capability_available",
       guard = "plugin_local_ime_vmadot_boundary",
-      ime.signedness = "signed",
       origin = "ime-plugin",
       policy = "ime_int8_matmul_vmadot_mac",
       requires = [@spacemit_ime]
@@ -153,7 +151,7 @@ module {
 // preference fired BECAUSE the whole-matrix M dimension reached the crossover M*.
 // COMMIT: weft.exec.diagnostic {message = "static variant selected
 // COMMIT-SAME: preference_explanation = "IME whole-matrix vmadot GEMM boundary
-// COMMIT-SAME: whole-matrix M dimension at/above the capability-derived crossover M*
+// COMMIT-SAME: canonical problem M is at/above target-projected crossover M*=macM
 // COMMIT-SAME: the compute-bound prefill regime where the matrix paradigm is preferred
 // COMMIT-SAME: preference_score = 5.000000e-01 : f64
 // COMMIT-SAME: reason = "variant-selected"

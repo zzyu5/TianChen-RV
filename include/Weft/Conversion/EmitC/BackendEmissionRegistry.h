@@ -22,6 +22,9 @@ class BackendEmissionRegistry {
 public:
   /// Registers a backend emission driver. The driver must outlive the registry.
   void registerBackend(const TypedBackendEmissionDriver &driver) {
+    for (const TypedBackendEmissionDriver *registered : drivers)
+      if (registered == &driver)
+        return;
     drivers.push_back(&driver);
   }
 
@@ -30,18 +33,14 @@ public:
     return drivers;
   }
 
-  /// Iterates the registered backends, skipping those whose
-  /// `moduleHasBackendBody(source)` is false, and tries
-  /// `convertConstructedModuleWithBackendEmitter` on a CLONE of `source` for
-  /// each
-  /// candidate. A module claimed by more than one registered backend is
-  /// rejected before conversion: one backend cleanup may not discard another
-  /// family's body. Returns the converted clone on the FIRST full conversion; the
-  /// caller decides whether to replace/return/validate it. Returns a null
-  /// OwningOpRef when no registered backend fully converts the module. `source`
-  /// is never mutated.
+  /// Resolves exactly one backend from `exactRoot`, maps that root through a
+  /// clone of `source`, removes same-backend decoy roots from the speculative
+  /// standalone artifact clone, and converts only the selected construction
+  /// slice. Returns null when ownership or full conversion is not unique.
+  /// `source` is never mutated.
   mlir::OwningOpRef<mlir::ModuleOp>
-  tryConvertConstructedModuleClone(mlir::ModuleOp source) const;
+  tryConvertConstructedModuleClone(mlir::ModuleOp source,
+                                   mlir::Operation *exactRoot) const;
 
 private:
   llvm::SmallVector<const TypedBackendEmissionDriver *, 4> drivers;
@@ -57,7 +56,8 @@ void registerBuiltinBackendEmitters(BackendEmissionRegistry &registry);
 /// core materialization call sites use. The registry is a function-local static
 /// (Meyers singleton) so there is no global-init-order hazard.
 mlir::OwningOpRef<mlir::ModuleOp>
-tryConvertConstructedModuleWithRegisteredBackend(mlir::ModuleOp source);
+tryConvertConstructedModuleWithRegisteredBackend(mlir::ModuleOp source,
+                                                 mlir::Operation *exactRoot);
 
 } // namespace emitc
 } // namespace conversion

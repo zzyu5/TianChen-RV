@@ -33,15 +33,19 @@
 # RUN: FileCheck %s --check-prefix=TABLE < %S/../../lib/Conversion/EmitC/Builtin/BuiltinBackendEmitters.cpp
 # RUN: rg -n 'runtime-offload has no active materialized EmitC lowering or target' %S/../../lib/Plugin/Offload/OffloadExtensionPlugin.cpp | FileCheck %s --check-prefix=OFFLOAD
 
-# Mixed ownership remains fail closed in both registry and direct RVV entry.
-# RUN: rg -n 'hasCompetingBackendBody' %S/../../lib/Conversion/EmitC/BackendEmissionRegistry.cpp | FileCheck %s --check-prefix=MIXED-BACKEND
+# Artifact registry ownership is selected from the exact construction root;
+# mixed-owner roots remain fail closed and moduleHasBackendBody is only a
+# post-conversion leftover gate.
+# RUN: rg -n 'supportsExactRoot\((exactRoot|clonedRoot)\)|getOwnerPluginName\(\)|hasCompetingRoot' %S/../../lib/Conversion/EmitC/BackendEmissionRegistry.cpp | FileCheck %s --check-prefix=EXACT-BACKEND
 # RUN: rg -n 'moduleHasForeignEmitCLowerableBody' %S/../../lib/Conversion/RVV/RVVToEmitC.cpp | FileCheck %s --check-prefix=DIRECT-MIXED
 # RUN: rg -n 'no registered backend emission driver fully legalizes' %S/../../lib/Transforms/EmitCLowerableMaterialization.cpp %S/../../lib/Target/TargetArtifactExport.cpp %S/../../lib/Target/Scalar/ScalarTargetSupportBundle.cpp | FileCheck %s --check-prefix=FAIL-CLOSED
 
-# Scalar and IME final bodies/plans contain computation facts only.  Artifact
-# spellings are projected mechanically inside their EmitC drivers; Scalar has
-# no route/construction provider.
+# Scalar construction consumes exact exec problems rather than family-local
+# source siblings. Scalar and IME final bodies/plans contain computation facts
+# only; artifact spellings are projected mechanically inside their EmitC
+# drivers, and Scalar has no route/construction provider.
 # RUN: not rg -n 'callee|EmitCConstructionRoute' %S/../../lib/Plugin/Scalar/ScalarFormulaConstruction.cpp
+# RUN: not rg -n 'ComputeSkeletonOp|TernaryQ2Q8BlockDotOp|DequantizeRowQ4Op' %S/../../lib/Plugin/Scalar/ScalarFormulaConstruction.cpp
 # RUN: not rg -n 'ScalarEmitCRouteProvider|ScalarEmitCConstructionRoute|getScalarEmitCConstructionRoute' %S/../../include %S/../../lib
 # RUN: rg -n 'llvm::StringRef callee = kScalarSkeletonCallee' %S/../../lib/Plugin/Scalar/ScalarBackendEmissionDriver.cpp | FileCheck %s --check-prefix=SCALAR-PROJECTION
 # RUN: not rg -n 'emit_helper|mac_helper' %S/../../lib/Plugin/IME/IMEFormulaConstruction.cpp %S/../../include/Weft/Plugin/IME/IMEFormulaConstruction.h
@@ -84,7 +88,10 @@
 # TABLE: ::weft::plugin::ime::registerIMEBackendEmitter
 # TABLE: ::weft::plugin::scalar::registerScalarBackendEmitter
 # OFFLOAD: runtime-offload has no active materialized EmitC lowering or target
-# MIXED-BACKEND: hasCompetingBackendBody
+# EXACT-BACKEND: supportsExactRoot(exactRoot)
+# EXACT-BACKEND: getOwnerPluginName()
+# EXACT-BACKEND: supportsExactRoot(clonedRoot)
+# EXACT-BACKEND: hasCompetingRoot
 # DIRECT-MIXED: moduleHasForeignEmitCLowerableBody
 # FAIL-CLOSED: no registered backend emission driver fully legalizes
 # FAIL-CLOSED: no registered backend emission driver fully legalizes

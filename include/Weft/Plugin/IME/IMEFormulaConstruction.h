@@ -12,10 +12,6 @@ namespace mlir {
 class Operation;
 } // namespace mlir
 
-namespace weft::support {
-class TargetCapabilitySet;
-}
-
 namespace weft::plugin::ime {
 
 /// Compile-time inventory and conversion-local plan keys. Formula evaluation
@@ -51,8 +47,7 @@ struct IMEQuantComputationPlan : IMEMatMulComputationPlan {
 /// rebuilds the target capability set.
 mlir::LogicalResult constructIMEFormulaPlan(
     mlir::Operation *body, weft::exec::VariantOp variant,
-    weft::exec::KernelOp kernel,
-    const weft::support::TargetCapabilitySet &capabilities);
+    weft::exec::KernelOp kernel, int64_t targetVlenBits);
 
 /// Typed consumers for family-owned exact bodies. Quantized bodies reject
 /// missing or partial typed schedule fields; there is no parallel plan

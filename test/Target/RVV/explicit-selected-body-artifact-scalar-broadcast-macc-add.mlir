@@ -6,7 +6,7 @@
 // selected RVV body; route authority must come from body/config/runtime facts.
 
 module {
-  weft.exec.target @rvv_profile {id = "rvv.profile.rv64gcv", target_kind = "profile", status = "available", relations = #weft.capability_relations<provides = ["rvv"]>, architecture = "riscv64", isa_vector_hints = "rv64gcv_zvl128b", supported_lmul = "m1", supported_sew = "32"}
+  weft.exec.target @rvv_profile {id = "rvv.profile.rv64gcv", target_kind = "profile", status = "available", construction_domain = "riscv-execution", relations = #weft.capability_relations<provides = ["rvv"]>, architecture = "riscv64", isa_vector_hints = "rv64gcv_zvl128b", supported_lmul = "m1", supported_sew = "32"}
   weft.exec.kernel @explicit_selected_body_scalar_broadcast_macc_add_kernel attributes {target = @rvv_profile} {
     weft.exec.capability @scalar_fallback {id = "scalar.fallback", kind = "fallback", status = "available"}
     weft.exec.mem_window @abi_lhs_input_buffer {abi_role = "lhs-input-buffer", access = "read", binding = "kernel-argument", c_type = "const int32_t *", memory_space = "host", ownership = "target-export-abi-owned", purpose = "runtime-abi-buffer"}

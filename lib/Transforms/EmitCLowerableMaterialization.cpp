@@ -281,7 +281,8 @@ private:
     // purely "did a registered backend legalize this body."
     if (mlir::OwningOpRef<mlir::ModuleOp> convertedModule =
             conversion::emitc::
-                tryConvertConstructedModuleWithRegisteredBackend(module))
+                tryConvertConstructedModuleWithRegisteredBackend(
+                    module, construction.getOperation()))
       return replaceModuleBodyWithMaterializedEmitC(
           module, std::move(convertedModule));
 

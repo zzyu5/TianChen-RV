@@ -1,13 +1,11 @@
-// RUN: weft-opt %s --split-input-file --weft-execution-planning-pipeline | FileCheck %s --check-prefix=PIPE
+// RUN: not weft-opt %s --split-input-file --weft-execution-planning-pipeline 2>&1 | FileCheck %s --check-prefix=FAIL --implicit-check-not='status = "supported"'
+
+// FAIL-DAG: Weft-RV selected lowering-boundary materialization failed for kernel @pipeline_offload_plus_scalar: selected owner did not construct an executable final body before boundary exposure: offload delegation plan has no executable implementation
+// FAIL-DAG: Weft-RV selected lowering-boundary materialization failed for kernel @pipeline_profile_offload_plus_scalar: selected owner did not construct an executable final body before boundary exposure: offload delegation plan has no executable implementation
+// FAIL-DAG: Weft-RV plugin variant materialization for kernel @pipeline_vendor_string_no_offload collected no viable plugin proposals
+// FAIL-DAG: Weft-RV plugin variant materialization for kernel @pipeline_malformed_offload_declines_to_scalar collected no viable plugin proposals
 
 module {
-  // PIPE-LABEL: weft.exec.kernel @pipeline_offload_plus_scalar
-  // PIPE: weft_offload.lowering_boundary
-  // PIPE-SAME: selected_variant = @offload_runtime_first_slice
-  // PIPE-SAME: status = "no-active-route"
-  // PIPE: weft.exec.diagnostic
-  // PIPE-SAME: message = "the Offload extension currently has no active executable lowering or target artifact route"
-  // PIPE-SAME: status = "unsupported"
   weft.exec.kernel @pipeline_offload_plus_scalar attributes {construction_domain = "riscv-execution", problem = @canonical_problem} {
     weft.exec.int8_mac_problem @canonical_problem {lhs_signedness = #weft<integer_signedness signed>, rhs_signedness = #weft<integer_signedness signed>, m = 4 : i64, n = 4 : i64, k = 8 : i64}
     weft.exec.capability @offload_runtime {
@@ -63,16 +61,10 @@ module {
 // -----
 
 module {
-  // PIPE-LABEL: weft.exec.kernel @pipeline_profile_offload_plus_scalar
-  // PIPE: weft_offload.lowering_boundary
-  // PIPE-SAME: selected_variant = @offload_runtime_first_slice
-  // PIPE-SAME: status = "no-active-route"
-  // PIPE: weft.exec.diagnostic
-  // PIPE-SAME: message = "the Offload extension currently has no active executable lowering or target artifact route"
-  // PIPE-SAME: status = "unsupported"
   weft.exec.target @module_offload_scalar_profile {
     id = "profile.offload.scalar",
     target_kind = "profile",
+    construction_domain = "riscv-execution",
     relations = #weft.capability_relations<provides = ["offload.runtime", "scalar.fallback"]>,
     status = "available",
     runtime_abi = "generic-runtime-offload-c-abi-handoff.v1",
@@ -122,7 +114,6 @@ module {
 // -----
 
 module {
-  // PIPE-LABEL: weft.exec.kernel @pipeline_vendor_string_no_offload
   weft.exec.kernel @pipeline_vendor_string_no_offload attributes {
     construction_domain = "riscv-execution",
     problem = @canonical_problem,
@@ -142,21 +133,12 @@ module {
       status = "available"
     }
 
-    // PIPE-NOT: weft.exec.variant @offload_runtime_first_slice
-    // PIPE: weft.exec.variant @scalar_fallback_first_slice
-    // PIPE-SAME: origin = "scalar-plugin"
-    // PIPE-NOT: weft_scalar.lowering_boundary
-    // PIPE-NOT: weft_offload.lowering_boundary
-    // PIPE: weft.exec.diagnostic {artifact_kind = "unsupported-emission-diagnostic", emission_kind = "scalar-fallback-unsupported-emission"
-    // PIPE-SAME: target = @scalar_fallback_first_slice
-
   }
 }
 
 // -----
 
 module {
-  // PIPE-LABEL: weft.exec.kernel @pipeline_malformed_offload_declines_to_scalar
   weft.exec.kernel @pipeline_malformed_offload_declines_to_scalar attributes {construction_domain = "riscv-execution", problem = @canonical_problem} {
     weft.exec.int8_mac_problem @canonical_problem {lhs_signedness = #weft<integer_signedness signed>, rhs_signedness = #weft<integer_signedness signed>, m = 4 : i64, n = 4 : i64, k = 8 : i64}
     weft.exec.capability @offload_runtime {
@@ -171,14 +153,6 @@ module {
       kind = "fallback",
       status = "available"
     }
-
-    // PIPE-NOT: weft.exec.variant @offload_runtime_first_slice
-    // PIPE: weft.exec.variant @scalar_fallback_first_slice
-    // PIPE-SAME: origin = "scalar-plugin"
-    // PIPE-NOT: weft_scalar.lowering_boundary
-    // PIPE-NOT: weft_offload.lowering_boundary
-    // PIPE: weft.exec.diagnostic {artifact_kind = "unsupported-emission-diagnostic", emission_kind = "scalar-fallback-unsupported-emission"
-    // PIPE-SAME: target = @scalar_fallback_first_slice
 
   }
 }

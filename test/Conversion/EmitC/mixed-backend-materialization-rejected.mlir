@@ -26,11 +26,11 @@ module {
       weft_toy.emitc_route_mapping = "toy-template-compute-emitc-route",
       weft_toy.evidence_profile = "parse_verify|capability|interface|selected_boundary_or_route|emitc_route_mapping|materialized_emitc_module|mlir_emitc_cpp_emitter|generated_cpp_compile"
     } {
-    }
-    weft_scalar.compute_skeleton {
-      source_kernel = "mixed_backend_kernel",
-      selected_variant = @toy_template_first_slice,
-      scalar_immediate = 7 : i64
+      weft_scalar.immediate_call_body {
+        source_kernel = "mixed_backend_kernel",
+        selected_variant = @toy_template_first_slice,
+        scalar_immediate = 7 : i64
+      }
     }
     weft.exec.diagnostic {
       message = "selected Toy template route",

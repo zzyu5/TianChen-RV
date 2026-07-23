@@ -98,8 +98,8 @@ def MMAUOp : WEFTIME_Op<"mma_u",
     Both ops gate on the SAME first-class `spacemit.ime` capability FACT (the
     `xsmtvdotii` march token assembles all four signedness forms — proven by the
     SpacemiT GCC15 assembler). Which signedness boundary materializes is a
-    capability-derived fact (the `ime_signedness` request), NOT a family-name
-    string and NOT a second capability id. A fail-closed verifier (I7) admits
+    canonical problem signedness, NOT target capability metadata, a variant
+    mirror, or a second capability id. A fail-closed verifier (I7) admits
     ONLY the validated IME1 uint8->int32 `vmadotu` envelope.
 
     This is an IME execution op, not a high-level matmul op. It makes no
@@ -152,8 +152,8 @@ def MMASUOp : WEFTIME_Op<"mma_su",
     All four ops gate on the SAME first-class `spacemit.ime` capability FACT (the
     `xsmtvdotii` march token assembles all four signedness forms — proven by the
     SpacemiT GCC15 assembler). Which signedness boundary materializes is a
-    capability-derived fact (the `ime_signedness` request), NOT a family-name
-    string and NOT a second capability id. A fail-closed verifier (I7) admits
+    canonical problem signedness, NOT target capability metadata, a variant
+    mirror, or a second capability id. A fail-closed verifier (I7) admits
     ONLY the validated IME1 mixed-sign int8->int32 `vmadotsu` envelope.
 
     This is an IME execution op, not a high-level matmul op. It makes no
@@ -208,8 +208,8 @@ def MMAUSOp : WEFTIME_Op<"mma_us",
     All IME MAC ops gate on the SAME first-class `spacemit.ime` capability FACT
     (the `xsmtvdotii` march token assembles all four signedness forms — proven by
     the SpacemiT GCC15 assembler). Which signedness boundary materializes is a
-    capability-derived fact (the `ime_signedness` request), NOT a family-name
-    string and NOT a second capability id. A fail-closed verifier (I7) admits
+    canonical problem signedness, NOT target capability metadata, a variant
+    mirror, or a second capability id. A fail-closed verifier (I7) admits
     ONLY the validated IME1 mixed-sign int8->int32 `vmadotus` envelope.
 
     This is an IME execution op, not a high-level matmul op. It makes no
@@ -261,9 +261,9 @@ def MMASlideOp : WEFTIME_Op<"mma_slide",
 
     All IME ops gate on the SAME first-class `spacemit.ime` capability FACT (the
     `xsmtvdotii` march token assembles BOTH the non-slide and the slide families).
-    Which boundary materializes is a capability-derived fact (the non-slide
-    `ime_signedness` request vs this op's `ime_slide` request), NOT a family-name
-    string and NOT a second capability id. A fail-closed verifier (I7) admits ONLY
+    Which boundary materializes follows exact canonical problem identity and
+    slide geometry, NOT target capability metadata, a variant mirror, or a
+    second capability id. A fail-closed verifier (I7) admits ONLY
     the validated IME1 slide int8->int32 envelope with `slide` in {1,2,3}.
 
     This is an IME execution op, not a high-level matmul op. It makes no

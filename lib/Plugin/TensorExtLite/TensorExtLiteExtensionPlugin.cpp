@@ -427,8 +427,8 @@ llvm::Error TensorExtLiteExtensionPlugin::constructFormulaPlans(
     FamilyConstructionResult &out) const {
   mlir::OpBuilder builder(request.getModule().getContext());
   VariantLoweringBoundaryRequest bodyRequest(
-      request.getVariant(), request.getKernel(), request.getCapabilities(),
-      request.getRole(), builder);
+      request.getVariant(), request.getKernel(), request.getProblem(),
+      request.getCapabilities(), request.getRole(), builder, nullptr);
   if (llvm::Error error =
           materializeTensorExtLiteSelectedRoleSequenceIfNeeded(bodyRequest))
     return error;
@@ -583,6 +583,7 @@ llvm::Error TensorExtLiteExtensionPlugin::checkVariantEmissionReadiness(
         "emission readiness requires an enclosing weft.exec.kernel");
 
   VariantLegalityRequest legality(request.getVariant(), request.getKernel(),
+                                  nullptr,
                                   request.getCapabilities());
   if (llvm::Error error = verifyVariantLegality(legality)) {
     std::string message = llvm::toString(std::move(error));
@@ -618,6 +619,7 @@ llvm::Error TensorExtLiteExtensionPlugin::buildVariantEmissionPlan(
         "emission planning requires an enclosing weft.exec.kernel");
 
   VariantLegalityRequest legality(request.getVariant(), request.getKernel(),
+                                  nullptr,
                                   request.getCapabilities());
   if (llvm::Error error = verifyVariantLegality(legality)) {
     std::string message = llvm::toString(std::move(error));
@@ -669,17 +671,14 @@ llvm::Error TensorExtLiteExtensionPlugin::materializeSelectedLoweringBoundary(
         "lowering-boundary materialization requires an enclosing "
         "weft.exec.kernel");
 
-  VariantLegalityRequest legality(variant, kernel, request.getCapabilities());
+  VariantLegalityRequest legality(variant, kernel, request.getProblem(),
+                                  request.getCapabilities());
   if (llvm::Error error = verifyVariantLegality(legality)) {
     std::string message = llvm::toString(std::move(error));
     return makeTensorExtLitePluginError(
         llvm::Twine("selected TensorExtLite variant @") + variant.getSymName() +
         " failed plugin legality before boundary materialization: " + message);
   }
-
-  if (llvm::Error error =
-          materializeTensorExtLiteSelectedRoleSequenceIfNeeded(request))
-    return error;
 
   llvm::Expected<llvm::SmallVector<mlir::Operation *, 4>> operations =
       inspectTensorExtLiteConstruction(variant);
@@ -688,7 +687,11 @@ llvm::Error TensorExtLiteExtensionPlugin::materializeSelectedLoweringBoundary(
   if (operations->empty())
     return makeTensorExtLitePluginError(
         "selected TensorExtLite construction produced no typed body root");
-  mlir::Operation *boundary = operations->front();
+  mlir::Operation *boundary = request.getConstructedOperation();
+  if (operations->front() != boundary)
+    return makeTensorExtLitePluginError(
+        "selected TensorExtLite boundary exposure did not receive the exact "
+        "construction root");
 
   VariantLoweringBoundaryValidationRequest validationRequest(
       variant, kernel, request.getCapabilities(), request.getRole(), boundary);

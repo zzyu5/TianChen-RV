@@ -1,6 +1,6 @@
 # 架构（Architecture）
 
-> **版本**：v6
+> **版本**：v7
 > 本层描述 Weft 的稳定结构、当前 Weft-RV 实现落点和 V2 目标责任边界。当前事实由代码复核；目标设计由用户裁决后版本化进入本层。
 
 ## 读法
@@ -62,19 +62,26 @@
 
 ## 当前主改造方向
 
-当前已经完成并继续守住 Weft-RV production formula/construction authority 的横向切换：所有
-production operator/owner entry 与 analytic authority 进入轻量 catalog 和
-owner-local typed evaluator；旧 decision provider/helper/replay、emitter
-redecision 与兼容旁路退出生产链。这里的“横向完成”指单一构造权威，不表示每个
-逐点 leaf 已经达到 strong reconstruction。
+当前横向 checkpoint 已经完成并继续守住 artifact-neutral construction lifecycle/caller、
+exact physical-problem request continuity 与 exact selected-root artifact consumption：所有 live
+owner 通过统一 construction-before-artifact seam 返回 exact result，proposal/legality/cost/
+construction 使用同一 canonical problem，旧 artifact-side construction、部分 decision
+provider/replay 与兼容旁路已退出。这里的“横向完成”只指这些公共切面；RVV source/body
+仍有 body-first construction，全部 code-affecting authority 与 mechanism factorization 仍由
+active A/B task 收敛，不得概括为所有 production operator 已达到 strong reconstruction。
 
 Artifact-neutral owner construction 横向重基已经完成：canonical problem 后的 owner
-construction 不再寄居于 EmitC backend，所有 current owners 与
-source/direct/translate/artifact caller 共享 construction-before-artifact 主链。显式
-target-bound domain membership/gate 是当前横向任务的进行中缺口。V2 的下一步
-仍不是实现 GPU，而是在 RISC-V 旗舰 realization 上横向闭合 mechanism factorization、公式
-因果、delete-leaf reconstruction 与重构后真实性能；不得借此建立大一统 Formula IR 或
-universal Plan。完成 A/B 闭环后，GPU 才沿同一 construction contract 作为完整 domain/owner 接入。
+construction 不再寄居于 EmitC backend，所有会请求 artifact 的 current owners 与
+source/direct/translate/artifact caller 共享 construction-before-artifact 主链；proposal、
+legality、cost 与 selected-owner construction 现在验证并传递同一 exact problem，artifact
+registry 只保留 selected owner 的完整 variant slice并拒绝 competing roots。这个结论仍不
+证明所有 source problem 已 forward-construct body。显式 kernel
+domain identity 与 owner membership gate 已在 proposal/selection/construction 前落地；但它
+不是 target/profile 驱动的 `BindDomain(t)=(d,C_d)`，后者与 physical source problem coverage
+仍是当前横向任务缺口。V2 的下一步仍不是实现 GPU，而是在 RISC-V 旗舰 realization 上横向
+闭合 source/domain binding、mechanism factorization、公式因果、delete-leaf reconstruction
+与重构后真实性能；不得借此建立大一统 Formula IR 或 universal Plan。完成 A/B 闭环后，
+GPU 才沿同一 construction contract 作为完整 domain/owner 接入。
 
 ## Quality Check
 

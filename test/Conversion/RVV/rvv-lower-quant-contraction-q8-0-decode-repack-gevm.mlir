@@ -17,8 +17,8 @@
 // reason (distinct from the q4_0 regime token), the GENUINE front-door decode path on rvv.
 // RUN: weft-opt %s --weft-rvv-lower-quant-contraction=march=rv64gcv | FileCheck %s --check-prefix=VLEN128
 //
-// VLEN256 (rv64gcv_zvl256b => 256): FAILS CLOSED. The selector would DECLINE repack at this
-// cell (no kRepackVlen256DecodeMeasurements entry for q8_0 decode), but there is NO q8_0
+// VLEN256 (rv64gcv_zvl256b => 256): FAILS CLOSED. The analytic prior declines repack,
+// but there is NO q8_0
 // block-dot decline path at all -- the block-dot identity lowering is q4_0-nibble-only, which
 // would MISCOMPILE a full-int8 q8_0 weight as nibbles. So the pass emits a capability
 // diagnostic rather than a wrong kernel. This is the STRUCTURAL reason the k1 q8_0 decode cell
@@ -26,7 +26,7 @@
 // A2-batch4 did for q4_0@k1). Pinned as a fail-closed contract:
 // RUN: not weft-opt %s --weft-rvv-lower-quant-contraction=march=rv64gcv_zvl256b 2>&1 | FileCheck %s --check-prefix=VLEN256
 //
-// Full front-door export to C (the measured leaf):
+// Full front-door export to C (the analytic leaf):
 // RUN: weft-opt %s --weft-rvv-lower-quant-contraction=march=rv64gcv --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=EMITC
 
 module {
@@ -50,14 +50,11 @@ module {
 }
 
 // (VLEN128 tier) the abstract op is GONE; the typed repack-GEVM region is realized (x16), with
-// the q8_0 memory-bound decode's OWN selection reason. The accumulator LMUL is the WIDE m1
-// whole-LMUL chain (half_lanes 16, integer_core_lmul m1) -- the [GAP-P1]-loosen board-MEASURED
-// flip (lookupRepackMeasuredM1Faster(kNibbleQ80ScaleModel)=true; the q8_0 full-i8 chain is
-// spill-free AND 1.6-2.4x faster than mf2 @rvv, byte-exact; every OTHER format stays mf2). See
-// rvv-repack-accumulator-lmul-measured-gate-q8.mlir for the per-format selector judgment.
+// the q8_0 memory-bound decode selection reason. The analytic resource prior
+// supplies the mf2 two-strip accumulator schedule.
 // VLEN128-NOT: weft_rvv.quant_contraction
 // VLEN128: weft_rvv.typed_repack_gemv_loop_body
-// VLEN128-SAME: half_lanes = 16 : i64
+// VLEN128-SAME: half_lanes = 8 : i64
 // VLEN128-SAME: weft_rvv.weight_layout_contract = "x16"
 
 // (VLEN256 tier) FAIL-CLOSED: no q8_0 block-dot decline path exists; refuse rather than
@@ -66,15 +63,13 @@ module {
 
 // (EMITC) the exported C leaf: block_q8_0x16 stride 544 (d[16]@0, int8 quants @32) over a PLAIN
 // block_q8_0 activation (stride 34, qs @2); FULL-int8 load (NO vand/vsrl nibble decode),
-// per-position vwmul_vx + vwadd_wv i32 accumulation, dual-fp16 d_x*d_y fold, NO min. The WIDE
-// m1 chain: e8m1 load -> vwmul i16m2 -> vwadd.wv i32m4 -> f32m4 fold (one 16-lane strip, vs
-// the old mf2 default's two 8-lane f32m2 strips) -- the board-measured q8_0 accumulator flip.
+// per-position vwmul_vx + vwadd_wv i32 accumulation, dual-fp16 d_x*d_y fold, NO min.
 // EMITC: emitc.func @weft_emitc_ggml_vec_dot_q8_0_q8_0_kernel_ggml_vec_dot_q8_0_q8_0
 // EMITC: literal "544"
-// EMITC: call_opaque "__riscv_vle8_v_i8m1"
-// EMITC: call_opaque "__riscv_vwmul_vx_i16m2"
-// EMITC: call_opaque "__riscv_vwadd_wv_i32m4"
-// EMITC: call_opaque "__riscv_vfwmul_vf_f32m4"
-// EMITC: call_opaque "__riscv_vfmacc_vv_f32m4"
-// EMITC: call_opaque "__riscv_vse32_v_f32m4"
+// EMITC: call_opaque "__riscv_vle8_v_i8mf2"
+// EMITC: call_opaque "__riscv_vwmul_vx_i16m1"
+// EMITC: call_opaque "__riscv_vwadd_wv_i32m2"
+// EMITC: call_opaque "__riscv_vfwmul_vf_f32m2"
+// EMITC: call_opaque "__riscv_vfmacc_vv_f32m2"
+// EMITC: call_opaque "__riscv_vse32_v_f32m2"
 // EMITC-NOT: call_opaque "__riscv_vand_vx_u8mf2"

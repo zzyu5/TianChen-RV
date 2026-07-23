@@ -32,12 +32,8 @@
 // as the real repack op carrying weight_layout_contract = "x16" (half_lanes 8).
 // RUN: weft-opt %s --weft-rvv-lower-quant-contraction=march=rv64gcv | FileCheck %s --check-prefix=VLEN128
 //
-// VLEN256 (rv64gcv_zvl256b => 256, the K1 decode cell): q4_0 decode -> BLOCK-DOT
-// SELECTED (declined), fully realized here. [G8 六.3] the decline is now PER-FORMAT
-// MEASURED (kRepackVlen256DecodeMeasurements): q4_0 carries a board-measured-NEGATIVE
-// row (0.74x LOSS), distinct from q5_0/q5_1 which measured BENEFICIAL at this SAME cell
-// (1.190x/1.306x) and SELECT repack -- see
-// rvv-lower-quant-contraction-vlen256-decode-per-format-measured.mlir.
+// VLEN256 (rv64gcv_zvl256b => 256, the K1 decode cell): the analytic prior selects
+// the legal q4_0 BLOCK-DOT path. No format-keyed residual winner participates.
 // RUN: weft-opt %s --weft-rvv-lower-quant-contraction=march=rv64gcv_zvl256b | FileCheck %s --check-prefix=VLEN256
 //
 // DEFAULT -march "" => deriveMinimumVLEN 0 => no capability => fact 3 false =>
@@ -85,18 +81,15 @@ module {
 // VLEN128-NOT: weft_rvv.q4_0_q8_0_block_dot
 // VLEN128-NOT: weft_rvv.repack_gemv_q4_0_q8_0
 // VLEN128: weft_rvv.typed_repack_gemv_loop_body
-// VLEN128-SAME: half_lanes = 16 : i64
-// [档 C#9 full-LMUL[B]] the accumulator-LMUL selection reason (m1/mf2 provenance,
-// previously discarded): r51g [GAP-P1]-loosen board-MEASURED q4_0 => WIDE m1 chain
-// (GEVM 2.3-2.5x / GEMM 1.24x faster, spill-free, byte-exact; see FINDING).
+// VLEN128-SAME: half_lanes = 8 : i64
+// The analytic resource prior supplies the mf2 accumulator schedule.
 // VLEN128-SAME: weft_rvv.weight_layout_contract = "x16"
 // VLEN128-SAME: weight_block_stride = 288 : i64
 // VLEN128-SAME: weight_interleave = 16 : i64
 // VLEN128-SAME: weight_quant_byte_offset = 32 : i64
 // The decomposed inner region bricks are CONSTRUCTED (not test-authored): the
 // per-block lane-wise integer CORE, the dual-fp16 scale FOLD, and the loop yield.
-// r51g board-measured m1 => ONE 16-lane strip (half_lanes 16) => a SINGLE fold
-// (the mf2 default carried two 8-lane-strip folds).
+// The mf2 schedule carries two 8-lane-strip folds.
 // VLEN128: weft_rvv.repack_lane_wise_q4_x_i8_dot
 // VLEN128: weft_rvv.repack_dual_fp16_scale_fold
 // VLEN128: weft_rvv.typed_repack_gemv_loop_yield

@@ -16,12 +16,8 @@
 // selector (the FULL signed int8 decode: NO nibble unpack; qk=32 positions/block,
 // vle8 i8 strip + per-position vwmul i8xi8 -> i16 + vwadd_wv into an i32 in-block
 // accumulator) + the two per-strip dual-fp16 scale FOLDs (repack_dual_fp16_scale_fold,
-// d-ONLY, NO min). --weft-rvv-lower-to-emitc then lowers it to the board-MEASURED
-// WIDE m1/half_lanes=16 one-16-lane-strip repack-GEVM kernel ([GAP-P1]-loosen
-// 2026-07-19: lookupRepackMeasuredM1Faster(kNibbleQ80ScaleModel)=true; the deployed
-// q8_0 m1 chain is 1.6-2.4x faster than the mf2 default @rvv AND byte-exact; every
-// OTHER format stays mf2 -- see
-// rvv-repack-accumulator-lmul-measured-gate-q8.mlir + FINDING.md).
+// d-ONLY, NO min). The analytic resource prior selects half_lanes=8 and the mf2
+// two-strip accumulator schedule.
 //
 // THIS proves the COMPILER now AUTO-SELECTS + CONSTRUCTS the q8_0 repack region
 // through the SAME front door as q4_0/q4_1/q5_0/q5_1 (previously q8_0 was
@@ -56,25 +52,24 @@ module {
 // The per-group weight base vx + x*nb*544 (block_q8_0x16 stride 544 = 16 d + 512
 // full int8 quants).
 // CHECK: literal "544"
-// The one 16-lane f32m4 accumulator (cols 0..15) -- the WIDE m1/half_lanes=16 form
-// (the board-measured accumulator flip, vs the old mf2 two-8-lane f32m2 strips).
-// CHECK: call_opaque "__riscv_vfmv_v_f_f32m4"
-// CHECK: call_opaque "__riscv_vse32_v_f32m4"
+// The analytic resource prior selects two 8-lane f32m2 strips.
+// CHECK: call_opaque "__riscv_vfmv_v_f_f32m2"
+// CHECK: call_opaque "__riscv_vse32_v_f32m2"
 // CHECK: return
 
 // The q8_0 FULL-int8 integer core: the SIGNED vle8 i8 strip load (NO nibble unpack
 // -- NO vand/vsrl/vsll/vreinterpret decode), the per-position vwmul (i8xi8 -> i16),
 // and the i32 IN-BLOCK accumulate vwadd_wv (REPLACING q4_0's i16 vwmacc + lo/hi
 // vwadd_vv combine -- full int8 products overflow i16).
-// FULLI8: call_opaque "__riscv_vle8_v_i8m1"
-// FULLI8: call_opaque "__riscv_vwmul_vx_i16m2"
-// FULLI8: call_opaque "__riscv_vwadd_wv_i32m4"
+// FULLI8: call_opaque "__riscv_vle8_v_i8mf2"
+// FULLI8: call_opaque "__riscv_vwmul_vx_i16m1"
+// FULLI8: call_opaque "__riscv_vwadd_wv_i32m2"
 // The q8_0 core does NOT unpack nibbles: no vwmacc, no unsigned-nibble peel.
 // FULLI8-NOT: __riscv_vwmacc_vx_i16m1
 // FULLI8-NOT: __riscv_vand_vx_u8mf2
 
 // The q8_0 fold is d-ONLY (the q4_0 dual-fp16 scale tree, NO min): vfwmul(d) /
 // vfcvt / vfmacc, with NO second vfwmul(m_x) + vfadd min correction.
-// NOMIN: call_opaque "__riscv_vfwmul_vf_f32m4"
-// NOMIN: call_opaque "__riscv_vfmacc_vv_f32m4"
-// NOMIN-NOT: __riscv_vfadd_vv_f32m4
+// NOMIN: call_opaque "__riscv_vfwmul_vf_f32m2"
+// NOMIN: call_opaque "__riscv_vfmacc_vv_f32m2"
+// NOMIN-NOT: __riscv_vfadd_vv_f32m2

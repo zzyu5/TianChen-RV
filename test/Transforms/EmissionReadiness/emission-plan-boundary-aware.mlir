@@ -12,6 +12,7 @@ module {
       origin = "scalar-plugin",
       requires = [@scalar_fallback]
     } {
+      weft_scalar.immediate_call_body {source_kernel = "fallback_only_scalar_without_boundary", selected_variant = @scalar_fallback_first_slice, scalar_immediate = 7 : i64}
     }
     weft.exec.diagnostic {
       message = "selected scalar fallback envelope",
@@ -20,8 +21,8 @@ module {
       status = "selected",
       target = @scalar_fallback_first_slice
     }
-    // CHECK: lowering_pipeline = "scalar-no-constructed-body-route"
-    // CHECK-SAME: status = "unsupported"
+    // CHECK: lowering_pipeline = "weft-scalar-emitc-to-cpp"
+    // CHECK-SAME: status = "supported"
   }
 }
 
@@ -64,6 +65,7 @@ module {
       origin = "scalar-plugin",
       requires = [@scalar_fallback]
     } {
+      weft_scalar.immediate_call_body {source_kernel = "boundary_origin_mismatch", selected_variant = @scalar_fallback_first_slice, scalar_immediate = 7 : i64}
     }
     weft.exec.diagnostic {
       message = "selected scalar fallback path",
@@ -83,8 +85,8 @@ module {
       status = "no-active-route"
     }
     // A legacy diagnostic-like boundary is not construction authority.
-    // CHECK: lowering_pipeline = "scalar-no-constructed-body-route"
-    // CHECK-SAME: status = "unsupported"
+    // CHECK: lowering_pipeline = "weft-scalar-emitc-to-cpp"
+    // CHECK-SAME: status = "supported"
   }
 }
 
@@ -102,11 +104,13 @@ module {
       origin = "scalar-plugin",
       requires = [@scalar_fallback]
     } {
+      weft_scalar.immediate_call_body {source_kernel = "boundary_selected_variant_mismatch", selected_variant = @scalar_fallback_first_slice, scalar_immediate = 7 : i64}
     }
     weft.exec.variant @other_scalar attributes {
       origin = "scalar-plugin",
       requires = [@scalar_fallback]
     } {
+      weft_scalar.immediate_call_body {source_kernel = "boundary_selected_variant_mismatch", selected_variant = @other_scalar, scalar_immediate = 9 : i64}
     }
     weft.exec.diagnostic {
       message = "selected scalar fallback path changed",
@@ -125,8 +129,8 @@ module {
       source_kernel = "boundary_selected_variant_mismatch",
       status = "no-active-route"
     }
-    // CHECK: lowering_pipeline = "scalar-no-constructed-body-route"
-    // CHECK-SAME: status = "unsupported"
+    // CHECK: lowering_pipeline = "weft-scalar-emitc-to-cpp"
+    // CHECK-SAME: status = "supported"
   }
 }
 
@@ -144,6 +148,7 @@ module {
       origin = "scalar-plugin",
       requires = [@scalar_fallback]
     } {
+      weft_scalar.immediate_call_body {source_kernel = "duplicate_competing_boundaries", selected_variant = @scalar_fallback_first_slice, scalar_immediate = 7 : i64}
     }
     weft.exec.diagnostic {
       message = "selected scalar fallback path",
@@ -172,8 +177,8 @@ module {
       source_kernel = "duplicate_competing_boundaries",
       status = "no-active-route"
     }
-    // CHECK: lowering_pipeline = "scalar-no-constructed-body-route"
-    // CHECK-SAME: status = "unsupported"
+    // CHECK: lowering_pipeline = "weft-scalar-emitc-to-cpp"
+    // CHECK-SAME: status = "supported"
   }
 }
 
@@ -196,6 +201,7 @@ module {
       origin = "scalar-plugin",
       requires = [@scalar_fallback]
     } {
+      weft_scalar.immediate_call_body {source_kernel = "boundary_required_capabilities_mismatch", selected_variant = @scalar_fallback_first_slice, scalar_immediate = 7 : i64}
     }
     weft.exec.diagnostic {
       message = "selected scalar fallback path",
@@ -214,7 +220,7 @@ module {
       source_kernel = "boundary_required_capabilities_mismatch",
       status = "no-active-route"
     }
-    // CHECK: lowering_pipeline = "scalar-no-constructed-body-route"
-    // CHECK-SAME: status = "unsupported"
+    // CHECK: lowering_pipeline = "weft-scalar-emitc-to-cpp"
+    // CHECK-SAME: status = "supported"
   }
 }

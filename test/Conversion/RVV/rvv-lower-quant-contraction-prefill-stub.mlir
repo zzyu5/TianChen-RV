@@ -17,9 +17,8 @@
 // the decode reason in the stage-b-selection fixture).
 // RUN: weft-opt %s --weft-rvv-lower-quant-contraction=march=rv64gcv | FileCheck %s --check-prefix=REALIZED
 //
-// LATENT-MISPICK HONESTY: fact 3 keeps Repack for ANY prefill, so q4_0 @
-// K1-VLEN256 *prefill* is auto-kept though only the *decode* cell was measured.
-// This is a known latent mispick recorded in the design, not a validated cell.
+// The analytic prefill rule keeps Repack at K1-VLEN256 as well; this fixture pins
+// construction behavior only and makes no runtime or performance claim.
 
 module {
   weft.exec.kernel @quant_contraction_prefill_select {
@@ -63,7 +62,7 @@ module {
 // REALIZED: weft_rvv.typed_repack_gemm_loop_body
 // REALIZED-SAME: activation_block_stride = 136 : i64
 // REALIZED-SAME: activation_interleave = 4 : i64
-// REALIZED-SAME: half_lanes = 16 : i64
+// REALIZED-SAME: half_lanes = 8 : i64
 // REALIZED-SAME: weft_rvv.weight_layout_contract = "x16"
 // REALIZED-SAME: weight_block_stride = 288 : i64
 // REALIZED: weft_rvv.repack_gemm_lane_wise_q4_x_i8_dot
