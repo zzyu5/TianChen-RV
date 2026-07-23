@@ -42,7 +42,7 @@ P=(S,g,ω) + BindDomain(t)=(d,C_d)
 代码施工可以按依赖顺序进行，但最终合入不得停在一个 owner、一个 operator 或一个
 topology 的纵向切片，也不得保留旧路径作为兼容退路。
 
-## 当前实施状态（2026-07-23 · exact-P / exact-root checkpoint 待 pin）
+## 当前实施状态（2026-07-23 · exact-P / exact-root checkpoint `b949b3c86`）
 
 本 task 已开工，但尚未完成。已经横向闭合的结构切面是：
 

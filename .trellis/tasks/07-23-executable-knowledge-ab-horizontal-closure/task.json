@@ -80,6 +80,11 @@
         "commit": "c318c178",
         "state": "completed",
         "summary": "added explicit domain identity/membership gates before proposal, selection and selected-owner construction; target/profile BindDomain remains open"
+      },
+      {
+        "commit": "b949b3c86",
+        "state": "completed",
+        "summary": "preserved exact P/C_d through proposal, legality, cost and construction; moved IME problem facts out of capability mirrors; made selection explicit for deterministic RVV front doors; bound artifact conversion to the selected owner's exact root; 985/985 local tests"
       }
     ]
   }
