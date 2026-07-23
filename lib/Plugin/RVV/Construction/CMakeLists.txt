@@ -2,6 +2,12 @@ add_mlir_library(WeftRVVConstruction
   PARTIAL_SOURCES_INTENDED
   RVVArtifactContract.cpp
   RVVBodyRuntimeControl.cpp
+  RVVCanonicalBodyBuilder.cpp
+  RVVCanonicalProblemConstruction.cpp
+  RVVVectorProblemConstruction.cpp
+  RVVWideningDotProblemConstruction.cpp
+  RVVQuantizedIntegerCoreProblemConstruction.cpp
+  RVVQuantizedBlockDotProblemConstruction.cpp
   ../RVVCapabilityProfile.cpp
   RVVCompositeGatherMAccScatterFormula.cpp
   RVVConstructedBodyQualification.cpp

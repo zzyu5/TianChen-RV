@@ -49,11 +49,7 @@
 #include "Weft/Dialect/RVV/IR/RVVDialect.h"
 #include "Weft/Plugin/ExtensionPlugin.h"
 #include "Weft/Plugin/RVV/RVVCapabilityProfile.h"
-#include "Weft/Plugin/RVV/RVVCanonicalProblemConstruction.h"
 #include "Weft/Plugin/RVV/RVVExtensionPlugin.h"
-#include "Weft/Plugin/RVV/RVVGearboxSchedule.h"
-#include "Weft/Plugin/RVV/RVVSourceScheduleFormula.h"
-#include "Weft/Support/CapabilityModel.h"
 #include "Weft/Target/RVV/RVVTargetProfileBinding.h"
 
 #include "mlir/Dialect/Arith/IR/Arith.h"
@@ -95,13 +91,6 @@ constexpr llvm::StringLiteral kAcceptedMarkerValue(
     "bounded_codebook_gather_dot_source");
 constexpr llvm::StringLiteral kSeedAttrName("weft_rvv.lowering_seed");
 
-// The codebook-gather product op's pinned bounded-surface attrs (the verifier
-// requires these exact strings; the LMUL is NOT pinned -- it flips with VLEN).
-constexpr llvm::StringLiteral kCodebookProductKind(
-    "signed_codebook_gather_x_i8_product");
-constexpr llvm::StringLiteral kCodebookProductRelation(
-    "codebook-gather-i8-x-i8x2-to-i16");
-
 // The structured-const C symbol the codebook table decl declares + ggml's
 // kvalues_iq4nl[16] -- the 16-entry NON-LINEAR int8 lookup table the codebook
 // gather indexes (the load-bearing structural fact of the codebook class). Pinned
@@ -111,13 +100,6 @@ constexpr llvm::StringLiteral kCodebookTableSymbol("weft_iq4_nl_kvalues");
 constexpr std::array<std::int8_t, 16> kIQ4NLCodebook = {
     -127, -104, -83, -65, -49, -35, -22, -10,
     1,    13,   25,  38,  53,  69,  89,  113};
-
-// The standalone-reduction strip framing the with_vl/setvl carry (the i32m1
-// reduction accumulator); SAME at every VLEN tier (the flip is in the i8 gather /
-// i16 product anchors, NOT the reduction).
-constexpr std::int64_t kReductionStripSEW = 32;
-constexpr llvm::StringLiteral kReductionStripLMUL("m1");
-constexpr llvm::StringLiteral kReductionLMUL("m1");
 
 mlir::LogicalResult fail(mlir::Operation *op, llvm::Twine message) {
   op->emitError() << "bounded RVV codebook-gather dot source front door failed: "
@@ -184,123 +166,6 @@ matchCodebookDotSourceFunc(mlir::func::FuncOp func) {
 mlir::FlatSymbolRefAttr symbolRef(mlir::OpBuilder &builder,
                                   llvm::StringRef symbol) {
   return mlir::FlatSymbolRefAttr::get(builder.getContext(), symbol);
-}
-
-weftrvv::RuntimeABIValueOp
-createRuntimeABIValue(mlir::OpBuilder &builder, mlir::Location loc,
-                      llvm::StringRef role, llvm::StringRef cName,
-                      llvm::StringRef cType, llvm::StringRef purpose,
-                      mlir::Type resultType) {
-  mlir::OperationState state(loc,
-                             weftrvv::RuntimeABIValueOp::getOperationName());
-  state.addAttribute("role", builder.getStringAttr(role));
-  state.addAttribute("c_name", builder.getStringAttr(cName));
-  state.addAttribute("c_type", builder.getStringAttr(cType));
-  state.addAttribute("ownership",
-                     builder.getStringAttr("target-export-abi-owned"));
-  state.addAttribute("purpose", builder.getStringAttr(purpose));
-  state.addTypes(resultType);
-  return llvm::cast<weftrvv::RuntimeABIValueOp>(builder.create(state));
-}
-
-weftrvv::SetVLOp createSetVL(mlir::OpBuilder &builder, mlir::Location loc,
-                             mlir::Value n, std::int64_t sew,
-                             llvm::StringRef lmul, weftrvv::PolicyAttr policy) {
-  mlir::OperationState state(loc, weftrvv::SetVLOp::getOperationName());
-  state.addOperands(n);
-  state.addAttribute("sew", builder.getI64IntegerAttr(sew));
-  state.addAttribute("lmul", builder.getStringAttr(lmul));
-  state.addAttribute("policy", policy);
-  state.addTypes(weftrvv::VLType::get(builder.getContext()));
-  return llvm::cast<weftrvv::SetVLOp>(builder.create(state));
-}
-
-weftrvv::WithVLOp createWithVL(mlir::OpBuilder &builder, mlir::Location loc,
-                               mlir::Value vl, std::int64_t sew,
-                               llvm::StringRef lmul,
-                               weftrvv::PolicyAttr policy) {
-  mlir::OperationState state(loc, weftrvv::WithVLOp::getOperationName());
-  state.addOperands(vl);
-  state.addAttribute("sew", builder.getI64IntegerAttr(sew));
-  state.addAttribute("lmul", builder.getStringAttr(lmul));
-  state.addAttribute("policy", policy);
-  state.addRegion();
-  auto withVL = llvm::cast<weftrvv::WithVLOp>(builder.create(state));
-  withVL.getBody().emplaceBlock();
-  return withVL;
-}
-
-mlir::Value createRVVLoad(mlir::OpBuilder &builder, mlir::Location loc,
-                          mlir::Value buffer, mlir::Value vl,
-                          mlir::Type vectorType) {
-  mlir::OperationState state(loc, weftrvv::LoadOp::getOperationName());
-  state.addOperands({buffer, vl});
-  state.addTypes(vectorType);
-  return builder.create(state)->getResult(0);
-}
-
-// The codebook table broadcast: the 16-entry non-linear int8 table materialized
-// as a structured const + broadcast-loaded into the `values` vreg the gather
-// indexes (FIRST-CLASS codebook STRUCTURE, distinct from the q4_0 arithmetic
-// decode which needs no table).
-mlir::Value createCodebookTableBroadcast(mlir::OpBuilder &builder,
-                                         mlir::Location loc,
-                                         llvm::ArrayRef<std::int8_t> codebook,
-                                         llvm::StringRef tableSymbol,
-                                         mlir::Type tableType) {
-  mlir::OperationState state(
-      loc, weftrvv::CodebookTableBroadcastOp::getOperationName());
-  state.addAttribute("codebook", builder.getDenseI8ArrayAttr(codebook));
-  state.addAttribute("table_symbol", builder.getStringAttr(tableSymbol));
-  state.addTypes(tableType);
-  return builder.create(state)->getResult(0);
-}
-
-// The codebook integer core's auto-constructed step: the nibble split + vrgather
-// codebook decode + asymmetric widening product (the FIRST-CLASS generic op that
-// carries the codebook gather as typed STRUCTURE, lowered by the SAME asymmetric
-// product tail the hand-written block-dot strip calls). The compiler reaches the
-// codebook gather by CONSTRUCTING this op -- no new emitter vocabulary, no
-// hand-rolled vand/vsrl/vrgather.
-mlir::Value createCodebookGatherProduct(mlir::OpBuilder &builder,
-                                        mlir::Location loc, mlir::Value weight,
-                                        mlir::Value activationLow,
-                                        mlir::Value activationHigh,
-                                        mlir::Value table, mlir::Value vl,
-                                        mlir::Type productType) {
-  mlir::OperationState state(
-      loc, weftrvv::CodebookGatherXI8ProductOp::getOperationName());
-  state.addOperands({weight, activationLow, activationHigh, table, vl});
-  state.addAttribute("kind", builder.getStringAttr(kCodebookProductKind));
-  state.addAttribute("product_relation",
-                     builder.getStringAttr(kCodebookProductRelation));
-  state.addTypes(productType);
-  return builder.create(state)->getResult(0);
-}
-
-mlir::Value createStandaloneReduce(mlir::OpBuilder &builder, mlir::Location loc,
-                                   mlir::Value input, mlir::Value accumulatorSeed,
-                                   mlir::Value vl, mlir::Type resultType) {
-  mlir::OperationState state(loc,
-                             weftrvv::StandaloneReduceOp::getOperationName());
-  state.addOperands({input, accumulatorSeed, vl});
-  state.addAttribute("kind",
-                     builder.getStringAttr("signed_widening_reduce_add"));
-  state.addAttribute(
-      "accumulator_layout",
-      builder.getStringAttr("scalar-i32-seed-lane0-from-accumulator-input"));
-  state.addAttribute(
-      "result_layout",
-      builder.getStringAttr("store-standalone-reduction-lane0-to-output-scalar"));
-  state.addTypes(resultType);
-  return builder.create(state)->getResult(0);
-}
-
-void createRVVStore(mlir::OpBuilder &builder, mlir::Location loc,
-                    mlir::Value buffer, mlir::Value value, mlir::Value vl) {
-  mlir::OperationState state(loc, weftrvv::StoreOp::getOperationName());
-  state.addOperands({buffer, value, vl});
-  (void)builder.create(state);
 }
 
 mlir::LogicalResult materializeCanonicalProblem(
@@ -469,96 +334,6 @@ private:
 };
 
 } // namespace
-
-llvm::Error constructRVVCodebookI4Q8DotProblemBody(
-    weftexec::VariantOp variant, weftexec::CodebookI4Q8DotProblemOp problem,
-    const RVVSelectedTargetCapabilityFacts &capability) {
-  if (!capability.minimumVLEN || !capability.vectorRegisterCount)
-    return llvm::createStringError(
-        llvm::inconvertibleErrorCode(),
-        "codebook formula requires minimum_vlen and vreg_count in c_o");
-  llvm::Expected<RVVSourceSchedulePlan> schedule =
-      constructRVVSourceScheduleFormula(
-          {RVVSourceScheduleMechanism::CodebookGather,
-           /*sew=*/8, static_cast<std::int64_t>(problem.getBlockLength()),
-           {"m1", "mf2"}},
-          {*capability.minimumVLEN, *capability.vectorRegisterCount},
-          RVVSourceScheduleNoStaticContext{});
-  if (!schedule)
-    return schedule.takeError();
-  llvm::StringRef loadLMUL = schedule->integerCoreLMUL;
-  llvm::StringRef productLMUL = getRVVNextWiderLMUL(loadLMUL);
-  if (productLMUL.empty())
-    return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                   "codebook mechanism has no wider i16 LMUL");
-  if (variant.getBody().empty() || !variant.getBody().front().empty())
-    return llvm::createStringError(
-        llvm::inconvertibleErrorCode(),
-        "codebook construction requires an empty selected candidate");
-  auto policy = variant->getAttrOfType<weftrvv::PolicyAttr>("weft_rvv.policy");
-  if (!policy)
-    return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                   "codebook candidate lacks typed policy");
-
-  mlir::OpBuilder builder(variant.getContext());
-  builder.setInsertionPointToStart(&variant.getBody().front());
-  mlir::Location loc = problem.getLoc();
-  variant->setAttr(
-      "weft_rvv.codebook_integer_core_anchor",
-      builder.getStringAttr(
-          ("i8" + loadLMUL + "-i16" + productLMUL + "-i32m1-vlen-flip")
-              .str()));
-  mlir::Type runtimeABIType =
-      weftrvv::RuntimeABIValueType::get(builder.getContext());
-  auto weight = createRuntimeABIValue(builder, loc, "lhs-input-buffer", "w",
-                                      "const uint8_t *", "q4-weight",
-                                      runtimeABIType);
-  auto qlo = createRuntimeABIValue(builder, loc, "rhs-input-buffer", "qlo",
-                                   "const int8_t *", "q8-low",
-                                   runtimeABIType);
-  auto qhi = createRuntimeABIValue(builder, loc, "rhs-secondary-input-buffer", "qhi",
-                                   "const int8_t *", "q8-high",
-                                   runtimeABIType);
-  auto acc = createRuntimeABIValue(builder, loc, "accumulator-input-buffer",
-                                   "acc", "const int32_t *", "acc",
-                                   runtimeABIType);
-  auto out = createRuntimeABIValue(builder, loc, "output-buffer", "out",
-                                   "int32_t *", "out", runtimeABIType);
-  auto n = createRuntimeABIValue(builder, loc, "runtime-element-count", "n",
-                                 "size_t", "n", builder.getIndexType());
-  weftrvv::SetVLOp setvl = createSetVL(
-      builder, loc, n.getResult(), kReductionStripSEW, kReductionStripLMUL,
-      policy);
-  weftrvv::WithVLOp withVL = createWithVL(
-      builder, loc, setvl.getVl(), kReductionStripSEW, kReductionStripLMUL,
-      policy);
-  mlir::OpBuilder::InsertionGuard guard(builder);
-  builder.setInsertionPointToStart(&withVL.getBody().front());
-  mlir::Type ui8VecType = weftrvv::VectorType::get(
-      builder.getContext(), builder.getIntegerType(8, /*isSigned=*/false),
-      loadLMUL);
-  mlir::Type i8VecType = weftrvv::VectorType::get(
-      builder.getContext(), builder.getI8Type(), loadLMUL);
-  mlir::Type i16VecType = weftrvv::VectorType::get(
-      builder.getContext(), builder.getI16Type(), productLMUL);
-  mlir::Type i32VecType = weftrvv::VectorType::get(
-      builder.getContext(), builder.getI32Type(), kReductionLMUL);
-  mlir::Value table = createCodebookTableBroadcast(
-      builder, loc, problem.getCodebook(), problem.getTableSymbol(), i8VecType);
-  mlir::Value loadedWeight = createRVVLoad(
-      builder, loc, weight.getResult(), setvl.getVl(), ui8VecType);
-  mlir::Value loadedQLow = createRVVLoad(
-      builder, loc, qlo.getResult(), setvl.getVl(), i8VecType);
-  mlir::Value loadedQHigh = createRVVLoad(
-      builder, loc, qhi.getResult(), setvl.getVl(), i8VecType);
-  mlir::Value product = createCodebookGatherProduct(
-      builder, loc, loadedWeight, loadedQLow, loadedQHigh, table,
-      setvl.getVl(), i16VecType);
-  mlir::Value reduced = createStandaloneReduce(
-      builder, loc, product, acc.getResult(), setvl.getVl(), i32VecType);
-  createRVVStore(builder, loc, out.getResult(), reduced, setvl.getVl());
-  return llvm::Error::success();
-}
 
 std::unique_ptr<::mlir::Pass>
 createMaterializeRVVCodebookDotSourceFrontDoorPass(

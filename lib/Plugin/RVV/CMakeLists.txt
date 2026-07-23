@@ -7,7 +7,6 @@ add_mlir_library(WeftRVVPlugin
   # 零 #include 破坏(头留 include/·无同目录裸头)·单 target 子路径·behavior-preserving.
   # ⚠ 裁定:RVVLowerQuantContraction→FrontDoor(lowering pass·避 1-file 桶)·RVVProbedCapabilityAxes→Schedule(命名族).
   RVVExtensionPlugin.cpp
-  Construction/RVVCanonicalProblemConstruction.cpp
 
   FrontDoor/RVVVectorSourceFrontDoor.cpp
   FrontDoor/RVVReductionSourceFrontDoor.cpp

@@ -37,10 +37,7 @@
 #include "Weft/Dialect/RVV/IR/RVVDialect.h"
 #include "Weft/Plugin/ExtensionPlugin.h"
 #include "Weft/Plugin/RVV/RVVCapabilityProfile.h"
-#include "Weft/Plugin/RVV/RVVCanonicalProblemConstruction.h"
 #include "Weft/Plugin/RVV/RVVExtensionPlugin.h"
-#include "Weft/Plugin/RVV/RVVGearboxSchedule.h"
-#include "Weft/Plugin/RVV/RVVSourceScheduleFormula.h"
 #include "Weft/Target/RVV/RVVTargetProfileBinding.h"
 
 #include "mlir/Dialect/Arith/IR/Arith.h"
@@ -309,100 +306,6 @@ mlir::FlatSymbolRefAttr symbolRef(mlir::OpBuilder &builder,
   return mlir::FlatSymbolRefAttr::get(builder.getContext(), symbol);
 }
 
-weftrvv::RuntimeABIValueOp
-createRuntimeABIValue(mlir::OpBuilder &builder, mlir::Location loc,
-                      llvm::StringRef role, llvm::StringRef cName,
-                      llvm::StringRef cType, llvm::StringRef purpose,
-                      mlir::Type resultType) {
-  mlir::OperationState state(loc,
-                             weftrvv::RuntimeABIValueOp::getOperationName());
-  state.addAttribute("role", builder.getStringAttr(role));
-  state.addAttribute("c_name", builder.getStringAttr(cName));
-  state.addAttribute("c_type", builder.getStringAttr(cType));
-  state.addAttribute("ownership",
-                     builder.getStringAttr("target-export-abi-owned"));
-  state.addAttribute("purpose", builder.getStringAttr(purpose));
-  state.addTypes(resultType);
-  return llvm::cast<weftrvv::RuntimeABIValueOp>(builder.create(state));
-}
-
-// The strip setvl/with_vl carries the integer-core ANCHOR config (SEW + LMUL):
-// the generic first-slice scaffold uses SEW32/m1; the byte-anchor dot-reduce
-// (bar A) uses SEW8/m{1,2}. The emitter synthesizes the strip vsetvl from this
-// config, and the reduce names vwredsum off its own i16 source type.
-weftrvv::SetVLOp createSetVL(mlir::OpBuilder &builder, mlir::Location loc,
-                             mlir::Value n, std::int64_t sew,
-                             llvm::StringRef lmul, weftrvv::PolicyAttr policy) {
-  mlir::OperationState state(loc, weftrvv::SetVLOp::getOperationName());
-  state.addOperands(n);
-  state.addAttribute("sew", builder.getI64IntegerAttr(sew));
-  state.addAttribute("lmul", builder.getStringAttr(lmul));
-  state.addAttribute("policy", policy);
-  state.addTypes(weftrvv::VLType::get(builder.getContext()));
-  return llvm::cast<weftrvv::SetVLOp>(builder.create(state));
-}
-
-weftrvv::WithVLOp createWithVL(mlir::OpBuilder &builder, mlir::Location loc,
-                               mlir::Value vl, std::int64_t sew,
-                               llvm::StringRef lmul,
-                               weftrvv::PolicyAttr policy) {
-  mlir::OperationState state(loc, weftrvv::WithVLOp::getOperationName());
-  state.addOperands(vl);
-  state.addAttribute("sew", builder.getI64IntegerAttr(sew));
-  state.addAttribute("lmul", builder.getStringAttr(lmul));
-  state.addAttribute("policy", policy);
-  state.addRegion();
-  auto withVL = llvm::cast<weftrvv::WithVLOp>(builder.create(state));
-  withVL.getBody().emplaceBlock();
-  return withVL;
-}
-
-mlir::Value createRVVLoad(mlir::OpBuilder &builder, mlir::Location loc,
-                          mlir::Value buffer, mlir::Value vl,
-                          mlir::Type vectorType) {
-  mlir::OperationState state(loc, weftrvv::LoadOp::getOperationName());
-  state.addOperands({buffer, vl});
-  state.addTypes(vectorType);
-  return builder.create(state)->getResult(0);
-}
-
-mlir::Value createWideningProduct(mlir::OpBuilder &builder, mlir::Location loc,
-                                  mlir::Value lhs, mlir::Value rhs,
-                                  mlir::Value vl, mlir::Type productType,
-                                  llvm::StringRef productRelation) {
-  mlir::OperationState state(loc, weftrvv::WideningProductOp::getOperationName());
-  state.addOperands({lhs, rhs, vl});
-  state.addAttribute("kind", builder.getStringAttr("signed_widening_product"));
-  state.addAttribute("product_relation", builder.getStringAttr(productRelation));
-  state.addTypes(productType);
-  return builder.create(state)->getResult(0);
-}
-
-mlir::Value createStandaloneReduce(mlir::OpBuilder &builder, mlir::Location loc,
-                                   mlir::Value input, mlir::Value accumulatorSeed,
-                                   mlir::Value vl, mlir::Type resultType) {
-  mlir::OperationState state(loc,
-                             weftrvv::StandaloneReduceOp::getOperationName());
-  state.addOperands({input, accumulatorSeed, vl});
-  state.addAttribute("kind",
-                     builder.getStringAttr("signed_widening_reduce_add"));
-  state.addAttribute(
-      "accumulator_layout",
-      builder.getStringAttr("scalar-i32-seed-lane0-from-accumulator-input"));
-  state.addAttribute(
-      "result_layout",
-      builder.getStringAttr("store-standalone-reduction-lane0-to-output-scalar"));
-  state.addTypes(resultType);
-  return builder.create(state)->getResult(0);
-}
-
-void createRVVStore(mlir::OpBuilder &builder, mlir::Location loc,
-                    mlir::Value buffer, mlir::Value value, mlir::Value vl) {
-  mlir::OperationState state(loc, weftrvv::StoreOp::getOperationName());
-  state.addOperands({buffer, value, vl});
-  (void)builder.create(state);
-}
-
 mlir::LogicalResult materializeCanonicalProblem(
     mlir::OpBuilder &builder, llvm::StringRef kernelName,
     WideningDotReduceSourceMatch source, llvm::StringRef march,
@@ -569,90 +472,6 @@ private:
 };
 
 } // namespace
-
-llvm::Error constructRVVReductionProblemBody(
-    weftexec::VariantOp variant,
-    weftexec::I8WideningDotReduceProblemOp problem,
-    const RVVSelectedTargetCapabilityFacts &capability) {
-  if (problem.getDequantizeToF32())
-    return llvm::createStringError(
-        llvm::inconvertibleErrorCode(),
-        "bare RVV reduction constructor received a dequantizing problem");
-  if (!capability.minimumVLEN || !capability.vectorRegisterCount)
-    return llvm::createStringError(
-        llvm::inconvertibleErrorCode(),
-        "RVV reduction formula requires minimum_vlen and vreg_count in c_o");
-  llvm::Expected<RVVSourceSchedulePlan> schedule =
-      constructRVVSourceScheduleFormula(
-          {RVVSourceScheduleMechanism::EffectiveWidthInvariant,
-           /*sew=*/8, static_cast<std::int64_t>(problem.getBlockLength()),
-           {"m1", "m2"}},
-          {*capability.minimumVLEN, *capability.vectorRegisterCount},
-          RVVSourceScheduleNoStaticContext{});
-  if (!schedule)
-    return schedule.takeError();
-  llvm::StringRef loadLMUL = schedule->integerCoreLMUL;
-  llvm::StringRef productLMUL = getRVVNextWiderLMUL(loadLMUL);
-  if (productLMUL.empty())
-    return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                   "RVV reduction has no wider product LMUL");
-  if (variant.getBody().empty() || !variant.getBody().front().empty())
-    return llvm::createStringError(
-        llvm::inconvertibleErrorCode(),
-        "RVV reduction construction requires an empty selected candidate");
-  auto policy = variant->getAttrOfType<weftrvv::PolicyAttr>("weft_rvv.policy");
-  if (!policy)
-    return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                   "RVV reduction candidate lacks typed policy");
-
-  mlir::OpBuilder builder(variant.getContext());
-  builder.setInsertionPointToStart(&variant.getBody().front());
-  mlir::Location loc = problem.getLoc();
-  mlir::Type runtimeABIType =
-      weftrvv::RuntimeABIValueType::get(builder.getContext());
-  auto lhs = createRuntimeABIValue(builder, loc, "lhs-input-buffer", "lhs",
-                                   "const int8_t *",
-                                   "widening-dot-reduce:lhs", runtimeABIType);
-  auto rhs = createRuntimeABIValue(builder, loc, "rhs-input-buffer", "rhs",
-                                   "const int8_t *",
-                                   "widening-dot-reduce:rhs", runtimeABIType);
-  auto acc = createRuntimeABIValue(builder, loc, "accumulator-input-buffer",
-                                   "acc", "const int32_t *",
-                                   "widening-dot-reduce:acc", runtimeABIType);
-  auto out = createRuntimeABIValue(builder, loc, "output-buffer", "out",
-                                   "int32_t *", "widening-dot-reduce:out",
-                                   runtimeABIType);
-  auto n = createRuntimeABIValue(builder, loc, "runtime-element-count", "n",
-                                 "size_t", "widening-dot-reduce:n",
-                                 builder.getIndexType());
-  weftrvv::SetVLOp setvl =
-      createSetVL(builder, loc, n.getResult(), 8, loadLMUL, policy);
-  weftrvv::WithVLOp withVL =
-      createWithVL(builder, loc, setvl.getVl(), 8, loadLMUL, policy);
-  mlir::OpBuilder::InsertionGuard guard(builder);
-  builder.setInsertionPointToStart(&withVL.getBody().front());
-  mlir::Type i8VecType = weftrvv::VectorType::get(
-      builder.getContext(), builder.getI8Type(), loadLMUL);
-  mlir::Type i16VecType = weftrvv::VectorType::get(
-      builder.getContext(), builder.getI16Type(), productLMUL);
-  mlir::Type i32VecType = weftrvv::VectorType::get(
-      builder.getContext(), builder.getI32Type(), "m1");
-  std::string productRelation =
-      (llvm::Twine("signed-i8") + loadLMUL + "xi8" + loadLMUL + "-to-i16" +
-       productLMUL)
-          .str();
-  mlir::Value loadedLHS =
-      createRVVLoad(builder, loc, lhs.getResult(), setvl.getVl(), i8VecType);
-  mlir::Value loadedRHS =
-      createRVVLoad(builder, loc, rhs.getResult(), setvl.getVl(), i8VecType);
-  mlir::Value product = createWideningProduct(
-      builder, loc, loadedLHS, loadedRHS, setvl.getVl(), i16VecType,
-      productRelation);
-  mlir::Value reduced = createStandaloneReduce(
-      builder, loc, product, acc.getResult(), setvl.getVl(), i32VecType);
-  createRVVStore(builder, loc, out.getResult(), reduced, setvl.getVl());
-  return llvm::Error::success();
-}
 
 std::unique_ptr<::mlir::Pass>
 createMaterializeRVVReductionSourceFrontDoorPass(
