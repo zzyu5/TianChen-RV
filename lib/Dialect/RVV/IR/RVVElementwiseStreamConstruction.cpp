@@ -1,8 +1,8 @@
 //===- RVVElementwiseStreamConstruction.cpp -----------------------------===//
 //
-// The ONE byte-exact construction of the streaming forward-elementwise FRONT-DOOR
-// typed region, shared by the pre-emitc RVVElementwiseStreamFrontDoor pass (and any
-// future in-emitc fallback). See the header for the MAP/REDUCE/ROTATE shape split;
+// The ONE byte-exact construction of the streaming forward-elementwise typed
+// region. The bound RVV formula lifecycle calls it before artifact lowering. See
+// the header for the MAP/REDUCE/ROTATE shape split;
 // the region SHAPE and the downstream emit arithmetic
 // (emitTypedElementwiseLoopBody) are identical to the hand-authored typed region,
 // so the emitted C is byte-identical. Numerical semantics: zero change.

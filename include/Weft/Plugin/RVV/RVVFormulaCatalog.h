@@ -21,10 +21,16 @@ inline constexpr llvm::StringLiteral kDequantDotSourceConstruction(
     "weft.rvv.dequant-dot-source.construct");
 inline constexpr llvm::StringLiteral kDequantizeRowConstruction(
     "weft.rvv.dequantize-row.construct");
+inline constexpr llvm::StringLiteral kDequantizeRowConstructionEntry(
+    "construction:rvv-dequantize-row-body");
 inline constexpr llvm::StringLiteral kQuantizeRowConstruction(
     "weft.rvv.quantize-row.construct");
+inline constexpr llvm::StringLiteral kQuantizeRowConstructionEntry(
+    "construction:rvv-quantize-row-body");
 inline constexpr llvm::StringLiteral kElementwiseConstruction(
     "weft.rvv.elementwise.construct");
+inline constexpr llvm::StringLiteral kElementwiseConstructionEntry(
+    "construction:rvv-elementwise-body");
 inline constexpr llvm::StringLiteral kPackedI4DotConstruction(
     "weft.rvv.packed-i4-dot.construct");
 inline constexpr llvm::StringLiteral kCodebookDotConstruction(
@@ -74,12 +80,6 @@ inline constexpr llvm::StringLiteral kReductionSourceEntry(
     "weft-rvv-materialize-widening-dot-reduce-source-front-door");
 inline constexpr llvm::StringLiteral kDequantDotSourceEntry(
     "weft-rvv-materialize-widening-dot-reduce-dequantize-source-front-door");
-inline constexpr llvm::StringLiteral kDequantizeRowSourceEntry(
-    "weft-rvv-materialize-dequantize-row-stream-front-door");
-inline constexpr llvm::StringLiteral kQuantizeRowSourceEntry(
-    "weft-rvv-materialize-quantize-row-stream-front-door");
-inline constexpr llvm::StringLiteral kElementwiseSourceEntry(
-    "weft-rvv-materialize-forward-elementwise-stream-front-door");
 inline constexpr llvm::StringLiteral kPackedI4DotSourceEntry(
     "weft-rvv-materialize-packed-i4-offset-binary-dot-source-front-door");
 inline constexpr llvm::StringLiteral kCodebookDotSourceEntry(

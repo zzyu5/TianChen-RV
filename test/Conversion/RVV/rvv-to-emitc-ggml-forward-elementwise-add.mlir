@@ -1,17 +1,8 @@
-// RUN: weft-opt %s --weft-rvv-materialize-forward-elementwise-stream-front-door | FileCheck %s --check-prefix=REALIZE
-// RUN: weft-opt %s --weft-rvv-materialize-forward-elementwise-stream-front-door --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=EMIT
+// RUN: weft-opt %s --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=EMIT
 
-// CERT-FD forward殿后族 (support widening) -- the abstract source op
-// weft_rvv.ggml_forward_elementwise (elementwise_model = "add") as the
-// CONSTRUCT-FROM-ABSTRACT proof of the forward-elementwise FRONT DOOR for the
-// BINARY (two-input) support op ggml_vec_add_f32 (z[i] = x[i] + y[i]). The pre-emitc
-// pass CONSTRUCTS the typed weft_rvv.typed_elementwise_loop_body region
-// { elementwise_binary_map binary_op "add"; yield } and STOPS before
-// --weft-rvv-lower-to-emitc, so the certification walker (e5_strong_readout.py) walks
-// the REALIZED region. The emit half re-emits the SHARED byte-exact m8 strip
-// (vsetvl_e32m8 / two vle32 / vfadd_vv / vse32), byte-identical to the dispatch-wired
-// support-op emit (rvv-to-emitc-ggml-vec-add-f32.mlir) modulo the source-op
-// provenance token (weft_rvv.vec_add_f32 -> weft_rvv.elementwise_binary_map).
+// The bound RVV formula lifecycle constructs the typed elementwise body before
+// artifact lowering. The emitter mechanically consumes that body; this test starts
+// from the family-local abstract op and checks the complete production path.
 
 module {
   weft.exec.kernel @vec_add_f32_kernel {
@@ -29,10 +20,6 @@ module {
   }
 }
 
-// REALIZE: weft_rvv.typed_elementwise_loop_body
-// REALIZE: weft_rvv.elementwise_binary_map
-// REALIZE: weft_rvv.typed_elementwise_loop_yield
-// REALIZE-NOT: weft_rvv.ggml_forward_elementwise
 
 // EMIT: emitc.func @weft_emitc_vec_add_f32_kernel_vec_add_f32(
 // EMIT: route_source_op=weft_rvv.elementwise_binary_map

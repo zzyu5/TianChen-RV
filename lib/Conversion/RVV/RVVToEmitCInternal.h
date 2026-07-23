@@ -4537,7 +4537,7 @@ private:
 
   /// True iff `scope`'s body is exactly ONE weft_rvv.typed_quantize_row_loop_body
   /// (the PRE-EMITC FRONT-DOOR CONSTRUCTED streaming quantize_row region, from the
-  /// RVVQuantizeRowStreamFrontDoor pass -- the abstract quantize_row_q8_{0,1,K} is
+  /// bound RVV formula construction -- the abstract quantize_row_q8_{0,1,K} is
   /// already rewritten away). Mirrors isTypedDequantizeRowLoopBody; the recognizer
   /// for the pre-constructed quant path so the emit dispatches to
   /// emitTypedQuantizeRowLoopBody (byte-exact to the in-emitc construct+emit path).

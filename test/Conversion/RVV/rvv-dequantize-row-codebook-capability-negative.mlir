@@ -18,7 +18,6 @@
 // RUN: sed 's/rvv_version = "1.0"/required_mask_policy = "", rvv_version = "1.0"/' %s | not weft-opt --weft-rvv-lower-to-emitc 2>&1 | FileCheck %s --check-prefix=EMPTY-MASK-POLICY
 // RUN: sed 's/rvv_version = "1.0"/required_mask_policy = 0 : i64, rvv_version = "1.0"/' %s | not weft-opt --weft-rvv-lower-to-emitc 2>&1 | FileCheck %s --check-prefix=TYPED-MASK-POLICY
 // RUN: sed 's/rvv_version = "1.0"/required_mask_policy = "sideways", rvv_version = "1.0"/' %s | not weft-opt --weft-rvv-lower-to-emitc 2>&1 | FileCheck %s --check-prefix=UNKNOWN-MASK-POLICY
-// RUN: weft-opt %s --weft-rvv-materialize-dequantize-row-stream-front-door | sed '0,/decode_model = "mxfp4"/s//decode_model = "nvfp4"/' | not weft-opt --weft-rvv-lower-to-emitc 2>&1 | FileCheck %s --check-prefix=PARENT-CORE
 // RUN: sed 's/, minimum_vlen = 128 : i64//' %s | not weft-opt --weft-materialize-emitc-lowerable-routes 2>&1 | FileCheck %s --check-prefix=REGISTRY-REJECT
 
 // The typed capability/formula boundary is fail-closed. These are real conversion
@@ -59,5 +58,4 @@ module {
 // EMPTY-MASK-POLICY: property 'required_mask_policy' must be absent rather than an explicitly empty allow-list/fact
 // TYPED-MASK-POLICY: property 'required_mask_policy' must be a typed string attribute
 // UNKNOWN-MASK-POLICY: property 'required_mask_policy' has unknown policy token 'sideways'
-// PARENT-CORE: requires parent/core decode_model construction coherence; parent carries 'nvfp4' while the core carries 'mxfp4'
 // REGISTRY-REJECT: RVV dequantize-row formula rejected construction: selected RVV provider @rvv is missing typed minimum_vlen

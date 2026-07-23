@@ -11,9 +11,6 @@
 #include "Weft/Plugin/RVV/RVVFormulaConstruction.h"
 #include "Weft/Plugin/RVV/RVVMonolithicBlockDotFamily.h"
 #include "Weft/Plugin/RVV/RVVDequantDotSourceFrontDoor.h"
-#include "Weft/Plugin/RVV/RVVDequantizeRowStreamFrontDoor.h"
-#include "Weft/Plugin/RVV/RVVElementwiseStreamFrontDoor.h"
-#include "Weft/Plugin/RVV/RVVQuantizeRowStreamFrontDoor.h"
 #include "Weft/Plugin/RVV/RVVQuantizeFormula.h"
 #include "Weft/Plugin/RVV/RVVCodebookDotSourceFrontDoor.h"
 #include "Weft/Plugin/RVV/RVVCompositeGatherMAccScatterFormula.h"
@@ -328,16 +325,16 @@ void RVVExtensionPlugin::collectFormulaDescriptors(
   addRVVVectorSourceFormulaProductionEntries(vector);
   out.push_back(std::move(vector));
 
-  auto addSingleSource = [&](llvm::StringRef id, llvm::StringRef domain,
-                             FormulaResultKind resultKind,
-                             llvm::StringRef gType,
-                             std::initializer_list<llvm::StringRef> gFields,
-                             FormulaAxisUse capabilityUse,
-                             llvm::StringRef cType,
-                             std::initializer_list<llvm::StringRef> cFields,
-                             llvm::StringRef semanticCase,
-                             llvm::StringRef productionEntry,
-                             FormulaConstructionStrength strength) {
+  auto addSingleFormula = [&](llvm::StringRef id, llvm::StringRef domain,
+                              FormulaResultKind resultKind,
+                              llvm::StringRef gType,
+                              std::initializer_list<llvm::StringRef> gFields,
+                              FormulaAxisUse capabilityUse,
+                              llvm::StringRef cType,
+                              std::initializer_list<llvm::StringRef> cFields,
+                              llvm::StringRef semanticCase,
+                              llvm::StringRef productionEntry,
+                              FormulaConstructionStrength strength) {
     FormulaDescriptor descriptor = makeDescriptor(
         id, domain, resultKind, strength, gType, gFields,
         capabilityUse, cType, cFields, FormulaAxisUse::HonestNull,
@@ -348,14 +345,14 @@ void RVVExtensionPlugin::collectFormulaDescriptors(
     out.push_back(std::move(descriptor));
   };
 
-  addSingleSource(formula::kReductionSourceConstruction,
+  addSingleFormula(formula::kReductionSourceConstruction,
                   "operator/reduction", FormulaResultKind::CanonicalProblem,
                   "RVVReductionGeometryFacts",
                   {"element-type", "reduction-kind", "shape"},
                   FormulaAxisUse::HonestNull, "RVVSourceProblemNoCapability", {},
                   "widening-dot-reduce", formula::kReductionSourceEntry,
                   FormulaConstructionStrength::ConstructedWeak);
-  addSingleSource(formula::kDequantDotSourceConstruction,
+  addSingleFormula(formula::kDequantDotSourceConstruction,
                   "operator/dequant-dot", FormulaResultKind::CanonicalProblem,
                   "RVVDequantDotGeometryFacts",
                   {"scale-kind", "element-type", "shape"},
@@ -363,7 +360,7 @@ void RVVExtensionPlugin::collectFormulaDescriptors(
                   "widening-dot-reduce-with-scale",
                   formula::kDequantDotSourceEntry,
                   FormulaConstructionStrength::ConstructedWeak);
-  addSingleSource(formula::kDequantizeRowConstruction,
+  addSingleFormula(formula::kDequantizeRowConstruction,
                   "operator/dequantize-row", FormulaResultKind::TypedPlan,
                   "DequantizeRowStreamFacts",
                   {"format", "qk", "layout", "decode-mechanism"},
@@ -371,7 +368,7 @@ void RVVExtensionPlugin::collectFormulaDescriptors(
                   "OptionalCodebookGatherCapabilityFacts",
                   {"minimum-vlen", "supported-sew", "supported-lmul"},
                   "typed-streaming-dequantize-row",
-                  formula::kDequantizeRowSourceEntry,
+                  formula::kDequantizeRowConstructionEntry,
                   FormulaConstructionStrength::ConstructedWeak);
   FormulaDescriptor quantize = makeDescriptor(
       formula::kQuantizeRowConstruction, "operator/quantize-row",
@@ -384,17 +381,18 @@ void RVVExtensionPlugin::collectFormulaDescriptors(
   quantize.addSemanticCase("q8-1");
   quantize.addSemanticCase("q8-k");
   quantize.addSemanticCase("unsupported-or-illegal");
-  quantize.addProductionEntry(formula::kQuantizeRowSourceEntry);
+  quantize.addProductionEntry(formula::kQuantizeRowConstructionEntry);
   out.push_back(std::move(quantize));
-  addSingleSource(formula::kElementwiseConstruction,
+  addSingleFormula(formula::kElementwiseConstruction,
                   "operator/elementwise", FormulaResultKind::TypedPlan,
-                  "ElementwiseStreamFacts",
+                  "ForwardElementwiseFacts",
                   {"operation", "shape", "element-type"},
                   FormulaAxisUse::HonestNull,
                   "ElementwiseNoCapabilityInput", {},
-                  "typed-streaming-elementwise", formula::kElementwiseSourceEntry,
+                  "typed-streaming-elementwise",
+                  formula::kElementwiseConstructionEntry,
                   FormulaConstructionStrength::ConstructedWeak);
-  addSingleSource(formula::kPackedI4DotConstruction,
+  addSingleFormula(formula::kPackedI4DotConstruction,
                   "operator/packed-i4-dot", FormulaResultKind::CanonicalProblem,
                   "PackedI4DotGeometryFacts",
                   {"qk", "carrier", "offset-binary-bias"},
@@ -402,7 +400,7 @@ void RVVExtensionPlugin::collectFormulaDescriptors(
                   "packed-i4-offset-binary-dot",
                   formula::kPackedI4DotSourceEntry,
                   FormulaConstructionStrength::ConstructedWeak);
-  addSingleSource(formula::kCodebookDotConstruction,
+  addSingleFormula(formula::kCodebookDotConstruction,
                   "operator/codebook-dot", FormulaResultKind::CanonicalProblem,
                   "CodebookDotGeometryFacts",
                   {"qk", "codebook-entries", "layout"},
@@ -695,15 +693,6 @@ llvm::Error RVVExtensionPlugin::registerSourceFrontDoorPasses(
           kRVVPluginName, registry, out))
     return error;
   if (llvm::Error error = rvv::registerRVVDequantDotSourceFrontDoorPasses(
-          kRVVPluginName, registry, out))
-    return error;
-  if (llvm::Error error = rvv::registerRVVDequantizeRowStreamFrontDoorPasses(
-          kRVVPluginName, registry, out))
-    return error;
-  if (llvm::Error error = rvv::registerRVVQuantizeRowStreamFrontDoorPasses(
-          kRVVPluginName, registry, out))
-    return error;
-  if (llvm::Error error = rvv::registerRVVElementwiseStreamFrontDoorPasses(
           kRVVPluginName, registry, out))
     return error;
   if (llvm::Error error = rvv::registerRVVPackedI4DotSourceFrontDoorPasses(

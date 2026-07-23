@@ -11,9 +11,6 @@ add_mlir_library(WeftRVVPlugin
   FrontDoor/RVVVectorSourceFrontDoor.cpp
   FrontDoor/RVVReductionSourceFrontDoor.cpp
   FrontDoor/RVVDequantDotSourceFrontDoor.cpp
-  FrontDoor/RVVDequantizeRowStreamFrontDoor.cpp
-  FrontDoor/RVVQuantizeRowStreamFrontDoor.cpp
-  FrontDoor/RVVElementwiseStreamFrontDoor.cpp
   FrontDoor/RVVPackedI4DotSourceFrontDoor.cpp
   FrontDoor/RVVCodebookDotSourceFrontDoor.cpp
   FrontDoor/RVVMonolithicBlockDotSourceFrontDoor.cpp

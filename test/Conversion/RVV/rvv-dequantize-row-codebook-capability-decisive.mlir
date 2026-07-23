@@ -2,7 +2,6 @@
 // RUN: sed 's/minimum_vlen = 128 : i64/minimum_vlen = 256 : i64/' %s | weft-opt --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=V256 --implicit-check-not=__riscv_vle8_v_i8m1 --implicit-check-not=__riscv_vsext_vf4_i32m4 --implicit-check-not=__riscv_vfcvt_f_x_v_f32m4 --implicit-check-not=__riscv_vle8_v_i8m2 --implicit-check-not=__riscv_vsext_vf4_i32m8 --implicit-check-not=__riscv_vfcvt_f_x_v_f32m8
 // RUN: weft-opt %s --weft-materialize-emitc-lowerable-routes | FileCheck %s --check-prefix=REG128 --implicit-check-not=__riscv_vle8_v_i8mf2 --implicit-check-not=__riscv_vsext_vf4_i32m2 --implicit-check-not=__riscv_vfcvt_f_x_v_f32m2 --implicit-check-not=__riscv_vle8_v_i8m2 --implicit-check-not=__riscv_vsext_vf4_i32m8 --implicit-check-not=__riscv_vfcvt_f_x_v_f32m8
 // RUN: sed 's/minimum_vlen = 128 : i64/minimum_vlen = 256 : i64/' %s | weft-opt --weft-materialize-emitc-lowerable-routes | FileCheck %s --check-prefix=REG256 --implicit-check-not=__riscv_vle8_v_i8m1 --implicit-check-not=__riscv_vsext_vf4_i32m4 --implicit-check-not=__riscv_vfcvt_f_x_v_f32m4 --implicit-check-not=__riscv_vle8_v_i8m2 --implicit-check-not=__riscv_vsext_vf4_i32m8 --implicit-check-not=__riscv_vfcvt_f_x_v_f32m8
-// RUN: weft-opt %s --weft-rvv-materialize-dequantize-row-stream-front-door | FileCheck %s --check-prefix=PRE
 // RUN: sed -e 's/, supported_lmul = "mf8,mf4,mf2,m1,m2,m4,m8"//' -e 's/, supported_sew = "8,16,32,64"//' %s | weft-opt --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=BASE128 --implicit-check-not=__riscv_vle8_v_i8mf2 --implicit-check-not=__riscv_vsext_vf4_i32m2 --implicit-check-not=__riscv_vfcvt_f_x_v_f32m2 --implicit-check-not=__riscv_vle8_v_i8m2 --implicit-check-not=__riscv_vsext_vf4_i32m8 --implicit-check-not=__riscv_vfcvt_f_x_v_f32m8
 // RUN: sed -e 's/minimum_vlen = 128 : i64/minimum_vlen = 256 : i64/' -e 's/, rvv_version = "1.0"//' -e 's/, supported_lmul = "mf8,mf4,mf2,m1,m2,m4,m8"//' %s | weft-opt --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=BASE256 --implicit-check-not=__riscv_vle8_v_i8mf2 --implicit-check-not=__riscv_vsext_vf4_i32m2 --implicit-check-not=__riscv_vfcvt_f_x_v_f32m2 --implicit-check-not=__riscv_vle8_v_i8m2 --implicit-check-not=__riscv_vsext_vf4_i32m8 --implicit-check-not=__riscv_vfcvt_f_x_v_f32m8
 // RUN: sed -e 's/@rvv/@zve32f/g' -e 's/id = "rvv", kind = "isa-vector", status = "available", minimum_vlen = 128 : i64/id = "rvv.profile.zve32f-vlen64", kind = "profile", status = "available", relations = #weft.capability_relations<provides = ["rvv"]>, minimum_vlen = 64 : i64/' -e 's/supported_sew = "8,16,32,64"/supported_sew = "8,16,32"/' %s | weft-opt --weft-rvv-lower-to-emitc | FileCheck %s --check-prefix=M2 --implicit-check-not=__riscv_vle8_v_i8m1 --implicit-check-not=__riscv_vle8_v_i8mf2 --implicit-check-not=__riscv_vsext_vf4_i32m4 --implicit-check-not=__riscv_vsext_vf4_i32m2 --implicit-check-not=__riscv_vfcvt_f_x_v_f32m4 --implicit-check-not=__riscv_vfcvt_f_x_v_f32m2
@@ -75,13 +74,3 @@ module {
 // BASE128: call_opaque "__riscv_vsext_vf4_i32m4"
 // BASE256: call_opaque "__riscv_vle8_v_i8m1"
 // BASE256: call_opaque "__riscv_vsext_vf4_i32m4"
-
-// The explicit construction front door produces the same final formula body as
-// the mandatory lowering path.
-// PRE: weft_rvv.dequantize_row_decode_core
-// PRE-SAME: codebook_gather_entries = 16 : i64
-// PRE-SAME: codebook_gather_table = "fp4-e2m1"
-// PRE-SAME: codebook_scale_model = "e8m0-shared-exp"
-// PRE-SAME: dequant_load_lmul = "m1"
-// PRE-SAME: dequant_mechanism = "codebook-gather"
-// PRE-SAME: dequant_strip_lanes = 16 : i64

@@ -5,18 +5,10 @@
 // weft_rvv.typed_dequantize_row_loop_body region
 //   { dequantize_row_decode_core; typed_dequantize_row_loop_yield }.
 //
-// Two pre-emission callers share this ONE construction:
-//
-//   1. lib/Plugin/RVV/RVVDequantizeRowStreamFrontDoor.cpp -- the PRE-EMITC front
-//      door pass. It constructs the region and STOPS (before
-//      --weft-rvv-lower-to-emitc) so the realized typed region is walkable by the
-//      certification walker (e5_strong_readout.py). NO emit.
-//   2. lib/Plugin/RVV/Construction/RVVFormulaConstruction.cpp -- the plugin
-//      preparation cut. It constructs any remaining abstract row before conversion,
-//      then invokes the mechanism-local formula and materializes its selected plan.
-//
-// Both callers use the same construction authority; the emitter accepts only the
-// resulting typed region and has no abstract-format fallback.
+// lib/Plugin/RVV/Construction/RVVFormulaConstruction.cpp owns the pre-emission
+// lifecycle: it invokes the mechanism-local formula and materializes the selected
+// typed body. The emitter accepts only that result and has no abstract-format
+// fallback.
 //
 //===----------------------------------------------------------------------===//
 

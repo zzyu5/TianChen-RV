@@ -2,6 +2,7 @@
 
 #include "Weft/Dialect/RVV/IR/RVVDequantizeRowConstruction.h"
 #include "Weft/Dialect/RVV/IR/RVVDialect.h"
+#include "Weft/Dialect/RVV/IR/RVVElementwiseStreamConstruction.h"
 #include "Weft/Dialect/RVV/IR/RVVQuantizeRowConstruction.h"
 #include "Weft/Plugin/RVV/RVVDequantFormula.h"
 #include "Weft/Plugin/RVV/RVVFlatBlockDotFormula.h"
@@ -118,6 +119,30 @@ mlir::LogicalResult
 constructRVVDequantizeRowFormulaBodies(mlir::ModuleOp module) {
   return constructRVVDequantizeRowFormulaBodiesInScope(
       module.getOperation(), /*selectedCapabilities=*/nullptr);
+}
+
+static mlir::LogicalResult
+constructRVVElementwiseFormulaBodiesInScope(mlir::Operation *scope) {
+  mlir::IRRewriter rewriter(scope->getContext());
+  llvm::SmallVector<weftrvv::GgmlForwardElementwiseOp, 16> elementwiseOps;
+  scope->walk([&](weftrvv::GgmlForwardElementwiseOp op) {
+    elementwiseOps.push_back(op);
+  });
+
+  for (weftrvv::GgmlForwardElementwiseOp op : elementwiseOps) {
+    std::optional<weftrvv::ForwardElementwiseFacts> facts =
+        weftrvv::lookupForwardElementwiseFacts(op.getElementwiseModel());
+    if (!facts) {
+      op.emitError() << "has no typed elementwise formula for model '"
+                     << op.getElementwiseModel() << "'";
+      return mlir::failure();
+    }
+    if (mlir::failed(
+            weftrvv::constructTypedElementwiseLoopBody(rewriter, op, *facts)))
+      return mlir::failure();
+  }
+
+  return mlir::success();
 }
 
 static mlir::LogicalResult
@@ -510,6 +535,7 @@ mlir::LogicalResult constructRVVFormulaPlansForVariant(
   if (mlir::failed(constructRVVQuantizeRowFormulaBodiesInScope(scope)) ||
       mlir::failed(constructRVVDequantizeRowFormulaBodiesInScope(
           scope, &*selectedCapabilities)) ||
+      mlir::failed(constructRVVElementwiseFormulaBodiesInScope(scope)) ||
       mlir::failed(constructRVVStandaloneDequantSchedules(scope)) ||
       mlir::failed(constructRVVFlatBlockDotPlans(scope)))
     return mlir::failure();

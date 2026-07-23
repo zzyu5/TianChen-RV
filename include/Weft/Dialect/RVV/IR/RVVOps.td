@@ -8516,7 +8516,7 @@ def GgmlForwardElementwiseOp
     nested directly under weft_rvv.with_vl, so the streaming CONSTRUCTION half is a
     first-class PRE-EMITC step (the forward sibling of the abstract
     weft_rvv.dequantize_row / weft_rvv.quantize_row_q8_{0,1,K} source ops). The
-    pre-emitc front door (RVVElementwiseStreamFrontDoor) rewrites it into the typed
+    bound RVV formula lifecycle rewrites it into the typed
     weft_rvv.typed_elementwise_loop_body region carrying the per-op map/reduce/rotate
     CORE brick + the yield, and STOPS -- BEFORE --weft-rvv-lower-to-emitc -- so the
     certification walker (e5_strong_readout.py) can walk (and hence machine-certify)
