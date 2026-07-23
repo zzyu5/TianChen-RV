@@ -773,12 +773,11 @@ realizePreRealizedRVVStandaloneReductionOwner(
     mlir::Location loc = standaloneReduceBody->getLoc();
     builder.setInsertionPoint(standaloneReduceBody.getOperation());
 
-    llvm::Expected<RVVRuntimeAVLVLControlPlan> runtimeControlPlan =
-        deriveRVVRuntimeAVLVLControlPlanForPreRealizedBody(
+    llvm::Expected<RVVBodyRuntimeControl> runtimeControlPlan =
+        deriveRVVBodyRuntimeControl(
             variant, standaloneReduceBody.getN(),
             static_cast<std::int64_t>(standaloneReduceBody.getSew()),
             standaloneReduceBody.getLmul(), standaloneReduceBody.getPolicy(),
-            "lhs,acc,out,n",
             "pre-realized RVV standalone reduction selected-body realization");
     if (!runtimeControlPlan)
       return runtimeControlPlan.takeError();
@@ -826,13 +825,12 @@ realizePreRealizedRVVStandaloneReductionOwner(
     mlir::Location loc = maskedStandaloneReduceBody->getLoc();
     builder.setInsertionPoint(maskedStandaloneReduceBody.getOperation());
 
-    llvm::Expected<RVVRuntimeAVLVLControlPlan> runtimeControlPlan =
-        deriveRVVRuntimeAVLVLControlPlanForPreRealizedBody(
+    llvm::Expected<RVVBodyRuntimeControl> runtimeControlPlan =
+        deriveRVVBodyRuntimeControl(
             variant, maskedStandaloneReduceBody.getN(),
             static_cast<std::int64_t>(maskedStandaloneReduceBody.getSew()),
             maskedStandaloneReduceBody.getLmul(),
             maskedStandaloneReduceBody.getPolicy(),
-            "cmp_lhs,cmp_rhs,src,acc,out,n",
             "pre-realized RVV computed-mask standalone reduction "
             "selected-body realization");
     if (!runtimeControlPlan)
@@ -904,14 +902,13 @@ realizePreRealizedRVVStandaloneReductionOwner(
     builder.setInsertionPoint(
         runtimeScalarMaskedStandaloneReduceBody.getOperation());
 
-    llvm::Expected<RVVRuntimeAVLVLControlPlan> runtimeControlPlan =
-        deriveRVVRuntimeAVLVLControlPlanForPreRealizedBody(
+    llvm::Expected<RVVBodyRuntimeControl> runtimeControlPlan =
+        deriveRVVBodyRuntimeControl(
             variant, runtimeScalarMaskedStandaloneReduceBody.getN(),
             static_cast<std::int64_t>(
                 runtimeScalarMaskedStandaloneReduceBody.getSew()),
             runtimeScalarMaskedStandaloneReduceBody.getLmul(),
             runtimeScalarMaskedStandaloneReduceBody.getPolicy(),
-            "cmp_lhs,rhs_scalar,src,acc,out,n",
             "pre-realized RVV runtime scalar computed-mask standalone "
             "reduction selected-body realization");
     if (!runtimeControlPlan)

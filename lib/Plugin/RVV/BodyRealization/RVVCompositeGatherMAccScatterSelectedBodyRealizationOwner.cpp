@@ -6,6 +6,7 @@
 #include "Weft/Plugin/RVV/RVVEmitCRoutePlanning.h"
 #include "Weft/Plugin/RVV/RVVGearboxSchedule.h"
 #include "Weft/Plugin/RVV/RVVRuntimeAVLVLControl.h"
+#include "Weft/Plugin/RVV/RVVSelectedTargetCapability.h"
 #include "Weft/Support/RuntimeABI.h"
 
 #include "mlir/IR/Builders.h"
@@ -18,13 +19,8 @@ namespace weft::plugin::rvv {
 namespace {
 
 constexpr llvm::StringLiteral kRVVPluginName("rvv-plugin");
-constexpr llvm::StringLiteral kCompositeRuntimeABIOrder(
-    "cmp_lhs,rhs_scalar,gather_src,payload,acc,index,dst,n");
 constexpr llvm::StringLiteral kCompositeContext(
     "Stage2 RVV composite gather-MAcc-scatter selected-body realization owner");
-
-constexpr llvm::StringLiteral kCompositeResourceTypedFactsID(
-    "rvv-composite-gather-macc-scatter-resource-typed-config.v1");
 
 struct CompositeGatherMAccScatterBodies {
   weft::rvv::TypedRuntimeScalarComputedMaskIndexedGatherPreRealizedBodyOp
@@ -579,24 +575,15 @@ llvm::Expected<RVVSelectedTargetCapabilityFacts>
 deriveCompositeTargetCapabilityFacts(
     weft::exec::VariantOp variant,
     const support::TargetCapabilitySet &capabilities,
-    const RVVRuntimeAVLVLControlPlan &runtimeControlPlan) {
-  RVVSelectedBodyTypedConfigFacts typedConfigFacts;
-  typedConfigFacts.factsID = kCompositeResourceTypedFactsID;
-  typedConfigFacts.elementTypeName = "i32";
-  typedConfigFacts.elementBitWidth = runtimeControlPlan.sew;
-  typedConfigFacts.sew = runtimeControlPlan.sew;
-  typedConfigFacts.lmul = runtimeControlPlan.lmul;
-  typedConfigFacts.tailPolicy = runtimeControlPlan.tailPolicy;
-  typedConfigFacts.maskPolicy = runtimeControlPlan.maskPolicy;
-  typedConfigFacts.configContractID = runtimeControlPlan.configContractID;
-
+    const RVVBodyRuntimeControl &runtimeControlPlan) {
   llvm::Expected<RVVSelectedTargetCapabilityFacts> targetFacts =
       collectRVVSelectedTargetCapabilityFacts(variant, capabilities,
                                               kCompositeContext);
   if (!targetFacts)
     return targetFacts.takeError();
-  if (llvm::Error error = verifyRVVSelectedTargetCapabilityForTypedConfig(
-          *targetFacts, typedConfigFacts, kCompositeContext))
+  if (llvm::Error error = verifyRVVSelectedTargetCapabilityForBodyConfig(
+          *targetFacts, runtimeControlPlan.sew, runtimeControlPlan.lmul,
+          runtimeControlPlan.policy, kCompositeContext))
     return std::move(error);
   return targetFacts;
 }
@@ -637,10 +624,10 @@ realizePreRealizedRVVCompositeGatherMAccScatterOwner(
   std::int64_t sew = static_cast<std::int64_t>(bodies->gather.getSew());
   llvm::StringRef lmul = bodies->gather.getLmul();
 
-  llvm::Expected<RVVRuntimeAVLVLControlPlan> runtimeControlPlan =
-      deriveRVVRuntimeAVLVLControlPlanForPreRealizedBody(
-          variant, bodies->gather.getN(), sew, lmul, bodies->gather.getPolicy(),
-          kCompositeRuntimeABIOrder, kCompositeContext);
+  llvm::Expected<RVVBodyRuntimeControl> runtimeControlPlan =
+      deriveRVVBodyRuntimeControl(variant, bodies->gather.getN(), sew, lmul,
+                                  bodies->gather.getPolicy(),
+                                  kCompositeContext);
   if (!runtimeControlPlan)
     return runtimeControlPlan.takeError();
   llvm::Expected<RVVSelectedTargetCapabilityFacts> targetFacts =

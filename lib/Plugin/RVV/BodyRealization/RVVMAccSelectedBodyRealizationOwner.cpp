@@ -142,10 +142,9 @@ createMAccSetVLAndScope(const VariantLoweringBoundaryRequest &request,
   mlir::Value avl = body.getN();
 
   if (scalarBroadcastMAcc) {
-    llvm::Expected<RVVRuntimeAVLVLControlPlan> plan =
-        deriveRVVRuntimeAVLVLControlPlanForPreRealizedBody(
+    llvm::Expected<RVVBodyRuntimeControl> plan =
+        deriveRVVBodyRuntimeControl(
             variant, body.getN(), sew, lmul, policy,
-            "lhs,rhs_scalar,acc,out,n",
             "pre-realized RVV scalar-broadcast macc selected-body "
             "realization");
     if (!plan)

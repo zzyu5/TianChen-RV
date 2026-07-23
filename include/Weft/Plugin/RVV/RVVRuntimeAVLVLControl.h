@@ -16,6 +16,22 @@
 
 namespace weft::plugin::rvv {
 
+/// The construction-time RVV loop control that is still code-affecting after
+/// formula evaluation.  It deliberately contains no EmitC spelling, route id,
+/// metadata mirror, or artifact contract: body realization consumes these
+/// four facts directly to build setvl/with_vl.
+struct RVVBodyRuntimeControl {
+  std::int64_t sew = 0;
+  llvm::StringRef lmul;
+  weft::rvv::PolicyAttr policy;
+  mlir::Value runtimeAVLValue;
+};
+
+llvm::Expected<RVVBodyRuntimeControl> deriveRVVBodyRuntimeControl(
+    weft::exec::VariantOp variant, mlir::Value runtimeAVLValue,
+    std::int64_t sew, llvm::StringRef lmul, weft::rvv::PolicyAttr policy,
+    llvm::StringRef context);
+
 struct RVVRuntimeAVLVLControlPlan {
   std::int64_t sew = 0;
   llvm::StringRef lmul;

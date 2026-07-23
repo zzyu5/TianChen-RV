@@ -145,7 +145,7 @@ template <typename BodyOpT>
 llvm::Expected<std::pair<weft::rvv::SetVLOp, weft::rvv::WithVLOp>>
 createComputedMaskMAccSetVLAndScope(
     const VariantLoweringBoundaryRequest &request, BodyOpT body,
-    llvm::StringRef runtimeABIOrder, llvm::StringRef context) {
+    llvm::StringRef context) {
   weft::exec::VariantOp variant = request.getVariant();
   weft::exec::KernelOp kernel = request.getKernel();
   if (!variant || !kernel)
@@ -156,10 +156,10 @@ createComputedMaskMAccSetVLAndScope(
   mlir::OpBuilder &builder = request.getBuilder();
   mlir::Location loc = body->getLoc();
 
-  llvm::Expected<RVVRuntimeAVLVLControlPlan> runtimeControlPlan =
-      deriveRVVRuntimeAVLVLControlPlanForPreRealizedBody(
+  llvm::Expected<RVVBodyRuntimeControl> runtimeControlPlan =
+      deriveRVVBodyRuntimeControl(
           variant, body.getN(), static_cast<std::int64_t>(body.getSew()),
-          body.getLmul(), body.getPolicy(), runtimeABIOrder, context);
+          body.getLmul(), body.getPolicy(), context);
   if (!runtimeControlPlan)
     return runtimeControlPlan.takeError();
 
@@ -187,7 +187,7 @@ llvm::Expected<weft::rvv::WithVLOp> realizeComputedMaskMAccBody(
 
   llvm::Expected<std::pair<weft::rvv::SetVLOp, weft::rvv::WithVLOp>> scope =
       createComputedMaskMAccSetVLAndScope(
-          request, body, "cmp_lhs,cmp_rhs,lhs,rhs,acc,out,n",
+          request, body,
           "pre-realized RVV computed-mask macc selected-body realization");
   if (!scope)
     return scope.takeError();
@@ -245,7 +245,7 @@ llvm::Expected<weft::rvv::WithVLOp> realizeRuntimeScalarComputedMaskMAccBody(
 
   llvm::Expected<std::pair<weft::rvv::SetVLOp, weft::rvv::WithVLOp>> scope =
       createComputedMaskMAccSetVLAndScope(
-          request, body, "cmp_lhs,rhs_scalar,lhs,rhs,acc,out,n",
+          request, body,
           "pre-realized RVV runtime scalar computed-mask macc selected-body "
           "realization");
   if (!scope)

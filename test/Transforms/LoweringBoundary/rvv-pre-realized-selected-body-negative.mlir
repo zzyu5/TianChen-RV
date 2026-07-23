@@ -522,7 +522,7 @@ module {
 // -----
 
 module {
-  // expected-error@+1 {{requires exactly one runtime-element-count ABI binding in the selected RVV variant}}
+  // expected-error@+1 {{requires exactly one runtime-element-count binding in the selected variant}}
   weft.exec.kernel @pre_realized_scalar_broadcast_reject_duplicate_runtime_n_kernel {
     weft.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
     weft.exec.capability @scalar_fallback {id = "scalar.fallback", kind = "fallback", status = "available"}
@@ -546,7 +546,7 @@ module {
 // -----
 
 module {
-  // expected-error@+1 {{AVL runtime ABI parameter must be named 'n'}}
+  // expected-error@+1 {{AVL parameter must be named 'n'}}
   weft.exec.kernel @pre_realized_standalone_reduce_reject_runtime_n_name_kernel {
     weft.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
     weft.exec.capability @scalar_fallback {id = "scalar.fallback", kind = "fallback", status = "available"}

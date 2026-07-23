@@ -11,6 +11,7 @@
 #define WEFT_PLUGIN_RVV_RVVSELECTEDTARGETCAPABILITY_H
 
 #include "Weft/Dialect/Exec/IR/ExecOps.h"
+#include "Weft/Dialect/RVV/IR/RVVConfigContract.h"
 #include "Weft/Plugin/RVV/RVVCapabilityProfile.h"
 #include "Weft/Support/CapabilityModel.h"
 
@@ -47,6 +48,14 @@ struct RVVSelectedTargetCapabilityFacts {
 
   bool hasFacts() const { return !selectedProviderSymbol.empty(); }
 };
+
+/// Check a formula-produced RVV body configuration against the already bound
+/// family capability.  This is a legality check only: it does not manufacture
+/// a route, a body, or a provider/legality mirror.
+llvm::Error verifyRVVSelectedTargetCapabilityForBodyConfig(
+    const RVVSelectedTargetCapabilityFacts &facts, std::int64_t sew,
+    llvm::StringRef lmul, weft::rvv::PolicyAttr policy,
+    llvm::StringRef context);
 
 inline llvm::Error makeRVVSelectedTargetCapabilityError(llvm::Twine message) {
   return llvm::make_error<llvm::StringError>(

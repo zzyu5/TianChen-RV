@@ -219,10 +219,10 @@ realizePreRealizedRVVRuntimeScalarSplatStoreOwner(
   mlir::OpBuilder::InsertionGuard guard(builder);
   mlir::Location loc = body->getLoc();
   builder.setInsertionPoint(body.getOperation());
-  llvm::Expected<RVVRuntimeAVLVLControlPlan> runtimeControlPlan =
-      deriveRVVRuntimeAVLVLControlPlanForPreRealizedBody(
+  llvm::Expected<RVVBodyRuntimeControl> runtimeControlPlan =
+      deriveRVVBodyRuntimeControl(
           variant, body.getN(), static_cast<std::int64_t>(body.getSew()),
-          body.getLmul(), body.getPolicy(), "rhs_scalar,out,n",
+          body.getLmul(), body.getPolicy(),
           "pre-realized RVV runtime scalar splat-store selected-body "
           "realization");
   if (!runtimeControlPlan)
@@ -280,11 +280,10 @@ realizePreRealizedRVVRuntimeScalarComputedMaskStoreOwner(
   std::int64_t sew =
       static_cast<std::int64_t>(runtimeScalarComputedMaskStoreBody.getSew());
   llvm::StringRef lmul = runtimeScalarComputedMaskStoreBody.getLmul();
-  llvm::Expected<RVVRuntimeAVLVLControlPlan> runtimeControlPlan =
-      deriveRVVRuntimeAVLVLControlPlanForPreRealizedBody(
+  llvm::Expected<RVVBodyRuntimeControl> runtimeControlPlan =
+      deriveRVVBodyRuntimeControl(
           variant, runtimeScalarComputedMaskStoreBody.getN(), sew, lmul,
           runtimeScalarComputedMaskStoreBody.getPolicy(),
-          "lhs,rhs_scalar,src,dst,n",
           "pre-realized RVV runtime scalar computed-mask store "
           "selected-body realization");
   if (!runtimeControlPlan)
@@ -353,11 +352,10 @@ realizePreRealizedRVVRuntimeScalarComputedMaskLoadStoreOwner(
   std::int64_t sew = static_cast<std::int64_t>(
       runtimeScalarComputedMaskLoadStoreBody.getSew());
   llvm::StringRef lmul = runtimeScalarComputedMaskLoadStoreBody.getLmul();
-  llvm::Expected<RVVRuntimeAVLVLControlPlan> runtimeControlPlan =
-      deriveRVVRuntimeAVLVLControlPlanForPreRealizedBody(
+  llvm::Expected<RVVBodyRuntimeControl> runtimeControlPlan =
+      deriveRVVBodyRuntimeControl(
           variant, runtimeScalarComputedMaskLoadStoreBody.getN(), sew, lmul,
           runtimeScalarComputedMaskLoadStoreBody.getPolicy(),
-          "lhs,rhs_scalar,src,dst,n",
           "pre-realized RVV runtime scalar computed-mask load-store "
           "selected-body realization");
   if (!runtimeControlPlan)

@@ -2,6 +2,7 @@
 
 #include "Weft/Plugin/RVV/RVVConstructionProtocol.h"
 #include "Weft/Plugin/RVV/RVVEmitCRoutePlanning.h"
+#include "Weft/Plugin/RVV/RVVRuntimeAVLVLControl.h"
 #include "Weft/Support/RuntimeABI.h"
 
 #include "mlir/IR/Builders.h"
@@ -1594,12 +1595,11 @@ realizePreRealizedRVVElementwiseCompareSelectCluster(
     std::int64_t sew = static_cast<std::int64_t>(body.getSew());
     llvm::StringRef lmul = body.getLmul();
     auto policy = body.getPolicy();
-    std::optional<RVVRuntimeAVLVLControlPlan> runtimeControlPlan;
+    std::optional<RVVBodyRuntimeControl> runtimeControlPlan;
     if (isPreRealizedScalarBroadcastMemoryForm(body.getMemoryForm())) {
-      llvm::Expected<RVVRuntimeAVLVLControlPlan> plan =
-          deriveRVVRuntimeAVLVLControlPlanForPreRealizedBody(
+      llvm::Expected<RVVBodyRuntimeControl> plan =
+          deriveRVVBodyRuntimeControl(
               variant, body.getN(), sew, lmul, policy,
-              "lhs,rhs_scalar,out,n",
               "pre-realized RVV scalar-broadcast selected-body realization");
       if (!plan)
         return plan.takeError();
@@ -1816,11 +1816,10 @@ realizePreRealizedRVVElementwiseCompareSelectCluster(
     std::int64_t sew =
         static_cast<std::int64_t>(runtimeScalarCompareSelectBody.getSew());
     llvm::StringRef lmul = runtimeScalarCompareSelectBody.getLmul();
-    llvm::Expected<RVVRuntimeAVLVLControlPlan> runtimeControlPlan =
-        deriveRVVRuntimeAVLVLControlPlanForPreRealizedBody(
+    llvm::Expected<RVVBodyRuntimeControl> runtimeControlPlan =
+        deriveRVVBodyRuntimeControl(
             variant, runtimeScalarCompareSelectBody.getN(), sew, lmul,
             runtimeScalarCompareSelectBody.getPolicy(),
-            "lhs,rhs_scalar,true_value,false_value,out,n",
             "pre-realized RVV runtime scalar compare/select selected-body "
             "realization");
     if (!runtimeControlPlan)
@@ -1883,12 +1882,10 @@ realizePreRealizedRVVElementwiseCompareSelectCluster(
     std::int64_t sew =
         static_cast<std::int64_t>(runtimeScalarDualCompareBody.getSew());
     llvm::StringRef lmul = runtimeScalarDualCompareBody.getLmul();
-    llvm::Expected<RVVRuntimeAVLVLControlPlan> runtimeControlPlan =
-        deriveRVVRuntimeAVLVLControlPlanForPreRealizedBody(
+    llvm::Expected<RVVBodyRuntimeControl> runtimeControlPlan =
+        deriveRVVBodyRuntimeControl(
             variant, runtimeScalarDualCompareBody.getN(), sew, lmul,
             runtimeScalarDualCompareBody.getPolicy(),
-            "cmp_lhs_a,rhs_scalar_a,cmp_lhs_b,rhs_scalar_b,true_value,"
-            "false_value,out,n",
             "pre-realized RVV runtime scalar dual-compare mask-and select "
             "selected-body realization");
     if (!runtimeControlPlan)
@@ -1973,11 +1970,10 @@ realizePreRealizedRVVElementwiseCompareSelectCluster(
     std::int64_t sew =
         static_cast<std::int64_t>(f32ClampSelectBody.getSew());
     llvm::StringRef lmul = f32ClampSelectBody.getLmul();
-    llvm::Expected<RVVRuntimeAVLVLControlPlan> runtimeControlPlan =
-        deriveRVVRuntimeAVLVLControlPlanForPreRealizedBody(
+    llvm::Expected<RVVBodyRuntimeControl> runtimeControlPlan =
+        deriveRVVBodyRuntimeControl(
             variant, f32ClampSelectBody.getN(), sew, lmul,
             f32ClampSelectBody.getPolicy(),
-            "input,lower_bound,upper_bound,out,n",
             "pre-realized RVV f32 clamp/select selected-body realization");
     if (!runtimeControlPlan)
       return runtimeControlPlan.takeError();
@@ -2040,11 +2036,10 @@ realizePreRealizedRVVElementwiseCompareSelectCluster(
 
     std::int64_t sew = static_cast<std::int64_t>(dequantClampBody.getSew());
     llvm::StringRef lmul = dequantClampBody.getLmul();
-    llvm::Expected<RVVRuntimeAVLVLControlPlan> runtimeControlPlan =
-        deriveRVVRuntimeAVLVLControlPlanForPreRealizedBody(
+    llvm::Expected<RVVBodyRuntimeControl> runtimeControlPlan =
+        deriveRVVBodyRuntimeControl(
             variant, dequantClampBody.getN(), sew, lmul,
             dequantClampBody.getPolicy(),
-            "lhs,scale,lower_bound,upper_bound,out,n",
             "pre-realized RVV dequant-clamp epilogue selected-body "
             "realization");
     if (!runtimeControlPlan)
