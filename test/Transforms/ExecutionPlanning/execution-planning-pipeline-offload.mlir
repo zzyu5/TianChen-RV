@@ -6,20 +6,21 @@
 // FAIL-DAG: Weft-RV plugin variant materialization for kernel @pipeline_malformed_offload_declines_to_scalar collected no viable plugin proposals
 
 module {
-  weft.exec.kernel @pipeline_offload_plus_scalar attributes {construction_domain = "riscv-execution", problem = @canonical_problem} {
-    weft.exec.int8_mac_problem @canonical_problem {lhs_signedness = #weft<integer_signedness signed>, rhs_signedness = #weft<integer_signedness signed>, m = 4 : i64, n = 4 : i64, k = 8 : i64}
-    weft.exec.capability @offload_runtime {
+  weft.exec.capability @offload_runtime {
       id = "offload.runtime",
       kind = "runtime-offload",
       status = "available",
       runtime_abi = "generic-runtime-offload-c-abi-handoff.v1",
       handoff_kind = "runtime-offload"
-    }
-    weft.exec.capability @scalar_fallback {
+  }
+  weft.exec.capability @scalar_fallback {
       id = "scalar.fallback",
       kind = "fallback",
       status = "available"
-    }
+  }
+  weft.exec.target @offload_scalar_profile {id = "offload.scalar.profile", target_kind = "profile", construction_domain = "riscv-execution", capability_providers = [@offload_runtime, @scalar_fallback]}
+  weft.exec.kernel @pipeline_offload_plus_scalar attributes {target = @offload_scalar_profile, problem = @canonical_problem} {
+    weft.exec.int8_mac_problem @canonical_problem {lhs_signedness = #weft<integer_signedness signed>, rhs_signedness = #weft<integer_signedness signed>, m = 4 : i64, n = 4 : i64, k = 8 : i64}
     weft.exec.mem_window @abi_lhs_input_buffer {
       abi_role = "lhs-input-buffer",
       access = "read",
@@ -114,45 +115,41 @@ module {
 // -----
 
 module {
+  weft.exec.capability @vendor_runtime {
+    id = "sophgo.runtime",
+    kind = "runtime-offload",
+    status = "available",
+    runtime_abi = "generic-runtime-offload-c-abi-handoff.v1",
+    handoff_kind = "runtime-offload"
+  }
+  weft.exec.capability @scalar_fallback {id = "scalar.fallback", kind = "fallback", status = "available"}
+  weft.exec.target @vendor_only_profile {id = "vendor.only.profile", target_kind = "profile", construction_domain = "riscv-execution", capability_providers = [@vendor_runtime, @scalar_fallback]}
   weft.exec.kernel @pipeline_vendor_string_no_offload attributes {
-    construction_domain = "riscv-execution",
+    target = @vendor_only_profile,
     problem = @canonical_problem,
     vendor_hint = "sophgo"
   } {
     weft.exec.int8_mac_problem @canonical_problem {lhs_signedness = #weft<integer_signedness signed>, rhs_signedness = #weft<integer_signedness signed>, m = 4 : i64, n = 4 : i64, k = 8 : i64}
-    weft.exec.capability @vendor_runtime {
-      id = "sophgo.runtime",
-      kind = "runtime-offload",
-      status = "available",
-      runtime_abi = "generic-runtime-offload-c-abi-handoff.v1",
-      handoff_kind = "runtime-offload"
-    }
-    weft.exec.capability @scalar_fallback {
-      id = "scalar.fallback",
-      kind = "fallback",
-      status = "available"
-    }
-
   }
 }
 
 // -----
 
 module {
-  weft.exec.kernel @pipeline_malformed_offload_declines_to_scalar attributes {construction_domain = "riscv-execution", problem = @canonical_problem} {
-    weft.exec.int8_mac_problem @canonical_problem {lhs_signedness = #weft<integer_signedness signed>, rhs_signedness = #weft<integer_signedness signed>, m = 4 : i64, n = 4 : i64, k = 8 : i64}
-    weft.exec.capability @offload_runtime {
+  weft.exec.capability @offload_runtime {
       id = "offload.runtime",
       kind = "runtime-offload",
       status = "available",
       runtime_abi = "sophgo-vendor-runtime",
       handoff_kind = "runtime-offload"
-    }
-    weft.exec.capability @scalar_fallback {
+  }
+  weft.exec.capability @scalar_fallback {
       id = "scalar.fallback",
       kind = "fallback",
       status = "available"
-    }
-
+  }
+  weft.exec.target @malformed_offload_profile {id = "malformed.offload.profile", target_kind = "profile", construction_domain = "riscv-execution", capability_providers = [@offload_runtime, @scalar_fallback]}
+  weft.exec.kernel @pipeline_malformed_offload_declines_to_scalar attributes {target = @malformed_offload_profile, problem = @canonical_problem} {
+    weft.exec.int8_mac_problem @canonical_problem {lhs_signedness = #weft<integer_signedness signed>, rhs_signedness = #weft<integer_signedness signed>, m = 4 : i64, n = 4 : i64, k = 8 : i64}
   }
 }

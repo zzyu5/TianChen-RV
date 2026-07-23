@@ -11,16 +11,17 @@
 // Signedness comes from exact P, not target capability or a variant mirror; the
 // --implicit-check-not guards assert no OTHER family dialect leaks into core.
 module {
-  weft.exec.kernel @ime_mma_u_kernel attributes {construction_domain = "riscv-execution", problem = @canonical_problem} {
-    weft.exec.int8_mac_problem @canonical_problem {lhs_signedness = #weft<integer_signedness unsigned>, rhs_signedness = #weft<integer_signedness unsigned>, m = 4 : i64, n = 4 : i64, k = 8 : i64}
-    weft.exec.capability @spacemit_ime {
+  weft.exec.capability @spacemit_ime {
       id = "spacemit.ime",
       kind = "isa-matrix-vector-backed",
       status = "available",
       march = "rv64gcv_zfh_zvfh_zba_zicbop_xsmtvdotii",
       vlen_bits = "256",
       available_harts = "0-3"
-    }
+  }
+  weft.exec.target @ime_mma_u_profile {id = "ime.mma.u.profile", target_kind = "profile", construction_domain = "riscv-execution", capability_providers = [@spacemit_ime]}
+  weft.exec.kernel @ime_mma_u_kernel attributes {target = @ime_mma_u_profile, problem = @canonical_problem} {
+    weft.exec.int8_mac_problem @canonical_problem {lhs_signedness = #weft<integer_signedness unsigned>, rhs_signedness = #weft<integer_signedness unsigned>, m = 4 : i64, n = 4 : i64, k = 8 : i64}
   }
 }
 

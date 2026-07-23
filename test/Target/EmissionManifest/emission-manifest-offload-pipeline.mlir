@@ -1,20 +1,21 @@
 // RUN: not weft-opt %s --weft-execution-planning-pipeline 2>&1 | FileCheck %s --check-prefix=FAIL --implicit-check-not='status = "supported"'
 
 module @offload_manifest_inputs {
-  weft.exec.kernel @pipeline_offload_manifest attributes {construction_domain = "riscv-execution", problem = @canonical_problem} {
-    weft.exec.int8_mac_problem @canonical_problem {lhs_signedness = #weft<integer_signedness signed>, rhs_signedness = #weft<integer_signedness signed>, m = 4 : i64, n = 4 : i64, k = 8 : i64}
-    weft.exec.capability @offload_runtime {
+  weft.exec.capability @offload_runtime {
       id = "offload.runtime",
       kind = "runtime-offload",
       status = "available",
       runtime_abi = "generic-runtime-offload-c-abi-handoff.v1",
       handoff_kind = "runtime-offload"
-    }
-    weft.exec.capability @scalar_fallback {
+  }
+  weft.exec.capability @scalar_fallback {
       id = "scalar.fallback",
       kind = "fallback",
       status = "available"
-    }
+  }
+  weft.exec.target @offload_manifest_profile {id = "offload.manifest.profile", target_kind = "profile", construction_domain = "riscv-execution", capability_providers = [@offload_runtime, @scalar_fallback]}
+  weft.exec.kernel @pipeline_offload_manifest attributes {target = @offload_manifest_profile, problem = @canonical_problem} {
+    weft.exec.int8_mac_problem @canonical_problem {lhs_signedness = #weft<integer_signedness signed>, rhs_signedness = #weft<integer_signedness signed>, m = 4 : i64, n = 4 : i64, k = 8 : i64}
     weft.exec.mem_window @abi_lhs_input_buffer {
       abi_role = "lhs-input-buffer",
       access = "read",

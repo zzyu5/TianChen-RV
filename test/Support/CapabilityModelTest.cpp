@@ -154,6 +154,49 @@ module {
                           "all declared capabilities are collected"))
     return result;
 
+  llvm::Expected<weft::support::TargetDomainBinding> binding =
+      weft::support::bindKernelTargetDomain(
+          kernel, weft::support::TargetBindingMode::RequireTargetProfile);
+  if (!binding)
+    return fail(llvm::Twine("target/profile binding failed: ") +
+                llvm::toString(binding.takeError()));
+  if (int result = expect(
+          binding->isTargetBound() && binding->target.getSymName() ==
+                                          "module_rvv_profile" &&
+              binding->domain.getValue() == "riscv-execution",
+          "BindDomain returns the exact target and its domain"))
+    return result;
+  if (int result = expect(
+          binding->capabilities.size() == 1 &&
+              binding->capabilities.lookupBySymbolName(
+                  "module_rvv_profile") &&
+              !binding->capabilities.lookupBySymbolName(
+                  "toolchain_available"),
+          "target-bound C_d excludes kernel-local debug providers"))
+    return result;
+
+  mlir::Attribute targetRef = kernel->getAttr("target");
+  kernel->removeAttr("target");
+  llvm::Expected<weft::support::TargetDomainBinding> missingTarget =
+      weft::support::bindKernelTargetDomain(
+          kernel, weft::support::TargetBindingMode::RequireTargetProfile);
+  if (int result = expectErrorContains(
+          missingTarget.takeError(),
+          {"requires an explicit module-level target/profile reference"}))
+    return result;
+  llvm::Expected<weft::support::TargetDomainBinding> debugBinding =
+      weft::support::bindKernelTargetDomain(
+          kernel, weft::support::TargetBindingMode::AllowDirectDebug);
+  if (!debugBinding)
+    return fail(llvm::Twine("direct/debug binding failed: ") +
+                llvm::toString(debugBinding.takeError()));
+  if (int result = expect(!debugBinding->isTargetBound() &&
+                              debugBinding->capabilities.size() == 11,
+                          "targetless direct/debug input remains explicitly "
+                          "non-target-bound"))
+    return result;
+  kernel->setAttr("target", targetRef);
+
   const CapabilityDescriptor *moduleRVVProfile =
       capabilities.lookupBySymbolName("module_rvv_profile");
   if (int result =

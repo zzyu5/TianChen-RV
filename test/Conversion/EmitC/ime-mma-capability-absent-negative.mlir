@@ -7,13 +7,14 @@
 // for this canonical P, proposal collection fails closed. This proves the IME path is gated on the capability
 // FACT, not on a family-name match.
 module {
+  weft.exec.capability @scalar_fallback {
+    id = "scalar.fallback",
+    kind = "fallback",
+    status = "available"
+  }
+  weft.exec.target @non_ime_profile {id = "non.ime.profile", target_kind = "profile", construction_domain = "riscv-execution", capability_providers = [@scalar_fallback]}
   // ABSENT: collected no viable plugin proposals
-  weft.exec.kernel @non_ime_kernel attributes {construction_domain = "riscv-execution", problem = @canonical_problem} {
+  weft.exec.kernel @non_ime_kernel attributes {target = @non_ime_profile, problem = @canonical_problem} {
     weft.exec.int8_mac_problem @canonical_problem {lhs_signedness = #weft<integer_signedness signed>, rhs_signedness = #weft<integer_signedness signed>, m = 4 : i64, n = 4 : i64, k = 8 : i64}
-    weft.exec.capability @scalar_fallback {
-      id = "scalar.fallback",
-      kind = "fallback",
-      status = "available"
-    }
   }
 }

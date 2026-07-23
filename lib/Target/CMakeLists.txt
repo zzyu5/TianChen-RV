@@ -8,6 +8,7 @@ add_subdirectory(Scalar)
 add_mlir_library(WeftTarget
   ConstructionTemplateArtifactAdapter.cpp
   EmissionManifest.cpp
+  RISCVTargetProfile.cpp
   TargetArtifactExport.cpp
   TargetTranslateRegistration.cpp
 

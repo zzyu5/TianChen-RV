@@ -39,6 +39,7 @@
 #include "Weft/Support/CapabilityModel.h"
 #include "Weft/Support/DeclaredInstanceHash.h"
 #include "Weft/Support/RuntimeABI.h"
+#include "Weft/Target/RVV/RVVTargetProfileBinding.h"
 
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
@@ -78,7 +79,6 @@ constexpr llvm::StringLiteral kSourceFrontDoorAttrName(
 constexpr llvm::StringLiteral kSourceKernelAttrName("weft_rvv.source_kernel");
 constexpr llvm::StringLiteral kSeedAttrName("weft_rvv.lowering_seed");
 
-constexpr llvm::StringLiteral kRVVCapabilitySymbol("rvv");
 constexpr llvm::StringLiteral kOriginAttrName("origin");
 constexpr llvm::StringLiteral kRequiresAttrName("requires");
 
@@ -157,17 +157,6 @@ matchBlockDotSourceFunc(const MonolithicBlockDotOpEntry &entry,
 mlir::FlatSymbolRefAttr symbolRef(mlir::OpBuilder &builder,
                                   llvm::StringRef symbol) {
   return mlir::FlatSymbolRefAttr::get(builder.getContext(), symbol);
-}
-
-void createCapability(mlir::OpBuilder &builder, mlir::Location loc,
-                      llvm::StringRef symbol, llvm::StringRef id,
-                      llvm::StringRef kind) {
-  mlir::OperationState state(loc, weftexec::CapabilityOp::getOperationName());
-  state.addAttribute("sym_name", builder.getStringAttr(symbol));
-  state.addAttribute("id", builder.getStringAttr(id));
-  state.addAttribute("kind", builder.getStringAttr(kind));
-  state.addAttribute("status", builder.getStringAttr("available"));
-  (void)builder.create(state);
 }
 
 mlir::ArrayAttr createRequires(mlir::OpBuilder &builder, llvm::StringRef symbol) {
@@ -2928,10 +2917,17 @@ materializeKernel(mlir::OpBuilder &builder, llvm::StringRef kernelName,
   weftrvv::PolicyAttr policy = createAgnosticPolicy(builder);
   std::string selectedVariantSymbol = entry.variantSymbol.str();
 
+  mlir::ModuleOp module = source.func->getParentOfType<mlir::ModuleOp>();
+  llvm::Expected<weftexec::TargetOp> target =
+      weft::target::rvv::materializeRVVSourceTargetProfile(
+          builder, module, loc, kernelName, march, isaVectorHints);
+  if (!target)
+    return fail(entry, source.func, llvm::toString(target.takeError()));
+
   mlir::OperationState kernelState(loc, weftexec::KernelOp::getOperationName());
   kernelState.addAttribute("sym_name", builder.getStringAttr(kernelName));
-  kernelState.addAttribute("construction_domain",
-                           builder.getStringAttr("riscv-execution"));
+  kernelState.addAttribute("target",
+                           symbolRef(builder, target->getSymName()));
   kernelState.addAttribute("problem", symbolRef(builder, "canonical_problem"));
   kernelState.addRegion();
   auto kernel = llvm::cast<weftexec::KernelOp>(builder.create(kernelState));
@@ -2972,8 +2968,8 @@ materializeKernel(mlir::OpBuilder &builder, llvm::StringRef kernelName,
                             builder.getI64IntegerAttr(*activationStride));
   (void)builder.create(problemState);
 
-  createCapability(builder, loc, kRVVCapabilitySymbol, "rvv", "isa-vector");
-  mlir::ArrayAttr rvvRequires = createRequires(builder, kRVVCapabilitySymbol);
+  mlir::ArrayAttr rvvRequires = createRequires(
+      builder, weft::target::rvv::getRVVSourceCapabilitySymbol(kernelName));
 
   weftexec::VariantOp rvvVariant =
       createVariant(builder, loc, selectedVariantSymbol, rvvRequires, policy);

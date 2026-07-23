@@ -195,25 +195,43 @@ int runRegistrationAndCapabilityMetadataTest() {
 int runProposalGatingTest(mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
-  weft.exec.kernel @available_scalar attributes {construction_domain = "riscv-execution", problem = @available_problem} {
+  weft.exec.capability @available_scalar_capability {
+    id = "scalar.fallback",
+    kind = "fallback",
+    status = "available"
+  }
+  weft.exec.target @available_scalar_profile {
+    id = "scalar.profile.available",
+    target_kind = "profile",
+    construction_domain = "riscv-execution",
+    capability_providers = [@available_scalar_capability]
+  }
+  weft.exec.target @unavailable_scalar_profile {
+    id = "scalar.profile.unavailable",
+    target_kind = "profile",
+    construction_domain = "riscv-execution",
+    capability_providers = [@unavailable_scalar_capability]
+  }
+  weft.exec.capability @unavailable_scalar_capability {
+    id = "scalar.fallback",
+    kind = "fallback",
+    status = "unavailable"
+  }
+  weft.exec.target @missing_scalar_profile {
+    id = "scalar.profile.missing",
+    target_kind = "profile",
+    construction_domain = "riscv-execution"
+  }
+
+  weft.exec.kernel @available_scalar attributes {target = @available_scalar_profile, problem = @available_problem} {
     weft.exec.dequantize_row_q4_0_problem @available_problem {qk = 32 : i64, weight_block_stride = 18 : i64, weight_d_byte_offset = 0 : i64, weight_quant_byte_offset = 2 : i64}
-    weft.exec.capability @scalar_fallback {
-      id = "scalar.fallback",
-      kind = "fallback",
-      status = "available"
-    }
   }
 
-  weft.exec.kernel @unavailable_scalar attributes {construction_domain = "riscv-execution", problem = @unavailable_problem} {
+  weft.exec.kernel @unavailable_scalar attributes {target = @unavailable_scalar_profile, problem = @unavailable_problem} {
     weft.exec.dequantize_row_q4_0_problem @unavailable_problem {qk = 32 : i64, weight_block_stride = 18 : i64, weight_d_byte_offset = 0 : i64, weight_quant_byte_offset = 2 : i64}
-    weft.exec.capability @scalar_fallback {
-      id = "scalar.fallback",
-      kind = "fallback",
-      status = "unavailable"
-    }
   }
 
-  weft.exec.kernel @missing_scalar attributes {construction_domain = "riscv-execution", problem = @missing_problem} {
+  weft.exec.kernel @missing_scalar attributes {target = @missing_scalar_profile, problem = @missing_problem} {
     weft.exec.dequantize_row_q4_0_problem @missing_problem {qk = 32 : i64, weight_block_stride = 18 : i64, weight_d_byte_offset = 0 : i64, weight_quant_byte_offset = 2 : i64}
   }
 }
@@ -319,13 +337,10 @@ module {
 int runMaterializationSelectionAndEmissionTest(mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
-  weft.exec.kernel @scalar_only attributes {construction_domain = "riscv-execution", problem = @canonical_problem} {
+  weft.exec.capability @scalar_fallback {id = "scalar.fallback", kind = "fallback", status = "available"}
+  weft.exec.target @scalar_only_profile {id = "scalar.profile.materialization", target_kind = "profile", construction_domain = "riscv-execution", capability_providers = [@scalar_fallback]}
+  weft.exec.kernel @scalar_only attributes {target = @scalar_only_profile, problem = @canonical_problem} {
     weft.exec.dequantize_row_q4_0_problem @canonical_problem {qk = 32 : i64, weight_block_stride = 18 : i64, weight_d_byte_offset = 0 : i64, weight_quant_byte_offset = 2 : i64}
-    weft.exec.capability @scalar_fallback {
-      id = "scalar.fallback",
-      kind = "fallback",
-      status = "available"
-    }
   }
 }
 )mlir";
@@ -885,18 +900,19 @@ int runRVVDeclineKeepsScalarFallbackEnvelopeBoundarylessTest(
     mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
-  weft.exec.kernel @rvv_decline_scalar_envelope attributes {construction_domain = "riscv-execution", problem = @canonical_problem} {
-    weft.exec.dequantize_row_q4_0_problem @canonical_problem {qk = 32 : i64, weight_block_stride = 18 : i64, weight_d_byte_offset = 0 : i64, weight_quant_byte_offset = 2 : i64}
-    weft.exec.capability @rvv {
+  weft.exec.capability @rvv {
       id = "rvv",
       kind = "isa-vector",
       status = "available"
-    }
-    weft.exec.capability @scalar_fallback {
+  }
+  weft.exec.capability @scalar_fallback {
       id = "scalar.fallback",
       kind = "fallback",
       status = "available"
-    }
+  }
+  weft.exec.target @rvv_scalar_profile {id = "rvv.scalar.profile", target_kind = "profile", construction_domain = "riscv-execution", capability_providers = [@rvv, @scalar_fallback]}
+  weft.exec.kernel @rvv_decline_scalar_envelope attributes {target = @rvv_scalar_profile, problem = @canonical_problem} {
+    weft.exec.dequantize_row_q4_0_problem @canonical_problem {qk = 32 : i64, weight_block_stride = 18 : i64, weight_d_byte_offset = 0 : i64, weight_quant_byte_offset = 2 : i64}
   }
 }
 )mlir";
@@ -1091,13 +1107,14 @@ int runFamilyIndependenceAcceptanceTest(mlir::MLIRContext &context) {
   // --- conjunct (1): closure ∩ rvv.* = ∅ for the scalar fallback family. ---
   constexpr llvm::StringLiteral source = R"mlir(
 module {
-  weft.exec.kernel @only_feasible_scalar attributes {construction_domain = "riscv-execution", problem = @canonical_problem} {
-    weft.exec.dequantize_row_q4_0_problem @canonical_problem {qk = 32 : i64, weight_block_stride = 18 : i64, weight_d_byte_offset = 0 : i64, weight_quant_byte_offset = 2 : i64}
-    weft.exec.capability @scalar_fallback {
+  weft.exec.capability @scalar_fallback {
       id = "scalar.fallback",
       kind = "fallback",
       status = "available"
-    }
+  }
+  weft.exec.target @scalar_independent_profile {id = "scalar.independent.profile", target_kind = "profile", construction_domain = "riscv-execution", capability_providers = [@scalar_fallback]}
+  weft.exec.kernel @only_feasible_scalar attributes {target = @scalar_independent_profile, problem = @canonical_problem} {
+    weft.exec.dequantize_row_q4_0_problem @canonical_problem {qk = 32 : i64, weight_block_stride = 18 : i64, weight_d_byte_offset = 0 : i64, weight_quant_byte_offset = 2 : i64}
   }
 }
 )mlir";

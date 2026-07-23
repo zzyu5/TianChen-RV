@@ -2,6 +2,7 @@
 #include "Weft/Plugin/ExtensionPlugin.h"
 #include "Weft/Support/CapabilityModel.h"
 #include "Weft/Transforms/VariantMaterialization.h"
+#include "Weft/Transforms/VariantSelection.h"
 
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/IR/Builders.h"
@@ -21,7 +22,12 @@
 
 using weft::plugin::ExtensionPlugin;
 using weft::plugin::ExtensionPluginRegistry;
+using weft::plugin::FamilyConstructionRequest;
+using weft::plugin::FamilyConstructionResult;
 using weft::plugin::PluginCapability;
+using weft::plugin::VariantCostEstimate;
+using weft::plugin::VariantCostRequest;
+using weft::plugin::VariantLegalityRequest;
 using weft::plugin::VariantProposal;
 using weft::plugin::VariantProposalCollectionResult;
 using weft::plugin::VariantProposalDecline;
@@ -186,6 +192,148 @@ private:
   llvm::SmallVector<PluginCapability, 1> capabilities;
 };
 
+/// Test-only typed construction owner used to prove that target binding, not a
+/// family/origin-name branch in common code, selects an owner domain.  The
+/// constructed func.func is only an artifact-neutral typed carrier for this
+/// lifecycle test; it deliberately registers no backend or artifact route.
+class DomainConstructionOwner final : public ExtensionPlugin {
+public:
+  DomainConstructionOwner(llvm::StringRef name, llvm::StringRef domain,
+                          llvm::StringRef capabilityID,
+                          llvm::StringRef capabilitySymbol)
+      : name(name.str()), domain(domain.str()),
+        capabilityID(capabilityID.str()),
+        capabilitySymbol(capabilitySymbol.str()),
+        variantName((name + "_candidate").str()) {}
+
+  llvm::StringRef getName() const override { return name; }
+  llvm::StringRef getConstructionDomain() const override { return domain; }
+  llvm::ArrayRef<PluginCapability> getCapabilities() const override {
+    return capabilities;
+  }
+  void registerDialects(mlir::DialectRegistry &registry) const override {
+    registry.insert<mlir::func::FuncDialect>();
+  }
+
+  void collectFormulaDescriptors(
+      llvm::SmallVectorImpl<weft::plugin::FormulaDescriptor> &out)
+      const override {
+    weft::plugin::FormulaDescriptor descriptor(
+        getFormulaID(), getName(), "test/domain-bound-construction",
+        weft::plugin::FormulaResultKind::CandidateSet,
+        weft::plugin::FormulaConstructionStrength::ConstructedWeak);
+    descriptor.getGeometryAxis().set(
+        weft::plugin::FormulaAxisUse::Decisive, "ExactInt8MACProblem");
+    descriptor.getGeometryAxis().addConsumedField("physical-problem");
+    descriptor.getCapabilityAxis().set(
+        weft::plugin::FormulaAxisUse::Decisive, "BoundTargetCapability");
+    descriptor.getCapabilityAxis().addConsumedField(capabilityID);
+    descriptor.getStaticContextAxis().set(
+        weft::plugin::FormulaAxisUse::HonestNull,
+        "DomainWitnessNoStaticContext");
+    descriptor.addSemanticCase("domain-qualified-candidate");
+    descriptor.addProductionEntry("plugin:variant-proposal");
+    descriptor.addProductionEntry("plugin:analytic-cost");
+    out.push_back(std::move(descriptor));
+  }
+
+  bool supportsOperation(const VariantProposalRequest &request) const override {
+    ++supportCalls;
+    supportProblem = request.getProblem();
+    return llvm::isa_and_nonnull<weft::exec::Int8MACProblemOp>(
+               request.getProblem()) &&
+           request.getCapabilities().isCapabilityAvailableByID(capabilityID);
+  }
+
+  llvm::Error
+  proposeVariants(const VariantProposalRequest &request,
+                  llvm::SmallVectorImpl<VariantProposal> &out) const override {
+    ++proposalCalls;
+    proposalProblem = request.getProblem();
+    VariantProposal proposal(variantName, name);
+    proposal.setFormulaID(getFormulaID());
+    proposal.addRequiredCapabilityID(capabilityID);
+    proposal.addRequiredCapabilitySymbol(capabilitySymbol);
+    out.push_back(std::move(proposal));
+    return llvm::Error::success();
+  }
+
+  llvm::Error
+  verifyVariantLegality(const VariantLegalityRequest &request) const override {
+    ++legalityCalls;
+    legalityProblem = request.getProblem();
+    if (!llvm::isa_and_nonnull<weft::exec::Int8MACProblemOp>(
+            request.getProblem()) ||
+        !request.getCapabilities().isCapabilityAvailableByID(capabilityID))
+      return llvm::createStringError(llvm::inconvertibleErrorCode(),
+                                     "domain witness lost exact P or C_d");
+    return llvm::Error::success();
+  }
+
+  llvm::Error estimateVariantCost(const VariantCostRequest &request,
+                                  VariantCostEstimate &out) const override {
+    out = VariantCostEstimate();
+    out.setScore(1.0);
+    out.setExplicitPreference(true);
+    out.setOriginPlugin(name);
+    out.setFormulaID(getFormulaID());
+    out.setVariantSymbol(request.getVariant().getSymName());
+    out.setExplanation("single target-domain-qualified test owner");
+    out.setPolicy("analytic test prior inside the legal candidate set");
+    return llvm::Error::success();
+  }
+
+  llvm::Error constructFormulaPlans(
+      const FamilyConstructionRequest &request,
+      FamilyConstructionResult &out) const override {
+    ++constructionCalls;
+    constructionProblem = request.getProblem();
+    if (!llvm::isa_and_nonnull<weft::exec::Int8MACProblemOp>(
+            request.getProblem()) ||
+        !request.getCapabilities().isCapabilityAvailableByID(capabilityID))
+      return llvm::createStringError(llvm::inconvertibleErrorCode(),
+                                     "domain construction lost exact P or C_d");
+
+    mlir::OpBuilder builder(request.getModule().getContext());
+    builder.setInsertionPointToEnd(&request.getVariant().getBody().front());
+    auto function = builder.create<mlir::func::FuncOp>(
+        request.getVariant().getLoc(), name + "_typed_body",
+        builder.getFunctionType({}, {}));
+    mlir::Block *entry = function.addEntryBlock();
+    mlir::OpBuilder::atBlockEnd(entry).create<mlir::func::ReturnOp>(
+        function.getLoc());
+    out = FamilyConstructionResult::getFinalBody(function.getOperation());
+    return llvm::Error::success();
+  }
+
+  llvm::StringRef getVariantName() const { return variantName; }
+  unsigned getSupportCalls() const { return supportCalls; }
+  unsigned getProposalCalls() const { return proposalCalls; }
+  unsigned getLegalityCalls() const { return legalityCalls; }
+  unsigned getConstructionCalls() const { return constructionCalls; }
+  bool observedSameProblem(mlir::Operation *problem) const {
+    return supportProblem == problem && proposalProblem == problem &&
+           legalityProblem == problem && constructionProblem == problem;
+  }
+
+private:
+  std::string getFormulaID() const { return name + ".domain.construct"; }
+  std::string name;
+  std::string domain;
+  std::string capabilityID;
+  std::string capabilitySymbol;
+  std::string variantName;
+  llvm::SmallVector<PluginCapability, 1> capabilities;
+  mutable unsigned supportCalls = 0;
+  mutable unsigned proposalCalls = 0;
+  mutable unsigned legalityCalls = 0;
+  mutable unsigned constructionCalls = 0;
+  mutable mlir::Operation *supportProblem = nullptr;
+  mutable mlir::Operation *proposalProblem = nullptr;
+  mutable mlir::Operation *legalityProblem = nullptr;
+  mutable mlir::Operation *constructionProblem = nullptr;
+};
+
 int fail(llvm::Twine message) {
   llvm::errs() << "FAIL: " << message << "\n";
   return 1;
@@ -225,6 +373,106 @@ KernelOp findKernel(mlir::ModuleOp module) {
   return kernel;
 }
 
+int runSecondTargetDomainOwnerWitness(mlir::MLIRContext &context) {
+  constexpr llvm::StringLiteral source = R"mlir(
+module {
+  weft.exec.capability @domain_a_capability {id = "domain.a.capability", kind = "test-owner"}
+  weft.exec.capability @domain_b_capability {id = "domain.b.capability", kind = "test-owner"}
+  weft.exec.target @domain_a_profile {id = "domain.a.profile", target_kind = "profile", construction_domain = "domain-a", capability_providers = [@domain_a_capability]}
+  weft.exec.target @domain_b_profile {id = "domain.b.profile", target_kind = "profile", construction_domain = "domain-b", capability_providers = [@domain_b_capability]}
+  weft.exec.kernel @domain_b_source attributes {target = @domain_b_profile, problem = @canonical_problem} {
+    weft.exec.int8_mac_problem @canonical_problem {lhs_signedness = #weft<integer_signedness signed>, rhs_signedness = #weft<integer_signedness signed>, m = 4 : i64, n = 4 : i64, k = 8 : i64}
+  }
+}
+)mlir";
+
+  mlir::OwningOpRef<mlir::ModuleOp> module =
+      mlir::parseSourceString<mlir::ModuleOp>(source, &context);
+  if (!module)
+    return fail("failed to parse second target-domain owner witness");
+  KernelOp kernel = findKernel(*module);
+  llvm::Expected<mlir::Operation *> problem =
+      weft::plugin::resolveCanonicalProblem(kernel);
+  if (!problem)
+    return fail(llvm::toString(problem.takeError()));
+
+  DomainConstructionOwner ownerA("domain-a-owner", "domain-a",
+                                 "domain.a.capability",
+                                 "domain_a_capability");
+  DomainConstructionOwner ownerB("domain-b-owner", "domain-b",
+                                 "domain.b.capability",
+                                 "domain_b_capability");
+  ExtensionPluginRegistry registry;
+  if (int result = expectSuccess(registry.registerPlugin(ownerA),
+                                 "register domain A owner"))
+    return result;
+  if (int result = expectSuccess(registry.registerPlugin(ownerB),
+                                 "register domain B owner"))
+    return result;
+
+  TargetCapabilitySet capabilities =
+      TargetCapabilitySet::buildFromKernel(kernel);
+  VariantProposalRequest request(*problem, kernel, capabilities);
+  mlir::OpBuilder builder(&context);
+  llvm::SmallVector<VariantOp, 1> variants;
+  if (int result = expectSuccess(
+          weft::transforms::collectAndMaterializeVariantProposals(
+              builder, registry, request, &variants),
+          "materialize domain B proposal"))
+    return result;
+  if (int result = expect(
+          variants.size() == 1 &&
+              variants.front().getSymName() == ownerB.getVariantName(),
+          "target domain B admits only its matching owner candidate"))
+    return result;
+  if (int result = expect(ownerA.getSupportCalls() == 0 &&
+                              ownerA.getProposalCalls() == 0,
+                          "foreign domain A exits before owner hooks"))
+    return result;
+
+  if (int result = expectSuccess(registry.verifyKernelVariantLegality(kernel),
+                                 "verify domain B candidate legality"))
+    return result;
+  llvm::Expected<weft::transforms::VariantSelectionPlan> selection =
+      weft::transforms::planKernelVariantSelection(kernel, registry);
+  if (!selection)
+    return fail("select domain B candidate: " +
+                llvm::toString(selection.takeError()));
+  if (int result = expect(
+          selection->selectedVariant == variants.front(),
+          "thin selector preserves the sole legal domain B candidate"))
+    return result;
+
+  FamilyConstructionResult construction;
+  if (int result = expectSuccess(
+          registry.constructFormulaPlansForVariant(
+              *module, selection->selectedVariant, construction),
+          "construct domain B artifact-neutral typed body"))
+    return result;
+  mlir::Operation *root = construction.getOperation();
+  if (int result = expect(
+          construction.hasFinalBody() && root &&
+              llvm::isa<mlir::func::FuncOp>(root) &&
+              root->getParentOfType<VariantOp>() == variants.front(),
+          "construction returns the exact typed root owned by the selected "
+          "variant"))
+    return result;
+  if (int result = expect(
+          ownerB.getSupportCalls() == 1 && ownerB.getProposalCalls() == 1 &&
+              ownerB.getLegalityCalls() >= 1 &&
+              ownerB.getConstructionCalls() == 1 &&
+              ownerB.observedSameProblem(*problem),
+          "proposal, legality, and construction consume one physical P under "
+          "the target-bound C_d"))
+    return result;
+  if (int result = expect(ownerA.getLegalityCalls() == 0 &&
+                              ownerA.getConstructionCalls() == 0,
+                          "foreign domain A never enters legality or "
+                          "construction"))
+    return result;
+  return 0;
+}
+
 } // namespace
 
 int main() {
@@ -237,21 +485,27 @@ int main() {
 
   constexpr llvm::StringLiteral source = R"mlir(
 module {
-  weft.exec.kernel @proposal_source attributes {construction_domain = "test-domain", problem = @canonical_problem} {
+  weft.exec.capability @generic_vector {
+    id = "generic.vector",
+    kind = "generic-execution"
+  }
+  weft.exec.capability @generic_toolchain {
+    id = "generic.toolchain",
+    kind = "toolchain"
+  }
+  weft.exec.capability @generic_disabled {
+    id = "generic.disabled",
+    kind = "runtime",
+    status = "disabled"
+  }
+  weft.exec.target @proposal_profile {
+    id = "proposal.profile",
+    target_kind = "profile",
+    construction_domain = "test-domain",
+    capability_providers = [@generic_vector, @generic_toolchain, @generic_disabled]
+  }
+  weft.exec.kernel @proposal_source attributes {target = @proposal_profile, problem = @canonical_problem} {
     weft.exec.int8_mac_problem @canonical_problem {lhs_signedness = #weft<integer_signedness signed>, rhs_signedness = #weft<integer_signedness signed>, m = 4 : i64, n = 4 : i64, k = 8 : i64}
-    weft.exec.capability @generic_vector {
-      id = "generic.vector",
-      kind = "generic-execution"
-    }
-    weft.exec.capability @generic_toolchain {
-      id = "generic.toolchain",
-      kind = "toolchain"
-    }
-    weft.exec.capability @generic_disabled {
-      id = "generic.disabled",
-      kind = "runtime",
-      status = "disabled"
-    }
   }
 }
 )mlir";
@@ -267,9 +521,9 @@ module {
 
   TargetCapabilitySet capabilities =
       TargetCapabilitySet::buildFromKernel(kernel);
-  if (int result =
-          expect(capabilities.size() == 3,
-                 "capabilities are collected from parsed weft.exec.kernel"))
+  if (int result = expect(
+          capabilities.size() == 4,
+          "target profile and its composed capabilities are collected"))
     return result;
   if (int result = expect(capabilities.isCapabilityAvailableByID(
                               "generic.vector"),
@@ -376,7 +630,7 @@ module {
                                   "weft.exec.int8_mac_problem" &&
                               first.getObservedKernelName() ==
                                   "proposal_source" &&
-                              first.getObservedCapabilityCount() == 3,
+                              first.getObservedCapabilityCount() == 4,
                           "plugin observes MLIR op, kernel, and capability set"))
     return result;
 
@@ -624,6 +878,9 @@ module {
           {"unavailable-required-symbol", "unavailable_required_symbol_path",
            "unavailable capability symbol", "generic_disabled",
            "generic.disabled", "status = \"disabled\""}))
+    return result;
+
+  if (int result = runSecondTargetDomainOwnerWitness(context))
     return result;
 
   llvm::outs() << "plugin variant proposal smoke test passed\n";

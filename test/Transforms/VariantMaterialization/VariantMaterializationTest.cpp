@@ -124,25 +124,27 @@ int expectErrorContains(llvm::Error error,
 mlir::OwningOpRef<mlir::ModuleOp> parseTestModule(mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
-  weft.exec.kernel @materialization_anchor attributes {construction_domain = "test-domain", problem = @canonical_problem} {
+  weft.exec.capability @generic_alpha {
+    id = "generic.alpha",
+    kind = "generic-execution"
+  }
+  weft.exec.capability @generic_beta {
+    id = "generic.beta",
+    kind = "toolchain",
+    status = "available"
+  }
+  weft.exec.target @materialization_profile {
+    id = "materialization.profile",
+    target_kind = "profile",
+    construction_domain = "test-domain",
+    capability_providers = [@generic_alpha, @generic_beta]
+  }
+  weft.exec.kernel @materialization_anchor attributes {target = @materialization_profile, problem = @canonical_problem} {
     weft.exec.int8_mac_problem @canonical_problem {lhs_signedness = #weft<integer_signedness signed>, rhs_signedness = #weft<integer_signedness signed>, m = 4 : i64, n = 4 : i64, k = 8 : i64}
-    weft.exec.capability @generic_alpha {
-      id = "generic.alpha",
-      kind = "generic-execution"
-    }
-    weft.exec.capability @generic_beta {
-      id = "generic.beta",
-      kind = "toolchain",
-      status = "available"
-    }
   }
 
-  weft.exec.kernel @duplicate_anchor attributes {construction_domain = "test-domain", problem = @canonical_problem} {
+  weft.exec.kernel @duplicate_anchor attributes {target = @materialization_profile, problem = @canonical_problem} {
     weft.exec.int8_mac_problem @canonical_problem {lhs_signedness = #weft<integer_signedness signed>, rhs_signedness = #weft<integer_signedness signed>, m = 4 : i64, n = 4 : i64, k = 8 : i64}
-    weft.exec.capability @generic_alpha {
-      id = "generic.alpha",
-      kind = "generic-execution"
-    }
     weft.exec.variant @existing_path attributes {
       origin = "existing-plugin",
       requires = [@generic_alpha]

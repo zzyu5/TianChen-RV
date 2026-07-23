@@ -200,41 +200,43 @@ int runRegistrationAndCapabilityMetadataTest() {
 int runProposalGatingAndDeclineTest(mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
-  weft.exec.kernel @available_template attributes {construction_domain = "riscv-execution", problem = @canonical_problem} {
-    weft.exec.int8_mac_problem @canonical_problem {lhs_signedness = #weft<integer_signedness signed>, rhs_signedness = #weft<integer_signedness signed>, m = 4 : i64, n = 4 : i64, k = 8 : i64}
-    weft.exec.capability @template_extension {
+  weft.exec.capability @available_template_capability {
       id = "template.extension",
       kind = "future-extension-template",
       status = "available",
       integration_contract = "template-zero-core-handoff.v1",
       handoff_kind = "template-extension-lowering-boundary"
-    }
   }
-
-  weft.exec.kernel @missing_template attributes {construction_domain = "riscv-execution", problem = @canonical_problem} {
-    weft.exec.int8_mac_problem @canonical_problem {lhs_signedness = #weft<integer_signedness signed>, rhs_signedness = #weft<integer_signedness signed>, m = 4 : i64, n = 4 : i64, k = 8 : i64}
-  }
-
-  weft.exec.kernel @unavailable_template attributes {construction_domain = "riscv-execution", problem = @canonical_problem} {
-    weft.exec.int8_mac_problem @canonical_problem {lhs_signedness = #weft<integer_signedness signed>, rhs_signedness = #weft<integer_signedness signed>, m = 4 : i64, n = 4 : i64, k = 8 : i64}
-    weft.exec.capability @template_extension {
+  weft.exec.capability @unavailable_template_capability {
       id = "template.extension",
       kind = "future-extension-template",
       status = "unavailable",
       integration_contract = "template-zero-core-handoff.v1",
       handoff_kind = "template-extension-lowering-boundary"
-    }
   }
-
-  weft.exec.kernel @malformed_template attributes {construction_domain = "riscv-execution", problem = @canonical_problem} {
-    weft.exec.int8_mac_problem @canonical_problem {lhs_signedness = #weft<integer_signedness signed>, rhs_signedness = #weft<integer_signedness signed>, m = 4 : i64, n = 4 : i64, k = 8 : i64}
-    weft.exec.capability @template_extension {
+  weft.exec.capability @malformed_template_capability {
       id = "template.extension",
       kind = "future-extension-template",
       status = "available",
       integration_contract = "wrong-integration-contract",
       handoff_kind = "template-extension-lowering-boundary"
-    }
+  }
+  weft.exec.target @available_template_profile {id = "template.profile.available", target_kind = "profile", construction_domain = "riscv-execution", capability_providers = [@available_template_capability]}
+  weft.exec.target @missing_template_profile {id = "template.profile.missing", target_kind = "profile", construction_domain = "riscv-execution"}
+  weft.exec.target @unavailable_template_profile {id = "template.profile.unavailable", target_kind = "profile", construction_domain = "riscv-execution", capability_providers = [@unavailable_template_capability]}
+  weft.exec.target @malformed_template_profile {id = "template.profile.malformed", target_kind = "profile", construction_domain = "riscv-execution", capability_providers = [@malformed_template_capability]}
+
+  weft.exec.kernel @available_template attributes {target = @available_template_profile, problem = @canonical_problem} {
+    weft.exec.int8_mac_problem @canonical_problem {lhs_signedness = #weft<integer_signedness signed>, rhs_signedness = #weft<integer_signedness signed>, m = 4 : i64, n = 4 : i64, k = 8 : i64}
+  }
+  weft.exec.kernel @missing_template attributes {target = @missing_template_profile, problem = @canonical_problem} {
+    weft.exec.int8_mac_problem @canonical_problem {lhs_signedness = #weft<integer_signedness signed>, rhs_signedness = #weft<integer_signedness signed>, m = 4 : i64, n = 4 : i64, k = 8 : i64}
+  }
+  weft.exec.kernel @unavailable_template attributes {target = @unavailable_template_profile, problem = @canonical_problem} {
+    weft.exec.int8_mac_problem @canonical_problem {lhs_signedness = #weft<integer_signedness signed>, rhs_signedness = #weft<integer_signedness signed>, m = 4 : i64, n = 4 : i64, k = 8 : i64}
+  }
+  weft.exec.kernel @malformed_template attributes {target = @malformed_template_profile, problem = @canonical_problem} {
+    weft.exec.int8_mac_problem @canonical_problem {lhs_signedness = #weft<integer_signedness signed>, rhs_signedness = #weft<integer_signedness signed>, m = 4 : i64, n = 4 : i64, k = 8 : i64}
   }
 }
 )mlir";
@@ -367,15 +369,16 @@ module {
 int runPipelineHookTest(mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
-  weft.exec.kernel @template_extension_kernel attributes {construction_domain = "riscv-execution", problem = @canonical_problem} {
-    weft.exec.int8_mac_problem @canonical_problem {lhs_signedness = #weft<integer_signedness signed>, rhs_signedness = #weft<integer_signedness signed>, m = 4 : i64, n = 4 : i64, k = 8 : i64}
-    weft.exec.capability @template_extension {
+  weft.exec.capability @template_extension {
       id = "template.extension",
       kind = "future-extension-template",
       status = "available",
       integration_contract = "template-zero-core-handoff.v1",
       handoff_kind = "template-extension-lowering-boundary"
-    }
+  }
+  weft.exec.target @template_extension_profile {id = "template.extension.profile", target_kind = "profile", construction_domain = "riscv-execution", capability_providers = [@template_extension]}
+  weft.exec.kernel @template_extension_kernel attributes {target = @template_extension_profile, problem = @canonical_problem} {
+    weft.exec.int8_mac_problem @canonical_problem {lhs_signedness = #weft<integer_signedness signed>, rhs_signedness = #weft<integer_signedness signed>, m = 4 : i64, n = 4 : i64, k = 8 : i64}
   }
 }
 )mlir";

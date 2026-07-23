@@ -34,7 +34,6 @@ using weft::plugin::VariantProposal;
 using weft::plugin::VariantProposalDecline;
 using weft::plugin::VariantProposalRequest;
 using weft::support::CapabilityDescriptor;
-using weft::support::TargetCapabilitySet;
 using weft::exec::KernelOp;
 using weft::exec::VariantOp;
 
@@ -579,13 +578,11 @@ llvm::Error materializeKernelPluginVariants(
     return makeMaterializationError(
         llvm::toString(problem.takeError()));
 
-  auto constructionDomain =
-      kernel->getAttrOfType<mlir::StringAttr>("construction_domain");
-  if (!constructionDomain || constructionDomain.getValue().trim().empty())
-    return makeMaterializationError(
-        llvm::Twine("Weft-RV plugin variant materialization for source kernel @") +
-        kernel.getSymName() +
-        " requires non-empty string attribute 'construction_domain'");
+  llvm::Expected<support::TargetDomainBinding> binding =
+      support::bindKernelTargetDomain(
+          kernel, support::TargetBindingMode::RequireTargetProfile);
+  if (!binding)
+    return binding.takeError();
 
   if (registry.empty())
     return makeMaterializationError(
@@ -593,24 +590,20 @@ llvm::Error materializeKernelPluginVariants(
         kernel.getSymName() +
         " requires at least one enabled extension plugin in the registry");
   if (!registry.hasEnabledPluginInConstructionDomain(
-          constructionDomain.getValue()))
+          binding->domain.getValue()))
     return makeMaterializationError(
         llvm::Twine("Weft-RV plugin variant materialization for source kernel @") +
         kernel.getSymName() + " declares construction domain '" +
-        constructionDomain.getValue() +
+        binding->domain.getValue() +
         "', but no enabled extension plugin declares that domain");
 
-  llvm::Expected<TargetCapabilitySet> capabilities =
-      TargetCapabilitySet::buildFromKernelChecked(kernel);
-  if (!capabilities)
-    return capabilities.takeError();
-  if (capabilities->empty())
+  if (binding->capabilities.empty())
     return makeMaterializationError(
         llvm::Twine("Weft-RV plugin variant materialization for kernel @") +
         kernel.getSymName() +
         " requires at least one capability provider in the kernel capability "
         "scope");
-  VariantProposalRequest request(*problem, kernel, *capabilities);
+  VariantProposalRequest request(*problem, kernel, binding->capabilities);
 
   llvm::SmallVector<VariantProposal, 4> proposals;
   llvm::SmallVector<VariantProposalDecline, 2> recoverableDeclines;

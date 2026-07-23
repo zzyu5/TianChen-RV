@@ -654,8 +654,9 @@ RISC-V 旗舰 realization 的方法闭环：
 1. bounded physical canonical problem surface 与 request continuity 已落地，但尚未覆盖全部
    source-origin entry；尤其 RVV adapter 仍先建完整 body，真实 code-affecting `g/c/ω` 与
    mechanism/formula 仍分散在若干 owner leaf、front door、schedule 与 conversion 中；
-2. target/profile 必须成为唯一 `BindDomain(t)` authority，并与 `C_d` 一起进入 proposal；source
-   front door 不得把硬编码 RISC-V identity 冒充 target binding；
+2. target/profile 唯一 `BindDomain(t)` authority 已闭合：正式 source 以 exact symbol 绑定
+   module-level profile，`d/C_d` 从同一 target 一次产生；该完成不使 adapter 预构造 body
+   自动成为 forward construction；
 3. `ConstructedWeak` final leaf 仍需多 topology 的 delete-leaf reconstruction 才能升级 strong
    construction；
 4. Scalar exact-P plan/body 仍须去除 structural ownership stamps并完成 delete-leaf witness；
@@ -675,15 +676,17 @@ RISC-V 旗舰 realization 的方法闭环：
 
 ---
 
-## 10. GPU 前置状态：artifact-neutral rebase 与 membership gate 已完成，`BindDomain` 未完成
+## 10. GPU 前置状态：artifact-neutral rebase 与 `BindDomain` 已完成，forward construction 未完成
 
 首个 task 定义为 **artifact-neutral owner construction rebase**，而不是 GPU
 implementation；主体提交已完成 construction-before-artifact、caller closure 与完整回归。
 该 task 当时没有建立显式 domain gate；当前 A/B 横向任务已经补上 kernel domain identity
 与 owner membership 的 proposal/selection/construction 三重检查，且没有把 selected origin
-改称 binding。但这仍不是 target/profile 驱动的完整 `BindDomain(t)`。本节保留已完成的
-artifact-neutral 与 membership 两个结构切面；target binding、exact source coverage、strong
-reconstruction 与 A/B 性能仍按各自门继续进行。
+改称 binding。随后正式 source kernel 已改为绑定 module-level target/profile，公共
+`TargetDomainBinding` 从同一 target 一次产生 `(d,C_d)`；targetless direct/pre-realized
+只属于显式 non-target-bound debug qualification。test-only 第二 domain/owner 也已走通
+proposal→legality→selection→artifact-neutral construction。本节保留这些已完成结构切面；
+exact source coverage、forward construction、strong reconstruction 与 A/B 性能仍按各自门继续。
 
 ### 10.1 重构目标
 
@@ -749,7 +752,7 @@ GPU 前置结构最终必须同时满足：
 - `[已完成·仅 identity gate]` kernel domain identity 与 owner membership 在
   proposal/selection/construction 前检查，common 不按具体 domain/owner 名分支，
   foreign-domain origin fail closed；
-- `[进行中]` target/profile 是唯一 `BindDomain(t)` authority，绑定 `(d,C_d)` 后才进入
+- `[已完成]` target/profile 是唯一 `BindDomain(t)` authority，绑定 `(d,C_d)` 后才进入
   proposal；source/front door 不硬编码或反推 domain，missing/unknown/ambiguous/conflicting
   target-domain binding fail closed；
 - `[已完成]` 每个 live owner 有唯一 artifact-neutral construction owner；
@@ -765,9 +768,10 @@ GPU 前置结构最终必须同时满足：
 - `[持续门]` current full test、catalog/registry、source/direct/artifact negative tests 全绿；
 - `[已完成并持续保护]` 没有 production compatibility middle path。
 
-artifact-neutral rebase 只证明 construction 不再绑在 EmitC；identity membership gate 只证明
-foreign owner 不会越域参与。只有 target/profile `BindDomain(t)`、exact physical problem 与 A/B
-其余完成门同时闭合后，才可说系统具备正确接入 GPU domain/owner 的结构。这些条件都不证明
+artifact-neutral rebase 只证明 construction 不再绑在 EmitC；`BindDomain(t)` 只证明 domain
+与 capability environment 的唯一绑定及 foreign owner 不越域。只有 exact physical problem、
+forward construction 与 A/B 其余完成门同时闭合后，才可说系统具备正确接入 GPU
+domain/owner 的结构。这些条件都不证明
 GPU 已支持，也不表示科研主线应立即转向 GPU。当前 A/B 横向 task 先闭合 RISC-V 旗舰 realization 的执行
 知识因式分解、强重建、formula causality、current artifact correctness 与真实性能。
 其中 deterministic owner 的 route/manifest qualification 已在该 task 的第一项横向清理中

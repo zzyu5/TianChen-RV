@@ -52,13 +52,14 @@ module attributes {weft_rvv.source_front_door = "bounded_vector_runtime_scalar_c
   }
 }
 
+// MATERIALIZED: weft.exec.target @rvv_vector_runtime_scalar_cmp_select_eq_from_vector_source_target_profile
+// MATERIALIZED: weft.exec.capability @rvv_vector_runtime_scalar_cmp_select_eq_from_vector_source_rvv_capability
+// MATERIALIZED-SAME: id = "rvv"
+// MATERIALIZED-SAME: kind = "isa-vector"
 // MATERIALIZED-LABEL: weft.exec.kernel @rvv_vector_runtime_scalar_cmp_select_eq_from_vector_source
 // MATERIALIZED: weft.exec.i32_vector_compare_select_problem @canonical_problem
 // MATERIALIZED-SAME: predicate = "eq"
 // MATERIALIZED-SAME: rhs_form = "runtime-scalar"
-// MATERIALIZED: weft.exec.capability @rvv
-// MATERIALIZED-SAME: id = "rvv"
-// MATERIALIZED-SAME: kind = "isa-vector"
 // MATERIALIZED: weft.exec.variant @rvv_vector_runtime_scalar_cmp_select_eq
 // MATERIALIZED-SAME: origin = "rvv-plugin"
 // MATERIALIZED-DAG: weft_rvv.runtime_abi_value {{.*}}c_name = "lhs"{{.*}}purpose = "rvv-vector-runtime-scalar-cmp-select-source-front-door:lhs"{{.*}}role = "lhs-input-buffer"

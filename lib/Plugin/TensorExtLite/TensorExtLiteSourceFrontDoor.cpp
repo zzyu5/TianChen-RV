@@ -5,11 +5,15 @@
 #include "Weft/Plugin/ExtensionPlugin.h"
 #include "Weft/Plugin/TensorExtLite/TensorExtLiteFamilyContract.h"
 #include "Weft/Plugin/TensorExtLite/TensorExtLiteExtensionPlugin.h"
+#include "Weft/Target/RISCVTargetProfile.h"
 
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
+#include "mlir/IR/SymbolTable.h"
 #include "mlir/Pass/Pass.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/ADT/Twine.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/Error.h"
 
@@ -217,15 +221,32 @@ void createSelectedTensorExtLiteDiagnostic(mlir::OpBuilder &builder,
   (void)builder.create(state);
 }
 
-void materializeTensorExtLiteSourceKernel(mlir::OpBuilder &builder,
-                                          mlir::ModuleOp module,
-                                          llvm::StringRef kernelName) {
+mlir::LogicalResult
+materializeTensorExtLiteSourceKernel(mlir::OpBuilder &builder,
+                                     mlir::ModuleOp module,
+                                     llvm::StringRef kernelName) {
   mlir::Location loc = module.getLoc();
+
+  createTensorExtLiteCapability(builder, loc);
+  llvm::StringRef capabilitySymbol =
+      getTensorExtLiteFragmentPreferredCapabilitySymbol();
+  mlir::Operation *capability =
+      mlir::SymbolTable::lookupSymbolIn(module, capabilitySymbol);
+  llvm::SmallVector<mlir::Operation *, 1> providers{capability};
+  std::string targetSymbol = (llvm::Twine(kernelName) + "_target_profile").str();
+  llvm::Expected<weft::exec::TargetOp> target =
+      weft::target::materializeRISCVExecutionTargetProfile(
+          builder, module, loc, targetSymbol,
+          (llvm::Twine("weft.riscv.tensorext-lite-source-profile.") +
+           kernelName)
+              .str(),
+          providers);
+  if (!target)
+    return failMaterializer(module, llvm::toString(target.takeError()));
 
   mlir::OperationState kernelState(loc, "weft.exec.kernel");
   kernelState.addAttribute("sym_name", builder.getStringAttr(kernelName));
-  kernelState.addAttribute("construction_domain",
-                           builder.getStringAttr("riscv-execution"));
+  kernelState.addAttribute("target", symbolRef(builder, targetSymbol));
   kernelState.addRegion();
   auto kernel =
       llvm::cast<weft::exec::KernelOp>(builder.create(kernelState));
@@ -234,7 +255,6 @@ void materializeTensorExtLiteSourceKernel(mlir::OpBuilder &builder,
   mlir::OpBuilder::InsertionGuard kernelGuard(builder);
   builder.setInsertionPointToStart(&kernel.getBody().front());
 
-  createTensorExtLiteCapability(builder, loc);
   mlir::ArrayAttr requires = builder.getArrayAttr(
       {symbolRef(builder, getTensorExtLiteFragmentPreferredCapabilitySymbol())});
   createTensorExtLiteVariant(builder, loc, requires);
@@ -249,6 +269,7 @@ void materializeTensorExtLiteSourceKernel(mlir::OpBuilder &builder,
 
   builder.setInsertionPointAfter(variant);
   createSelectedTensorExtLiteDiagnostic(builder, loc);
+  return mlir::success();
 }
 
 class MaterializeTensorExtLiteFragmentMmaSourceFrontDoorPass final
@@ -283,7 +304,11 @@ public:
 
     mlir::OpBuilder builder(module.getContext());
     builder.setInsertionPointToStart(module.getBody());
-    materializeTensorExtLiteSourceKernel(builder, module, *kernelName);
+    if (mlir::failed(materializeTensorExtLiteSourceKernel(
+            builder, module, *kernelName))) {
+      signalPassFailure();
+      return;
+    }
     module->removeAttr(kSourceFrontDoorAttrName);
     module->removeAttr(kSourceKernelAttrName);
   }

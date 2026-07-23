@@ -194,52 +194,54 @@ int runRegistrationAndCapabilityMetadataTest() {
 int runProposalGatingAndDeclineTest(mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
-  weft.exec.kernel @available_offload attributes {construction_domain = "riscv-execution", problem = @canonical_problem} {
-    weft.exec.int8_mac_problem @canonical_problem {lhs_signedness = #weft<integer_signedness signed>, rhs_signedness = #weft<integer_signedness signed>, m = 4 : i64, n = 4 : i64, k = 8 : i64}
-    weft.exec.capability @offload_runtime {
+  weft.exec.capability @available_offload_capability {
       id = "offload.runtime",
       kind = "runtime-offload",
       status = "available",
       runtime_abi = "generic-runtime-offload-c-abi-handoff.v1",
       handoff_kind = "runtime-offload"
-    }
   }
-
-  weft.exec.kernel @missing_offload attributes {construction_domain = "riscv-execution", problem = @canonical_problem} {
-    weft.exec.int8_mac_problem @canonical_problem {lhs_signedness = #weft<integer_signedness signed>, rhs_signedness = #weft<integer_signedness signed>, m = 4 : i64, n = 4 : i64, k = 8 : i64}
-  }
-
-  weft.exec.kernel @malformed_offload attributes {construction_domain = "riscv-execution", problem = @canonical_problem} {
-    weft.exec.int8_mac_problem @canonical_problem {lhs_signedness = #weft<integer_signedness signed>, rhs_signedness = #weft<integer_signedness signed>, m = 4 : i64, n = 4 : i64, k = 8 : i64}
-    weft.exec.capability @offload_runtime {
+  weft.exec.capability @malformed_offload_capability {
       id = "offload.runtime",
       kind = "runtime-offload",
       status = "available",
       runtime_abi = "sophgo-vendor-runtime",
       handoff_kind = "runtime-offload"
-    }
   }
-
-  weft.exec.kernel @misclassified_custom_isa_offload attributes {construction_domain = "riscv-execution", problem = @canonical_problem} {
-    weft.exec.int8_mac_problem @canonical_problem {lhs_signedness = #weft<integer_signedness signed>, rhs_signedness = #weft<integer_signedness signed>, m = 4 : i64, n = 4 : i64, k = 8 : i64}
-    weft.exec.capability @offload_runtime {
+  weft.exec.capability @misclassified_offload_capability {
       id = "offload.runtime",
       kind = "custom-isa",
       status = "available",
       runtime_abi = "generic-runtime-offload-c-abi-handoff.v1",
       handoff_kind = "runtime-offload"
-    }
   }
-
-  weft.exec.kernel @vendor_string_only attributes {construction_domain = "riscv-execution", problem = @canonical_problem, vendor_hint = "sophgo"} {
-    weft.exec.int8_mac_problem @canonical_problem {lhs_signedness = #weft<integer_signedness signed>, rhs_signedness = #weft<integer_signedness signed>, m = 4 : i64, n = 4 : i64, k = 8 : i64}
-    weft.exec.capability @vendor_runtime {
+  weft.exec.capability @vendor_runtime_capability {
       id = "sophgo.runtime",
       kind = "runtime-offload",
       status = "available",
       runtime_abi = "generic-runtime-offload-c-abi-handoff.v1",
       handoff_kind = "runtime-offload"
-    }
+  }
+  weft.exec.target @available_offload_profile {id = "offload.profile.available", target_kind = "profile", construction_domain = "riscv-execution", capability_providers = [@available_offload_capability]}
+  weft.exec.target @missing_offload_profile {id = "offload.profile.missing", target_kind = "profile", construction_domain = "riscv-execution"}
+  weft.exec.target @malformed_offload_profile {id = "offload.profile.malformed", target_kind = "profile", construction_domain = "riscv-execution", capability_providers = [@malformed_offload_capability]}
+  weft.exec.target @misclassified_offload_profile {id = "offload.profile.misclassified", target_kind = "profile", construction_domain = "riscv-execution", capability_providers = [@misclassified_offload_capability]}
+  weft.exec.target @vendor_only_profile {id = "offload.profile.vendor-only", target_kind = "profile", construction_domain = "riscv-execution", capability_providers = [@vendor_runtime_capability]}
+
+  weft.exec.kernel @available_offload attributes {target = @available_offload_profile, problem = @canonical_problem} {
+    weft.exec.int8_mac_problem @canonical_problem {lhs_signedness = #weft<integer_signedness signed>, rhs_signedness = #weft<integer_signedness signed>, m = 4 : i64, n = 4 : i64, k = 8 : i64}
+  }
+  weft.exec.kernel @missing_offload attributes {target = @missing_offload_profile, problem = @canonical_problem} {
+    weft.exec.int8_mac_problem @canonical_problem {lhs_signedness = #weft<integer_signedness signed>, rhs_signedness = #weft<integer_signedness signed>, m = 4 : i64, n = 4 : i64, k = 8 : i64}
+  }
+  weft.exec.kernel @malformed_offload attributes {target = @malformed_offload_profile, problem = @canonical_problem} {
+    weft.exec.int8_mac_problem @canonical_problem {lhs_signedness = #weft<integer_signedness signed>, rhs_signedness = #weft<integer_signedness signed>, m = 4 : i64, n = 4 : i64, k = 8 : i64}
+  }
+  weft.exec.kernel @misclassified_custom_isa_offload attributes {target = @misclassified_offload_profile, problem = @canonical_problem} {
+    weft.exec.int8_mac_problem @canonical_problem {lhs_signedness = #weft<integer_signedness signed>, rhs_signedness = #weft<integer_signedness signed>, m = 4 : i64, n = 4 : i64, k = 8 : i64}
+  }
+  weft.exec.kernel @vendor_string_only attributes {target = @vendor_only_profile, problem = @canonical_problem, vendor_hint = "sophgo"} {
+    weft.exec.int8_mac_problem @canonical_problem {lhs_signedness = #weft<integer_signedness signed>, rhs_signedness = #weft<integer_signedness signed>, m = 4 : i64, n = 4 : i64, k = 8 : i64}
   }
 }
 )mlir";
@@ -411,20 +413,21 @@ module {
 int runMaterializationSelectionAndEmissionTest(mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
-  weft.exec.kernel @offload_plus_scalar attributes {construction_domain = "riscv-execution", problem = @canonical_problem} {
-    weft.exec.dequantize_row_q4_0_problem @canonical_problem {qk = 32 : i64, weight_block_stride = 18 : i64, weight_d_byte_offset = 0 : i64, weight_quant_byte_offset = 2 : i64}
-    weft.exec.capability @offload_runtime {
+  weft.exec.capability @offload_runtime {
       id = "offload.runtime",
       kind = "runtime-offload",
       status = "available",
       runtime_abi = "generic-runtime-offload-c-abi-handoff.v1",
       handoff_kind = "runtime-offload"
-    }
-    weft.exec.capability @scalar_fallback {
+  }
+  weft.exec.capability @scalar_fallback {
       id = "scalar.fallback",
       kind = "fallback",
       status = "available"
-    }
+  }
+  weft.exec.target @offload_scalar_profile {id = "offload.scalar.profile", target_kind = "profile", construction_domain = "riscv-execution", capability_providers = [@offload_runtime, @scalar_fallback]}
+  weft.exec.kernel @offload_plus_scalar attributes {target = @offload_scalar_profile, problem = @canonical_problem} {
+    weft.exec.dequantize_row_q4_0_problem @canonical_problem {qk = 32 : i64, weight_block_stride = 18 : i64, weight_d_byte_offset = 0 : i64, weight_quant_byte_offset = 2 : i64}
     weft.exec.mem_window @abi_lhs_input_buffer {
       abi_role = "lhs-input-buffer",
       access = "read",

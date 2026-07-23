@@ -356,6 +356,45 @@ bool CapabilityDescriptor::satisfiesID(llvm::StringRef capabilityID) const {
 }
 
 llvm::Expected<TargetCapabilitySet>
+TargetCapabilitySet::buildFromTargetChecked(weft::exec::TargetOp target) {
+  if (!target)
+    return makeCapabilitySetError(
+        "Weft-RV target capability projection requires a target/profile");
+  if (!weft::exec::isCapabilityProviderTarget(target))
+    return makeCapabilitySetError(
+        llvm::Twine("Weft-RV target capability projection rejected target @") +
+        target.getSymName() +
+        " because it lacks capability-provider id/kind identity");
+
+  TargetCapabilitySet capabilitySet;
+  std::string constructionContext =
+      (llvm::Twine("target/profile projection from @") + target.getSymName())
+          .str();
+  if (llvm::Error error = capabilitySet.tryAddCapability(
+          makeDescriptor(target.getOperation(), target.getSymName(),
+                         getStringAttr(target.getOperation(), "id"),
+                         getStringAttr(target.getOperation(), "target_kind")),
+          constructionContext))
+    return std::move(error);
+
+  llvm::Expected<llvm::SmallVector<mlir::Operation *, 8>> composedProviders =
+      weft::exec::collectComposedModuleCapabilityProviders(target);
+  if (!composedProviders)
+    return composedProviders.takeError();
+  for (mlir::Operation *provider : *composedProviders) {
+    if (llvm::Error error = capabilitySet.tryAddCapability(
+            makeDescriptor(provider,
+                           weft::exec::getCapabilityProviderSymbolName(
+                               provider),
+                           weft::exec::getCapabilityProviderID(provider),
+                           weft::exec::getCapabilityProviderKind(provider)),
+            constructionContext))
+      return std::move(error);
+  }
+  return capabilitySet;
+}
+
+llvm::Expected<TargetCapabilitySet>
 TargetCapabilitySet::buildFromKernelChecked(weft::exec::KernelOp kernel) {
   TargetCapabilitySet capabilitySet;
   if (!kernel || kernel.getBody().empty())
@@ -368,28 +407,11 @@ TargetCapabilitySet::buildFromKernelChecked(weft::exec::KernelOp kernel) {
     return referencedTarget.takeError();
 
   if (*referencedTarget) {
-    weft::exec::TargetOp target = *referencedTarget;
-    if (llvm::Error error = capabilitySet.tryAddCapability(
-            makeDescriptor(target.getOperation(), target.getSymName(),
-                           getStringAttr(target.getOperation(), "id"),
-                           getStringAttr(target.getOperation(), "target_kind")),
-            constructionContext))
-      return std::move(error);
-
-    llvm::Expected<llvm::SmallVector<mlir::Operation *, 8>> composedProviders =
-        weft::exec::collectComposedModuleCapabilityProviders(target);
-    if (!composedProviders)
-      return composedProviders.takeError();
-    for (mlir::Operation *provider : *composedProviders) {
-      if (llvm::Error error = capabilitySet.tryAddCapability(
-              makeDescriptor(provider,
-                             weft::exec::getCapabilityProviderSymbolName(
-                                 provider),
-                             weft::exec::getCapabilityProviderID(provider),
-                             weft::exec::getCapabilityProviderKind(provider)),
-              constructionContext))
-        return std::move(error);
-    }
+    llvm::Expected<TargetCapabilitySet> targetCapabilities =
+        buildFromTargetChecked(*referencedTarget);
+    if (!targetCapabilities)
+      return targetCapabilities.takeError();
+    capabilitySet = std::move(*targetCapabilities);
   }
 
   for (mlir::Operation &op : kernel.getBody().front()) {
@@ -433,6 +455,68 @@ TargetCapabilitySet::buildFromKernelChecked(weft::exec::KernelOp kernel) {
   }
 
   return capabilitySet;
+}
+
+llvm::Expected<TargetDomainBinding>
+bindKernelTargetDomain(weft::exec::KernelOp kernel, TargetBindingMode mode) {
+  if (!kernel)
+    return makeCapabilitySetError(
+        "Weft-RV target/domain binding requires a weft.exec.kernel");
+
+  llvm::Expected<weft::exec::TargetOp> referencedTarget =
+      getReferencedModuleTargetProvider(kernel);
+  if (!referencedTarget)
+    return referencedTarget.takeError();
+
+  if (!*referencedTarget) {
+    if (mode == TargetBindingMode::RequireTargetProfile)
+      return makeCapabilitySetError(
+          llvm::Twine("Weft-RV source target/domain binding for kernel @") +
+          kernel.getSymName() +
+          " requires an explicit module-level target/profile reference");
+
+    TargetDomainBinding binding;
+    binding.targetBound = false;
+    binding.domain =
+        kernel->getAttrOfType<mlir::StringAttr>("construction_domain");
+    llvm::Expected<TargetCapabilitySet> capabilities =
+        TargetCapabilitySet::buildFromKernelChecked(kernel);
+    if (!capabilities)
+      return capabilities.takeError();
+    binding.capabilities = std::move(*capabilities);
+    return binding;
+  }
+
+  weft::exec::TargetOp target = *referencedTarget;
+  auto targetDomain =
+      target->getAttrOfType<mlir::StringAttr>("construction_domain");
+  if (!targetDomain || targetDomain.getValue().trim().empty() ||
+      targetDomain.getValue().trim() != targetDomain.getValue())
+    return makeCapabilitySetError(
+        llvm::Twine("Weft-RV target/domain binding rejected target @") +
+        target.getSymName() +
+        " because construction_domain is missing, empty, or not trimmed");
+
+  if (auto kernelDomain =
+          kernel->getAttrOfType<mlir::StringAttr>("construction_domain"))
+    if (kernelDomain != targetDomain)
+      return makeCapabilitySetError(
+          llvm::Twine("Weft-RV target/domain binding rejected kernel @") +
+          kernel.getSymName() + " construction_domain '" +
+          kernelDomain.getValue() + "' because target @" +
+          target.getSymName() + " binds '" + targetDomain.getValue() + "'");
+
+  llvm::Expected<TargetCapabilitySet> capabilities =
+      TargetCapabilitySet::buildFromTargetChecked(target);
+  if (!capabilities)
+    return capabilities.takeError();
+
+  TargetDomainBinding binding;
+  binding.target = target;
+  binding.domain = targetDomain;
+  binding.capabilities = std::move(*capabilities);
+  binding.targetBound = true;
+  return binding;
 }
 
 TargetCapabilitySet

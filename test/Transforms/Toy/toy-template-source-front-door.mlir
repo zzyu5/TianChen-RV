@@ -9,11 +9,12 @@ module attributes {
 } {
 }
 
-// BOUNDARY: weft.exec.kernel @toy_header_export
+// BOUNDARY: weft.exec.target @toy_header_export_target_profile
 // BOUNDARY: weft.exec.capability @toy_template
 // BOUNDARY-SAME: handoff_kind = "toy-lowering-template"
 // BOUNDARY-SAME: id = "toy.template"
 // BOUNDARY-SAME: template_abi = "toy-metadata-boundary.v1"
+// BOUNDARY: weft.exec.kernel @toy_header_export
 // BOUNDARY: weft.exec.variant @toy_template_first_slice
 // BOUNDARY-SAME: origin = "toy-plugin"
 // BOUNDARY-SAME: requires = [@toy_template]

@@ -106,6 +106,14 @@ topology 的纵向切片，也不得保留旧路径作为兼容退路。
   未有真实 erasure witness 的 source construction 已降回 `ConstructedWeak`。当前
   body-first fact extraction 仍是 normalization，不是从 canonical problem 的 forward
   reconstruction；
+- 正式 source kernel 已改为 exact symbol 绑定 module-level target/profile；公共
+  `TargetDomainBinding` 从同一 target 一次产生 `(d,C_d)`，proposal、legality、selection 与
+  selected-owner construction 均消费该 authority。RVV、Toy 与 TensorExtLite source adapter
+  不再写 kernel-local RISC-V domain/capability；targetless direct/pre-realized 仅可走显式
+  non-target-bound debug mode；
+- test-only `domain-a/domain-b` owner 见证已让 domain B 的同一个 physical P 走通
+  proposal→legality→selection→artifact-neutral typed construction，并证明 foreign domain A
+  在 owner hook 前退出；该见证没有创建 GPU capability、dialect、body 或 artifact；
 - measurement compiled residual view 当前为空；selector 对合法多候选使用 formula analytic
   prior，legacy measurement rows不因历史 `selection_valid_input` 自动获得 qualified/fresh 权限；
 - 上述切面已经通过 `weft-opt`/`weft-translate` 构建、formula/catalog/authority guard、
@@ -116,16 +124,8 @@ topology 的纵向切片，也不得保留旧路径作为兼容退路。
 
 - Scalar 仍有 selected/source structural stamps，RVV 仍有 body-first normalization，且其它
   production leaf 中仍有尚未因式分解的完整算法 authority；
-- 物理 canonical problem 尚未覆盖全部 current source-origin entry；显式
-  `construction_domain` identity/membership gate 已在 proposal/support、selection 与
-  selected-owner construction 三处前置成立。所有 live owner 显式声明 membership，
-  foreign-domain origin 在观察 problem 或进入排序前退出；同一声明 identity 内的
-  RVV/IME/Scalar 仍可作为 owner-qualified candidates 比较，direct/pre-realized 无 domain
-  输入单列为 debug qualification。这个 gate 不是 target/profile 驱动的完整
-  `BindDomain(t)=(d,C_d)`；current source front door 仍可直接写入 RISC-V identity；
-- target/profile 尚未成为 domain 与 capability environment 的唯一绑定 authority；
-  source/front door 的 domain 硬编码、target/domain/capability 不一致和 ambiguous binding
-  仍须 fail closed 并由正负测试覆盖；
+- 物理 canonical problem 尚未覆盖全部 current source-origin entry；target binding 已闭合，
+  但 RVV adapter 仍预构造完整 body，因而 exact P 尚未成为 forward construction 的充分输入；
 - decisive `g/c/ω` counterfactual、mechanism fan-out 与 honest-null 因果测试；
 - 多 topology delete-leaf strong reconstruction；
 - current artifact 的真板 correctness/deployed identity、四臂消融、winner residual 稀疏性与
@@ -286,10 +286,10 @@ A 线回答“知识是否集中、可组合、可扩展并真实构造”；B �
 - [x] kernel domain identity 与 owner membership 在 proposal/support、selection 和
   selected-owner construction 前检查，foreign-domain origin fail closed；这只证明 identity
   gate，不证明 target binding；
-- [ ] target/profile 是唯一 `BindDomain(t)` authority，并同时产生一致的 `(d,C_d)`；
+- [x] target/profile 是唯一 `BindDomain(t)` authority，并同时产生一致的 `(d,C_d)`；
   source/front door 不硬编码或从 origin/artifact 反推 domain，missing/unknown/ambiguous/
   conflicting binding fail closed；
-- [ ] 以 test-only 第二 domain/owner 复用同一 physical problem，走通
+- [x] 以 test-only 第二 domain/owner 复用同一 physical problem，走通
   proposal→legality→artifact-neutral construction，并证明 common/RISC-V compute 无
   domain/owner-name 分支改动；该 witness 不创建 GPU capability、dialect、body 或 artifact；
 - [ ] developer 能从少数 owner-local 模块直接读出 decisive `g/c/ω`、mechanisms、formula、

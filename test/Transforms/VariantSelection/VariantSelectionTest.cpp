@@ -1162,32 +1162,36 @@ module {
 int runBuiltinRVVScalarFallbackSelectionTest(mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
-  weft.exec.kernel @rvv_plus_scalar attributes {construction_domain = "riscv-execution", problem = @canonical_problem} {
+  weft.exec.capability @rvv {
+    id = "rvv",
+    kind = "isa-vector",
+    architecture = "riscv64",
+    isa_vector_hints = "rv64gcv_zvl128b",
+    status = "available"
+  }
+  weft.exec.capability @rvv_hart_count {
+    id = "rvv.hart_count",
+    kind = "uarch",
+    count = 64 : i64,
+    status = "available"
+  }
+  weft.exec.capability @rvv_probe_compile_run {
+    id = "rvv.probe.compile_run",
+    kind = "toolchain",
+    selected_march = "rv64gcv",
+    status = "available"
+  }
+  weft.exec.capability @scalar_fallback {
+    id = "scalar.fallback",
+    kind = "fallback",
+    status = "available"
+  }
+  weft.exec.target @rvv_plus_scalar_profile {id = "rvv.plus.scalar.profile", target_kind = "profile", construction_domain = "riscv-execution", capability_providers = [@rvv, @rvv_hart_count, @rvv_probe_compile_run, @scalar_fallback]}
+  weft.exec.target @scalar_only_profile {id = "scalar.only.profile", target_kind = "profile", construction_domain = "riscv-execution", capability_providers = [@scalar_fallback]}
+  weft.exec.target @rvv_only_profile {id = "rvv.only.profile", target_kind = "profile", construction_domain = "riscv-execution", capability_providers = [@rvv, @rvv_hart_count, @rvv_probe_compile_run]}
+
+  weft.exec.kernel @rvv_plus_scalar attributes {target = @rvv_plus_scalar_profile, problem = @canonical_problem} {
     weft.exec.dequantize_row_q4_0_problem @canonical_problem {qk = 32 : i64, weight_block_stride = 18 : i64, weight_d_byte_offset = 0 : i64, weight_quant_byte_offset = 2 : i64}
-    weft.exec.capability @rvv {
-      id = "rvv",
-      kind = "isa-vector",
-      architecture = "riscv64",
-      isa_vector_hints = "rv64gcv_zvl128b",
-      status = "available"
-    }
-    weft.exec.capability @rvv_hart_count {
-      id = "rvv.hart_count",
-      kind = "uarch",
-      count = 64 : i64,
-      status = "available"
-    }
-    weft.exec.capability @rvv_probe_compile_run {
-      id = "rvv.probe.compile_run",
-      kind = "toolchain",
-      selected_march = "rv64gcv",
-      status = "available"
-    }
-    weft.exec.capability @scalar_fallback {
-      id = "scalar.fallback",
-      kind = "fallback",
-      status = "available"
-    }
     weft.exec.variant @rvv_typed_body attributes {
       condition = "rvv_capability_properties_available",
       guard = "plugin_local_rvv_property_evidence",
@@ -1210,35 +1214,11 @@ module {
     }
   }
 
-  weft.exec.kernel @scalar_only attributes {construction_domain = "riscv-execution", problem = @canonical_problem} {
+  weft.exec.kernel @scalar_only attributes {target = @scalar_only_profile, problem = @canonical_problem} {
     weft.exec.dequantize_row_q4_0_problem @canonical_problem {qk = 32 : i64, weight_block_stride = 18 : i64, weight_d_byte_offset = 0 : i64, weight_quant_byte_offset = 2 : i64}
-    weft.exec.capability @scalar_fallback {
-      id = "scalar.fallback",
-      kind = "fallback",
-      status = "available"
-    }
   }
 
-  weft.exec.kernel @rvv_only attributes {construction_domain = "riscv-execution"} {
-    weft.exec.capability @rvv {
-      id = "rvv",
-      kind = "isa-vector",
-      architecture = "riscv64",
-      isa_vector_hints = "rv64gcv_zvl128b",
-      status = "available"
-    }
-    weft.exec.capability @rvv_hart_count {
-      id = "rvv.hart_count",
-      kind = "uarch",
-      count = 64 : i64,
-      status = "available"
-    }
-    weft.exec.capability @rvv_probe_compile_run {
-      id = "rvv.probe.compile_run",
-      kind = "toolchain",
-      selected_march = "rv64gcv",
-      status = "available"
-    }
+  weft.exec.kernel @rvv_only attributes {target = @rvv_only_profile} {
     weft.exec.variant @rvv_typed_body attributes {
       condition = "rvv_capability_properties_available",
       guard = "plugin_local_rvv_property_evidence",

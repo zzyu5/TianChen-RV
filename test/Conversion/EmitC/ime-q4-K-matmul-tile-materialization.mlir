@@ -19,16 +19,17 @@
 // RUN: weft-opt %s --weft-materialize-plugin-variants --weft-select-variants --weft-materialize-selected-lowering-boundaries --weft-materialize-emitc-lowerable-routes | FileCheck %s --check-prefix=EMITC --implicit-check-not="weft_rvv" --implicit-check-not="weft_toy" --implicit-check-not="mac_kloop_w2"
 
 module {
-  weft.exec.kernel @ime_q4_K_matmul_kernel attributes {construction_domain = "riscv-execution", problem = @canonical_problem} {
-    weft.exec.block_q4_K_contraction_problem @canonical_problem {activation_signedness = #weft<integer_signedness signed>, m = 256 : i64, n = 256 : i64, k = 256 : i64, qk = 256 : i64, weight_block_stride = 144 : i64, weight_scale_byte_offset = 4 : i64, weight_quant_byte_offset = 16 : i64, subblock_length = 32 : i64, num_subblocks = 8 : i64, scale_bits = 6 : i64, scale_table_bytes = 12 : i64}
-    weft.exec.capability @spacemit_ime {
+  weft.exec.capability @spacemit_ime {
       id = "spacemit.ime",
       kind = "isa-matrix-vector-backed",
       status = "available",
       march = "rv64gcv_zfh_zvfh_zba_zicbop_xsmtvdotii",
       vlen_bits = "256",
       available_harts = "0-3"
-    }
+  }
+  weft.exec.target @ime_q4_K_profile {id = "ime.q4_K.profile", target_kind = "profile", construction_domain = "riscv-execution", capability_providers = [@spacemit_ime]}
+  weft.exec.kernel @ime_q4_K_matmul_kernel attributes {target = @ime_q4_K_profile, problem = @canonical_problem} {
+    weft.exec.block_q4_K_contraction_problem @canonical_problem {activation_signedness = #weft<integer_signedness signed>, m = 256 : i64, n = 256 : i64, k = 256 : i64, qk = 256 : i64, weight_block_stride = 144 : i64, weight_scale_byte_offset = 4 : i64, weight_quant_byte_offset = 16 : i64, subblock_length = 32 : i64, num_subblocks = 8 : i64, scale_bits = 6 : i64, scale_table_bytes = 12 : i64}
   }
 }
 

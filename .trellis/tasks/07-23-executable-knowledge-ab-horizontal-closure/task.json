@@ -49,7 +49,7 @@
     "tools/bench/bench",
     "tools/bench/export_current_artifact.py"
   ],
-  "notes": "当前结构检查点已经完成 artifact-neutral owner lifecycle、construction-owned RVV runtime control、旧 RVV route-provider/protocol 物理退出、current-artifact runner 接线、bounded canonical-problem surface、exact P/C_d request continuity、IME problem/capability 解耦、explicit domain identity membership、thin selector 与 exact selected-root artifact contract。membership gate 不是 target/profile BindDomain；RVV source adapter 仍预构造 body，Scalar 仍有 structural stamps，因此这些切面不等于 complete forward construction、mechanism factorization、delete-leaf strong reconstruction、formula causal coverage 或真硬件 A/B。禁止纵向只完成一个 format/operator/formula 后宣告重构完成；q5_1 只能作为局部 reconstruction witness。禁止实现 GPU、改变两柱六律或主公式、建立 universal Formula IR/provider/verifier、恢复 compatibility/emitter 决策，或让 measurement 创造 compute。",
+  "notes": "当前结构检查点已经完成 artifact-neutral owner lifecycle、construction-owned RVV runtime control、旧 RVV route-provider/protocol 物理退出、current-artifact runner 接线、bounded canonical-problem surface、exact P/C_d request continuity、IME problem/capability 解耦、target/profile 唯一 BindDomain、test-only 第二 domain/owner、thin selector 与 exact selected-root artifact contract。RVV source adapter 仍预构造 body，Scalar 仍有 structural stamps，因此这些切面不等于 complete forward construction、mechanism factorization、delete-leaf strong reconstruction、formula causal coverage 或真硬件 A/B。禁止纵向只完成一个 format/operator/formula 后宣告重构完成；q5_1 只能作为局部 reconstruction witness。禁止实现 GPU、改变两柱六律或主公式、建立 universal Formula IR/provider/verifier、恢复 compatibility/emitter 决策，或让 measurement 创造 compute。",
   "meta": {
     "predecessor": "01f55f3fab63ae923cb61109000f02ee6e7bad01",
     "method_baseline": "docs/method/README.md",

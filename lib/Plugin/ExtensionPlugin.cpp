@@ -68,43 +68,14 @@ bool isNestedUnder(mlir::Operation *operation, mlir::Operation *ancestor) {
 
 llvm::Expected<std::optional<std::string>>
 resolveBoundConstructionDomain(weft::exec::KernelOp kernel) {
-  if (!kernel)
-    return makePluginRegistryError(
-        "construction-domain binding requires a weft.exec.kernel");
-
-  auto kernelDomain = kernel->getAttrOfType<mlir::StringAttr>(
-      kConstructionDomainAttrName);
-  auto targetRef =
-      kernel->getAttrOfType<mlir::FlatSymbolRefAttr>("target");
-  if (!targetRef)
-    return kernelDomain
-               ? std::optional<std::string>(kernelDomain.getValue().str())
-               : std::optional<std::string>();
-
-  mlir::ModuleOp module = kernel->getParentOfType<mlir::ModuleOp>();
-  if (!module)
-    return makePluginRegistryError(
-        "target-bound construction domain requires an enclosing module");
-  mlir::Operation *resolved =
-      mlir::SymbolTable::lookupSymbolIn(module, targetRef.getValue());
-  auto target = llvm::dyn_cast_or_null<weft::exec::TargetOp>(resolved);
-  if (!target)
-    return makePluginRegistryError(
-        llvm::Twine("kernel target @") + targetRef.getValue() +
-        " does not resolve to a module-level weft.exec.target");
-  auto targetDomain = target->getAttrOfType<mlir::StringAttr>(
-      kConstructionDomainAttrName);
-  if (!targetDomain)
-    return makePluginRegistryError(
-        llvm::Twine("target @") + targetRef.getValue() +
-        " does not bind construction_domain");
-  if (kernelDomain && kernelDomain.getValue() != targetDomain.getValue())
-    return makePluginRegistryError(
-        llvm::Twine("kernel construction_domain '") +
-        kernelDomain.getValue() + "' conflicts with target @" +
-        targetRef.getValue() + " construction_domain '" +
-        targetDomain.getValue() + "'");
-  return std::optional<std::string>(targetDomain.getValue().str());
+  llvm::Expected<support::TargetDomainBinding> binding =
+      support::bindKernelTargetDomain(
+          kernel, support::TargetBindingMode::AllowDirectDebug);
+  if (!binding)
+    return binding.takeError();
+  if (!binding->domain)
+    return std::optional<std::string>();
+  return std::optional<std::string>(binding->domain.getValue().str());
 }
 
 bool hasConservativeFallbackRole(const VariantCostRankingEntry &entry) {
@@ -459,11 +430,12 @@ llvm::Error validateBoundTargetCapabilities(
   if (!kernel)
     return makePluginRegistryError(
         "target capability binding requires a weft.exec.kernel");
-  llvm::Expected<support::TargetCapabilitySet> bound =
-      support::TargetCapabilitySet::buildFromKernelChecked(kernel);
-  if (!bound)
-    return bound.takeError();
-  if (support::computeDeclaredInstanceHash(*bound) !=
+  llvm::Expected<support::TargetDomainBinding> binding =
+      support::bindKernelTargetDomain(
+          kernel, support::TargetBindingMode::AllowDirectDebug);
+  if (!binding)
+    return binding.takeError();
+  if (support::computeDeclaredInstanceHash(binding->capabilities) !=
       support::computeDeclaredInstanceHash(capabilities))
     return makePluginRegistryError(
         llvm::Twine("weft.exec.kernel @") + kernel.getSymName() +
@@ -1287,16 +1259,19 @@ llvm::Error ExtensionPluginRegistry::collectVariantProposals(
           request.getKernel(), request.getProblem(),
           "variant-proposal request"))
     return error;
-  llvm::Expected<std::optional<std::string>> domainOr =
-      resolveBoundConstructionDomain(request.getKernel());
-  if (!domainOr)
-    return domainOr.takeError();
-  if (!*domainOr)
+  llvm::Expected<support::TargetDomainBinding> binding =
+      support::bindKernelTargetDomain(
+          request.getKernel(),
+          support::TargetBindingMode::RequireTargetProfile);
+  if (!binding)
+    return binding.takeError();
+  if (support::computeDeclaredInstanceHash(binding->capabilities) !=
+      support::computeDeclaredInstanceHash(request.getCapabilities()))
     return makePluginRegistryError(
         llvm::Twine("weft.exec.kernel @") + request.getKernel().getSymName() +
-        " source variant proposal requires a target/profile or direct kernel "
-        "construction_domain binding");
-  llvm::StringRef constructionDomain = **domainOr;
+        " variant proposal request does not carry the exact C_d bound by its "
+        "target/profile");
+  llvm::StringRef constructionDomain = binding->domain.getValue();
   if (!hasEnabledPluginInConstructionDomain(constructionDomain))
     return makePluginRegistryError(
         llvm::Twine("weft.exec.kernel @") + request.getKernel().getSymName() +
@@ -1636,12 +1611,13 @@ llvm::Error ExtensionPluginRegistry::constructFormulaPlansForVariant(
         llvm::Twine("selected owner construction cannot use disabled origin '") +
         origin + "'");
 
-  llvm::Expected<std::optional<std::string>> domainOr =
-      resolveBoundConstructionDomain(kernel);
-  if (!domainOr)
-    return domainOr.takeError();
-  if (*domainOr) {
-    llvm::StringRef domain = **domainOr;
+  llvm::Expected<support::TargetDomainBinding> binding =
+      support::bindKernelTargetDomain(
+          kernel, support::TargetBindingMode::AllowDirectDebug);
+  if (!binding)
+    return binding.takeError();
+  if (binding->domain) {
+    llvm::StringRef domain = binding->domain.getValue();
     if (plugin->getConstructionDomain() != domain)
       return makePluginRegistryError(
           llvm::Twine("selected variant @") + variant.getSymName() +
@@ -1649,17 +1625,6 @@ llvm::Error ExtensionPluginRegistry::constructFormulaPlansForVariant(
           plugin->getConstructionDomain() + "', which does not match kernel @" +
           kernel.getSymName() + " construction domain '" + domain + "'");
   }
-
-  // The construction domain was already fixed by the kernel identity. Build
-  // the target capability environment here so the selected owner can project
-  // its narrower typed capability input before artifact code runs.
-  llvm::Expected<support::TargetCapabilitySet> capabilities =
-      support::TargetCapabilitySet::buildFromKernelChecked(kernel);
-  if (!capabilities)
-    return makePluginRegistryError(
-        llvm::Twine("selected owner construction for origin '") + origin +
-        "' rejected target/profile capability projection: " +
-        llvm::toString(capabilities.takeError()));
 
   llvm::Expected<mlir::Operation *> resolvedProblem =
       resolveCanonicalProblemIfBound(kernel);
@@ -1671,14 +1636,15 @@ llvm::Error ExtensionPluginRegistry::constructFormulaPlansForVariant(
   mlir::Operation *problem = *resolvedProblem;
 
   if (llvm::Error error = plugin->verifyVariantLegality(
-          VariantLegalityRequest(variant, kernel, problem, *capabilities)))
+          VariantLegalityRequest(variant, kernel, problem,
+                                 binding->capabilities)))
     return makePluginRegistryError(
         llvm::Twine("selected owner construction for origin '") + origin +
         "' rejected selected variant legality: " +
         llvm::toString(std::move(error)));
 
   FamilyConstructionRequest request(module, variant, kernel, problem,
-                                    *capabilities, role);
+                                    binding->capabilities, role);
   out = FamilyConstructionResult();
   if (llvm::Error error = plugin->constructFormulaPlans(request, out))
     return makePluginRegistryError(

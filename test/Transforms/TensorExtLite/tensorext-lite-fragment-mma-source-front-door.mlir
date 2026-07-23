@@ -9,11 +9,12 @@ module attributes {
 } {
 }
 
-// BOUNDARY: weft.exec.kernel @tensorext_lite_header_export
+// BOUNDARY: weft.exec.target @tensorext_lite_header_export_target_profile
 // BOUNDARY: weft.exec.capability @tensorext_lite_tile_mma
 // BOUNDARY-SAME: fragment_abi = "tensorext-lite-fragment-boundary.v1"
 // BOUNDARY-SAME: handoff_kind = "tensorext-lite-fragment-mma-template"
 // BOUNDARY-SAME: id = "tensorext_lite.tile_mma"
+// BOUNDARY: weft.exec.kernel @tensorext_lite_header_export
 // BOUNDARY: weft.exec.variant @tensorext_lite_tile_mma_first_slice
 // BOUNDARY-SAME: origin = "tensorext-lite-plugin"
 // BOUNDARY-SAME: requires = [@tensorext_lite_tile_mma]

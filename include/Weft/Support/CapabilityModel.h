@@ -165,6 +165,12 @@ struct CapabilityConflict {
 
 class TargetCapabilitySet {
 public:
+  /// Project C_d from one explicit module-level target/profile and its
+  /// composed capability providers. Kernel-local providers are deliberately
+  /// absent from this path: a target-bound compilation must not silently
+  /// extend or replace the environment selected by the target request.
+  static llvm::Expected<TargetCapabilitySet>
+  buildFromTargetChecked(weft::exec::TargetOp target);
   static TargetCapabilitySet
   buildFromKernel(weft::exec::KernelOp kernel);
   static llvm::Expected<TargetCapabilitySet>
@@ -252,6 +258,34 @@ private:
   llvm::StringMap<std::size_t> bySymbolName;
   llvm::StringMap<std::size_t> byID;
 };
+
+/// Whether targetless, pre-realized qualification input is accepted at a
+/// caller boundary. Production source proposal uses RequireTargetProfile;
+/// AllowDirectDebug exists only for explicitly separated direct/debug paths.
+enum class TargetBindingMode {
+  RequireTargetProfile,
+  AllowDirectDebug,
+};
+
+/// The single result of BindDomain(t): domain identity and capability
+/// environment are projected from the same exact target/profile. This is a
+/// lifecycle value, not a formula result, provider, or computation plan.
+struct TargetDomainBinding {
+  weft::exec::TargetOp target;
+  mlir::StringAttr domain;
+  TargetCapabilitySet capabilities;
+  bool targetBound = false;
+
+  bool isTargetBound() const { return targetBound; }
+};
+
+/// Bind one kernel to its explicit target/profile. In production mode the
+/// kernel must reference a module-level capability-provider TargetOp with a
+/// non-empty construction_domain; both d and C_d are obtained from that same
+/// target. Direct/debug mode preserves targetless qualification as an
+/// explicitly non-target-bound result and never upgrades it to BindDomain(t).
+llvm::Expected<TargetDomainBinding>
+bindKernelTargetDomain(weft::exec::KernelOp kernel, TargetBindingMode mode);
 
 } // namespace weft::support
 

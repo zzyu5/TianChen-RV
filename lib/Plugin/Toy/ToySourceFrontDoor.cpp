@@ -4,12 +4,17 @@
 #include "Weft/Dialect/Toy/IR/ToyDialect.h"
 #include "Weft/Plugin/ExtensionPlugin.h"
 #include "Weft/Plugin/Toy/ToyExtensionPlugin.h"
+#include "Weft/Target/RISCVTargetProfile.h"
 
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
+#include "mlir/IR/SymbolTable.h"
 #include "mlir/Pass/Pass.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/ADT/Twine.h"
 #include "llvm/Support/Casting.h"
+#include "llvm/Support/Error.h"
 
 #include <cctype>
 #include <cstdint>
@@ -200,15 +205,27 @@ void createSelectedToyDiagnostic(mlir::OpBuilder &builder,
   (void)builder.create(state);
 }
 
-void materializeToySourceKernel(mlir::OpBuilder &builder,
-                                mlir::ModuleOp module,
-                                llvm::StringRef kernelName) {
+mlir::LogicalResult materializeToySourceKernel(mlir::OpBuilder &builder,
+                                               mlir::ModuleOp module,
+                                               llvm::StringRef kernelName) {
   mlir::Location loc = module.getLoc();
+
+  createToyCapability(builder, loc);
+  mlir::Operation *capability =
+      mlir::SymbolTable::lookupSymbolIn(module, kToyCapabilitySymbol);
+  llvm::SmallVector<mlir::Operation *, 1> providers{capability};
+  std::string targetSymbol = (llvm::Twine(kernelName) + "_target_profile").str();
+  llvm::Expected<weft::exec::TargetOp> target =
+      weft::target::materializeRISCVExecutionTargetProfile(
+          builder, module, loc, targetSymbol,
+          (llvm::Twine("weft.riscv.toy-source-profile.") + kernelName).str(),
+          providers);
+  if (!target)
+    return failMaterializer(module, llvm::toString(target.takeError()));
 
   mlir::OperationState kernelState(loc, "weft.exec.kernel");
   kernelState.addAttribute("sym_name", builder.getStringAttr(kernelName));
-  kernelState.addAttribute("construction_domain",
-                           builder.getStringAttr("riscv-execution"));
+  kernelState.addAttribute("target", symbolRef(builder, targetSymbol));
   kernelState.addRegion();
   auto kernel =
       llvm::cast<weft::exec::KernelOp>(builder.create(kernelState));
@@ -217,12 +234,12 @@ void materializeToySourceKernel(mlir::OpBuilder &builder,
   mlir::OpBuilder::InsertionGuard kernelGuard(builder);
   builder.setInsertionPointToStart(&kernel.getBody().front());
 
-  createToyCapability(builder, loc);
   mlir::ArrayAttr requires =
       builder.getArrayAttr({symbolRef(builder, kToyCapabilitySymbol)});
   createToyTemplateVariant(builder, loc, requires);
   createToyComputeSkeletonBoundary(builder, loc, kernelName);
   createSelectedToyDiagnostic(builder, loc);
+  return mlir::success();
 }
 
 class MaterializeToyTemplateSourceFrontDoorPass final
@@ -255,7 +272,11 @@ public:
 
     mlir::OpBuilder builder(module.getContext());
     builder.setInsertionPointToStart(module.getBody());
-    materializeToySourceKernel(builder, module, *kernelName);
+    if (mlir::failed(
+            materializeToySourceKernel(builder, module, *kernelName))) {
+      signalPassFailure();
+      return;
+    }
     module->removeAttr(kSourceFrontDoorAttrName);
     module->removeAttr(kSourceKernelAttrName);
   }

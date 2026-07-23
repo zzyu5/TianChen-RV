@@ -14,16 +14,17 @@
 // that none of the non-slide IME helpers/variants leak into the slide path, and
 // no OTHER family dialect leaks into core.
 module {
-  weft.exec.kernel @ime_mma_slide_kernel attributes {construction_domain = "riscv-execution", problem = @canonical_problem} {
-    weft.exec.int8_sliding_mac_problem @canonical_problem {lhs_signedness = #weft<integer_signedness signed>, rhs_signedness = #weft<integer_signedness signed>, m = 4 : i64, n = 4 : i64, k = 8 : i64, slide = 1 : i64}
-    weft.exec.capability @spacemit_ime {
+  weft.exec.capability @spacemit_ime {
       id = "spacemit.ime",
       kind = "isa-matrix-vector-backed",
       status = "available",
       march = "rv64gcv_zfh_zvfh_zba_zicbop_xsmtvdotii",
       vlen_bits = "256",
       available_harts = "0-3"
-    }
+  }
+  weft.exec.target @ime_slide_profile {id = "ime.slide.profile", target_kind = "profile", construction_domain = "riscv-execution", capability_providers = [@spacemit_ime]}
+  weft.exec.kernel @ime_mma_slide_kernel attributes {target = @ime_slide_profile, problem = @canonical_problem} {
+    weft.exec.int8_sliding_mac_problem @canonical_problem {lhs_signedness = #weft<integer_signedness signed>, rhs_signedness = #weft<integer_signedness signed>, m = 4 : i64, n = 4 : i64, k = 8 : i64, slide = 1 : i64}
   }
 }
 
