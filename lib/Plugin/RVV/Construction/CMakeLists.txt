@@ -1,5 +1,4 @@
-add_mlir_library(WeftRVVConstructionProtocol
-  RVVConstructionProtocol.cpp
+add_mlir_library(WeftRVVConstruction
   RVVArtifactContract.cpp
   RVVBodyRuntimeControl.cpp
   ../RVVCapabilityProfile.cpp
@@ -10,11 +9,9 @@ add_mlir_library(WeftRVVConstructionProtocol
   RVVScheduleFormula.cpp
   RVVSelectedTargetCapability.cpp
   RVVSourceScheduleFormula.cpp
-  RVVContractionRouteIdentity.cpp
 
   LINK_LIBS PUBLIC
   WeftConversionEmitC
-  WeftPluginConstructionProtocol
   WeftRVVDialect
   WeftExecDialect
   WeftSupport

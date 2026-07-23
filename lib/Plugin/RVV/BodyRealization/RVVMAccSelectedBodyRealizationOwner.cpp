@@ -1,8 +1,6 @@
 #include "Weft/Plugin/RVV/RVVMAccSelectedBodyRealizationOwner.h"
 
 #include "Weft/Dialect/RVV/IR/RVVConfigContract.h"
-#include "Weft/Plugin/RVV/RVVConstructionProtocol.h"
-#include "Weft/Plugin/RVV/RVVEmitCMAccRouteFamilyPlanOwners.h"
 #include "Weft/Plugin/RVV/RVVRuntimeAVLVLControl.h"
 
 #include "mlir/IR/Builders.h"
@@ -186,10 +184,6 @@ llvm::Expected<weft::rvv::WithVLOp> realizePreRealizedRVVMAccOwner(
     return makeRVVPluginError(
         "pre-realized RVV MAcc selected-body realization requires "
         "materialized kernel and variant");
-
-  if (llvm::Error error =
-          validatePreRealizedRVVSelectedMAccBody(request, maccBody))
-    return std::move(error);
 
   mlir::OpBuilder &builder = request.getBuilder();
   mlir::OpBuilder::InsertionGuard guard(builder);

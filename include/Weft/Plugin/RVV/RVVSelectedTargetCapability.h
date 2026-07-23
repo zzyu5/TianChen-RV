@@ -43,8 +43,6 @@ struct RVVSelectedTargetCapabilityFacts {
   std::optional<std::int64_t> vectorRegisterCount;
   std::string requiredTailPolicy;
   std::string requiredMaskPolicy;
-  std::string providerMirror;
-  std::string legalityMirror;
 
   bool hasFacts() const { return !selectedProviderSymbol.empty(); }
 };
@@ -169,17 +167,6 @@ classifyRVVSatisfaction(const support::CapabilityDescriptor &capability) {
   if (capability.impliesID("rvv"))
     return "implies";
   return "transitive";
-}
-
-inline std::string formatProviderMirror(
-    const support::CapabilityDescriptor &capability) {
-  std::string mirror;
-  llvm::raw_string_ostream stream(mirror);
-  stream << "selected_capability_provider_mirror:@"
-         << capability.getSymbolName() << ";id=" << capability.getID()
-         << ";kind=" << capability.getKind()
-         << ";rvv=" << classifyRVVSatisfaction(capability);
-  return mirror;
 }
 
 inline llvm::Error verifyProfileProperties(
@@ -417,8 +404,6 @@ collectRVVSelectedTargetCapabilityFacts(
         capability.getSymbolName() +
         " vreg_count has no typed source attribute");
   }
-  facts.providerMirror =
-      selected_target_capability_detail::formatProviderMirror(capability);
   return facts;
 }
 

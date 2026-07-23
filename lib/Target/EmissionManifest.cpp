@@ -519,9 +519,8 @@ llvm::Error collectRuntimeABIParameters(
     // rather than the role alone. An N-operand contraction route (the offset-
     // binary N=3 route) declares TWO rhs-input-buffer parameters (qlo/qhi) that
     // share a runtime role but are disambiguated by their distinct C ABI names --
-    // the same (role, c-name) key the RVV route-operand binding-plan validator
-    // uses (lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp:1748). Because c_name
-    // uniqueness is already enforced above via seenNames, every existing kernel
+    // the same (role, c-name) key used by the typed runtime-ABI contract.
+    // Because c_name uniqueness is already enforced above via seenNames, every existing kernel
     // has all-unique roles (hence all-unique (role, c-name) pairs), so this stays
     // byte-exact and still rejects a genuinely duplicated (role, c_name) binding.
     std::string roleCNameKey =

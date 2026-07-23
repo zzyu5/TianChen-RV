@@ -1,8 +1,6 @@
 #include "Weft/Plugin/RVV/RVVRuntimeScalarMemorySelectedBodyRealizationOwner.h"
 
 #include "Weft/Dialect/RVV/IR/RVVConfigContract.h"
-#include "Weft/Plugin/RVV/RVVConstructionProtocol.h"
-#include "Weft/Plugin/RVV/RVVEmitCComputedMaskMemoryRouteFamilyPlanOwners.h"
 #include "Weft/Plugin/RVV/RVVRuntimeAVLVLControl.h"
 
 #include "mlir/IR/Builders.h"
@@ -267,11 +265,6 @@ realizePreRealizedRVVRuntimeScalarComputedMaskStoreOwner(
       llvm::cast<
           weft::rvv::TypedRuntimeScalarComputedMaskStorePreRealizedBodyOp>(
           bodyOp);
-  if (llvm::Error error =
-          validatePreRealizedRVVSelectedRuntimeScalarComputedMaskStoreBody(
-              request, runtimeScalarComputedMaskStoreBody))
-    return std::move(error);
-
   mlir::OpBuilder &builder = request.getBuilder();
   mlir::OpBuilder::InsertionGuard guard(builder);
   mlir::Location loc = runtimeScalarComputedMaskStoreBody->getLoc();
@@ -338,11 +331,6 @@ realizePreRealizedRVVRuntimeScalarComputedMaskLoadStoreOwner(
   auto runtimeScalarComputedMaskLoadStoreBody = llvm::cast<
       weft::rvv::TypedRuntimeScalarComputedMaskLoadStorePreRealizedBodyOp>(
       bodyOp);
-  if (llvm::Error error =
-          validatePreRealizedRVVSelectedRuntimeScalarComputedMaskLoadStoreBody(
-              request, runtimeScalarComputedMaskLoadStoreBody))
-    return std::move(error);
-
   mlir::OpBuilder &builder = request.getBuilder();
   mlir::OpBuilder::InsertionGuard guard(builder);
   mlir::Location loc = runtimeScalarComputedMaskLoadStoreBody->getLoc();

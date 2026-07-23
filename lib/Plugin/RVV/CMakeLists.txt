@@ -1,5 +1,4 @@
 add_subdirectory(Construction)
-add_subdirectory(EmitC)
 
 add_mlir_library(WeftRVVPlugin
   PARTIAL_SOURCES_INTENDED
@@ -44,8 +43,7 @@ add_mlir_library(WeftRVVPlugin
   MLIRTunableScheduleOpInterfaceIncGen
 
   LINK_LIBS PUBLIC
-  WeftRVVConstructionProtocol
-  WeftRVVEmitCRouteProvider
+  WeftRVVConstruction
   WeftRVVDialect
   WeftPlugin
   WeftRVVTarget

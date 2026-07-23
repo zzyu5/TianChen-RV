@@ -124,10 +124,7 @@ std::string riscvMaskComposeIntrinsicName(llvm::StringRef mnemonic,
 ///   __riscv_v<red>_vs_<dtype><lmul>_<dtype>m1
 /// (e.g. vredsum/vredmin/vredmax). The reduction always lands its scalar result
 /// in lane 0 of an m1 destination vector, so the result suffix is ALWAYS
-/// `<dtype>m1` regardless of the source lmul -- byte-identical to the legacy
-/// getRVVSelectedBodyReductionIntrinsicForMnemonic
-/// (RVVEmitCRoutePlanning.cpp:5087-5090,
-/// `__riscv_<mnemonic>_vs_i<sew><lmul>_i<sew>m1`).
+/// `<dtype>m1` regardless of the source lmul.
 std::string riscvReductionIntrinsicName(llvm::StringRef mnemonic, unsigned sew,
                                         llvm::StringRef lmul,
                                         llvm::StringRef dtype) {
@@ -378,10 +375,8 @@ std::string riscvVsetvlmaxIntrinsicName(unsigned sew, llvm::StringRef lmul) {
 /// The multiply-accumulate intrinsic name:
 ///   __riscv_vmacc_vv_<dtype><lmul>
 /// The fused 3-read vmacc writes into the accumulator vector: the C call order
-/// is (accumulator, lhs, rhs, vl). Byte-identical to the legacy
-/// deriveMAccIntrinsic (RVVEmitCMAccRouteFamilyPlanOwners.cpp:960-969,
-/// `__riscv_vmacc_vv_i<sew><lmul>`), which is i32-only (the legacy derivation
-/// returns nullopt for non-SEW32) -- so the caller restricts macc to i32.
+/// is (accumulator, lhs, rhs, vl). The current typed MAcc slice is i32-only,
+/// so the caller restricts MAcc to i32 before mechanical intrinsic spelling.
 std::string riscvMAccIntrinsicName(unsigned sew, llvm::StringRef lmul,
                                    llvm::StringRef dtype) {
   std::string name;

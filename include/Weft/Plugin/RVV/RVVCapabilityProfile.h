@@ -307,8 +307,8 @@ std::int64_t resolveRVVVectorRegisterBudget(mlir::ModuleOp module);
 // the XuanTie xtheadvector (RVV0.7) unit, or an "rv64...v..." vector-extension
 // token. This is the SAME plugin-local ISA-evidence authority the
 // probe->capability validation (validateRVVProbeCapabilityFacts) uses, exported
-// so the EmitC route-planning capability-property gate reasons over the ONE
-// tokenization instead of re-splitting the march string locally (core-invariants
+// so family-local construction legality reasons over the one tokenization
+// instead of re-splitting the march string locally (core-invariants
 // I1/I3: single ISA-evidence parse). The match is case-insensitive.
 inline bool hasRVVVectorHint(llvm::StringRef isaVectorHints) {
   std::string lower = isaVectorHints.lower();

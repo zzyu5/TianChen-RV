@@ -1,37 +1,15 @@
 //===- RVVMonolithicBlockDotFamily.h ----------------------------*- C++ -*-===//
 //
-// P2-b chunk3: the SHARED monolithic ggml block-dot family mechanism.
+// Family-local representation facts and typed-body inventory for ggml-style
+// monolithic block-dot construction.  Formula/front-door code consumes these
+// rows to construct the exact RVV body; artifact lowering recognizes that body
+// structurally and derives its ABI mechanically.  This table is not a route
+// provider and does not select a format, topology, or computation after formula
+// construction.
 //
-// Chunk 1 (RVVExtensionPlugin.cpp) wired the emission-plans stage and chunk 2
-// (RVVTargetSupportBundle.cpp) wired the target-artifact export -- both keyed to
-// the ONE q4_K op (weft_rvv.q4_k_q8_k_block_dot) with q4_K-specific constants
-// duplicated in each file. The wall those chunks climbed was always block-dot
-// GENERIC, not q4_K-specific: EVERY monolithic ggml block-dot body is ONE
-// plugin-owned typed op that lowers DIRECTLY through the RVV->EmitC
-// DialectConversion with no decomposed route slice for the slice-based
-// describeRVVSelectedBodyEmitCRoute to walk, so it hits the same fail-closed
-// rejection.
-//
-// This header is the single source of truth both chunks now key off. It carries:
-//   (1) The STRUCTURAL recognition -- "is a with_vl body exactly one monolithic
-//       block-dot op" -- keyed off a small per-op family TABLE, not any one op
-//       type. This is the "trait" at the C++ level (the task allows "a common
-//       base -- a small per-op table"): unwired block-dot ops are deliberately
-//       NOT in the table, so they stay fail-closed at the slice describe until
-//       they get front doors (their honest state).
-//   (2) The SUPER-BLOCK vs FLAT route-family split. The K-quants (q4_K) are
-//       genuine super-blocks; the flat 32-element block-dots (q4_0/iq4_nl) are
-//       NOT. The route id, runtime-ABI name, archetype, and the two op-derived
-//       metadata keys are parameterized by route family; everything else
-//       (artifact kind, EmitC-lowerable op interface, construction protocol, the
-//       fixed metadata keys) is family-invariant.
-//   (3) The per-op DATA (op identity, route family, kind, ordered runtime-ABI
-//       expectation) as a table. The STRUCTURAL wiring is generic (family-keyed);
-//       the per-op data parameterizes it -- the same generic-vs-data split as the
-//       N-operand descriptor refactor. q4_K/iq4_nl carry the 4-role ggml
-//       vec_dot ABI (n, s, vx, vy); q4_0 carries the full 8-role strided ggml
-//       vec_dot ABI (n, s, bs, vx, bx, vy, by, nrc) -- the block-dot op consumes
-//       only vx/vy/s/n but the exported C signature mirrors ggml's prototype.
+// Super-block, flat, repack-GEMV and repack-GEMM are computation topologies.
+// Per-format rows supply representation facts and the expected external ABI;
+// `flat_*` remains the formula-produced final plan for flat block-dot bodies.
 //
 //===----------------------------------------------------------------------===//
 
@@ -70,139 +48,12 @@ namespace weft::plugin::rvv {
 // M-tiling nest (row-group x column-group x runtime-strip x column-pass), so it
 // carries the 7-role GEMM ABI (nr, bs, n, s, nc, vx, vy) -- its own honest route
 // family.
-enum class MonolithicBlockDotRouteFamily {
+enum class MonolithicBlockDotTopology {
   SuperBlock,
   Flat,
   RepackGemv,
   RepackGemm
 };
-
-// Family-INVARIANT constants -- identical for the super-block AND flat monolithic
-// block-dot routes (they describe the shared EmitC-lowerable typed-body mechanism
-// and the RISC-V object artifact, neither of which differs by block structure).
-namespace monolithic_block_dot {
-inline constexpr llvm::StringLiteral kArtifactKind(
-    "riscv-elf-relocatable-object");
-inline constexpr llvm::StringLiteral kSourceOpInterfaceName(
-    "WEFTEmitCLowerableOpInterface");
-inline constexpr llvm::StringLiteral kConstructionProtocol(
-    "extension-family-construction-protocol.v1");
-// The fixed-value artifact-metadata keys the monolithic emission plan attaches
-// (family-invariant; only the *values* under kKindKey/kScaleModelKey are
-// op-derived).
-inline constexpr llvm::StringLiteral kRouteMetadataKey(
-    "rvv_emitc_lowerable_route");
-inline constexpr llvm::StringLiteral kSourceOpInterfaceKey(
-    "rvv_source_op_interface");
-inline constexpr llvm::StringLiteral kArchetypeKey("rvv_extension_archetype");
-inline constexpr llvm::StringLiteral kTargetArtifactKindKey(
-    "rvv_target_artifact_kind");
-inline constexpr llvm::StringLiteral kConstructionProtocolKey(
-    "rvv_construction_protocol");
-} // namespace monolithic_block_dot
-
-// Family-PARAMETERIZED constants. The super-block set is byte-identical to the
-// values chunks 1+2 hardcoded for q4_K (the q4_K full-pipeline e2e pins the route
-// id + metadata keys), so keying q4_K off the super-block family stays byte-exact.
-struct MonolithicBlockDotFamilyConstants {
-  llvm::StringRef routeID;
-  llvm::StringRef headerRouteID;
-  llvm::StringRef runtimeABIName;
-  llvm::StringRef archetype;
-  llvm::StringRef kindMetadataKey;
-  llvm::StringRef scaleModelMetadataKey;
-};
-
-inline const MonolithicBlockDotFamilyConstants &
-getMonolithicBlockDotFamilyConstants(MonolithicBlockDotRouteFamily family) {
-  static const MonolithicBlockDotFamilyConstants kSuperBlock{
-      "rvv-ggml-super-block-block-dot-monolithic-emitc-route-family",
-      "rvv-ggml-super-block-block-dot-monolithic-emitc-route-family.header",
-      "rvv-ggml-super-block-block-dot-callable-c-abi.v1",
-      "rvv-ggml-super-block-monolithic-typed-body",
-      "rvv_ggml_super_block_block_dot_kind",
-      "rvv_ggml_super_block_scale_model"};
-  static const MonolithicBlockDotFamilyConstants kFlat{
-      "rvv-ggml-flat-block-dot-monolithic-emitc-route-family",
-      "rvv-ggml-flat-block-dot-monolithic-emitc-route-family.header",
-      "rvv-ggml-flat-block-dot-callable-c-abi.v1",
-      "rvv-ggml-flat-monolithic-typed-body",
-      "rvv_ggml_flat_block_dot_kind",
-      "rvv_ggml_flat_scale_model"};
-  static const MonolithicBlockDotFamilyConstants kRepackGemv{
-      "rvv-ggml-repack-gemv-monolithic-emitc-route-family",
-      "rvv-ggml-repack-gemv-monolithic-emitc-route-family.header",
-      "rvv-ggml-repack-gemv-callable-c-abi.v1",
-      "rvv-ggml-repack-gemv-monolithic-typed-body",
-      "rvv_ggml_repack_gemv_kind",
-      "rvv_ggml_repack_gemv_scale_model"};
-  static const MonolithicBlockDotFamilyConstants kRepackGemm{
-      "rvv-ggml-repack-gemm-monolithic-emitc-route-family",
-      "rvv-ggml-repack-gemm-monolithic-emitc-route-family.header",
-      "rvv-ggml-repack-gemm-callable-c-abi.v1",
-      "rvv-ggml-repack-gemm-monolithic-typed-body",
-      "rvv_ggml_repack_gemm_kind",
-      "rvv_ggml_repack_gemm_scale_model"};
-  switch (family) {
-  case MonolithicBlockDotRouteFamily::SuperBlock:
-    return kSuperBlock;
-  case MonolithicBlockDotRouteFamily::Flat:
-    return kFlat;
-  case MonolithicBlockDotRouteFamily::RepackGemv:
-    return kRepackGemv;
-  case MonolithicBlockDotRouteFamily::RepackGemm:
-    return kRepackGemm;
-  }
-  return kFlat;
-}
-
-// The long human-readable plan description (NOT rendered in the coherence
-// diagnostic the e2e pins; kept per-family for honesty). The super-block text is
-// byte-identical to chunk 1's.
-inline llvm::StringRef
-getMonolithicBlockDotPlanDescription(MonolithicBlockDotRouteFamily family) {
-  static const llvm::StringRef kSuperBlock =
-      "RVV selected monolithic ggml super-block block-dot typed body "
-      "materializes a verified EmitC module through the common RVV->EmitC "
-      "DialectConversion (the super-block loop, the 6-bit scale/min bit-dance, "
-      "the aux32 accumulation, and the deferred fp32 fold/min are first-class "
-      "op structure), then uses the MLIR EmitC C/C++ emitter before RISC-V "
-      "object packaging";
-  static const llvm::StringRef kFlat =
-      "RVV selected monolithic ggml flat block-dot typed body materializes a "
-      "verified EmitC module through the common RVV->EmitC DialectConversion "
-      "(the AoS block loop, the per-block fp16 scale model, the integer decode/"
-      "product core, and the fp32 fold are first-class op structure), then uses "
-      "the MLIR EmitC C/C++ emitter before RISC-V object packaging";
-  static const llvm::StringRef kRepackGemv =
-      "RVV selected monolithic ggml repacked (block_q4_0x16 16x1-interleaved) "
-      "GEVM typed body materializes a verified EmitC module through the common "
-      "RVV->EmitC DialectConversion (the per-strip disjoint-half repacked "
-      "sub-loads, the lane-wise integer product core, the per-strip dual-fp16 "
-      "scale fold, and the lane-wise f32 vector accumulator are first-class op "
-      "structure), then uses the MLIR EmitC C/C++ emitter before RISC-V object "
-      "packaging";
-  static const llvm::StringRef kRepackGemm =
-      "RVV selected monolithic ggml repacked (block_q4_0x16 16x1-interleaved) "
-      "block-as-lane GEMM (prefill) typed body materializes a verified EmitC "
-      "module through the common RVV->EmitC lowering (the M-tiling "
-      "row/column/runtime-strip/column-pass nest, the one-strip N-column repacked "
-      "lane-wise integer product core, the per-column dual-fp16 scale fold, and the "
-      "per-column per-strip lane-wise f32 vector accumulators are first-class op "
-      "structure), then uses the MLIR EmitC C/C++ emitter before RISC-V object "
-      "packaging";
-  switch (family) {
-  case MonolithicBlockDotRouteFamily::SuperBlock:
-    return kSuperBlock;
-  case MonolithicBlockDotRouteFamily::Flat:
-    return kFlat;
-  case MonolithicBlockDotRouteFamily::RepackGemv:
-    return kRepackGemv;
-  case MonolithicBlockDotRouteFamily::RepackGemm:
-    return kRepackGemm;
-  }
-  return kFlat;
-}
 
 // One expected ordered runtime-ABI parameter (c parameter name + role) of a
 // monolithic block-dot's exported ggml vec_dot C signature.
@@ -1601,7 +1452,7 @@ enum class TypedFlatBlockDotLoopSelector {
 // replacing the 24 per-op scaffold-constructor passes. Adding a new op = one row.
 struct MonolithicBlockDotOpEntry {
   llvm::StringRef opName; // the weft_rvv.* op mnemonic (full name)
-  MonolithicBlockDotRouteFamily routeFamily;
+  MonolithicBlockDotTopology topology;
   llvm::StringRef kind; // the op's bounded `kind` attribute value
   llvm::ArrayRef<MonolithicBlockDotABIRole> (*abiRoles)();
   // --- front-door construction DATA (the 24->1 scaffold collapse) ---
@@ -1628,7 +1479,7 @@ struct MonolithicBlockDotOpEntry {
 inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
   static const MonolithicBlockDotOpEntry kTable[] = {
       {"weft_rvv.q4_k_q8_k_block_dot",
-       MonolithicBlockDotRouteFamily::SuperBlock, "ggml_q4_k_q8_k_block_dot",
+       MonolithicBlockDotTopology::SuperBlock, "ggml_q4_k_q8_k_block_dot",
        &monolithicBlockDotABI4, "ggml_q4_K_q8_K_block_dot_source",
        "weft-rvv-materialize-q4-k-q8-k-block-dot-source-front-door",
        "rvv-q4-k-q8-k-block-dot-source-front-door-case",
@@ -1638,7 +1489,7 @@ inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
        "", kQ4KFacts, {}, {}, {}, {},
        TypedFlatBlockDotLoopSelector::SuperBlockTwoLevelScaleMin},
       {"weft_rvv.iq4_xs_q8_k_block_dot",
-       MonolithicBlockDotRouteFamily::SuperBlock, "ggml_iq4_xs_q8_k_block_dot",
+       MonolithicBlockDotTopology::SuperBlock, "ggml_iq4_xs_q8_k_block_dot",
        &monolithicBlockDotABI4, "ggml_iq4_xs_q8_K_block_dot_source",
        "weft-rvv-materialize-iq4-xs-q8-k-block-dot-source-front-door",
        "rvv-iq4-xs-q8-k-block-dot-source-front-door-case",
@@ -1664,7 +1515,7 @@ inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
        // integer-core brick (NO gearbox -- the codebook gather pins m1).
        TypedFlatBlockDotLoopSelector::SuperBlockScalarDeltaGrid},
       {"weft_rvv.iq1_s_q8_k_block_dot",
-       MonolithicBlockDotRouteFamily::SuperBlock, "ggml_iq1_s_q8_k_block_dot",
+       MonolithicBlockDotTopology::SuperBlock, "ggml_iq1_s_q8_k_block_dot",
        &monolithicBlockDotABI4, "ggml_iq1_s_q8_K_block_dot_source",
        "weft-rvv-materialize-iq1-s-q8-k-block-dot-source-front-door",
        "rvv-iq1-s-q8-k-block-dot-source-front-door-case",
@@ -1683,7 +1534,7 @@ inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
        // this selector for export resolution).
        TypedFlatBlockDotLoopSelector::SuperBlockScalarDeltaGrid},
       {"weft_rvv.iq1_m_q8_k_block_dot",
-       MonolithicBlockDotRouteFamily::SuperBlock, "ggml_iq1_m_q8_k_block_dot",
+       MonolithicBlockDotTopology::SuperBlock, "ggml_iq1_m_q8_k_block_dot",
        &monolithicBlockDotABI4, "ggml_iq1_m_q8_K_block_dot_source",
        "weft-rvv-materialize-iq1-m-q8-k-block-dot-source-front-door",
        "rvv-iq1-m-q8-k-block-dot-source-front-door-case",
@@ -1703,7 +1554,7 @@ inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
        // reuses the whole iq1_s scaffold and only adds a variant integer-core brick.
        TypedFlatBlockDotLoopSelector::SuperBlockScalarDeltaGrid},
       {"weft_rvv.iq2_xxs_q8_k_block_dot",
-       MonolithicBlockDotRouteFamily::SuperBlock, "ggml_iq2_xxs_q8_k_block_dot",
+       MonolithicBlockDotTopology::SuperBlock, "ggml_iq2_xxs_q8_k_block_dot",
        &monolithicBlockDotABI4, "ggml_iq2_xxs_q8_K_block_dot_source",
        "weft-rvv-materialize-iq2-xxs-q8-k-block-dot-source-front-door",
        "rvv-iq2-xxs-q8-k-block-dot-source-front-door-case",
@@ -1725,7 +1576,7 @@ inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
        // PRESERVES iq2_xxs's Win-A integer_core_lmul m2/m1 gearbox (kernel key "iq2_xxs").
        TypedFlatBlockDotLoopSelector::SuperBlockScalarDeltaGrid},
       {"weft_rvv.iq2_xs_q8_k_block_dot",
-       MonolithicBlockDotRouteFamily::SuperBlock, "ggml_iq2_xs_q8_k_block_dot",
+       MonolithicBlockDotTopology::SuperBlock, "ggml_iq2_xs_q8_k_block_dot",
        &monolithicBlockDotABI4, "ggml_iq2_xs_q8_K_block_dot_source",
        "weft-rvv-materialize-iq2-xs-q8-k-block-dot-source-front-door",
        "rvv-iq2-xs-q8-k-block-dot-source-front-door-case",
@@ -1748,7 +1599,7 @@ inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
        // 16-lane per-half shape, unlike iq2_xxs's m2/m1).
        TypedFlatBlockDotLoopSelector::SuperBlockScalarDeltaGrid},
       {"weft_rvv.iq2_s_q8_k_block_dot",
-       MonolithicBlockDotRouteFamily::SuperBlock, "ggml_iq2_s_q8_k_block_dot",
+       MonolithicBlockDotTopology::SuperBlock, "ggml_iq2_s_q8_k_block_dot",
        &monolithicBlockDotABI4, "ggml_iq2_s_q8_K_block_dot_source",
        "weft-rvv-materialize-iq2-s-q8-k-block-dot-source-front-door",
        "rvv-iq2-s-q8-k-block-dot-source-front-door-case",
@@ -1771,7 +1622,7 @@ inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
        // 16-lane per-half shape, like iq2_xs; unlike iq2_xxs's m2/m1).
        TypedFlatBlockDotLoopSelector::SuperBlockScalarDeltaGrid},
       {"weft_rvv.iq3_xxs_q8_k_block_dot",
-       MonolithicBlockDotRouteFamily::SuperBlock, "ggml_iq3_xxs_q8_k_block_dot",
+       MonolithicBlockDotTopology::SuperBlock, "ggml_iq3_xxs_q8_k_block_dot",
        &monolithicBlockDotABI4, "ggml_iq3_xxs_q8_K_block_dot_source",
        "weft-rvv-materialize-iq3-xxs-q8-k-block-dot-source-front-door",
        "rvv-iq3-xxs-q8-k-block-dot-source-front-door-case",
@@ -1792,7 +1643,7 @@ inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
        // whole iq1_s scaffold and only adds a variant integer-core brick.
        TypedFlatBlockDotLoopSelector::SuperBlockScalarDeltaGrid},
       {"weft_rvv.iq3_s_q8_k_block_dot",
-       MonolithicBlockDotRouteFamily::SuperBlock, "ggml_iq3_s_q8_k_block_dot",
+       MonolithicBlockDotTopology::SuperBlock, "ggml_iq3_s_q8_k_block_dot",
        &monolithicBlockDotABI4, "ggml_iq3_s_q8_K_block_dot_source",
        "weft-rvv-materialize-iq3-s-q8-k-block-dot-source-front-door",
        "rvv-iq3-s-q8-k-block-dot-source-front-door-case",
@@ -1815,7 +1666,7 @@ inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
        // scaffold and only adds a variant integer-core brick (NO gearbox, NO ksigns plane).
        TypedFlatBlockDotLoopSelector::SuperBlockScalarDeltaGrid},
       {"weft_rvv.q2_k_q8_k_block_dot",
-       MonolithicBlockDotRouteFamily::SuperBlock, "ggml_q2_k_q8_k_block_dot",
+       MonolithicBlockDotTopology::SuperBlock, "ggml_q2_k_q8_k_block_dot",
        &monolithicBlockDotABI4, "ggml_q2_K_q8_K_block_dot_source",
        "weft-rvv-materialize-q2-k-q8-k-block-dot-source-front-door",
        "rvv-q2-k-q8-k-block-dot-source-front-door-case",
@@ -1831,7 +1682,7 @@ inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
        // fold_model, then by the loop op's weight_block_stride (84).
        TypedFlatBlockDotLoopSelector::SuperBlockScalarScaleMin},
       {"weft_rvv.q3_k_q8_k_block_dot",
-       MonolithicBlockDotRouteFamily::SuperBlock, "ggml_q3_k_q8_k_block_dot",
+       MonolithicBlockDotTopology::SuperBlock, "ggml_q3_k_q8_k_block_dot",
        &monolithicBlockDotABI4, "ggml_q3_K_q8_K_block_dot_source",
        "weft-rvv-materialize-q3-k-q8-k-block-dot-source-front-door",
        "rvv-q3-k-q8-k-block-dot-source-front-door-case",
@@ -1846,7 +1697,7 @@ inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
        // op's weight_block_stride so each exports its own entry.
        TypedFlatBlockDotLoopSelector::SuperBlockScalesTimesSumi},
       {"weft_rvv.q5_k_q8_k_block_dot",
-       MonolithicBlockDotRouteFamily::SuperBlock, "ggml_q5_k_q8_k_block_dot",
+       MonolithicBlockDotTopology::SuperBlock, "ggml_q5_k_q8_k_block_dot",
        &monolithicBlockDotABI4, "ggml_q5_K_q8_K_block_dot_source",
        "weft-rvv-materialize-q5-k-q8-k-block-dot-source-front-door",
        "rvv-q5-k-q8-k-block-dot-source-front-door-case",
@@ -1860,7 +1711,7 @@ inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
        // by the loop op's weight_block_stride so each exports its own entry.
        TypedFlatBlockDotLoopSelector::SuperBlockTwoLevelScaleMin},
       {"weft_rvv.q6_k_q8_k_block_dot",
-       MonolithicBlockDotRouteFamily::SuperBlock, "ggml_q6_k_q8_k_block_dot",
+       MonolithicBlockDotTopology::SuperBlock, "ggml_q6_k_q8_k_block_dot",
        &monolithicBlockDotABI4, "ggml_q6_K_q8_K_block_dot_source",
        "weft-rvv-materialize-q6-k-q8-k-block-dot-source-front-door",
        "rvv-q6-k-q8-k-block-dot-source-front-door-case",
@@ -1875,7 +1726,7 @@ inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
        // loop op's weight_block_stride (210 vs q4_K 144 / q5_K 176).
        TypedFlatBlockDotLoopSelector::SuperBlockScalesTimesSumi},
       {"weft_rvv.tq1_0_q8_k_block_dot",
-       MonolithicBlockDotRouteFamily::SuperBlock, "ggml_tq1_0_q8_k_block_dot",
+       MonolithicBlockDotTopology::SuperBlock, "ggml_tq1_0_q8_k_block_dot",
        &monolithicBlockDotABI4, "ggml_tq1_0_q8_K_block_dot_source",
        "weft-rvv-materialize-tq1-0-q8-k-block-dot-source-front-door",
        "rvv-tq1-0-q8-k-block-dot-source-front-door-case",
@@ -1898,7 +1749,7 @@ inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
        // has one VLEN-universal vector body and no inert LMUL schedule field.
        TypedFlatBlockDotLoopSelector::SuperBlockScalarDeltaGrid},
       {"weft_rvv.tq2_0_q8_k_block_dot",
-       MonolithicBlockDotRouteFamily::SuperBlock, "ggml_tq2_0_q8_k_block_dot",
+       MonolithicBlockDotTopology::SuperBlock, "ggml_tq2_0_q8_k_block_dot",
        &monolithicBlockDotABI4, "ggml_tq2_0_q8_K_block_dot_source",
        "weft-rvv-materialize-tq2-0-q8-k-block-dot-source-front-door",
        "rvv-tq2-0-q8-k-block-dot-source-front-door-case",
@@ -1921,7 +1772,7 @@ inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
        // ternary scaffold with its own fixed VLEN-universal body.
        TypedFlatBlockDotLoopSelector::SuperBlockScalarDeltaGrid},
       {weft::rvv::GgmlBlockDotQ40Q80Op::getOperationName(),
-       MonolithicBlockDotRouteFamily::Flat, "ggml_q4_0_q8_0_block_dot",
+       MonolithicBlockDotTopology::Flat, "ggml_q4_0_q8_0_block_dot",
        &monolithicBlockDotABI8Strided, "ggml_q4_0_q8_0_block_dot_source",
        "weft-rvv-materialize-q4-0-q8-0-block-dot-source-front-door",
        "rvv-q4-0-q8-0-block-dot-source-front-door-case",
@@ -1930,7 +1781,7 @@ inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
        "ggml Q4_0 x Q8_0 block-dot source front door failed: ", "q4-weight", "q8-act",
        "", kQ40Facts, {}, {}, {}, {}},
       {"weft_rvv.q8_0_q8_0_block_dot",
-       MonolithicBlockDotRouteFamily::Flat, "ggml_q8_0_q8_0_block_dot",
+       MonolithicBlockDotTopology::Flat, "ggml_q8_0_q8_0_block_dot",
        &monolithicBlockDotABI8Strided, "ggml_q8_0_q8_0_block_dot_source",
        "weft-rvv-materialize-q8-0-q8-0-block-dot-source-front-door",
        "rvv-q8-0-q8-0-block-dot-source-front-door-case",
@@ -1939,7 +1790,7 @@ inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
        "ggml Q8_0 x Q8_0 block-dot source front door failed: ", "q8-lhs", "q8-rhs",
        "", kQ80Facts, {}, {}, {}, {}, TypedFlatBlockDotLoopSelector::Q8Default},
       {"weft_rvv.iq4_nl_q8_0_block_dot",
-       MonolithicBlockDotRouteFamily::Flat, "ggml_iq4_nl_q8_0_block_dot",
+       MonolithicBlockDotTopology::Flat, "ggml_iq4_nl_q8_0_block_dot",
        &monolithicBlockDotABI4, "ggml_iq4_nl_q8_0_block_dot_source",
        "weft-rvv-materialize-iq4-nl-q8-0-block-dot-source-front-door",
        "rvv-iq4-nl-q8-0-block-dot-source-front-door-case",
@@ -1949,7 +1800,7 @@ inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
        "", kIQ4NLFacts, kIQ4NLCodebook, {}, {}, {},
        TypedFlatBlockDotLoopSelector::Iq4NlCodebook},
       {"weft_rvv.q4_1_q8_1_block_dot",
-       MonolithicBlockDotRouteFamily::Flat, "ggml_q4_1_q8_1_block_dot",
+       MonolithicBlockDotTopology::Flat, "ggml_q4_1_q8_1_block_dot",
        &monolithicBlockDotABI4, "ggml_q4_1_q8_1_block_dot_source",
        "weft-rvv-materialize-q4-1-q8-1-block-dot-source-front-door",
        "rvv-q4-1-q8-1-block-dot-source-front-door-case",
@@ -1958,7 +1809,7 @@ inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
        "ggml Q4_1 x Q8_1 block-dot source front door failed: ", "q4-weight", "q8-act",
        "", kQ41Facts, {}, {}, {}, {}, TypedFlatBlockDotLoopSelector::ScalePlusMin},
       {"weft_rvv.q5_0_q8_0_block_dot",
-       MonolithicBlockDotRouteFamily::Flat, "ggml_q5_0_q8_0_block_dot",
+       MonolithicBlockDotTopology::Flat, "ggml_q5_0_q8_0_block_dot",
        &monolithicBlockDotABI4, "ggml_q5_0_q8_0_block_dot_source",
        "weft-rvv-materialize-q5-0-q8-0-block-dot-source-front-door",
        "rvv-q5-0-q8-0-block-dot-source-front-door-case",
@@ -1967,7 +1818,7 @@ inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
        "ggml Q5_0 x Q8_0 block-dot source front door failed: ", "q5-weight", "q8-act",
        "", kQ50Facts, {}, {}, {}, {}, TypedFlatBlockDotLoopSelector::ScalesTimesSumi},
       {"weft_rvv.q5_1_q8_1_block_dot",
-       MonolithicBlockDotRouteFamily::Flat, "ggml_q5_1_q8_1_block_dot",
+       MonolithicBlockDotTopology::Flat, "ggml_q5_1_q8_1_block_dot",
        &monolithicBlockDotABI4, "ggml_q5_1_q8_1_block_dot_source",
        "weft-rvv-materialize-q5-1-q8-1-block-dot-source-front-door",
        "rvv-q5-1-q8-1-block-dot-source-front-door-case",
@@ -1976,7 +1827,7 @@ inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
        "ggml Q5_1 x Q8_1 block-dot source front door failed: ", "q5-weight", "q8-act",
        "", kQ51Facts, {}, {}, {}, {}, TypedFlatBlockDotLoopSelector::ScalePlusMinFiveBitQh},
       {weft::rvv::GgmlBlockDotMXFP4Q80Op::getOperationName(),
-       MonolithicBlockDotRouteFamily::Flat, "ggml_mxfp4_q8_0_block_dot",
+       MonolithicBlockDotTopology::Flat, "ggml_mxfp4_q8_0_block_dot",
        &monolithicBlockDotABI4, "ggml_mxfp4_q8_0_block_dot_source",
        "weft-rvv-materialize-mxfp4-q8-0-block-dot-source-front-door",
        "rvv-mxfp4-q8-0-block-dot-source-front-door-case",
@@ -1985,7 +1836,7 @@ inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
        "ggml MXFP4 x Q8_0 codebook block-dot source front door failed: ", "mxfp4-weight", "q8-act",
        "", kMXFP4Facts, kMXFP4Codebook, {}, {}, {}},
       {"weft_rvv.nvfp4_q8_0_block_dot",
-       MonolithicBlockDotRouteFamily::Flat, "ggml_nvfp4_q8_0_block_dot",
+       MonolithicBlockDotTopology::Flat, "ggml_nvfp4_q8_0_block_dot",
        &monolithicBlockDotABI4, "ggml_nvfp4_q8_0_block_dot_source",
        "weft-rvv-materialize-nvfp4-q8-0-block-dot-source-front-door",
        "rvv-nvfp4-q8-0-block-dot-source-front-door-case",
@@ -1997,7 +1848,7 @@ inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
       {// Source identity retained for typed front-door ingestion; no registered
        // whole-kernel op, verifier, recognizer, or emitter survives.
        "weft_rvv.q1_0_q8_0_block_dot",
-       MonolithicBlockDotRouteFamily::Flat, "ggml_q1_0_q8_0_block_dot",
+       MonolithicBlockDotTopology::Flat, "ggml_q1_0_q8_0_block_dot",
        &monolithicBlockDotABI4, "ggml_q1_0_q8_0_block_dot_source",
        "weft-rvv-materialize-q1-0-q8-0-block-dot-source-front-door",
        "rvv-q1-0-q8-0-block-dot-source-front-door-case",
@@ -2024,7 +1875,7 @@ inline llvm::ArrayRef<MonolithicBlockDotOpEntry> monolithicBlockDotOpTable() {
 inline const MonolithicBlockDotOpEntry &repackGemvMonolithicEntry() {
   static const MonolithicBlockDotOpEntry kEntry{
       /*opName*/ "weft_rvv.repack_gemv_q4_0_q8_0", // retired monolith name; dead
-      /*routeFamily*/ MonolithicBlockDotRouteFamily::RepackGemv,
+      /*topology*/ MonolithicBlockDotTopology::RepackGemv,
       /*kind*/ "rvv_q4_0_q8_0_repack_gemv",
       /*abiRoles*/ &monolithicRepackGemvABI5,
       /*markerValue*/ "",
@@ -2059,7 +1910,7 @@ inline const MonolithicBlockDotOpEntry &repackGemvMonolithicEntry() {
 inline const MonolithicBlockDotOpEntry &repackGemmMonolithicEntry() {
   static const MonolithicBlockDotOpEntry kEntry{
       /*opName*/ "weft_rvv.repack_gemm_q4_0_q8_0", // retired monolith name; dead
-      /*routeFamily*/ MonolithicBlockDotRouteFamily::RepackGemm,
+      /*topology*/ MonolithicBlockDotTopology::RepackGemm,
       /*kind*/ "rvv_q4_0_q8_0_repack_gemm",
       /*abiRoles*/ &monolithicRepackGemmABI7,
       /*markerValue*/ "",

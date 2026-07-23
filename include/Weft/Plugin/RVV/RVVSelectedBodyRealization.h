@@ -48,9 +48,6 @@ findFirstPreRealizedRVVSelectedBodyMatch(weft::exec::VariantOp variant);
 
 bool variantContainsPreRealizedRVVSelectedBody(weft::exec::VariantOp variant);
 
-llvm::Error diagnoseRetiredPreRealizedRVVRouteEntrySelectedBody(
-    const VariantLoweringBoundaryRequest &request);
-
 llvm::Expected<weft::rvv::WithVLOp>
 realizePreRealizedRVVSelectedBody(
     const VariantLoweringBoundaryRequest &request);

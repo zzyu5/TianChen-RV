@@ -17,6 +17,7 @@ add_mlir_library(WeftTarget
   WeftConversionRVV
   WeftExecDialect
   WeftPlugin
+  WeftPluginConstructionProtocol
   WeftSupport
   MLIRIR
   MLIRSupport

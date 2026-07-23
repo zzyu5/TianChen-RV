@@ -268,7 +268,7 @@
    "format": "q4_0_nibble",
    "state": "constructed",
    "auto_readout": "E5-increment1-auto: constructed (STRONG); realized-body manifest=load+load+widening_product+standalone_reduce+dequantize+store; opaque_helper=false",
-   "anchor": "decomposed N-operand front doors (RVVDequantDotSourceFrontDoor/RVVCodebookDotSourceFrontDoor/RVVReductionSourceFrontDoor/Construction/RVVContractionRouteIdentity); typed RVV primitives",
+   "anchor": "decomposed N-operand front doors plus family-local formula construction and RVVContractionSelectedBodyRealizationOwner; typed RVV primitives",
    "engine": "rvv",
    "regime": "micro-fixed"
   },
@@ -277,7 +277,7 @@
    "format": "offset_binary_n3",
    "state": "constructed",
    "auto_readout": "E5-increment1-auto: constructed (STRONG); realized-body manifest=load+load+load+packed_i4_offset_binary_x_i8_product+standalone_reduce+store; opaque_helper=false",
-   "anchor": "decomposed N-operand front doors (RVVDequantDotSourceFrontDoor/RVVCodebookDotSourceFrontDoor/RVVReductionSourceFrontDoor/Construction/RVVContractionRouteIdentity); typed RVV primitives",
+   "anchor": "decomposed N-operand front doors plus family-local formula construction and RVVContractionSelectedBodyRealizationOwner; typed RVV primitives",
    "engine": "rvv",
    "regime": "micro-fixed"
   },
@@ -286,7 +286,7 @@
    "format": "codebook_n3",
    "state": "constructed",
    "auto_readout": "E5-increment1-auto: constructed (STRONG); realized-body manifest=codebook_table_broadcast+load+load+load+codebook_gather_x_i8_product+standalone_reduce+store; opaque_helper=false",
-   "anchor": "decomposed N-operand front doors (RVVDequantDotSourceFrontDoor/RVVCodebookDotSourceFrontDoor/RVVReductionSourceFrontDoor/Construction/RVVContractionRouteIdentity); typed RVV primitives",
+   "anchor": "decomposed N-operand front doors plus family-local formula construction and RVVContractionSelectedBodyRealizationOwner; typed RVV primitives",
    "engine": "rvv",
    "regime": "micro-fixed"
   },

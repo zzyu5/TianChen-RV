@@ -1,9 +1,7 @@
 #include "Weft/Plugin/RVV/RVVCompositeGatherMAccScatterSelectedBodyRealizationOwner.h"
 
 #include "Weft/Dialect/RVV/IR/RVVConfigContract.h"
-#include "Weft/Plugin/RVV/RVVConstructionProtocol.h"
 #include "Weft/Plugin/RVV/RVVCompositeGatherMAccScatterFormula.h"
-#include "Weft/Plugin/RVV/RVVEmitCRoutePlanning.h"
 #include "Weft/Plugin/RVV/RVVGearboxSchedule.h"
 #include "Weft/Plugin/RVV/RVVRuntimeAVLVLControl.h"
 #include "Weft/Plugin/RVV/RVVSelectedTargetCapability.h"

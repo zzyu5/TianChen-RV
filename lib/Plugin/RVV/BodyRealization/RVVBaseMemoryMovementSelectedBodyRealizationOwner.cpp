@@ -1,8 +1,6 @@
 #include "Weft/Plugin/RVV/RVVBaseMemoryMovementSelectedBodyRealizationOwner.h"
 
 #include "Weft/Dialect/RVV/IR/RVVConfigContract.h"
-#include "Weft/Plugin/RVV/RVVConstructionProtocol.h"
-#include "Weft/Plugin/RVV/RVVEmitCBaseMemoryRouteFamilyPlanOwners.h"
 
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/OperationSupport.h"
@@ -240,10 +238,6 @@ realizePreRealizedRVVBaseMemoryMovementOwner(
   if (auto stridedMemoryBody =
           llvm::dyn_cast<weft::rvv::TypedStridedMemoryPreRealizedBodyOp>(
               bodyOp)) {
-    if (llvm::Error error = validatePreRealizedRVVSelectedStridedMemoryBody(
-            request, stridedMemoryBody))
-      return std::move(error);
-
     mlir::Location loc = stridedMemoryBody->getLoc();
     builder.setInsertionPoint(stridedMemoryBody.getOperation());
 
@@ -276,11 +270,6 @@ realizePreRealizedRVVBaseMemoryMovementOwner(
   if (auto stridedStoreBody =
           llvm::dyn_cast<weft::rvv::TypedStridedStoreMemoryPreRealizedBodyOp>(
               bodyOp)) {
-    if (llvm::Error error =
-            validatePreRealizedRVVSelectedStridedStoreMemoryBody(
-                request, stridedStoreBody))
-      return std::move(error);
-
     mlir::Location loc = stridedStoreBody->getLoc();
     builder.setInsertionPoint(stridedStoreBody.getOperation());
 
@@ -313,11 +302,6 @@ realizePreRealizedRVVBaseMemoryMovementOwner(
 
   if (auto indexedGatherBody = llvm::dyn_cast<
           weft::rvv::TypedIndexedGatherMemoryPreRealizedBodyOp>(bodyOp)) {
-    if (llvm::Error error =
-            validatePreRealizedRVVSelectedIndexedGatherMemoryBody(
-                request, indexedGatherBody))
-      return std::move(error);
-
     mlir::Location loc = indexedGatherBody->getLoc();
     builder.setInsertionPoint(indexedGatherBody.getOperation());
 
@@ -354,11 +338,6 @@ realizePreRealizedRVVBaseMemoryMovementOwner(
 
   if (auto indexedScatterBody = llvm::dyn_cast<
           weft::rvv::TypedIndexedScatterMemoryPreRealizedBodyOp>(bodyOp)) {
-    if (llvm::Error error =
-            validatePreRealizedRVVSelectedIndexedScatterMemoryBody(
-                request, indexedScatterBody))
-      return std::move(error);
-
     mlir::Location loc = indexedScatterBody->getLoc();
     builder.setInsertionPoint(indexedScatterBody.getOperation());
 
@@ -397,10 +376,6 @@ realizePreRealizedRVVBaseMemoryMovementOwner(
   if (auto maskedMemoryBody =
           llvm::dyn_cast<weft::rvv::TypedMaskedMemoryPreRealizedBodyOp>(
               bodyOp)) {
-    if (llvm::Error error = validatePreRealizedRVVSelectedMaskedMemoryBody(
-            request, maskedMemoryBody))
-      return std::move(error);
-
     mlir::Location loc = maskedMemoryBody->getLoc();
     builder.setInsertionPoint(maskedMemoryBody.getOperation());
 

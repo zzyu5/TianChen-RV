@@ -46,9 +46,9 @@ inline constexpr llvm::StringLiteral kSelectedVariantAttrName("selected_variant"
 inline constexpr llvm::StringLiteral kOriginAttrName("origin");
 inline constexpr llvm::StringLiteral kSelectedPathRoleAttrName("selected_path_role");
 inline constexpr llvm::StringLiteral kStatusAttrName("status");
-inline constexpr llvm::StringLiteral kRVVConstructionProtocolAttrName(
+inline constexpr llvm::StringLiteral kRetiredRVVConstructionProtocolAttrName(
     "rvv_construction_protocol");
-inline constexpr llvm::StringLiteral kRVVEmitCRouteMappingAttrName(
+inline constexpr llvm::StringLiteral kRetiredRVVEmitCRouteMappingAttrName(
     "rvv_emitc_route_mapping");
 inline constexpr llvm::StringLiteral kRouteIDAttrName("route_id");
 inline constexpr llvm::StringLiteral kCapabilitySummaryAttrName(

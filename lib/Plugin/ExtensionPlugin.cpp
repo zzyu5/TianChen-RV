@@ -2084,9 +2084,8 @@ llvm::Error validateRuntimeABIParameters(
     // rather than the role alone, so an N-operand route (the offset-binary N=3
     // route) may declare TWO rhs-input-buffer parameters (qlo/qhi) that share a
     // runtime role but are disambiguated by their distinct C names -- the same
-    // (role, c-name) key the RVV route-operand binding-plan validator uses
-    // (lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp:1748) and the core emission
-    // manifest (lib/Target/EmissionManifest.cpp). Because c_name uniqueness is
+    // (role, c-name) key used by the typed runtime-ABI contract and the core
+    // emission manifest. Because c_name uniqueness is
     // already enforced above via seenNames, every existing kernel has all-unique
     // roles (hence all-unique (role, c-name) pairs), so this stays byte-exact and
     // still rejects a genuinely duplicated (role, c_name) binding.

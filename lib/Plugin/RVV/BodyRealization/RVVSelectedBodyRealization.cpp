@@ -179,15 +179,6 @@ bool variantContainsPreRealizedRVVSelectedBody(weft::exec::VariantOp variant) {
   return findFirstPreRealizedRVVSelectedBodyMatch(variant).has_value();
 }
 
-llvm::Error diagnoseRetiredPreRealizedRVVRouteEntrySelectedBody(
-    const VariantLoweringBoundaryRequest &request) {
-  (void)request;
-  return makeRVVPluginError(
-      "direct pre-realized RVV route-entry realization is retired; "
-      "pre-realized RVV selected bodies must use public selected "
-      "lowering-boundary materialization before provider route construction");
-}
-
 llvm::Expected<weft::rvv::WithVLOp>
 realizePreRealizedRVVSelectedBody(
     const VariantLoweringBoundaryRequest &request) {

@@ -50,7 +50,7 @@
       "milestone": "M-FLAT",
       "brick": 4,
       "requires": ["rvv.v"],
-      "transform": "planned: block-loop pre-realized body ODS op (nb loop + per-block scale source + loop-carried f32 accumulator + single scalar store) + realizer + route-registry entry (RVVContractionRouteIdentity.cpp) + semanticRoleGraph entry (RVVConstructionProtocol.cpp) + loop-aware strong validator (recursive into loop-region allowlist)",
+      "transform": "planned: prove delete-leaf reconstruction of the existing typed flat block-loop body from RVVFlatBlockDotFormula.cpp + family-local mechanisms, with recursive typed-region verification and no route registry, semantic-role graph, or provider replay",
       "mechanism": "The nb block loop itself becomes a typed pre-realized body with a loop-aware validator, so a looped body can be certified all-typed (rejectMixed only walks front(), does not recurse regions).",
       "metrics_hook": null,
       "status": "planned"

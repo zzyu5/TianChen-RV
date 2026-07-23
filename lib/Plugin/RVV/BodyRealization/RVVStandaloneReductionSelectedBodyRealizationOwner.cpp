@@ -1,6 +1,5 @@
 #include "Weft/Plugin/RVV/RVVStandaloneReductionSelectedBodyRealizationOwner.h"
 
-#include "Weft/Plugin/RVV/RVVConstructionProtocol.h"
 #include "Weft/Plugin/RVV/RVVRuntimeAVLVLControl.h"
 #include "Weft/Support/RuntimeABI.h"
 

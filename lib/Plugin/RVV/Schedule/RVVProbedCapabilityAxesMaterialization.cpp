@@ -2,8 +2,8 @@
 //
 // Materializes the RVV plugin-local capability authority's derived target-
 // support axes (supported_sew / supported_lmul) onto the in-kernel
-// weft.exec.capability / weft.exec.target provider ops that the EmitC legality
-// gate already queries. This closes the LIVE probe->gate seam: a selected RVV
+// weft.exec.capability / weft.exec.target provider ops that family-local
+// construction legality queries. This closes the LIVE probe->gate seam: a selected RVV
 // -march (a profile selection) drives the in-IR capability-gate divergence
 // automatically, with no hand-authored supported_sew / supported_lmul fixture
 // attributes.

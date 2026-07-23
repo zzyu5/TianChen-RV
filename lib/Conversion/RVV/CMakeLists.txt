@@ -18,7 +18,7 @@ add_mlir_library(WeftConversionRVV
   WeftConversionEmitC
   WeftRVVDialect
   WeftExecDialect
-  WeftRVVConstructionProtocol
+  WeftRVVConstruction
   WeftSupport
   MLIREmitCDialect
   MLIRIR

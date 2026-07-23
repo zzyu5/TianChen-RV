@@ -1,7 +1,5 @@
 #include "Weft/Plugin/RVV/RVVElementwiseSelectedBodyRealizationOwner.h"
 
-#include "Weft/Plugin/RVV/RVVConstructionProtocol.h"
-#include "Weft/Plugin/RVV/RVVEmitCRoutePlanning.h"
 #include "Weft/Plugin/RVV/RVVRuntimeAVLVLControl.h"
 #include "Weft/Support/RuntimeABI.h"
 

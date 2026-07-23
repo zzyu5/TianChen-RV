@@ -1,7 +1,6 @@
 #include "Weft/Plugin/RVV/RVVWideningConversionSelectedBodyRealizationOwner.h"
 
 #include "Weft/Dialect/RVV/IR/RVVConfigContract.h"
-#include "Weft/Plugin/RVV/RVVConstructionProtocol.h"
 #include "Weft/Support/RuntimeABI.h"
 
 #include "mlir/IR/Builders.h"

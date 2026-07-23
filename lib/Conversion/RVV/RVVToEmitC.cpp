@@ -2262,14 +2262,13 @@ VariantToEmitCFunc::emitReduce(mlir::ConversionPatternRewriter &rewriter, mlir::
     if (!llvm::isa<weftrvv::VectorType>(reduce.getAccumulator().getType()))
       return rewriter.notifyMatchFailure(
           reduce, "reduce accumulator is not a typed vector seed");
-    // Malformed-body guard (mirrors the legacy `isReduction && hasRHSBroadcastLike`
-    // rejection, RVVEmitCRoutePlanning.cpp:20663-20667): the reduction route
-    // requires an EXPLICIT vector input AND accumulator LOAD. A
+    // Malformed-body guard: the reduction form requires an explicit vector
+    // input and accumulator load. A
     // broadcast/splat-seeded accumulator (or input) is NOT in this bounded slice
     // -- the running per-chunk lane-0 seed must be a real loaded vector, not a
     // scalar splat. Reject any input/accumulator not produced by a plain
-    // weft_rvv.load so a broadcast/splat-seeded reduce body falls back to the
-    // legacy validator (which errors) instead of being silently mislowered.
+    // weft_rvv.load so a broadcast/splat-seeded reduce body fails closed
+    // instead of being silently mislowered.
     if (!reduce.getInput().getDefiningOp<weftrvv::LoadOp>() ||
         !reduce.getAccumulator().getDefiningOp<weftrvv::LoadOp>())
       return rewriter.notifyMatchFailure(

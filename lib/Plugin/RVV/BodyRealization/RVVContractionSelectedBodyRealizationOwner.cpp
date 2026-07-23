@@ -1,8 +1,7 @@
 #include "Weft/Plugin/RVV/RVVContractionSelectedBodyRealizationOwner.h"
 
 #include "Weft/Dialect/RVV/IR/RVVConfigContract.h"
-#include "Weft/Plugin/RVV/RVVConstructionProtocol.h"
-#include "Weft/Plugin/RVV/RVVEmitCContractionRouteFamilyPlanOwners.h"
+#include "Weft/Plugin/RVV/RVVCapabilityProfile.h"
 #include "Weft/Plugin/RVV/RVVGearboxSchedule.h"
 #include "Weft/Plugin/RVV/RVVLowPrecisionResourceFormula.h"
 
@@ -439,18 +438,6 @@ llvm::StringRef stringifyLowPrecisionRealizationMaskPolicy(
   return {};
 }
 
-std::optional<RVVSelectedBodyOperationKind>
-getLowPrecisionProductReductionRealizationOperation(
-    const RVVSelectedBodyContractionRealizationPlan &plan) {
-  if (!plan.usesProductReductionChain)
-    return std::nullopt;
-  if (plan.usesProductReductionDequantClamp)
-    return RVVSelectedBodyOperationKind::WideningProductReduceDequantClampF32;
-  if (plan.usesProductReductionDequantization)
-    return RVVSelectedBodyOperationKind::WideningProductReduceDequantizeF32;
-  return RVVSelectedBodyOperationKind::WideningProductReduceAdd;
-}
-
 llvm::Expected<RVVLowPrecisionResourceCandidate>
 constructLowPrecisionResourcePlan(
     const RVVSelectedBodyContractionRealizationPlan &plan,
@@ -491,150 +478,6 @@ constructLowPrecisionResourcePlan(
         operandEncodingToken + "' and vector-register budget " +
         llvm::Twine(vectorRegisterBudget));
   return *formula->analyticPrior;
-}
-
-llvm::Error requireLowPrecisionPrimitiveStringField(
-    llvm::StringRef field, llvm::StringRef actual, llvm::StringRef expected) {
-  if (!expected.empty() && actual == expected)
-    return llvm::Error::success();
-  return makeRVVPluginError(
-      llvm::Twine("pre-realized RVV contraction selected-body realization "
-                  "cannot consume stale or unsupported low-precision "
-                  "widening-reduction primitive fact '") +
-      field + "': expected '" + expected + "' but found '" + actual + "'");
-}
-
-llvm::Error requireLowPrecisionPrimitiveIntegerField(
-    llvm::StringRef field, std::int64_t actual, std::int64_t expected) {
-  if (actual == expected)
-    return llvm::Error::success();
-  return makeRVVPluginError(
-      llvm::Twine("pre-realized RVV contraction selected-body realization "
-                  "cannot consume stale or unsupported low-precision "
-                  "widening-reduction primitive fact '") +
-      field + "': expected " + llvm::Twine(expected) + " but found " +
-      llvm::Twine(actual));
-}
-
-llvm::Error requireLowPrecisionPrimitiveNonEmptyField(
-    llvm::StringRef field, llvm::StringRef value) {
-  if (!value.empty())
-    return llvm::Error::success();
-  return makeRVVPluginError(
-      llvm::Twine("pre-realized RVV contraction selected-body realization "
-                  "requires formula-owned low-precision widening-reduction "
-                  "primitive fact '") +
-      field + "' before resource-aware realization planning");
-}
-
-llvm::Error validateLowPrecisionPrimitiveFactsForRealization(
-    const RVVSelectedBodyContractionRealizationPlan &plan,
-    const RVVLowPrecisionWideningReductionPrimitiveFacts &primitiveFacts) {
-  if (!primitiveFacts.hasFacts)
-    return makeRVVPluginError(
-        "pre-realized RVV contraction selected-body realization requires "
-        "formula-owned low-precision widening-reduction primitive facts "
-        "before resource-aware realization planning");
-
-  if (llvm::Error error = requireLowPrecisionPrimitiveNonEmptyField(
-          "contract", primitiveFacts.contractID))
-    return std::move(error);
-  if (llvm::Error error = requireLowPrecisionPrimitiveNonEmptyField(
-          "low-precision primitive contract",
-          primitiveFacts.lowPrecisionPrimitiveContractID))
-    return std::move(error);
-  if (llvm::Error error = requireLowPrecisionPrimitiveNonEmptyField(
-          "low-precision primitive kind",
-          primitiveFacts.lowPrecisionPrimitiveKind))
-    return std::move(error);
-  if (llvm::Error error = requireLowPrecisionPrimitiveNonEmptyField(
-          "source signedness", primitiveFacts.sourceSignedness))
-    return std::move(error);
-  if (llvm::Error error = requireLowPrecisionPrimitiveNonEmptyField(
-          "primitive source load", primitiveFacts.sourceLoadKind))
-    return std::move(error);
-  if (llvm::Error error = requireLowPrecisionPrimitiveNonEmptyField(
-          "primitive source extension", primitiveFacts.sourceExtensionKind))
-    return std::move(error);
-  if (llvm::Error error = requireLowPrecisionPrimitiveNonEmptyField(
-          "widening product intrinsic",
-          primitiveFacts.wideningProductIntrinsic))
-    return std::move(error);
-  if (llvm::Error error = requireLowPrecisionPrimitiveNonEmptyField(
-          "widening reduction intrinsic", primitiveFacts.reductionIntrinsic))
-    return std::move(error);
-  if (llvm::Error error = requireLowPrecisionPrimitiveNonEmptyField(
-          "scalar seed splat intrinsic",
-          primitiveFacts.scalarSeedSplatIntrinsic))
-    return std::move(error);
-
-  llvm::StringRef expectedProductKind =
-      plan.isUnsignedProductReduction ? "unsigned_widening_product"
-                                      : "signed_widening_product";
-  llvm::StringRef expectedSourceSignedness =
-      plan.isUnsignedProductReduction
-          ? llvm::StringRef(kRVVLowPrecisionSourceSignednessUnsigned)
-          : llvm::StringRef(kRVVLowPrecisionSourceSignednessSigned);
-  llvm::StringRef expectedSourceExtension =
-      plan.isUnsignedProductReduction
-          ? "zero-extend-u8-to-u16-product"
-          : llvm::StringRef(kRVVLowPrecisionSignedSourceExtension);
-
-  if (llvm::Error error = requireLowPrecisionPrimitiveStringField(
-          "product kind", plan.productKind, expectedProductKind))
-    return std::move(error);
-  if (llvm::Error error = requireLowPrecisionPrimitiveStringField(
-          "source LMUL", primitiveFacts.sourceLMUL, plan.sourceLMUL))
-    return std::move(error);
-  if (llvm::Error error = requireLowPrecisionPrimitiveStringField(
-          "source signedness", primitiveFacts.sourceSignedness,
-          expectedSourceSignedness))
-    return std::move(error);
-  if (llvm::Error error = requireLowPrecisionPrimitiveStringField(
-          "primitive source load", primitiveFacts.sourceLoadKind,
-          kRVVLowPrecisionSourceLoadUnitStrideByte))
-    return std::move(error);
-  if (llvm::Error error = requireLowPrecisionPrimitiveStringField(
-          "primitive source extension", primitiveFacts.sourceExtensionKind,
-          expectedSourceExtension))
-    return std::move(error);
-  if (llvm::Error error = requireLowPrecisionPrimitiveIntegerField(
-          "source SEW", primitiveFacts.sourceSEW, plan.sourceSEW))
-    return std::move(error);
-  if (llvm::Error error = requireLowPrecisionPrimitiveStringField(
-          "product LMUL", primitiveFacts.productLMUL, plan.productLMUL))
-    return std::move(error);
-  if (llvm::Error error = requireLowPrecisionPrimitiveIntegerField(
-          "product SEW", primitiveFacts.productSEW, plan.productSEW))
-    return std::move(error);
-  if (llvm::Error error = requireLowPrecisionPrimitiveStringField(
-          "reduction result LMUL", primitiveFacts.reductionResultLMUL,
-          plan.resultLMUL))
-    return std::move(error);
-  if (llvm::Error error = requireLowPrecisionPrimitiveIntegerField(
-          "reduction result SEW", primitiveFacts.reductionResultSEW,
-          plan.resultSEW))
-    return std::move(error);
-  if (llvm::Error error = requireLowPrecisionPrimitiveStringField(
-          "widening product relation", primitiveFacts.wideningProductRelation,
-          plan.productRelation))
-    return std::move(error);
-  if (llvm::Error error = requireLowPrecisionPrimitiveStringField(
-          "product-reduction chain relation",
-          primitiveFacts.productReductionChainRelation,
-          plan.productReductionChainRelation))
-    return std::move(error);
-  if (llvm::Error error = requireLowPrecisionPrimitiveStringField(
-          "accumulator layout", primitiveFacts.accumulatorLayout,
-          plan.accumulatorLayout))
-    return std::move(error);
-  if (llvm::Error error = requireLowPrecisionPrimitiveStringField(
-          "result layout", primitiveFacts.resultLayout, plan.resultLayout))
-    return std::move(error);
-  if (llvm::Error error = requireLowPrecisionPrimitiveStringField(
-          "reduction store VL", primitiveFacts.reductionStoreVL, "1"))
-    return std::move(error);
-  return llvm::Error::success();
 }
 
 void populateWideningDotContractionRealizationPlan(
@@ -1104,30 +947,6 @@ realizePreRealizedRVVSelectedContractionFamily(
     return makeRVVPluginError(
         "pre-realized RVV contraction selected-body realization requires "
         "compare lhs/rhs runtime ABI values for computed-mask routes");
-  std::optional<RVVLowPrecisionWideningReductionPrimitiveFacts>
-      lowPrecisionPrimitiveFacts;
-  if (plan.usesProductReductionChain) {
-    std::optional<RVVSelectedBodyOperationKind> operation =
-        getLowPrecisionProductReductionRealizationOperation(plan);
-    if (!operation)
-      return makeRVVPluginError(
-          "pre-realized RVV contraction selected-body realization requires "
-          "a typed product-reduction operation before consuming "
-          "low-precision primitive facts");
-    std::optional<RVVLowPrecisionWideningReductionPrimitiveFacts> facts =
-        getRVVLowPrecisionWideningReductionPrimitiveFacts(
-            *operation, plan.isUnsignedProductReduction);
-    if (!facts)
-      return makeRVVPluginError(
-          "pre-realized RVV contraction selected-body realization requires "
-          "formula-mechanism low-precision widening-reduction facts "
-          "for the product-reduction operation");
-    if (llvm::Error error =
-            validateLowPrecisionPrimitiveFactsForRealization(plan, *facts))
-      return std::move(error);
-    lowPrecisionPrimitiveFacts = std::move(*facts);
-  }
-
   mlir::OpBuilder &builder = request.getBuilder();
   mlir::Location loc = plan.preRealizedBody->getLoc();
 
@@ -1141,7 +960,7 @@ realizePreRealizedRVVSelectedContractionFamily(
   std::optional<RVVLowPrecisionResourceCandidate>
       selectedResourceCandidate;
   if (plan.usesProductReductionDequantization) {
-    if (!lowPrecisionPrimitiveFacts || !plan.lowPrecisionResourcePlan)
+    if (!plan.lowPrecisionResourcePlan)
       return makeRVVPluginError(
           "pre-realized RVV contraction selected-body realization lost "
           "the formula-constructed low-precision resource plan");
@@ -1226,16 +1045,9 @@ realizePreRealizedRVVSelectedContractionFamily(
   }
 
   if (plan.usesProductReductionChain) {
-    if (!lowPrecisionPrimitiveFacts)
-      return makeRVVPluginError(
-          "pre-realized RVV contraction selected-body realization lost "
-          "formula-mechanism low-precision primitive facts before materializing "
-          "product-reduction structure");
-    llvm::StringRef productRelation =
-        lowPrecisionPrimitiveFacts->wideningProductRelation;
-    llvm::StringRef accumulatorLayout =
-        lowPrecisionPrimitiveFacts->accumulatorLayout;
-    llvm::StringRef resultLayout = lowPrecisionPrimitiveFacts->resultLayout;
+    llvm::StringRef productRelation = plan.productRelation;
+    llvm::StringRef accumulatorLayout = plan.accumulatorLayout;
+    llvm::StringRef resultLayout = plan.resultLayout;
     // The packed-i4 single-scope flip emits a typed nibble-unpack product head;
     // the grouped single-scope flip and every other candidate keep the typed
     // widening_product head.
@@ -1390,20 +1202,12 @@ realizePreRealizedRVVContractionOwnerImpl(
   if (auto wideningMAccBody =
           llvm::dyn_cast<weft::rvv::TypedWideningMAccPreRealizedBodyOp>(
               bodyOp)) {
-    if (llvm::Error error =
-            validatePreRealizedRVVSelectedWideningMAccBody(request,
-                                                           wideningMAccBody))
-      return std::move(error);
     return realizePreRealizedRVVSelectedContractionFamily(
         request, makeContractionRealizationPlan(wideningMAccBody));
   }
 
   if (auto dotReduceBody = llvm::dyn_cast<
           weft::rvv::TypedWideningDotReducePreRealizedBodyOp>(bodyOp)) {
-    if (llvm::Error error =
-            validatePreRealizedRVVSelectedWideningDotReduceBody(
-                request, dotReduceBody))
-      return std::move(error);
     RVVSelectedBodyContractionRealizationPlan plan =
         makeContractionRealizationPlan(dotReduceBody);
 
@@ -1447,10 +1251,6 @@ realizePreRealizedRVVContractionOwnerImpl(
           llvm::dyn_cast<weft::rvv::
                              TypedStridedInputWideningDotReducePreRealizedBodyOp>(
               bodyOp)) {
-    if (llvm::Error error =
-            validatePreRealizedRVVSelectedStridedInputWideningDotReduceBody(
-                request, stridedDotReduceBody))
-      return std::move(error);
     return realizePreRealizedRVVSelectedContractionFamily(
         request,
         makeContractionRealizationPlan(stridedDotReduceBody));
@@ -1460,10 +1260,6 @@ realizePreRealizedRVVContractionOwnerImpl(
           llvm::dyn_cast<weft::rvv::
                              TypedComputedMaskWideningDotReducePreRealizedBodyOp>(
               bodyOp)) {
-    if (llvm::Error error =
-            validatePreRealizedRVVSelectedComputedMaskWideningDotReduceBody(
-                request, maskedDotReduceBody))
-      return std::move(error);
     return realizePreRealizedRVVSelectedContractionFamily(
         request, makeContractionRealizationPlan(maskedDotReduceBody));
   }
@@ -1472,10 +1268,6 @@ realizePreRealizedRVVContractionOwnerImpl(
           llvm::dyn_cast<weft::rvv::
                              TypedComputedMaskStridedInputWideningDotReducePreRealizedBodyOp>(
               bodyOp)) {
-    if (llvm::Error error =
-            validatePreRealizedRVVSelectedComputedMaskStridedInputWideningDotReduceBody(
-                request, maskedStridedDotReduceBody))
-      return std::move(error);
     return realizePreRealizedRVVSelectedContractionFamily(
         request,
         makeContractionRealizationPlan(maskedStridedDotReduceBody));
@@ -1483,10 +1275,6 @@ realizePreRealizedRVVContractionOwnerImpl(
 
   if (auto productReduceBody = llvm::dyn_cast<
           weft::rvv::TypedWideningProductReducePreRealizedBodyOp>(bodyOp)) {
-    if (llvm::Error error =
-            validatePreRealizedRVVSelectedWideningProductReduceBody(
-                request, productReduceBody))
-      return std::move(error);
     return realizePreRealizedRVVSelectedContractionFamily(
         request, makeContractionRealizationPlan(productReduceBody));
   }
@@ -1495,10 +1283,6 @@ realizePreRealizedRVVContractionOwnerImpl(
           llvm::dyn_cast<weft::rvv::
                              TypedWideningProductReduceDequantizePreRealizedBodyOp>(
               bodyOp)) {
-    if (llvm::Error error =
-            validatePreRealizedRVVSelectedWideningProductReduceDequantizeBody(
-                request, productReduceDequantBody))
-      return std::move(error);
     RVVSelectedBodyContractionRealizationPlan plan =
         makeContractionRealizationPlan(productReduceDequantBody);
     llvm::Expected<RVVLowPrecisionResourceCandidate> resourcePlan =
@@ -1524,10 +1308,6 @@ realizePreRealizedRVVContractionOwnerImpl(
           llvm::dyn_cast<weft::rvv::
                              TypedWideningProductReduceDequantClampF32PreRealizedBodyOp>(
               bodyOp)) {
-    if (llvm::Error error =
-            validatePreRealizedRVVSelectedWideningProductReduceDequantClampF32Body(
-                request, productReduceDequantClampBody))
-      return std::move(error);
     RVVSelectedBodyContractionRealizationPlan plan =
         makeContractionRealizationPlan(productReduceDequantClampBody);
     llvm::Expected<RVVLowPrecisionResourceCandidate> resourcePlan =
@@ -1544,10 +1324,6 @@ realizePreRealizedRVVContractionOwnerImpl(
           llvm::dyn_cast<
               weft::rvv::TypedWideningProductReduceDequantClampF32BodyOp>(
               bodyOp)) {
-    if (llvm::Error error =
-            validateExplicitRVVSelectedWideningProductReduceDequantClampF32Body(
-                request, explicitProductReduceDequantClampBody))
-      return std::move(error);
     RVVSelectedBodyContractionRealizationPlan plan =
         makeContractionRealizationPlan(explicitProductReduceDequantClampBody);
     llvm::Expected<RVVLowPrecisionResourceCandidate> resourcePlan =

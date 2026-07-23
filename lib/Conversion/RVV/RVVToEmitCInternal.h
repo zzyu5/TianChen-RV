@@ -991,8 +991,7 @@ private:
 
   //===--------------------------------------------------------------------===//
   // Widening contraction family (signed low-precision products / dot-reduce /
-  // widening macc). Byte-identical to the legacy
-  // RVVEmitCContractionRouteFamilyPlanOwners.cpp DirectContraction oracle.
+  // widening macc). The exact typed body is the computation authority.
   //===--------------------------------------------------------------------===//
 
   /// widening_product(%lhs,%rhs,%vl){kind=signed_widening_product} ->
@@ -5236,18 +5235,15 @@ private:
   ///   __riscv_vmacc_vv_<dtype><lmul>(accumulator, lhs, rhs, vl)
   /// The fused multiply-accumulate (acc += lhs * rhs) writes into the
   /// accumulator vector, so the C call order is (accumulator, lhs, rhs, vl) --
-  /// byte-identical to the legacy plain/scalar-broadcast MAcc compute step
-  /// (RVVEmitCRoutePlanning oracle: `vmacc_vv_i32m1(acc_vec, lhs_vec, rhs_vec,
-  /// vl)`). The scalar-broadcast rung is the SAME op whose rhs is fed by a
+  /// (`vmacc_vv_i32m1(acc_vec, lhs_vec, rhs_vec, vl)`). The scalar-broadcast
+  /// rung is the same op whose rhs is fed by a
   /// weft_rvv.splat (lowered by emitSplat); only the operand source differs, the
   /// macc lowering is identical.
   ///
-  /// Malformed-body guard: the legacy macc derivation (deriveMAccIntrinsic) is
-  /// SEW32-only and requires the explicit separate-accumulator + output-store
-  /// layout contracts. A macc whose kind/layout, (dtype, lmul) config, or
-  /// operand mapping is outside this bounded slice is NOT lowered here --
-  /// notifyMatchFailure rolls the conversion back so the legacy validator still
-  /// sees (and rejects/owns) it. Type-correctness is preserved: every operand is
+  /// Malformed-body guard: this MAcc lowering is SEW32-only and requires the
+  /// explicit separate-accumulator + output-store layout contracts. A MAcc
+  /// whose kind/layout, (dtype, lmul) config, or operand mapping is outside this
+  /// bounded slice is not lowered; conversion fails closed. Type-correctness is
   /// the same typed vector, and the result type is resolved before any emitc op
   /// is created so a non-beachhead config rolls back cleanly.
   mlir::LogicalResult

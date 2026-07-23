@@ -1986,8 +1986,9 @@ bool isForbiddenPreRealizedBodyAuthorityAttr(llvm::StringRef name) {
          name == kSourceKernelAttrName || name == kSelectedVariantAttrName ||
          name == kOriginAttrName || name == kSelectedPathRoleAttrName ||
          name == kStatusAttrName || name == kRequiredCapabilitiesAttrName ||
-         name == kRVVConstructionProtocolAttrName ||
-         name == kRVVEmitCRouteMappingAttrName || name == kRouteIDAttrName;
+         name == kRetiredRVVConstructionProtocolAttrName ||
+         name == kRetiredRVVEmitCRouteMappingAttrName ||
+         name == kRouteIDAttrName;
 }
 
 bool isSafeCIdentifier(llvm::StringRef value) {

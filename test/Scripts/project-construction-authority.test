@@ -48,6 +48,11 @@
 # RUN: rg -n 'projectIME(SimpleMAC|MatMul|Quant)Artifact' %S/../../lib/Plugin/IME/IMEBackendEmissionDriver.cpp | FileCheck %s --check-prefix=IME-PROJECTION
 
 # RVV formula direction and flat_* final-plan authority remain unchanged.
+# The retired RVV route provider/protocol must not return as a renamed
+# construction seam; body realization depends only on typed dialect and
+# family-construction headers.
+# RUN: not rg -n 'WeftRVVEmitCRouteProvider|RVVEmitCRoutePlanning|RVVEmitCRouteProvider|RVVEmitC[A-Za-z]+RouteFamilyPlanOwners|RVVConstructionProtocol\.(h|cpp)|WeftRVVConstructionProtocol' %S/../../include %S/../../lib
+# RUN: not rg -n '#include .*RVV(EmitC|ConstructionProtocol)' %S/../../lib/Plugin/RVV/BodyRealization
 # RUN: sed -n '/constructRVVFormulaPlansForVariant(/,/^}/p' %S/../../lib/Plugin/RVV/Construction/RVVFormulaConstruction.cpp | FileCheck %s --check-prefix=RVV-DIRECTION-SYMMETRY
 # RUN: not rg -n 'Ggml(QuantizeRowQ80|QuantizeRowQ81|QuantizeRowQ8K|DequantizeRow)Op' %S/../../lib/Conversion/RVV
 # RUN: sed -n '/VariantToEmitCFunc::emitTypedFlatBlockDotLoopBody(/,/^}/p' %S/../../lib/Conversion/RVV/RVVToEmitCBlockQuantLinear.cpp | rg 'readFinalFlatBlockDotComputePlan' | FileCheck %s --check-prefix=FLAT
