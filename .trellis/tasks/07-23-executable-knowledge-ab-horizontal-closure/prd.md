@@ -69,8 +69,17 @@ topology 的纵向切片，也不得保留旧路径作为兼容退路。
   artifact metadata 仍可报告 ABI 顺序，但不能参与 body/config 决策。dialect `verify()` 仍
   负责 exact typed body 的局部结构、类型、operand/policy 和语义关系，不能被笼统写成
   “删除 verifier”；
-- 上述切面已经通过 `weft-opt`/`weft-translate` 构建、authority guard 与完整
-  `check-weft`（`979/979`）。这是本地编译器/工具链证据，不是强重建、GPU 或真硬件证据。
+- official runner 的全部 registered route 已停止读取历史 DUT leaf：grid、K-quant vec-dot、
+  product-reduce 与 dormant Scalar 都从当前 clean HEAD 的 registered compiler entry 现场生成
+  artifact（有 semantic source front door 的路径走 front door；product-reduce 当前仍从 exact
+  typed-body fixture 进入，因此它尚不能充当 A 线 strong reconstruction 证据），
+  seal 记录 commit、source/tool/artifact SHA、target capability 与预期符号；`regime` 现在同时
+  参与 route 判定并传入 harness。固定 prefill workload 不再接受 decode 标签。这个切面只
+  证明 current-artifact 数据面已接线；当前正式硬件行、qualified winner 与 e2e 仍为零，
+  因此 B 线完成门仍未勾选；
+- 上述切面已经通过 `weft-opt`/`weft-translate` 构建、authority guard、measurement control
+  plane 与完整 `check-weft`（`980/980`）。这是本地编译器/工具链证据，不是强重建、GPU
+  或真硬件证据。
 
 仍未闭合、因此 task 不能标为 completed 的主体包括：
 
@@ -78,8 +87,8 @@ topology 的纵向切片，也不得保留旧路径作为兼容退路。
   dictionary；
 - decisive `g/c/ω` counterfactual、mechanism fan-out 与 honest-null 因果测试；
 - 多 topology delete-leaf strong reconstruction；
-- official runner 的 current-artifact 四臂消融、winner residual 稀疏性与 deployed/e2e paired
-  regression。
+- current artifact 的真板 correctness/deployed identity、四臂消融、winner residual 稀疏性与
+  deployed/e2e paired regression。
 
 这份状态只帮助恢复施工，不改变下面的完成门，也不把已完成的结构删除冒充 strong
 reconstruction 或 GPU readiness。

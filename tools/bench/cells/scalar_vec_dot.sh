@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# tools/bench/cells/scalar_vec_dot.sh <board> <mode> <fmt> — scalar 真 no-V 硅 vec_dot
+# tools/bench/cells/scalar_vec_dot.sh <board> <mode> <fmt> <regime> — scalar 真 no-V 硅 vec_dot
 # 每格对拍/计时 harness（S 线·超锐/scalar 板·rv64gc·clang-18）。
 #
 # 权威 = .trellis/spec/measurement/哲学与目的地.md §3.2.4（住 tools/、写 experiments/）
@@ -7,7 +7,8 @@
 #        + 对手法 §3.4 板别提醒（无 V 板 _generic = 真部署对手）+ 板册 §3.7。
 #
 # ★契约（硬·同 gemm_tile.sh）：
-#   - 本 harness 由 ../bench 按声明接口调用：`scalar_vec_dot.sh <board> <mode> <fmt>`。
+#   - 本 harness 由 ../bench 按声明接口调用：
+#     `scalar_vec_dot.sh <board> <mode> <fmt> <regime>`。
 #   - **harness 自身禁写任何【仓库侧】持久文件** —— 板端跑完把结果全部打到 stdout；
 #     bench 解析 stdout，一切仓库侧持久写入经 runner 的 fail-closed 写入闸落三目的地。
 #   - 板端 /tmp/$RDIR 下的 build/log = 板端临时（可接受）；仓库侧【不 scp 回、不落任何文件】。
@@ -15,20 +16,26 @@
 # ★域（钉死）：[L-6] scalar 永不作贡献基线 —— 计时是 enablement 诊断·NON-Win·不进系统账/
 #   perf-covered。倍数如实记，域标 enablement-NONWIN。
 #
-# 源资产（数据格·只读）住 A3 数据格；本 harness 只【读】不复制不写回：
-#   scalar_s1_driver.cpp · weft_scalar_tq2_0_kernel.cpp · fp16util.cpp
+# A3 数据格只提供 scalar_s1_driver.cpp 与 fp16util.cpp；DUT kernel 由当前 clean HEAD
+# 现场构造，暂存后上板。
 #
 #   board: scalar（仅此板 —— 标量对局唯一合法场地·板册 §3.7）
 #   fmt  : tq2_0
+#   regime: micro-fixed（固定 nb/flush 的 enablement microbenchmark）
 #   mode : verify  = 零向量 objdump 机检 + ZERO-MODEL byte-exact（对称 & 交叉）+ 反空心 fault（NO TIMING）
 #          sanity  = 3 轮预测量噪声自检
 #          measure = cold N=25 2-seed flush（symmetric-with-deployed-ggml 构建）
 set -uo pipefail
-BOARD="${1:-scalar}"; MODE="${2:-verify}"; FMT="${3:-tq2_0}"
+BOARD="${1:-scalar}"; MODE="${2:-verify}"; FMT="${3:-tq2_0}"; REGIME="${4:-}"
 
 SELF="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$SELF/../../.." && pwd)"
 ASSETS="${SCALAR_VECDOT_ASSET_ROOT:-$ROOT/experiments/active/g8-stage3-attack/A3-xscalar-rv64gc}"
+EXPORTER="$ROOT/tools/bench/export_current_artifact.py"
+STAGE="$(mktemp -d "${TMPDIR:-/tmp}/weft-current-scalar-vec-dot.XXXXXX")" || {
+  echo "# HARNESS-VOID cannot create current-artifact staging directory"; exit 3;
+}
+trap 'rm -rf -- "$STAGE"' EXIT
 
 REPS=25; S1=0x1357; S2=0xACE2; SV=0xD00D
 NB_MEASURE=2048          # n = 524288 elements
@@ -36,7 +43,7 @@ NB_VERIFY=4096           # larger corpus for correctness
 FLUSH_MB=32              # > scalar board LLC (§3.7: no L3; DRAM cold)
 RDIR=/tmp/bench_cells_scalar_vec_dot_${FMT}
 
-echo "# HARNESS scalar_vec_dot board=$BOARD mode=$MODE fmt=$FMT assets=$ASSETS"
+echo "# HARNESS scalar_vec_dot board=$BOARD mode=$MODE fmt=$FMT regime=$REGIME support_assets=$ASSETS"
 
 if [ "$BOARD" != scalar ]; then
   echo "# HARNESS-VOID board=$BOARD unsupported (scalar_vec_dot 仅 scalar 板 —— 板册 §3.7 标量对局唯一合法场地)"; exit 2
@@ -48,6 +55,9 @@ case "$MODE" in
   verify|sanity|measure) : ;;
   *) echo "# HARNESS-VOID bad mode $MODE (仅 verify|sanity|measure)"; exit 2 ;;
 esac
+if [ "$REGIME" != micro-fixed ]; then
+  echo "# HARNESS-VOID unsupported regime ${REGIME:-<missing>} (scalar_vec_dot 当前只有 micro-fixed workload)"; exit 2
+fi
 
 GGML='~/llama.cpp-scalar/build-clang18-rv64gc/bin'   # GGML_RVV=OFF·GGML_NATIVE=OFF（板册 §3.1）
 CC=clang-18                                           # /usr/bin/clang-18 · 18.1.8 · 板出货链
@@ -55,11 +65,15 @@ MARCH=rv64gc
 CORES="${BENCH_CORES:-0 1 2 3 4 5 6 7}"
 
 DRV="$ASSETS/scalar_s1_driver.cpp"
-KERN="$ASSETS/weft_scalar_tq2_0_kernel.cpp"
+KERN="$STAGE/weft_scalar_tq2_0_kernel.cpp"
 FP16="$ASSETS/fp16util.cpp"
-for f in "$DRV" "$KERN" "$FP16"; do
+for f in "$DRV" "$FP16"; do
   [ -f "$f" ] || { echo "# HARNESS-VOID missing asset $f"; exit 3; }
 done
+[ -x "$EXPORTER" ] || { echo "# HARNESS-VOID missing current-artifact exporter $EXPORTER"; exit 3; }
+python3 "$EXPORTER" vec_dot tq2_0 --board scalar --output "$KERN" --require-clean \
+  || { echo "# HARNESS-VOID current compiler failed to export vec_dot/tq2_0"; exit 3; }
+[ -f "$KERN" ] || { echo "# HARNESS-VOID current compiler produced no kernel $KERN"; exit 3; }
 
 ssh "$BOARD" "mkdir -p $RDIR" || { echo "# HARNESS-VOID ssh mkdir failed"; exit 3; }
 scp -q "$DRV" "$KERN" "$FP16" "$BOARD:$RDIR/" || { echo "# HARNESS-VOID scp assets"; exit 3; }

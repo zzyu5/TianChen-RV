@@ -1,42 +1,48 @@
 #!/usr/bin/env bash
-# tools/bench/cells/gemm_tile.sh <board> <mode> <fmt> — gemm_tile PREFILL 每格对拍/计时 harness。
+# tools/bench/cells/gemm_tile.sh <board> <mode> <fmt> <regime> — gemm_tile PREFILL 每格对拍/计时 harness。
 #
 # 权威 = .trellis/spec/measurement/哲学与目的地.md §3.2.4（住 tools/、写 experiments/）
 #        + 《测试与收尾总令-开测篇》§〇.2（ISSUE-090 harness 契约）。
 #
 # ★契约（硬）：
-#   - 本 harness 由 ../bench 按声明接口调用：`gemm_tile.sh <board> <mode> <fmt>`。
+#   - 本 harness 由 ../bench 按声明接口调用：
+#     `gemm_tile.sh <board> <mode> <fmt> <regime>`。
 #   - **harness 自身禁写任何【仓库侧】持久文件** —— 板端跑完把结果全部打到 stdout；
 #     bench 解析 stdout，一切仓库侧持久写入经 runner 的 fail-closed 写入闸落三目的地。
 #   - 板端 /tmp/$RDIR 下的 seal/log = 板端临时（可接受）；仓库侧【不 scp 回、不落任何文件】。
 #     （对比来源 run_grid4_p2.sh 末尾的 `scp $BOARD:... "$HERE/..."` —— 本 harness【删除】那两行。）
 #
-# 板端逻辑 = experiments/active/g8-stage3-attack/P2-grid4-raw/run_grid4_p2.sh 的五步逐字复用
-# （2026-07-17 跑通 8 board-cell）。源资产（driver / leaf kernel / tables）住数据格，本 harness
-# 只【读】它们（ASSET_ROOT），不复制、不写回。
+# driver/tables 仍是只读 support asset；DUT leaf 必须由当前 clean HEAD 现场构造并暂存，
+# 不再从 experiments/ 读取历史实现。
 #
 #   board: rvv | k1        fmt: iq1_s | iq1_m | iq3_xxs | iq3_s | iq2_xxs | iq2_xs | iq2_s
+#   regime: prefill（固定 K=2048,nr=16,nc=512）；没有真实 decode workload 时拒绝 decode
 #   mode : verify  = build + probe + ABI gate + T1 board byte-exact + T2 + 4-arm anti-hollow (NO TIMING)
 #          sanity  = PREREG §6 pre-measure noise self-check (3 rounds)
 #          measure = PREREG §5.0 (K=2048 nr=16 nc=512 N=25 2-seed cold)
 #
 # iq2_xxs/iq2_xs/iq2_s (ISSUE-099): same q8_K super-block gemm_tile family, added 2026-07-18.
-# Per-board VLEN256 fixture (kernels_grid4_vlen256/) routes k1 -> half_lanes=16 widened leaf,
-# objdump-provable true widen (AVL 8->16), same driver/oracle path. GSED flips one byte of the
-# emitted weft_<fmt>_grid table (all three share the 0x0808...08 first grid entry, unique).
+# The driver/tables remain read-only support assets.  The DUT leaf is never read from
+# experiments/: export_current_artifact.py rebuilds it from the current clean HEAD and
+# the board's typed VLEN capability into an ephemeral local directory before SSH.
 set -uo pipefail
-BOARD="${1:-rvv}"; MODE="${2:-verify}"; FMT="${3:-iq1_s}"
+BOARD="${1:-rvv}"; MODE="${2:-verify}"; FMT="${3:-iq1_s}"; REGIME="${4:-}"
 
 SELF="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$SELF/../../.." && pwd)"
-# 源资产（数据格·只读）。可用 GEMM_TILE_ASSET_ROOT 覆写；默认 = P2-grid4-raw 已验资产。
+# 只读 support assets（driver/oracle/tables）；不再提供 DUT leaf。
 ASSETS="${GEMM_TILE_ASSET_ROOT:-$ROOT/experiments/active/g8-stage3-attack/P2-grid4-raw}"
+EXPORTER="$ROOT/tools/bench/export_current_artifact.py"
+STAGE="$(mktemp -d "${TMPDIR:-/tmp}/weft-current-gemm-tile.XXXXXX")" || {
+  echo "# HARNESS-VOID cannot create current-artifact staging directory"; exit 3;
+}
+trap 'rm -rf -- "$STAGE"' EXIT
 
 K=2048; NR=16; NC=512; REPS=25; S1=0x1357; S2=0xACE2; SV=0xD00D
 KEXACT=256                      # T1 shape: nb=1
 RDIR=/tmp/bench_cells_gemm_tile_${BOARD}_${FMT}   # 板端临时（不落仓库）
 
-echo "# HARNESS gemm_tile board=$BOARD mode=$MODE fmt=$FMT assets=$ASSETS"
+echo "# HARNESS gemm_tile board=$BOARD mode=$MODE fmt=$FMT regime=$REGIME support_assets=$ASSETS"
 
 case "$FMT" in
   iq1_s)   DEF=FMT_IQ1_S;   HDRS="iq1s_grid.h";     GSED='s/0xffffffffffffff01ULL/0xffffffffffffff02ULL/' ;;
@@ -52,6 +58,9 @@ case "$MODE" in
   verify|sanity|measure) : ;;
   *) echo "# HARNESS-VOID bad mode $MODE (仅 verify|sanity|measure)"; exit 2 ;;
 esac
+if [ "$REGIME" != prefill ]; then
+  echo "# HARNESS-VOID unsupported regime ${REGIME:-<missing>} (gemm_tile 当前只有真实 prefill workload)"; exit 2
+fi
 
 if [ "$BOARD" = rvv ]; then
   GGML=/home/ubuntu/llama.cpp-upstream-native/build-clang18-rv64gcv/bin
@@ -77,27 +86,12 @@ else
 fi
 
 DRV="$ASSETS/grid4_gemm_prefill_p2.cpp"
-# ---- per-board fixture routing (ISSUE-105 deploy) --------------------------------
-# The pre-emitted leaf carries its strip width BAKED IN (half_lanes, an AVL literal
-# in every mf2-family vector op): the front door derives it at CONSTRUCT time from
-# the emit -march via deriveRepackHalfLanes(minVLEN) -- rv64gcv => minVLEN 128 =>
-# half_lanes 8 (AVL=8), rv64gcv_zvl256b => minVLEN 256 => half_lanes 16 (AVL=16).
-# k1 is TRUE VLEN256 silicon: an AVL=8 leaf half-uses each vector op. So k1 consumes
-# the VLEN256-widened fixture (kernels_grid4_vlen256/, march=rv64gcv_zvl256b), while
-# rvv (VLEN128) keeps the rv64gcv leaf -- an AVL=16 leaf would clamp vl to 8 on
-# VLEN128 and drop half its lanes, so the routing is per-BOARD. This is a
-# CONSTRUCT-time / emit-time fixture choice, NOT a per-dispatch runtime check
-# ([NG-3] per-dispatch enforcement stays forbidden). The widen is objdump-provable
-# true (AVL 8->16, vset/gather counts halve), never a re-roll.
-if [ "$BOARD" = k1 ]; then
-  LEAFDIR=kernels_grid4_vlen256   # deployed: half_lanes=16 (march=rv64gcv_zvl256b)
-else
-  LEAFDIR=kernels_grid4           # rvv/VLEN128: half_lanes=8 (march=rv64gcv)
-fi
-LEAF="$ASSETS/${LEAFDIR}/${FMT}_gemm.c"
-echo "# LEAF_ROUTE board=$BOARD leafdir=$LEAFDIR (per-board VLEN fixture; construct-time, not per-dispatch)"
+LEAF="$STAGE/leaf_gemm.c"
 [ -f "$DRV" ]  || { echo "# HARNESS-VOID missing driver $DRV"; exit 3; }
-[ -f "$LEAF" ] || { echo "# HARNESS-VOID missing leaf $LEAF"; exit 3; }
+[ -x "$EXPORTER" ] || { echo "# HARNESS-VOID missing current-artifact exporter $EXPORTER"; exit 3; }
+python3 "$EXPORTER" gemm_tile "$FMT" --board "$BOARD" --output "$LEAF" --require-clean \
+  || { echo "# HARNESS-VOID current compiler failed to export gemm_tile/$FMT"; exit 3; }
+[ -f "$LEAF" ] || { echo "# HARNESS-VOID current compiler produced no leaf $LEAF"; exit 3; }
 
 ssh "$BOARD" "mkdir -p $RDIR" || { echo "# HARNESS-VOID ssh mkdir failed"; exit 3; }
 scp -q "$DRV"  "$BOARD:$RDIR/grid4_gemm_prefill_p2.cpp" || { echo "# HARNESS-VOID scp driver"; exit 3; }

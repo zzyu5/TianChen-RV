@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# tools/bench/cells/product_reduce.sh <board> <mode> <fmt> — product_reduce 每格对拍/计时 harness。
+# tools/bench/cells/product_reduce.sh <board> <mode> <fmt> <regime> — product_reduce 每格对拍/计时 harness。
 #
 # op = product_reduce（N3 gearbox 归约子原语·ours-vector 整数核 -> int32 归约·NO ggml 框架对手）。
 # DUT = 我方板端编译的 emitted 向量整数核（nibble/offbin/codebook）。
@@ -14,31 +14,39 @@
 #        补 K-actionable-queue item1 / ISSUE-099 gcc 车道清欠（3 格·clang-18 单世界对称重测）。
 #
 # ★契约（硬·同 dequantize_row.sh / scalar_vec_dot.sh / gemm_tile.sh）：
-#   - 本 harness 由 ../bench 按声明接口调用：`product_reduce.sh <board> <mode> <fmt>`。
+#   - 本 harness 由 ../bench 按声明接口调用：
+#     `product_reduce.sh <board> <mode> <fmt> <regime>`。
 #   - **harness 自身禁写任何【仓库侧】持久文件** —— 板端跑完把结果全部打到 stdout；
 #     bench 解析 stdout，一切仓库侧持久写入经 runner 的 fail-closed 写入闸落三目的地。
 #   - 板端 /tmp/$RDIR 下的 seal/log = 板端临时（可接受）；仓库侧【不 scp 回、不落任何文件】。
-#   - 源资产（driver / kernels）住数据格，本 harness 只【读】（ASSET_ROOT 覆写）。
+#   - 数据格只提供 driver/oracle；三个 DUT kernel 均由当前 clean HEAD 现场构造。
 #   - ★单世界对称：我方向量核与 scalar-ref 对手【同一 clang-18·同板】编译（清 gcc 车道欠账）。
 #
 #   board: rvv | k1（两板皆 clang-18 出货链·§3.1 板册）
 #   fmt  : q4_0_nibble | offset_binary_n3 | codebook_n3
+#   regime: micro-fixed（固定 nb/hit 的内部子原语 microbenchmark）
 #   mode : verify  = build + ZEROVEC objdump 探针 + ZERO-MODEL byte-exact + 2-arm 反空心 (NO TIMING)
 #          sanity  = 预测量噪声自检 3 轮
 #          measure = cold N=25 2-seed flush(>LLC)
 set -uo pipefail
-BOARD="${1:-rvv}"; MODE="${2:-verify}"; FMT="${3:-q4_0_nibble}"
+BOARD="${1:-rvv}"; MODE="${2:-verify}"; FMT="${3:-q4_0_nibble}"; REGIME="${4:-}"
 
 SELF="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$SELF/../../.." && pwd)"
 ASSETS="${PRODUCT_REDUCE_ASSET_ROOT:-$ROOT/experiments/active/k-product-reduce}"
+EXPORTER="$ROOT/tools/bench/export_current_artifact.py"
+STAGE="$(mktemp -d "${TMPDIR:-/tmp}/weft-current-product-reduce.XXXXXX")" || {
+  echo "# HARNESS-VOID cannot create current-artifact staging directory"; exit 3;
+}
+trap 'rm -rf -- "$STAGE"' EXIT
+mkdir -p "$STAGE/kernels"
 
 NB_MEASURE=262144; HIT=6           # 262144 独立 16-lane 块 -> int32 归约（cold 流式 > LLC when flushed）
 NB_VERIFY=262144                   # 大语料：全 256 nibble 组合 + qh 位选全覆盖
 REPS=25; S1=0x1357; S2=0xACE2; SV=0xD00D
 RDIR=/tmp/bench_cells_product_reduce_${BOARD}
 
-echo "# HARNESS product_reduce board=$BOARD mode=$MODE fmt=$FMT assets=$ASSETS"
+echo "# HARNESS product_reduce board=$BOARD mode=$MODE fmt=$FMT regime=$REGIME support_assets=$ASSETS"
 
 # fmt 白名单（不认即 HARNESS-VOID exit 2·ssh 之前·零板可证）
 case "$FMT" in
@@ -49,6 +57,9 @@ case "$MODE" in
   verify|sanity|measure) : ;;
   *) echo "# HARNESS-VOID bad mode $MODE (仅 verify|sanity|measure)"; exit 2 ;;
 esac
+if [ "$REGIME" != micro-fixed ]; then
+  echo "# HARNESS-VOID unsupported regime ${REGIME:-<missing>} (product_reduce 当前只有 micro-fixed workload)"; exit 2
+fi
 
 if [ "$BOARD" = rvv ]; then
   CC=/opt/tcrv-toolchains/llvm-18.1.8/bin/clang
@@ -70,12 +81,19 @@ else
 fi
 
 DRV="$ASSETS/preduce_driver.c"
-KN="$ASSETS/kernels/nibble.pr.c"
-KO="$ASSETS/kernels/offbin.pr.c"
-KC="$ASSETS/kernels/codebook.pr.c"
-for f in "$DRV" "$KN" "$KO" "$KC"; do
-  [ -f "$f" ] || { echo "# HARNESS-VOID missing asset $f"; exit 3; }
+KN="$STAGE/kernels/nibble.pr.c"
+KO="$STAGE/kernels/offbin.pr.c"
+KC="$STAGE/kernels/codebook.pr.c"
+[ -f "$DRV" ] || { echo "# HARNESS-VOID missing support driver $DRV"; exit 3; }
+[ -x "$EXPORTER" ] || { echo "# HARNESS-VOID missing current-artifact exporter $EXPORTER"; exit 3; }
+for pair in q4_0_nibble:"$KN" offset_binary_n3:"$KO" codebook_n3:"$KC"; do
+  export_fmt="${pair%%:*}"; export_path="${pair#*:}"
+  python3 "$EXPORTER" product_reduce "$export_fmt" --board "$BOARD" \
+    --output "$export_path" --require-clean \
+    || { echo "# HARNESS-VOID current compiler failed to export product_reduce/$export_fmt"; exit 3; }
+  [ -f "$export_path" ] || { echo "# HARNESS-VOID current compiler produced no kernel $export_path"; exit 3; }
 done
+echo "# CURRENT_ARTIFACT_SET three_kernels=PASS head=$(git -C "$ROOT" rev-parse HEAD)"
 
 ssh "$BOARD" "mkdir -p $RDIR/kernels" || { echo "# HARNESS-VOID ssh mkdir failed"; exit 3; }
 scp -q "$DRV" "$BOARD:$RDIR/preduce_driver.c"        || { echo "# HARNESS-VOID scp driver"; exit 3; }

@@ -1,0 +1,44 @@
+# The canonical benchmark surface and current-compiler export recipes must stay
+# bijective.  Representative exports span grid construction, K-quant block dot,
+# an exact product-reduce body, and the scalar family; none may read a historical
+# DUT leaf from experiments/.
+
+# RUN: rm -f %t.grid.c %t.grid-k1.c %t.kvec.c %t.product.c %t.scalar.cpp
+# RUN: python3 %S/../../tools/bench/export_current_artifact.py --self-test | FileCheck %s --check-prefix=SELF
+
+# RUN: python3 %S/../../tools/bench/export_current_artifact.py gemm_tile iq1_s --board rvv --output %t.grid.c --skip-build | FileCheck %s --check-prefix=GRID
+# RUN: rg -n 'weft_emitc_ggml_repack_gemm_iq1_s_q8_K_kernel_ggml_repack_gemm_iq1_s_q8_K' %t.grid.c | FileCheck %s --check-prefix=GRID-SYMBOL
+# RUN: not rg -n '^module \{|"emitc.func"\(\)' %t.grid.c
+# RUN: python3 %S/../../tools/bench/export_current_artifact.py gemm_tile iq1_s --board k1 --output %t.grid-k1.c --skip-build | FileCheck %s --check-prefix=GRID-K1
+# RUN: not cmp %t.grid.c %t.grid-k1.c
+
+# RUN: python3 %S/../../tools/bench/export_current_artifact.py vec_dot q2_K --board k1 --output %t.kvec.c --skip-build | FileCheck %s --check-prefix=KVEC
+# RUN: rg -n 'weft_emitc_ggml_vec_dot_q2_K_q8_K_kernel_rvv_q2_K_q8_K_block_dot' %t.kvec.c | FileCheck %s --check-prefix=KVEC-SYMBOL
+
+# RUN: python3 %S/../../tools/bench/export_current_artifact.py product_reduce codebook_n3 --board rvv --output %t.product.c --skip-build | FileCheck %s --check-prefix=PRODUCT
+# RUN: rg -n 'weft_emitc_rvv_codebook_q8_0_integer_core_kernel_rvv_codebook_q8_0_integer_core' %t.product.c | FileCheck %s --check-prefix=PRODUCT-SYMBOL
+
+# RUN: python3 %S/../../tools/bench/export_current_artifact.py vec_dot tq2_0 --board scalar --output %t.scalar.cpp --skip-build | FileCheck %s --check-prefix=SCALAR
+# RUN: rg -n 'weft_emitc_tq2_0_kernel_scalar_fallback_first_slice' %t.scalar.cpp | FileCheck %s --check-prefix=SCALAR-SYMBOL
+
+# SELF: current-artifact exporter self-test: canonical runner routes and production export recipes are bijective
+
+# GRID: # CURRENT_ARTIFACT op=gemm_tile format=iq1_s board=rvv family=rvv march=rv64gcv head=
+# GRID-SAME: render_tool_sha256=
+# GRID-SAME: artifact_sha256=
+# GRID-SAME: symbol=weft_emitc_ggml_repack_gemm_iq1_s_q8_K_kernel_ggml_repack_gemm_iq1_s_q8_K
+# GRID-SYMBOL: weft_emitc_ggml_repack_gemm_iq1_s_q8_K_kernel_ggml_repack_gemm_iq1_s_q8_K
+# GRID-K1: # CURRENT_ARTIFACT op=gemm_tile format=iq1_s board=k1 family=rvv march=rv64gcv_zvl256b head=
+# GRID-K1-SAME: symbol=weft_emitc_ggml_repack_gemm_iq1_s_q8_K_kernel_ggml_repack_gemm_iq1_s_q8_K
+
+# KVEC: # CURRENT_ARTIFACT op=vec_dot format=q2_K board=k1 family=rvv march=rv64gcv_zvl256b head=
+# KVEC-SAME: symbol=weft_emitc_ggml_vec_dot_q2_K_q8_K_kernel_rvv_q2_K_q8_K_block_dot
+# KVEC-SYMBOL: weft_emitc_ggml_vec_dot_q2_K_q8_K_kernel_rvv_q2_K_q8_K_block_dot
+
+# PRODUCT: # CURRENT_ARTIFACT op=product_reduce format=codebook_n3 board=rvv family=rvv march=rv64gcv head=
+# PRODUCT-SAME: symbol=weft_emitc_rvv_codebook_q8_0_integer_core_kernel_rvv_codebook_q8_0_integer_core
+# PRODUCT-SYMBOL: weft_emitc_rvv_codebook_q8_0_integer_core_kernel_rvv_codebook_q8_0_integer_core
+
+# SCALAR: # CURRENT_ARTIFACT op=vec_dot format=tq2_0 board=scalar family=scalar march=rv64gc head=
+# SCALAR-SAME: symbol=weft_emitc_tq2_0_kernel_scalar_fallback_first_slice
+# SCALAR-SYMBOL: weft_emitc_tq2_0_kernel_scalar_fallback_first_slice

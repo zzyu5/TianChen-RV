@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# tools/bench/cells/vec_dot.sh <board> <mode> <fmt> — K-quant vec_dot 每格对拍/计时 harness。
+# tools/bench/cells/vec_dot.sh <board> <mode> <fmt> <regime> — K-quant vec_dot 每格对拍/计时 harness。
 #
 # op = vec_dot (block_qX_K · block_q8_K -> f32 scalar · HAS fp reduction ⇒ fp-contract 对称 =
 #      同 scalar_vec_dot.sh S1)。DUT = 我方板端编译的 emitted block-dot leaf；
@@ -20,32 +20,37 @@
 #     不是第二个 dispatcher，也不授予 scalar coverage。
 #
 # ★契约（硬·同 gemm_tile.sh / dequantize_row.sh / scalar_vec_dot.sh）：
-#   - 本 harness 由 ../bench 按声明接口调用：`vec_dot.sh <board> <mode> <fmt>`。
+#   - 本 harness 由 ../bench 按声明接口调用：
+#     `vec_dot.sh <board> <mode> <fmt> <regime>`。
 #   - **harness 自身禁写任何【仓库侧】持久文件** —— 板端跑完把结果全部打到 stdout；
 #     bench 解析 stdout，一切仓库侧持久写入经 runner 的 fail-closed 写入闸落三目的地。
 #   - 板端 /tmp/$RDIR 下的 build/log = 板端临时（可接受）；仓库侧【不 scp 回、不落任何文件】。
-#   - 源资产（driver / oracle / leaf）住数据格，本 harness 只【读】（ASSET_ROOT / KERNEL_ROOT 覆写）。
+#   - 数据格只提供 driver/oracle；五个 DUT leaf 均由当前 clean HEAD 现场构造，暂存后上板。
 #
 #   board: rvv | k1（ISSUE-105 已解决；k1 走本板 clang-18、真实 VLEN256 与 `_vl256` 探针）
 #   fmt  : q2_K | q3_K | q4_K | q5_K | q6_K（五个 raw-byte oracle 分立）
+#   regime: micro-fixed（固定 K/M/nc 的 kernel microbenchmark）
 #   mode : verify  = build + ZEROVEC objdump 探针 + OPP 部署派发探针(档位) + ZERO-MODEL 3-way
 #                    byte-exact + 3 个结果故障臂 + q8-bsums 输入契约负控；q2/q4/q5 另有
 #                    min-term-active 反事实臂（全部 NO TIMING）
 #          sanity  = 预测量噪声自检 3 轮
 #          measure = cold N=25 2-seed flush（fp-contract=on symmetric·同 scalar S1）
 set -uo pipefail
-BOARD="${1:-rvv}"; MODE="${2:-verify}"; FMT="${3:-q4_K}"
+BOARD="${1:-rvv}"; MODE="${2:-verify}"; FMT="${3:-q4_K}"; REGIME="${4:-}"
 
 SELF="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$SELF/../../.." && pwd)"
 ASSETS="${VEC_DOT_ASSET_ROOT:-$ROOT/experiments/active/k-vecdot-harness}"
-KERNELS="${VEC_DOT_KERNEL_ROOT:-$ROOT/experiments/active/g7-census/vecdot-rvv/kernels}"
-SEAL_FILE="$KERNELS/GEN_SEAL.txt"
+EXPORTER="$ROOT/tools/bench/export_current_artifact.py"
+STAGE="$(mktemp -d "${TMPDIR:-/tmp}/weft-current-vec-dot.XXXXXX")" || {
+  echo "# HARNESS-VOID cannot create current-artifact staging directory"; exit 3;
+}
+trap 'rm -rf -- "$STAGE"' EXIT
 
 K=2048; NC_MEASURE=512; NC_VERIFY=64; REPS=25; S1=0x1357; S2=0xACE2; SV=0xD00D
 RDIR=/tmp/bench_cells_vec_dot_${BOARD}_${FMT}
 
-echo "# HARNESS vec_dot board=$BOARD mode=$MODE fmt=$FMT assets=$ASSETS kernels=$KERNELS"
+echo "# HARNESS vec_dot board=$BOARD mode=$MODE fmt=$FMT regime=$REGIME support_assets=$ASSETS"
 
 case "$FMT" in
   q2_K|q3_K|q4_K|q5_K|q6_K) : ;;
@@ -55,6 +60,9 @@ case "$MODE" in
   verify|sanity|measure) : ;;
   *) echo "# HARNESS-VOID bad mode $MODE (仅 verify|sanity|measure)"; exit 2 ;;
 esac
+if [ "$REGIME" != micro-fixed ]; then
+  echo "# HARNESS-VOID unsupported regime ${REGIME:-<missing>} (vec_dot 当前只有 micro-fixed workload)"; exit 2
+fi
 OURSYM="weft_emitc_ggml_vec_dot_${FMT}_q8_K_kernel_rvv_${FMT}_q8_K_block_dot"; OPPSYM="ggml_vec_dot_${FMT}_q8_K"
 
 if [ "$BOARD" = rvv ]; then
@@ -87,20 +95,16 @@ fi
 DRV="$ASSETS/kquant_vecdot_driver.c"
 FMTS=(q2_K q3_K q4_K q5_K q6_K)
 LEAVES=()
-for qfmt in "${FMTS[@]}"; do LEAVES+=("$KERNELS/$qfmt.kernel.c"); done
-for f in "$DRV" "${LEAVES[@]}"; do
-  [ -f "$f" ] || { echo "# HARNESS-VOID missing asset $f"; exit 3; }
-done
-[ -f "$SEAL_FILE" ] || { echo "# HARNESS-VOID missing CORE==PROD seal $SEAL_FILE"; exit 3; }
+[ -f "$DRV" ] || { echo "# HARNESS-VOID missing support driver $DRV"; exit 3; }
+[ -x "$EXPORTER" ] || { echo "# HARNESS-VOID missing current-artifact exporter $EXPORTER"; exit 3; }
 for qfmt in "${FMTS[@]}"; do
-  expected="$(awk -v fmt="$qfmt" '$1==fmt && $2 ~ /^md5=/ { sub(/^md5=/,"",$2); print $2 }' "$SEAL_FILE")"
-  actual="$(md5sum "$KERNELS/$qfmt.kernel.c" | awk '{print $1}')"
-  [ -n "$expected" ] && [ "$actual" = "$expected" ] || {
-    echo "# HARNESS-VOID CORE!=PROD fmt=$qfmt expected=${expected:-missing} actual=$actual"
-    exit 3
-  }
+  leaf="$STAGE/$qfmt.kernel.c"
+  python3 "$EXPORTER" vec_dot "$qfmt" --board "$BOARD" --output "$leaf" --require-clean \
+    || { echo "# HARNESS-VOID current compiler failed to export vec_dot/$qfmt"; exit 3; }
+  [ -f "$leaf" ] || { echo "# HARNESS-VOID current compiler produced no leaf $leaf"; exit 3; }
+  LEAVES+=("$leaf")
 done
-echo "# CORE_PROD_SEAL five_leaves=PASS source=$SEAL_FILE"
+echo "# CURRENT_ARTIFACT_SET five_leaves=PASS head=$(git -C "$ROOT" rev-parse HEAD)"
 
 ssh "$BOARD" "mkdir -p $RDIR" || { echo "# HARNESS-VOID ssh mkdir failed"; exit 3; }
 scp -q "$DRV" "${LEAVES[@]}" "$BOARD:$RDIR/" || { echo "# HARNESS-VOID scp driver/leaves"; exit 3; }

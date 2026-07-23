@@ -368,7 +368,8 @@ def _probe_lineage(cfg):
 
 
 # ───────────────────────────────────────────────────────── cells/ harness（§〇.2·ISSUE-090 已裁）
-# harness 住 tools/bench/cells/<op>.sh，由 bench 按声明接口 `<op>.sh <board> <mode> <fmt>` 调用。
+# harness 住 tools/bench/cells/<op>.sh，由 bench 按声明接口
+# `<op>.sh <board> <mode> <fmt> <regime>` 调用。regime 是工作负载契约，不只是结果标签。
 # harness 禁写仓库侧文件 —— 板端跑完打 stdout，bench 在此解析、经 guarded_open 落三目的地。
 CELLS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cells")
 HARNESS_TIMEOUT_VERIFY = 900       # 秒：build + correctness/fault arms
@@ -387,16 +388,19 @@ CELL_ROUTES = (
     {
         "op": "gemm_tile", "boards": frozenset({"rvv", "k1"}),
         "engines": frozenset({"rvv"}), "formats": _GRID_GEMM_FORMATS,
+        "regimes": frozenset({"prefill"}),
         "harness": "gemm_tile.sh",
     },
     {
         "op": "vec_dot", "boards": frozenset({"rvv", "k1"}),
         "engines": frozenset({"rvv"}), "formats": _K_VECDOT_FORMATS,
+        "regimes": frozenset({"micro-fixed"}),
         "harness": "vec_dot.sh",
     },
     {
         "op": "product_reduce", "boards": frozenset({"rvv", "k1"}),
         "engines": frozenset({"rvv"}), "formats": _PRODUCT_REDUCE_FORMATS,
+        "regimes": frozenset({"micro-fixed"}),
         "harness": "product_reduce.sh",
     },
     {
@@ -404,12 +408,13 @@ CELL_ROUTES = (
         # BOARDS[scalar] remains blocked by ISSUE-061/104, so this route cannot grant a run.
         "op": "vec_dot", "boards": frozenset({"scalar"}),
         "engines": frozenset({"scalar"}), "formats": frozenset({"tq2_0"}),
+        "regimes": frozenset({"micro-fixed"}),
         "harness": "scalar_vec_dot.sh",
     },
 )
 
 
-def resolve_cell_route(op, fmt, board, engine):
+def resolve_cell_route(op, fmt, board, engine, regime):
     """精确解析一个已实现 cell；无 wildcard、同名猜测或旧路径 fallback。"""
     matches = [
         route for route in CELL_ROUTES
@@ -417,11 +422,13 @@ def resolve_cell_route(op, fmt, board, engine):
         and board in route["boards"]
         and engine in route["engines"]
         and fmt in route["formats"]
+        and regime in route["regimes"]
     ]
     if len(matches) != 1:
         raise CellRecipeMissing(
             "ROUTE_COMBINATION_UNSUPPORTED: canonical cell route 必须精确命中一次："
-            f"(op={op}, format={fmt}, board={board}, engine={engine})；命中 {len(matches)}。"
+            f"(op={op}, format={fmt}, board={board}, engine={engine}, "
+            f"regime={regime})；命中 {len(matches)}。"
         )
     path = os.path.join(CELLS_DIR, matches[0]["harness"])
     if not os.path.isfile(path):
@@ -431,11 +438,11 @@ def resolve_cell_route(op, fmt, board, engine):
     return path
 
 
-def _run_harness(harness, board, mode, fmt, timeout):
+def _run_harness(harness, board, mode, fmt, regime, timeout):
     """本地调 harness（harness 内部 ssh 板）；捕获 stdout+stderr。返回 (rc, text)；超时 rc=None。"""
     try:
         out = subprocess.run(
-            ["bash", harness, board, mode, fmt],
+            ["bash", harness, board, mode, fmt, regime],
             capture_output=True, text=True, timeout=timeout,
         )
     except subprocess.TimeoutExpired as exc:
@@ -776,7 +783,9 @@ def resolve_verify_parser(op):
         raise CellRecipeMissing(f"PARSER_MISSING: op={op} 没有 verify parser；禁止回退 GEMM") from exc
 
 
-def step3_crosscheck(op, fmt, board, engine, cfg, execute, harness, run_dir=None):
+def step3_crosscheck(
+    op, fmt, board, engine, regime, cfg, execute, harness, run_dir=None
+):
     """对拍（一步三验）：我方 vs oracle · 对手 vs oracle · 对手就是真实派发的那一个。
 
     execute：调已解析的 cells/ harness verify → 由唯一 op parser 归一化 correctness、
@@ -806,7 +815,9 @@ def step3_crosscheck(op, fmt, board, engine, cfg, execute, harness, run_dir=None
     if not execute:
         return plan, None
 
-    rc, text = _run_harness(harness, board, "verify", fmt, HARNESS_TIMEOUT_VERIFY)
+    rc, text = _run_harness(
+        harness, board, "verify", fmt, regime, HARNESS_TIMEOUT_VERIFY
+    )
     if run_dir is not None:
         with guarded_open(os.path.join(run_dir, "verify.stdout.txt"), "w") as fh:
             fh.write(text)
@@ -937,7 +948,9 @@ def resolve_cold_parser(op):
         raise CellRecipeMissing(f"PARSER_MISSING: op={op} 没有 cold parser；禁止回退 GEMM") from exc
 
 
-def step4_cold(op, fmt, board, engine, cfg, execute, harness, run_dir=None):
+def step4_cold(
+    op, fmt, board, engine, regime, cfg, execute, harness, run_dir=None
+):
     """cold 计时：预注册重复数，冷启动唯一；parser 归一化各 op 的合法对手比值。"""
     plan = {
         "步": "4 · cold 计时",
@@ -949,7 +962,9 @@ def step4_cold(op, fmt, board, engine, cfg, execute, harness, run_dir=None):
     if not execute:
         return plan, None
 
-    rc, text = _run_harness(harness, board, "measure", fmt, HARNESS_TIMEOUT_MEASURE)
+    rc, text = _run_harness(
+        harness, board, "measure", fmt, regime, HARNESS_TIMEOUT_MEASURE
+    )
     if run_dir is not None:
         with guarded_open(os.path.join(run_dir, "measure.stdout.txt"), "w") as fh:
             fh.write(text)
@@ -1086,29 +1101,36 @@ def self_test():
     ok.append("板册 == §3.1 四板；scalar（ISSUE-061）与 rvv07（ISSUE-063）真实模式不开测")
 
     # Route / parser / eligibility 三层互不授权。所有负例在 transport 之前由纯函数失败。
-    assert os.path.basename(resolve_cell_route("gemm_tile", "iq1_s", "rvv", "rvv")) == "gemm_tile.sh"
-    assert os.path.basename(resolve_cell_route("vec_dot", "q4_K", "k1", "rvv")) == "vec_dot.sh"
     assert os.path.basename(resolve_cell_route(
-        "product_reduce", "codebook_n3", "rvv", "rvv"
+        "gemm_tile", "iq1_s", "rvv", "rvv", "prefill"
+    )) == "gemm_tile.sh"
+    assert os.path.basename(resolve_cell_route(
+        "vec_dot", "q4_K", "k1", "rvv", "micro-fixed"
+    )) == "vec_dot.sh"
+    assert os.path.basename(resolve_cell_route(
+        "product_reduce", "codebook_n3", "rvv", "rvv", "micro-fixed"
     )) == "product_reduce.sh"
     assert os.path.basename(resolve_cell_route(
-        "vec_dot", "tq2_0", "scalar", "scalar"
+        "vec_dot", "tq2_0", "scalar", "scalar", "micro-fixed"
     )) == "scalar_vec_dot.sh"
     expanded_routes = []
     for route in CELL_ROUTES:
         expanded_routes.extend(
-            (route["op"], fmt, board_name, route_engine)
+            (route["op"], fmt, board_name, route_engine, route_regime)
             for fmt in route["formats"]
             for board_name in route["boards"]
             for route_engine in route["engines"]
+            for route_regime in route["regimes"]
         )
     assert len(expanded_routes) == len(set(expanded_routes)), "CELL_ROUTES 判定域重叠"
     for unsupported in (
-        ("unknown", "q4_K", "rvv", "rvv"),
-        ("vec_dot", "q4_K", "scalar", "rvv"),
-        ("vec_dot", "iq3_xxs", "rvv", "rvv"),
-        ("gemm_tile", "iq1_s", "rvv", "ime"),
-        ("product_reduce", "bad", "rvv", "rvv"),
+        ("unknown", "q4_K", "rvv", "rvv", "micro-fixed"),
+        ("vec_dot", "q4_K", "scalar", "rvv", "micro-fixed"),
+        ("vec_dot", "iq3_xxs", "rvv", "rvv", "micro-fixed"),
+        ("gemm_tile", "iq1_s", "rvv", "ime", "prefill"),
+        ("product_reduce", "bad", "rvv", "rvv", "micro-fixed"),
+        ("gemm_tile", "iq2_xxs", "rvv", "rvv", "decode"),
+        ("vec_dot", "q4_K", "rvv", "rvv", "prefill"),
     ):
         try:
             resolve_cell_route(*unsupported)
@@ -1116,7 +1138,10 @@ def self_test():
             pass
         else:
             raise AssertionError(f"unsupported route 未 fail-closed: {unsupported}")
-    ok.append("route registry：grid-GEMM / K-vec / product / dormant-scalar 精确命中；错组合零 fallback")
+    ok.append(
+        "route registry：四元实现域外加 load-bearing regime；"
+        "grid decode 未实现即 fail-closed；错组合零 fallback"
+    )
 
     assert set(VERIFY_PARSERS) == set(COLD_PARSERS) == {
         "gemm_tile", "vec_dot", "product_reduce",
@@ -1325,7 +1350,7 @@ def main(argv=None):
     # route and both parsers before dry-run output, run-id allocation, transport or disk writes.
     # A known roster row with no implemented cell is therefore rejected honestly, not routed
     # through an op-name guess or the historical GEMM parser fallback.
-    harness = resolve_cell_route(op, fmt, board, engine)
+    harness = resolve_cell_route(op, fmt, board, engine, regime)
     resolve_verify_parser(op)
     resolve_cold_parser(op)
 
@@ -1343,8 +1368,12 @@ def main(argv=None):
         for plan, _ in (
             step1_preflight(board, cfg, False),
             step2_lineage(board, cfg, False),
-            step3_crosscheck(op, fmt, board, engine, cfg, False, harness),
-            step4_cold(op, fmt, board, engine, cfg, False, harness),
+            step3_crosscheck(
+                op, fmt, board, engine, regime, cfg, False, harness
+            ),
+            step4_cold(
+                op, fmt, board, engine, regime, cfg, False, harness
+            ),
             step5_row(None, False),
         ):
             print(f"  [{plan['步']}]")
@@ -1381,7 +1410,7 @@ def main(argv=None):
 
     os.makedirs(run_dir, exist_ok=True)
     _, r3 = step3_crosscheck(
-        op, fmt, board, engine, cfg, True, harness, run_dir=run_dir
+        op, fmt, board, engine, regime, cfg, True, harness, run_dir=run_dir
     )
     if isinstance(r3, str):     # VOID
         append_runs_log(run_id, fmt, r3)
@@ -1390,7 +1419,7 @@ def main(argv=None):
     print(f"  对拍    = 三验 PASS · 部署对手 {r3['opp_sym']} · 档={r3['opp_caliber']} · 我方向量指令(ex-vset)={r3['our_vector_ex_vset']}")
 
     _, r4 = step4_cold(
-        op, fmt, board, engine, cfg, True, harness, run_dir=run_dir
+        op, fmt, board, engine, regime, cfg, True, harness, run_dir=run_dir
     )
     if isinstance(r4, str):     # VOID
         append_runs_log(run_id, fmt, r4)

@@ -15,6 +15,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 BENCH = ROOT / "tools" / "bench" / "bench"
+CURRENT_ARTIFACT_EXPORTER = ROOT / "tools" / "bench" / "export_current_artifact.py"
 RECON = ROOT / ".trellis" / "scripts" / "recon_master_rebuild.py"
 HARMONIZER = ROOT / ".trellis" / "scripts" / "sel3_writeback_harmonizer.py"
 DISPOSITION = ROOT / ".trellis" / "scripts" / "recon_t3_disposition.py"
@@ -134,6 +135,19 @@ def main() -> int:
     require("required_tn_tokens" not in harmonizer,
             "free-text T-N token shortcut returned")
 
+    bench_self_test = subprocess.run(
+        [str(BENCH), "--self-test"], cwd=ROOT,
+        capture_output=True, text=True, check=False,
+    )
+    require(bench_self_test.returncode == 0,
+            f"canonical bench contract self-test failed: {bench_self_test.stderr}")
+    exporter_self_test = subprocess.run(
+        [sys.executable, str(CURRENT_ARTIFACT_EXPORTER), "--self-test"], cwd=ROOT,
+        capture_output=True, text=True, check=False,
+    )
+    require(exporter_self_test.returncode == 0,
+            f"current-artifact route/recipe closure failed: {exporter_self_test.stderr}")
+
     # Dry-run shares the formal full-key signature but is genuinely read-only:
     # no phantom run-id, placeholder row, append-only log pollution, or old
     # one-positional compatibility route.
@@ -141,7 +155,7 @@ def main() -> int:
     before_log = RUNS_LOG.read_bytes()
     before_runs = sorted(path.name for path in RUNS.iterdir())
     dry = subprocess.run(
-        [str(BENCH), "vec_dot", "q4_0", "--board", "rvv", "--engine", "rvv",
+        [str(BENCH), "vec_dot", "q4_K", "--board", "rvv", "--engine", "rvv",
          "--regime", "micro-fixed", "--dry-run"],
         cwd=ROOT, capture_output=True, text=True, check=False,
     )
@@ -152,13 +166,32 @@ def main() -> int:
     require(sorted(path.name for path in RUNS.iterdir()) == before_runs,
             "dry-run created an immutable-run directory")
 
+    grid_prefill = subprocess.run(
+        [str(BENCH), "gemm_tile", "iq2_xxs", "--board", "rvv",
+         "--engine", "rvv", "--regime", "prefill", "--dry-run"],
+        cwd=ROOT, capture_output=True, text=True, check=False,
+    )
+    require(grid_prefill.returncode == 0,
+            f"implemented grid prefill route failed: {grid_prefill.stderr}")
+    grid_decode = subprocess.run(
+        [str(BENCH), "gemm_tile", "iq2_xxs", "--board", "rvv",
+         "--engine", "rvv", "--regime", "decode", "--dry-run"],
+        cwd=ROOT, capture_output=True, text=True, check=False,
+    )
+    require(grid_decode.returncode != 0,
+            "grid decode reached a fixed-prefill harness without a true decode workload")
+    require(MASTER.read_bytes() == before_master, "regime route checks mutated canonical master")
+    require(RUNS_LOG.read_bytes() == before_log, "regime route checks polluted runs.log")
+    require(sorted(path.name for path in RUNS.iterdir()) == before_runs,
+            "regime route checks created an immutable-run directory")
+
     shortcut = subprocess.run(
-        [str(BENCH), "q4_0", "--board", "rvv", "--dry-run"],
+        [str(BENCH), "q4_K", "--board", "rvv", "--dry-run"],
         cwd=ROOT, capture_output=True, text=True, check=False,
     )
     require(shortcut.returncode != 0, "retired one-positional dry-run route returned")
     legacy_writer = subprocess.run(
-        [str(BENCH), "vec_dot", "q4_0", "--board", "rvv", "--engine", "rvv",
+        [str(BENCH), "vec_dot", "q4_K", "--board", "rvv", "--engine", "rvv",
          "--regime", "micro-fixed", "--update-master"],
         cwd=ROOT, capture_output=True, text=True, check=False,
     )
@@ -202,6 +235,8 @@ def main() -> int:
     print(f"  explicit deployed-point rows: {len(deployed)}")
     print(f"  master-qualified deployed rows: {sum(r['master_qualified_input'] for r in deployed)}")
     print(f"  selection-valid rows (all axes): {sum(r.get('selection_valid_input') is True for r in doc['rows'])}")
+    print("  load-bearing regime routing: grid prefill PASS; unimplemented decode fail-closed")
+    print("  current-artifact exporter route/recipe closure: PASS")
     print("  hermetic qualified official-run -> recon input: PASS; stale negative: PASS")
     return 0
 
