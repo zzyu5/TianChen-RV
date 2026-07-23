@@ -1,0 +1,15 @@
+{"file":".trellis/tasks/07-23-rvv-physical-module-horizontal-cutover/prd.md","reason":"本轮横向物理职责、禁止项与完成门"}
+{"file":".trellis/spec/architecture/执行问题与家族边界.md","reason":"source、owner construction 与 artifact-neutral 边界"}
+{"file":".trellis/spec/architecture/变体流水线.md","reason":"主构造公式、schedule/selector authority 与 selected-body realization"}
+{"file":".trellis/spec/architecture/公式层与覆盖.md","reason":"横向 production entry、formula causality 与 flat_* final-plan authority"}
+{"file":"include/Weft/Dialect/Exec/IR/ExecOps.td","reason":"剩余 RVV source-origin entry 所需 canonical problem surface"}
+{"file":"include/Weft/Plugin/RVV/RVVCanonicalProblemConstruction.h","reason":"exact-P selected-owner construction API"}
+{"file":"include/Weft/Plugin/RVV","reason":"按 source/construction/schedule 职责收敛公开 API"}
+{"file":"lib/Plugin/RVV/FrontDoor","reason":"仅保留 source matching、normalization、exact-P materialization 与 registration"}
+{"file":"lib/Plugin/RVV/Construction","reason":"formula、mechanism、schedule、runtime control 与 selected-body construction owner"}
+{"file":"lib/Plugin/RVV/Schedule","reason":"审计并收敛 mechanical schedule materialization"}
+{"file":"lib/Plugin/RVV/BodyRealization","reason":"保留真实 selected-body mechanism owner，退出 source/provider 混合职责"}
+{"file":"lib/Conversion/RVV","reason":"机械消费 final typed body/plan并按真实 consumer 分解巨型文件"}
+{"file":"lib/Plugin/RVV/CMakeLists.txt","reason":"原子迁移 source/constructor 文件与依赖"}
+{"file":"test/Conversion/RVV","reason":"真实 source→exact P→selected construction→artifact 行为回归"}
+{"file":"test/Transforms/VariantMaterialization","reason":"exact P 与 owner construction 集成回归"}
