@@ -4981,7 +4981,7 @@ def GgmlRepackGemvQ80Q80Op
 // NOTE (G3 主线A T2-construct): the q4_K 16x1-REPACKED GEVM + GEMM monolith ops
 // weft_rvv.repack_gem{v,m}_q4_K_q8_K (GgmlRepackGem{v,m}Q4KQ8KOp) are RETIRED to the
 // front door -- the SAME retirement the whole ternary batch (tq2_0/tq1_0) took. The
-// repack front door (RVVLowerQuantContraction.cpp lowerToRepackGem{v,m}KQuant) now
+// repack front door (RVVQuantContractionConstructionPass.cpp lowerToRepackGem{v,m}KQuant) now
 // CONSTRUCTS the typed weft_rvv.typed_repack_gem{v,m}_loop_body region (fold_model
 // "kquant_dmin_bsums_min") carrying the weft_rvv.repack_gem{v,m}_kquant_core brick
 // (decode_model "q4_K"), lowered by emitTypedRepackGem{v,m}LoopBody's K-quant branch
@@ -5033,7 +5033,7 @@ def GgmlRepackGemvQ80Q80Op
 // TERNARY 16x1-REPACKED GEVM/GEMM monolith direct-emitter ops -- are RETIRED (G3
 // 主线B batch2, the ternary-batch COMPLETION retiring the LAST ternary bypass). The
 // tq1_0 repack GEVM/GEMM are now CONSTRUCTED through the typed-region FRONT DOOR:
-// RVVLowerQuantContraction.cpp lowerToRepackGem{v,m}Ternary CONSTRUCTS the
+// RVVQuantContractionConstructionPass.cpp lowerToRepackGem{v,m}Ternary CONSTRUCTS the
 // weft_rvv.typed_repack_gem{v,m}_loop_body region (fold_model
 // "ternary_single_fp16_scale") carrying the SHARED weft_rvv.repack_gem{v,m}_ternary_core
 // brick (decode_model "tq1_0"), lowered by emitTypedRepackGem{v,m}LoopBody's ternary

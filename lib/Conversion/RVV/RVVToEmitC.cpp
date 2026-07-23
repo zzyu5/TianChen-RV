@@ -456,7 +456,7 @@ VariantToEmitCFunc::matchAndRewrite(weft::exec::VariantOp variant, OpAdaptor /*a
         // the core stamping weight_nibble_unsigned + weight_qh_byte_offset (@288) +
         // weight_offset_bias (16) (the q5_0 5th-bit `((nibble)|(qh_bit<<4))-16`
         // decode leaf), lowered below by isTypedRepackGem{v,m}LoopBody ->
-        // emitTypedRepackGem{v,m}LoopBody (RVVLowerQuantContraction.cpp
+        // emitTypedRepackGem{v,m}LoopBody (RVVQuantContractionConstructionPass.cpp
         // lowerToRepackGem{v,m}Q50; byte-exact ZERO-MODEL host cert
         // tools/e2e-harness/g3-lode-flat-q50). q8_0 follows via the SAME
         // shared-brick template.
@@ -470,7 +470,7 @@ VariantToEmitCFunc::matchAndRewrite(weft::exec::VariantOp variant, OpAdaptor /*a
         // (@320) with NO weight_offset_bias (the q5_1 UNSIGNED 5-bit
         // `(nibble)|(qh_bit<<4)` decode leaf) + the fold stamping the single
         // MIN-fold offset pair, lowered below by isTypedRepackGem{v,m}LoopBody ->
-        // emitTypedRepackGem{v,m}LoopBody (RVVLowerQuantContraction.cpp
+        // emitTypedRepackGem{v,m}LoopBody (RVVQuantContractionConstructionPass.cpp
         // lowerToRepackGem{v,m}Q51; byte-exact ZERO-MODEL host cert
         // tools/e2e-harness/g3-lode-flat-q51). q5_1 = q5_0's qh gather (unsigned/no
         // -16) + q4_1's min fold. q8_0 follows via the SAME shared-brick template.
@@ -483,7 +483,7 @@ VariantToEmitCFunc::matchAndRewrite(weft::exec::VariantOp variant, OpAdaptor /*a
         // weft_rvv.typed_repack_gem{v,m}_loop_body region (fold_model
         // "lane_wise_vector_scale_min") out of the SHARED q4_0 bricks -- the core
         // stamping weight_nibble_unsigned (the q4_1 RAW unsigned nibble decode) + the
-        // fold stamping the single MIN-fold offset pair (RVVLowerQuantContraction.cpp
+        // fold stamping the single MIN-fold offset pair (RVVQuantContractionConstructionPass.cpp
         // lowerToRepackGem{v,m}Q41), lowered below by isTypedRepackGem{v,m}LoopBody ->
         // emitTypedRepackGem{v,m}LoopBody (byte-exact, ZERO-MODEL host cert
         // experiments/active/g3-lode-flat-q41). q5_0/q5_1/q8_0 follow via the SAME

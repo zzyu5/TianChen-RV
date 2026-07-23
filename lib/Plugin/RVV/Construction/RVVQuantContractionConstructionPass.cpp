@@ -1,6 +1,6 @@
-//===- RVVLowerQuantContraction.cpp ---------------------------------------===//
+//===- RVVQuantContractionConstructionPass.cpp --------------------------===//
 //
-// The option-2 front-of-pipeline pass that lowers the abstract,
+// Owner-local construction pass that lowers the abstract,
 // algorithm-UNCOMMITTED weft_rvv.quant_contraction op to a CONCRETE contraction
 // op, running BEFORE the EmitC lowering.
 //

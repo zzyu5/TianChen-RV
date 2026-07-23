@@ -10,9 +10,11 @@ add_mlir_library(WeftRVVConstruction
   RVVWideningDotProblemConstruction.cpp
   RVVQuantizedIntegerCoreProblemConstruction.cpp
   RVVQuantizedBlockDotProblemConstruction.cpp
+  RVVQuantContractionConstructionPass.cpp
   RVVSuperBlockBodyConstruction.cpp
   ../RVVCapabilityProfile.cpp
   RVVCompositeGatherMAccScatterFormula.cpp
+  RVVContractionAlgorithmFormula.cpp
   RVVConstructedBodyQualification.cpp
   RVVFlatBlockDotFormula.cpp
   RVVFormulaConstruction.cpp
@@ -20,11 +22,15 @@ add_mlir_library(WeftRVVConstruction
   RVVSelectedTargetCapability.cpp
   RVVIntegerCoreScheduleFormula.cpp
 
+  DEPENDS
+  WeftPassesIncGen
+
   LINK_LIBS PUBLIC
   WeftConversionEmitC
   WeftRVVDialect
   WeftExecDialect
   WeftSupport
   MLIRIR
+  MLIRPass
   MLIRSupport
 )

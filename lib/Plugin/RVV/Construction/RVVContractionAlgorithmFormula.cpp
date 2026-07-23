@@ -1,3 +1,4 @@
+// Contraction candidate, legality, analytic-prior, and bounded selection owner.
 #include "Weft/Plugin/RVV/RVVContractionPathSelection.h"
 
 namespace weft::plugin::rvv {

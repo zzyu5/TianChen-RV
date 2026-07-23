@@ -110,7 +110,7 @@ inline llvm::ArrayRef<MonolithicBlockDotABIRole> monolithicRepackGemvABI5() {
 // GEMM internalizes the FULL M-tiling nest, so it needs two runtime ABI values the
 // abstract quant_contraction op does NOT carry -- the activation-row count (nr) and
 // the fp32 output row stride (bs) -- which the option-2 BRIDGE front door
-// (RVVLowerQuantContraction.cpp lowerToRepackGemm) MATERIALIZES at the variant scope
+// (RVVQuantContractionConstructionPass.cpp lowerToRepackGemm) MATERIALIZES at the variant scope
 // AHEAD of the abstract op's own runtime ABI values. The exported C signature
 // therefore mirrors that materialized-then-declared order: the two materialized
 // values (nr source-byte-stride, bs output-stride) FIRST, then the abstract op's
@@ -1988,7 +1988,7 @@ findMonolithicBlockDotProblemEntry(llvm::StringRef weightEncoding,
 // monolithicBlockDotOpTable(): that table is iterated to register a
 // source-front-door construction pass PER ROW, but the repacked GEVM is
 // CONSTRUCTED by the option-2 quant_contraction BRIDGE
-// (RVVLowerQuantContraction.cpp lowerToRepackGemv), NOT a source front door, so a
+// (RVVQuantContractionConstructionPass.cpp lowerToRepackGemv), NOT a source front door, so a
 // table row would register a dead/misleading block-dot source-front-door pass for
 // it. Instead it is a standalone singleton: recognized on the plugin side by the
 // typed_repack loop op name (resolveSelectedMonolithicBlockDotBodyEntry) and on the
@@ -2024,7 +2024,7 @@ inline const MonolithicBlockDotOpEntry &repackGemvMonolithicEntry() {
 // The q4_0 16x1-repacked GEMM (prefill) monolithic entry -- the PREFILL sibling of
 // repackGemvMonolithicEntry. Like the GEVM entry it is a standalone singleton (NOT a
 // row of monolithicBlockDotOpTable): the repacked GEMM is CONSTRUCTED by the option-2
-// quant_contraction BRIDGE (RVVLowerQuantContraction.cpp lowerToRepackGemm on
+// quant_contraction BRIDGE (RVVQuantContractionConstructionPass.cpp lowerToRepackGemm on
 // m_regime == "prefill"), NOT a source front door, so a construction-table row would
 // register a dead source-front-door pass for it. It is recognized plugin-side by the
 // typed_repack_gemm loop op name (resolveSelectedMonolithicBlockDotBodyEntry) and

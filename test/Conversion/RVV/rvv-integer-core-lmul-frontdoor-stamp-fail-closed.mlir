@@ -1,6 +1,6 @@
 // A-line c-axis debake (裁决7·阶段0) 坐实: the integer-core LMUL board value is a
 // CAPABILITY FACT, never a baked default. The front door ALWAYS stamps
-// integer_core_lmul on every wired repack leaf (RVVLowerQuantContraction.cpp builds it
+// integer_core_lmul on every wired repack leaf (RVVQuantContractionConstructionPass.cpp builds it
 // non-null = isM1 ? "m1" : "mf2" and unconditionally addAttribute's it), and the EmitC
 // integer-core lowering now READS it FAIL-CLOSED (RVVToEmitCBlockQuantLinear.cpp: the 18
 // former getIntegerCoreLmul().value_or("mf2") board-baked defaults are dead code and were
