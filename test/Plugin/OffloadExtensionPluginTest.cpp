@@ -192,7 +192,7 @@ module {
     return
   }
 
-  weft.exec.kernel @available_offload attributes {} {
+  weft.exec.kernel @available_offload attributes {construction_domain = "riscv-execution"} {
     weft.exec.capability @offload_runtime {
       id = "offload.runtime",
       kind = "runtime-offload",
@@ -202,10 +202,10 @@ module {
     }
   }
 
-  weft.exec.kernel @missing_offload attributes {} {
+  weft.exec.kernel @missing_offload attributes {construction_domain = "riscv-execution"} {
   }
 
-  weft.exec.kernel @malformed_offload attributes {} {
+  weft.exec.kernel @malformed_offload attributes {construction_domain = "riscv-execution"} {
     weft.exec.capability @offload_runtime {
       id = "offload.runtime",
       kind = "runtime-offload",
@@ -215,7 +215,7 @@ module {
     }
   }
 
-  weft.exec.kernel @misclassified_custom_isa_offload attributes {} {
+  weft.exec.kernel @misclassified_custom_isa_offload attributes {construction_domain = "riscv-execution"} {
     weft.exec.capability @offload_runtime {
       id = "offload.runtime",
       kind = "custom-isa",
@@ -225,7 +225,7 @@ module {
     }
   }
 
-  weft.exec.kernel @vendor_string_only attributes {vendor_hint = "sophgo"} {
+  weft.exec.kernel @vendor_string_only attributes {construction_domain = "riscv-execution", vendor_hint = "sophgo"} {
     weft.exec.capability @vendor_runtime {
       id = "sophgo.runtime",
       kind = "runtime-offload",
@@ -388,7 +388,7 @@ module {
     return
   }
 
-  weft.exec.kernel @offload_plus_scalar attributes {} {
+  weft.exec.kernel @offload_plus_scalar attributes {construction_domain = "riscv-execution"} {
     weft.exec.capability @offload_runtime {
       id = "offload.runtime",
       kind = "runtime-offload",

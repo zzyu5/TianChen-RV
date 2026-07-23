@@ -42,6 +42,9 @@ public:
   llvm::StringRef getName() const override {
     return "disabled-rvv-dialect-plugin";
   }
+  llvm::StringRef getConstructionDomain() const override {
+    return "test-domain";
+  }
 
   llvm::ArrayRef<PluginCapability> getCapabilities() const override {
     return {};

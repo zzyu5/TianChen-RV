@@ -199,7 +199,7 @@ module {
     return
   }
 
-  weft.exec.kernel @available_scalar attributes {} {
+  weft.exec.kernel @available_scalar attributes {construction_domain = "riscv-execution"} {
     weft.exec.capability @scalar_fallback {
       id = "scalar.fallback",
       kind = "fallback",
@@ -207,7 +207,7 @@ module {
     }
   }
 
-  weft.exec.kernel @unavailable_scalar attributes {} {
+  weft.exec.kernel @unavailable_scalar attributes {construction_domain = "riscv-execution"} {
     weft.exec.capability @scalar_fallback {
       id = "scalar.fallback",
       kind = "fallback",
@@ -215,7 +215,7 @@ module {
     }
   }
 
-  weft.exec.kernel @missing_scalar attributes {} {
+  weft.exec.kernel @missing_scalar attributes {construction_domain = "riscv-execution"} {
   }
 }
 )mlir";
@@ -307,13 +307,9 @@ module {
   VariantProposalRequest noHighLevelOpRequest(nullptr, available,
                                               availableCapabilities);
   proposals.clear();
-  if (int result = expectSuccess(
+  if (int result = expectErrorContains(
           registry.collectVariantProposals(noHighLevelOpRequest, proposals),
-          "missing high-level op query succeeds"))
-    return result;
-  if (int result =
-          expect(proposals.empty(),
-                 "missing high-level op produces no scalar proposal"))
+          {"variant proposal collection requires an exact canonical problem"}))
     return result;
 
   return 0;
@@ -326,7 +322,7 @@ module {
     return
   }
 
-  weft.exec.kernel @scalar_only attributes {} {
+  weft.exec.kernel @scalar_only attributes {construction_domain = "riscv-execution"} {
     weft.exec.capability @scalar_fallback {
       id = "scalar.fallback",
       kind = "fallback",
@@ -851,7 +847,7 @@ module {
     return
   }
 
-  weft.exec.kernel @rvv_decline_scalar_envelope attributes {} {
+  weft.exec.kernel @rvv_decline_scalar_envelope attributes {construction_domain = "riscv-execution"} {
     weft.exec.capability @rvv {
       id = "rvv",
       kind = "isa-vector",
@@ -1059,7 +1055,7 @@ module {
     return
   }
 
-  weft.exec.kernel @only_feasible_scalar attributes {} {
+  weft.exec.kernel @only_feasible_scalar attributes {construction_domain = "riscv-execution"} {
     weft.exec.capability @scalar_fallback {
       id = "scalar.fallback",
       kind = "fallback",
@@ -1216,6 +1212,36 @@ module {
   return 0;
 }
 
+int runConstructionDomainMismatchTest(mlir::MLIRContext &context) {
+  constexpr llvm::StringLiteral source = R"mlir(
+module {
+  weft.exec.kernel @foreign_domain attributes {construction_domain = "foreign-domain"} {
+    weft.exec.capability @scalar_fallback {id = "scalar.fallback", kind = "fallback", status = "available"}
+    weft.exec.variant @scalar_path attributes {origin = "scalar-plugin", requires = [@scalar_fallback]} {
+    }
+  }
+}
+)mlir";
+
+  mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
+  if (!module)
+    return fail("failed to parse Scalar construction-domain mismatch module");
+  KernelOp kernel = findKernel(*module, "foreign_domain");
+  VariantOp variant = findVariant(kernel, "scalar_path");
+  ExtensionPluginRegistry registry;
+  if (int result = expectSuccess(
+          weft::plugin::registerScalarExtensionPlugin(registry),
+          "register Scalar plugin for construction-domain mismatch"))
+    return result;
+  FamilyConstructionResult construction;
+  return expectErrorContains(
+      registry.constructFormulaPlansForVariant(*module, variant, construction),
+      {"selected variant @scalar_path", "origin plugin 'scalar-plugin'",
+       "construction domain 'riscv-execution'",
+       "does not match kernel @foreign_domain construction domain "
+       "'foreign-domain'"});
+}
+
 } // namespace
 
 int main() {
@@ -1252,6 +1278,8 @@ int main() {
   if (int result = runLegalityRejectionTest(context))
     return result;
   if (int result = runFamilyIndependenceAcceptanceTest(context))
+    return result;
+  if (int result = runConstructionDomainMismatchTest(context))
     return result;
 
   llvm::outs() << "scalar fallback extension plugin smoke test passed\n";

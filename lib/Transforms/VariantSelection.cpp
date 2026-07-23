@@ -734,6 +734,10 @@ llvm::Expected<VariantSelectionPlan> planKernelVariantSelection(
                               "requires kernel to have a materialized body "
                               "block");
 
+  if (llvm::Error error =
+          registry.validateKernelVariantConstructionDomain(kernel))
+    return std::move(error);
+
   llvm::SmallVector<VariantCostRankingEntry, 4> rankedCosts;
   if (llvm::Error error =
           registry.rankKernelVariantsByCost(kernel, capabilities, rankedCosts))

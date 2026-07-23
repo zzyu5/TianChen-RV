@@ -24,30 +24,31 @@
 代码和测试推进；只有触及稳定契约时才同步修改本层。
 
 - [ ] 仍是 post-graph、pre-schedule 的 operator-to-kernel compiler，而非新增高层 tensor/tile IR？
-- [ ] canonical problem 的 `S/g/ω` 是否语义充分但尚未携带 family schedule？
-- [ ] target/family 是否在 construction 前绑定，而非在 artifact emitter 中二次分派？
+- [ ] canonical problem 的 `S/g/ω` 是否语义充分但尚未携带 owner schedule？
+- [ ] target/domain 是否在 proposal/selection 前绑定，而非由 origin 或 artifact emitter 反推？
+- [ ] 所有 candidate origin 是否声明属于 bound domain，different-domain candidate 是否 fail closed？
 - [ ] 系统身份是可扩展 MLIR operator compiler，RISC-V 只是旗舰实例而非 core 上界，GPU 也不是一个末端 emitter 吗？
 - [ ] 每个 registered/direct production operator entry 都进入 catalogued formula/construction 阶段吗？
 - [ ] g、c、ω 的来源和 owner 明确吗？
-- [ ] g/c/ω 是否由不同 typed owner 提供，并在 family-local formula/construction 中受控汇合？
+- [ ] g/c/ω 是否由不同 typed owner 提供，并在 owner-local formula/construction 中受控汇合？
 - [ ] formula/construction 产生 typed plan、candidate、legality 所需条件或 prior，而不是 C 字符串？
 - [ ] measurement 只在合法候选中选 winner，没有创造 compute？
 - [ ] formula/selector 的最终结果是否在 emission 前直接成为 final typed body，而非经历 stamp 生命周期？
 - [ ] construction completion 是否独立于 EmitC、`emitc.func` 或任一具体 artifact？
 - [ ] emitter 没有重新读取 format、board、march 或 measurement 做同一决定？
-- [ ] core/common 没有 family-name branch？
+- [ ] core/common 没有具体 domain/owner-name branch？
 - [ ] unsupported 或空合法集 fail-closed 或进入 canon 允许的具名 fallback？
 - [ ] 当前 registry/call graph 中全部 production entry/caller 已进入统一层，旧 caller、兼容 bridge、第二 dispatcher/writer 已归零吗？
-- [ ] 中间迁移状态只存在于未完成 worktree，最终合入没有未迁 operator/family 吗？
+- [ ] 中间迁移状态只存在于未完成 worktree，最终合入没有未迁 operator/owner 吗？
 - [ ] runtime sparse/MoE 没有被写成当前实现？
-- [ ] 新抽象有第二个真实使用者，或保持 family-local？
+- [ ] 新抽象有第二个真实使用者，或保持 owner-local？
 
 ## 本层地图
 
 | 文件 | 内容 |
 |---|---|
 | [系统定位与边界](./系统定位与边界.md) | 项目范围、主链、工位与 g/c 解耦边界 |
-| [执行问题与家族边界](./执行问题与家族边界.md) | V2 canonical problem、target/family binding、artifact-neutral construction 与 GPU 前置边界 |
+| [执行问题与家族边界](./执行问题与家族边界.md) | V2 canonical problem、target/domain binding、owner construction 与 GPU 前置边界 |
 | [能力模型](./能力模型.md) | capability 来源、关系、profile、probe、default/conflict |
 | [核心方言](./核心方言.md) | weft.exec execution envelope |
 | [插件协议](./插件协议.md) | 插件接口、五件套、locality 和 family 接入 |
@@ -62,17 +63,18 @@
 ## 当前主改造方向
 
 当前已经完成并继续守住 Weft-RV production formula/construction authority 的横向切换：所有
-production operator/family entry 与 analytic authority 进入轻量 catalog 和
-family-local typed evaluator；旧 decision provider/helper/replay、emitter
+production operator/owner entry 与 analytic authority 进入轻量 catalog 和
+owner-local typed evaluator；旧 decision provider/helper/replay、emitter
 redecision 与兼容旁路退出生产链。这里的“横向完成”指单一构造权威，不表示每个
 逐点 leaf 已经达到 strong reconstruction。
 
-Artifact-neutral family construction 横向重基已经完成：canonical problem、target/family
-binding 与 family construction 不再寄居于 EmitC backend，所有 current family 与
-source/direct/translate/artifact caller 共享 construction-before-artifact 主链。V2 的下一步
+Artifact-neutral owner construction 横向重基已经完成：canonical problem 后的 owner
+construction 不再寄居于 EmitC backend，所有 current owners 与
+source/direct/translate/artifact caller 共享 construction-before-artifact 主链。显式
+target-bound domain membership/gate 是当前横向任务的进行中缺口。V2 的下一步
 仍不是实现 GPU，而是在 RISC-V 旗舰 realization 上横向闭合 mechanism factorization、公式
 因果、delete-leaf reconstruction 与重构后真实性能；不得借此建立大一统 Formula IR 或
-universal Plan。完成 A/B 闭环后，GPU 才沿同一 construction contract 作为完整 family 接入。
+universal Plan。完成 A/B 闭环后，GPU 才沿同一 construction contract 作为完整 domain/owner 接入。
 
 ## Quality Check
 

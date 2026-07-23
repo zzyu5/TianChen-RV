@@ -1,7 +1,7 @@
 // RUN: weft-opt %s --weft-execution-planning-pipeline | FileCheck %s
 
 module @offload_manifest_inputs {
-  weft.exec.kernel @pipeline_offload_manifest attributes {problem = @canonical_problem} {
+  weft.exec.kernel @pipeline_offload_manifest attributes {construction_domain = "riscv-execution", problem = @canonical_problem} {
     weft.exec.int8_mac_problem @canonical_problem {lhs_signedness = #weft<integer_signedness signed>, rhs_signedness = #weft<integer_signedness signed>, m = 4 : i64, n = 4 : i64, k = 8 : i64}
     weft.exec.capability @offload_runtime {
       id = "offload.runtime",

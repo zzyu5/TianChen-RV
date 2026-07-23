@@ -38,15 +38,20 @@ public:
                  llvm::StringRef proposalName, llvm::StringRef originPlugin,
                  llvm::StringRef requiredCapabilityID,
                  llvm::StringRef requiredCapabilitySymbol, bool enabled = true,
-                 bool includeRequiredCapabilitySymbol = true)
+                 bool includeRequiredCapabilitySymbol = true,
+                 llvm::StringRef constructionDomain = "test-domain")
       : name(name.str()), supportCapabilityID(supportCapabilityID.str()),
         proposalName(proposalName.str()), originPlugin(originPlugin.str()),
         requiredCapabilityID(requiredCapabilityID.str()),
         requiredCapabilitySymbol(requiredCapabilitySymbol.str()),
         enabled(enabled),
-        includeRequiredCapabilitySymbol(includeRequiredCapabilitySymbol) {}
+        includeRequiredCapabilitySymbol(includeRequiredCapabilitySymbol),
+        constructionDomain(constructionDomain.str()) {}
 
   llvm::StringRef getName() const override { return name; }
+  llvm::StringRef getConstructionDomain() const override {
+    return constructionDomain;
+  }
 
   llvm::ArrayRef<PluginCapability> getCapabilities() const override {
     return capabilities;
@@ -131,6 +136,7 @@ private:
   std::string requiredCapabilitySymbol;
   bool enabled;
   bool includeRequiredCapabilitySymbol;
+  std::string constructionDomain;
   llvm::SmallVector<PluginCapability, 1> capabilities;
   mutable unsigned supportCalls = 0;
   mutable unsigned proposalCalls = 0;
@@ -147,6 +153,9 @@ public:
         reason(reason.str()) {}
 
   llvm::StringRef getName() const override { return name; }
+  llvm::StringRef getConstructionDomain() const override {
+    return "test-domain";
+  }
 
   llvm::ArrayRef<PluginCapability> getCapabilities() const override {
     return capabilities;
@@ -232,7 +241,7 @@ module {
     return
   }
 
-  weft.exec.kernel @proposal_source attributes {} {
+  weft.exec.kernel @proposal_source attributes {construction_domain = "test-domain"} {
     weft.exec.capability @generic_vector {
       id = "generic.vector",
       kind = "generic-execution"
@@ -290,6 +299,9 @@ module {
                              "generic.missing", "generic_missing");
   ProposalPlugin second("second", "generic.toolchain", "second_path", "second",
                         "generic.toolchain", "generic_toolchain");
+  ProposalPlugin foreign("foreign", "generic.vector", "foreign_path",
+                         "foreign", "generic.vector", "generic_vector", true,
+                         true, "foreign-domain");
 
   ExtensionPluginRegistry registry;
   if (int result = expectSuccess(registry.registerPlugin(first),
@@ -303,6 +315,9 @@ module {
     return result;
   if (int result = expectSuccess(registry.registerPlugin(second),
                                  "register second"))
+    return result;
+  if (int result = expectSuccess(registry.registerPlugin(foreign),
+                                 "register foreign-domain plugin"))
     return result;
 
   VariantProposalRequest request(highLevelOp.getOperation(), kernel,
@@ -349,6 +364,11 @@ module {
   if (int result = expect(unsupported.getSupportCalls() == 1 &&
                               unsupported.getProposalCalls() == 0,
                           "unsupported plugin proposal hook is not called"))
+    return result;
+  if (int result = expect(foreign.getSupportCalls() == 0 &&
+                              foreign.getProposalCalls() == 0,
+                          "foreign-domain plugin is skipped before support "
+                          "or proposal hooks"))
     return result;
   if (int result = expect(first.getObservedHighLevelOpName() == "func.func" &&
                               first.getObservedKernelName() ==

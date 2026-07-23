@@ -182,6 +182,10 @@ llvm::StringRef ScalarExtensionPlugin::getName() const {
   return kScalarPluginName;
 }
 
+llvm::StringRef ScalarExtensionPlugin::getConstructionDomain() const {
+  return "riscv-execution";
+}
+
 llvm::StringRef ScalarExtensionPlugin::getVersion() const {
   return kScalarPluginVersion;
 }

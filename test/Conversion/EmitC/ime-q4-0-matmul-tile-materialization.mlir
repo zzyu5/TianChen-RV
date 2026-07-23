@@ -21,7 +21,7 @@
 // RUN: sed 's/wide_njw = 2 : i64/wide_njw = 1 : i64/' %t.constructed | not weft-opt --weft-materialize-emitc-lowerable-routes 2>&1 | FileCheck %s --check-prefix=CONFLICT
 
 module {
-  weft.exec.kernel @ime_q4_0_matmul_kernel attributes {problem = @canonical_problem} {
+  weft.exec.kernel @ime_q4_0_matmul_kernel attributes {construction_domain = "riscv-execution", problem = @canonical_problem} {
     weft.exec.int8_mac_problem @canonical_problem {lhs_signedness = #weft<integer_signedness signed>, rhs_signedness = #weft<integer_signedness signed>, m = 256 : i64, n = 256 : i64, k = 256 : i64}
     weft.exec.capability @spacemit_ime {
       id = "spacemit.ime",

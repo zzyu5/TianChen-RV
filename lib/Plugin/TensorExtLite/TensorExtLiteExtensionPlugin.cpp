@@ -405,6 +405,10 @@ llvm::StringRef TensorExtLiteExtensionPlugin::getName() const {
   return kTensorExtLitePluginName;
 }
 
+llvm::StringRef TensorExtLiteExtensionPlugin::getConstructionDomain() const {
+  return "riscv-execution";
+}
+
 llvm::StringRef TensorExtLiteExtensionPlugin::getVersion() const {
   return kTensorExtLitePluginVersion;
 }

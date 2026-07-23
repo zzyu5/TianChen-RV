@@ -2,7 +2,7 @@
 
 ## 任务目的
 
-Artifact-neutral family construction 已经解决“谁负责构造、artifact 是否越权”的公共
+Artifact-neutral owner construction 已经解决“谁负责构造、artifact 是否越权”的公共
 结构问题，但它没有自动解决项目最重要的科研缺口：
 
 - A 线仍有大量执行知识封装在完整逐点 leaf、front door、schedule 或 conversion 中；
@@ -15,9 +15,9 @@ Artifact-neutral family construction 已经解决“谁负责构造、artifact �
 当前生成代码闭合真实性能：
 
 ```text
-P=(S,g,ω) + Bind(P,t)=(f,c_f)
-  → family-local mechanisms + formulas
-  → candidate/legal set + final computation plan
+P=(S,g,ω) + BindDomain(t)=(d,C_d)
+  → in-domain owners project c_o and run owner-local mechanisms + formulas
+  → owner-qualified candidate/legal union + final computation plan
   → construction-qualified typed body
   → mechanical artifact lowering
   → current deployed symbol
@@ -34,12 +34,12 @@ P=(S,g,ω) + Bind(P,t)=(f,c_f)
 某五个公式或某一个 delete-leaf demo，而是：
 
 1. 所有 current production compute-bearing entry 都进入同一清楚的知识组织方式；
-2. 每个决定只有一个 family-local owner，final plan/body 是唯一生产状态；
+2. 每个决定只有一个 owner-local authority，final plan/body 是唯一生产状态；
 3. emitter 不再从 format/kind/board/measurement 重建决定；
 4. strong reconstruction 由多种异质 topology 的删除实验直接证明；
 5. 重构后的 current artifact 重新获得 correctness 与性能证据。
 
-代码施工可以按依赖顺序进行，但最终合入不得停在一个 family、一个 operator 或一个
+代码施工可以按依赖顺序进行，但最终合入不得停在一个 owner、一个 operator 或一个
 topology 的纵向切片，也不得保留旧路径作为兼容退路。
 
 ## 当前实施状态（2026-07-23）
@@ -92,7 +92,7 @@ topology 的纵向切片，也不得保留旧路径作为兼容退路。
   body-first fact extraction 仍是 normalization，不是从 canonical problem 的 forward
   reconstruction；
 - 上述切面已经通过 `weft-opt`/`weft-translate` 构建、formula/catalog/authority guard、
-  measurement control plane 与完整 `check-weft`（`981/981`）。这是本地编译器/工具链证据，
+  measurement control plane 与完整 `check-weft`（当前 `982/982`）。这是本地编译器/工具链证据，
   不是强重建、GPU 或真硬件证据。
 
 仍未闭合、因此 task 不能标为 completed 的主体包括：
@@ -100,8 +100,11 @@ topology 的纵向切片，也不得保留旧路径作为兼容退路。
 - IME 仍把 signedness、problem shape、weight format 与 slide 等 `S/g/ω` 错放在 capability
   provider；Scalar/RVV 仍有 selected-stamp、source scan、body-first normalization 以及其它
   production leaf 中尚未因式分解的完整算法 authority；
-- 物理 canonical problem 尚未覆盖全部 current source-origin entry；target/profile 也尚未
-  在跨-origin generic cost ranking 之前形成唯一 family binding；
+- 物理 canonical problem 尚未覆盖全部 current source-origin entry；但 target-bound
+  `construction_domain` gate 已在 proposal/support、selection 与 selected-owner construction
+  三处前置成立。所有 live owner 显式声明 membership，foreign-domain origin 在观察 problem
+  或进入排序前退出；同一 RISC-V domain 内的 RVV/IME/Scalar 仍可作为 owner-qualified
+  candidates 比较，direct/pre-realized 无 domain 输入单列为 debug qualification；
 - decisive `g/c/ω` counterfactual、mechanism fan-out 与 honest-null 因果测试；
 - 多 topology delete-leaf strong reconstruction；
 - current artifact 的真板 correctness/deployed identity、四臂消融、winner residual 稀疏性与
@@ -128,10 +131,10 @@ Catalog 是只读完整性视图，不能成为 formula-id dispatcher 或第二 
 
 ### 2. 横向清理与模块化
 
-同时审查 RVV、IME、Scalar 以及其它 current production family：
+同时审查 RVV、IME、Scalar 以及其它 current production owners：
 
 - 把仍散落在 leaf、front door、schedule、selector 和 conversion 中的 code-affecting
-  `g/c/ω`、候选、参数与资源决定收回 family-local formula/mechanism 模块；
+  `g/c/ω`、候选、参数与资源决定收回 owner-local formula/mechanism 模块；
 - 目录和 API 按真实知识组织，不按历史 task、格式名单或 artifact kind 组织；
 - 对单一确定实现直接构造 final plan/body，不虚构 selector、stamp 或 candidate lifecycle；
 - 删除 provider-driven compute、formula replay reader、pre-emission materializer、plan 字段镜像、
@@ -144,7 +147,7 @@ Catalog 是只读完整性视图，不能成为 formula-id dispatcher 或第二 
 - IME/Scalar 的 helper、mnemonic、C/asm spelling 只能是 typed body + computation plan 的机械
   artifact 投影，不是第二选择权威。
 
-公共层只保留真正跨 family 的 problem/binding/lifecycle/catalog orchestration，不新增
+公共层只保留真正跨 owner 的 problem/domain-binding/lifecycle/catalog orchestration，不新增
 universal Formula IR、Plan、provider 或 verifier。
 
 ### 3. Formula causality
@@ -168,7 +171,7 @@ mechanisms + formula` 能否重建同一实例。最终证据不能只覆盖 q5_
 - flat/affine decode-dot 或 repack；
 - K-quant/super-block scale-min/fold；
 - codebook、grid 或 ternary 中至少一种非仿射 topology；
-- IME matrix/tile mechanism 与 RVV vector mechanism 之间的 family-local 异质结构。
+- IME matrix/tile mechanism 与 RVV vector mechanism 之间的 owner-local 异质结构。
 
 每个 witness 必须删除完整 builder/leaf 以及所有等价反向选择 authority，由 source problem
 走真实 production chain 重建 typed body 和 artifact。无法通过删除实验的路径继续诚实标为
@@ -252,7 +255,11 @@ A 线回答“知识是否集中、可组合、可扩展并真实构造”；B �
 
 - [ ] current production compute-bearing entries 全部进入清楚、统一的横向知识组织，不留
   leaf/emitter 第二计算权威；
-- [ ] developer 能从少数 family-local 模块直接读出 decisive `g/c/ω`、mechanisms、formula、
+- [ ] 每个 source-origin production entry 使用 exact typed `P=(S,g,ω)`；direct exact-body
+  debug/qualification 单列，不能冒充 source coverage 或 strong reconstruction；
+- [x] target/profile 在 proposal/selection 前绑定唯一 domain；所有 origin 声明 domain
+  membership，selector 只消费同域 owner-qualified candidates，foreign-domain fail closed；
+- [ ] developer 能从少数 owner-local 模块直接读出 decisive `g/c/ω`、mechanisms、formula、
   candidate/legal set、final plan/body 与 consumer；
 - [ ] selected-stamp、provider-driven compute、formula replay、plan mirror、hidden default 与
   compatibility middle path 从 production 清零；
@@ -261,7 +268,7 @@ A 线回答“知识是否集中、可组合、可扩展并真实构造”；B �
   body；
 - [x] provider-side formula/primitive-facts replay 已退出当前 RVV production path，同时
   保留 typed dialect 的局部良构性验证；
-- [x] artifact route id/manifest/evidence metadata 不再参与 family construction legality、
+- [x] artifact route id/manifest/evidence metadata 不再参与 owner construction legality、
   candidate、final-body completion 或 compute；
 - [ ] RVV `flat_*`、IME/Scalar final computation plan 与 artifact mechanical projection 边界保持；
 - [ ] decisive/honest-null/capability counterfactual/rule fan-out 测试覆盖真实 code-affecting
@@ -277,11 +284,11 @@ A 线回答“知识是否集中、可组合、可扩展并真实构造”；B �
 - [ ] full build/lit、formula/catalog authority tests、runtime/deployed checks 与所需真硬件实验
   全部通过；
 - [ ] spec/issues 按最终代码与测量事实更新，task 固定主体提交，工作区干净；
-- [ ] 未实现 GPU，也未为 GPU 恢复 artifact-side construction 或 family-name branch。
+- [ ] 未实现 GPU，也未为 GPU 恢复 artifact-side construction、跨 domain selector 或 owner-name branch。
 
 ## 完成后的下一步
 
-只有本 task 真正闭合后，才创建首个 GPU construction family task。GPU task 必须从同一
-canonical problem 与 typed GPU capability 开始，建立自己的 mechanisms、formulas、legality、
-typed body、artifact/runtime 与硬件证据；不能从 RVV body、`flat_*` plan 或 current EmitC
-emitter 开始。
+只有本 task 真正闭合后，才创建首个 GPU domain/owner task。GPU task 必须从同一
+canonical problem、显式 GPU domain 与 typed GPU owner capability 开始，建立自己的
+mechanisms、formulas、legality、typed body、artifact/runtime 与硬件证据；不能从 RVV body、
+`flat_*` plan 或 current EmitC emitter 开始。

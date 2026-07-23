@@ -321,6 +321,10 @@ llvm::StringRef DemoExtensionPlugin::getName() const {
   return kDemoPluginName;
 }
 
+llvm::StringRef DemoExtensionPlugin::getConstructionDomain() const {
+  return "riscv-execution";
+}
+
 llvm::StringRef DemoExtensionPlugin::getVersion() const {
   return kDemoPluginVersion;
 }

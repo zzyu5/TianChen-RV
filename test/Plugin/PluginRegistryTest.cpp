@@ -35,6 +35,9 @@ public:
   }
 
   llvm::StringRef getName() const override { return name; }
+  llvm::StringRef getConstructionDomain() const override {
+    return "test-domain";
+  }
   llvm::StringRef getVersion() const override { return version; }
 
   llvm::ArrayRef<PluginCapability> getCapabilities() const override {

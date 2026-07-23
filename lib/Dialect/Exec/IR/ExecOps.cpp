@@ -68,6 +68,8 @@ constexpr llvm::StringLiteral kPreferenceRankAttrName("preference_rank");
 constexpr llvm::StringLiteral kCapabilityProvidersAttrName(
     "capability_providers");
 constexpr llvm::StringLiteral kProblemAttrName("problem");
+constexpr llvm::StringLiteral kConstructionDomainAttrName(
+    "construction_domain");
 
 using diagnostic::kArtifactKindAttrName;
 using diagnostic::kEmissionKindAttrName;
@@ -668,6 +670,17 @@ mlir::LogicalResult DequantizeRowQ40ProblemOp::verify() {
 mlir::LogicalResult KernelOp::verify() {
   if (getBody().empty())
     return mlir::success();
+
+  if (auto constructionDomain =
+          getOperation()->getAttrOfType<mlir::StringAttr>(
+              kConstructionDomainAttrName)) {
+    llvm::StringRef identity = constructionDomain.getValue();
+    if (identity.trim().empty() || identity.trim() != identity)
+      return emitOpError()
+             << "requires optional string attribute '"
+             << kConstructionDomainAttrName
+             << "' to be a non-empty, already-trimmed identity";
+  }
 
   llvm::StringSet<> emissionPlanTargets;
   llvm::StringSet<> directCapabilityIDs;

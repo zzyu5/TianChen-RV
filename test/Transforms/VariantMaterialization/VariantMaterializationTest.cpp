@@ -41,6 +41,9 @@ public:
         proposal(std::move(proposal)) {}
 
   llvm::StringRef getName() const override { return name; }
+  llvm::StringRef getConstructionDomain() const override {
+    return "test-domain";
+  }
 
   llvm::ArrayRef<PluginCapability> getCapabilities() const override {
     return capabilities;
@@ -125,7 +128,7 @@ module {
     return
   }
 
-  weft.exec.kernel @materialization_anchor attributes {} {
+  weft.exec.kernel @materialization_anchor attributes {construction_domain = "test-domain"} {
     weft.exec.capability @generic_alpha {
       id = "generic.alpha",
       kind = "generic-execution"
@@ -137,7 +140,7 @@ module {
     }
   }
 
-  weft.exec.kernel @duplicate_anchor attributes {} {
+  weft.exec.kernel @duplicate_anchor attributes {construction_domain = "test-domain"} {
     weft.exec.capability @generic_alpha {
       id = "generic.alpha",
       kind = "generic-execution"

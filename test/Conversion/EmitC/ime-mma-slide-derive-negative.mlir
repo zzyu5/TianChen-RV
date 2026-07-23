@@ -11,7 +11,7 @@
 // emitter, so requesting both fails closed at derive time.
 module {
   // expected-error@+1 {{property 'ime_slide' (sliding-window) is only modeled for the signed form (vmadot1/2/3); the unsigned/mixed-sign slide siblings have no emitter}}
-  weft.exec.kernel @ime_slide_unsigned attributes {problem = @canonical_problem} {
+  weft.exec.kernel @ime_slide_unsigned attributes {construction_domain = "riscv-execution", problem = @canonical_problem} {
     weft.exec.int8_mac_problem @canonical_problem {lhs_signedness = #weft<integer_signedness unsigned>, rhs_signedness = #weft<integer_signedness unsigned>, m = 4 : i64, n = 4 : i64, k = 8 : i64}
     weft.exec.capability @spacemit_ime {
       id = "spacemit.ime",
@@ -32,7 +32,7 @@ module {
 // the tiled whole-matrix shape, so requesting both fails closed at derive time.
 module {
   // expected-error@+1 {{property 'ime_slide' (sliding-window) is not modeled together with the tiled whole-matrix shape 'ime_matmul_shape'; the slide boundary is the single-fragment weft.ime.mma_slide only}}
-  weft.exec.kernel @ime_slide_matmul attributes {problem = @canonical_problem} {
+  weft.exec.kernel @ime_slide_matmul attributes {construction_domain = "riscv-execution", problem = @canonical_problem} {
     weft.exec.int8_mac_problem @canonical_problem {lhs_signedness = #weft<integer_signedness signed>, rhs_signedness = #weft<integer_signedness signed>, m = 8 : i64, n = 8 : i64, k = 16 : i64}
     weft.exec.capability @spacemit_ime {
       id = "spacemit.ime",
@@ -53,7 +53,7 @@ module {
 // not the documented vmadot1/2/3 family and fails closed at derive time.
 module {
   // expected-error@+1 {{property 'ime_slide' = '9' is outside the validated IME1 slide envelope (only '1' => vmadot1, '2' => vmadot2, '3' => vmadot3 are modeled)}}
-  weft.exec.kernel @ime_slide_bad attributes {problem = @canonical_problem} {
+  weft.exec.kernel @ime_slide_bad attributes {construction_domain = "riscv-execution", problem = @canonical_problem} {
     weft.exec.int8_mac_problem @canonical_problem {lhs_signedness = #weft<integer_signedness signed>, rhs_signedness = #weft<integer_signedness signed>, m = 4 : i64, n = 4 : i64, k = 8 : i64}
     weft.exec.capability @spacemit_ime {
       id = "spacemit.ime",

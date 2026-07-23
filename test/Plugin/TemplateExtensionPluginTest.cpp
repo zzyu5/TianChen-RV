@@ -189,7 +189,7 @@ int runRegistrationAndCapabilityMetadataTest() {
 int runProposalGatingAndDeclineTest(mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
-  weft.exec.kernel @available_template attributes {} {
+  weft.exec.kernel @available_template attributes {construction_domain = "riscv-execution"} {
     weft.exec.capability @template_extension {
       id = "template.extension",
       kind = "future-extension-template",
@@ -199,10 +199,10 @@ module {
     }
   }
 
-  weft.exec.kernel @missing_template attributes {} {
+  weft.exec.kernel @missing_template attributes {construction_domain = "riscv-execution"} {
   }
 
-  weft.exec.kernel @unavailable_template attributes {} {
+  weft.exec.kernel @unavailable_template attributes {construction_domain = "riscv-execution"} {
     weft.exec.capability @template_extension {
       id = "template.extension",
       kind = "future-extension-template",
@@ -212,7 +212,7 @@ module {
     }
   }
 
-  weft.exec.kernel @malformed_template attributes {} {
+  weft.exec.kernel @malformed_template attributes {construction_domain = "riscv-execution"} {
     weft.exec.capability @template_extension {
       id = "template.extension",
       kind = "future-extension-template",
@@ -341,7 +341,7 @@ module {
 int runPipelineHookTest(mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
-  weft.exec.kernel @template_extension_kernel attributes {} {
+  weft.exec.kernel @template_extension_kernel attributes {construction_domain = "riscv-execution"} {
     weft.exec.capability @template_extension {
       id = "template.extension",
       kind = "future-extension-template",

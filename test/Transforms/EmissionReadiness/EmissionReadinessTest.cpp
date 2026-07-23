@@ -78,6 +78,9 @@ public:
         planBehavior(planBehavior) {}
 
   llvm::StringRef getName() const override { return name; }
+  llvm::StringRef getConstructionDomain() const override {
+    return "test-domain";
+  }
 
   llvm::ArrayRef<PluginCapability> getCapabilities() const override {
     return capabilities;
@@ -1335,7 +1338,7 @@ int runEmissionPlanMaterializationNegativeTests(mlir::MLIRContext &context) {
     if (int result = expectMaterializationErrorLeavesDiagnosticCount(
             context, getDirectKernelSource(), registry,
             {"variant emission plan collection failed",
-             "bound family construction cannot bind unknown origin "
+             "selected owner construction cannot resolve unknown origin "
              "'mock-emitter'"},
             0))
       return result;
@@ -1349,7 +1352,7 @@ int runEmissionPlanMaterializationNegativeTests(mlir::MLIRContext &context) {
       return result;
     if (int result = expectMaterializationErrorLeavesDiagnosticCount(
             context, getDirectKernelSource(), registry,
-            {"bound family construction cannot bind disabled origin "
+            {"selected owner construction cannot use disabled origin "
              "'mock-emitter'"},
             0))
       return result;

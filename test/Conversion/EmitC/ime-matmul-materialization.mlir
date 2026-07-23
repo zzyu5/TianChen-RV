@@ -9,7 +9,7 @@
 // string appears in any core selection/materialization pass (the
 // --implicit-check-not guards assert no OTHER family's dialect leaks either).
 module {
-  weft.exec.kernel @ime_matmul_kernel attributes {problem = @canonical_problem} {
+  weft.exec.kernel @ime_matmul_kernel attributes {construction_domain = "riscv-execution", problem = @canonical_problem} {
     weft.exec.int8_mac_problem @canonical_problem {lhs_signedness = #weft<integer_signedness signed>, rhs_signedness = #weft<integer_signedness signed>, m = 256 : i64, n = 256 : i64, k = 256 : i64}
     weft.exec.capability @spacemit_ime {
       id = "spacemit.ime",

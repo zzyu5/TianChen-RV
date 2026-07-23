@@ -1,7 +1,7 @@
 // RUN: not weft-opt %s --weft-materialize-plugin-variants 2>&1 | FileCheck %s
 
 module {
-  weft.exec.kernel @rvv_capability_no_body attributes {problem = @problem} {
+  weft.exec.kernel @rvv_capability_no_body attributes {construction_domain = "riscv-execution", problem = @problem} {
     weft.exec.int8_mac_problem @problem {lhs_signedness = #weft<integer_signedness signed>, rhs_signedness = #weft<integer_signedness signed>, m = 4 : i64, n = 4 : i64, k = 8 : i64}
     weft.exec.capability @rvv {
       id = "rvv",

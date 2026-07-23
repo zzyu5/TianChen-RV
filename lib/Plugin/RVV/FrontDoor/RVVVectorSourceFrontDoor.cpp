@@ -1359,6 +1359,8 @@ mlir::LogicalResult materializeRVVVectorBinarySourceKernel(
   mlir::OperationState kernelState(loc,
                                    weft::exec::KernelOp::getOperationName());
   kernelState.addAttribute("sym_name", builder.getStringAttr(kernelName));
+  kernelState.addAttribute("construction_domain",
+                           builder.getStringAttr("riscv-execution"));
   kernelState.addRegion();
   auto kernel = llvm::cast<weft::exec::KernelOp>(builder.create(kernelState));
   kernel.getBody().emplaceBlock();
@@ -1443,6 +1445,8 @@ mlir::LogicalResult materializeRVVVectorCompareSelectSourceKernel(
   mlir::OperationState kernelState(loc,
                                    weft::exec::KernelOp::getOperationName());
   kernelState.addAttribute("sym_name", builder.getStringAttr(kernelName));
+  kernelState.addAttribute("construction_domain",
+                           builder.getStringAttr("riscv-execution"));
   kernelState.addRegion();
   auto kernel = llvm::cast<weft::exec::KernelOp>(builder.create(kernelState));
   kernel.getBody().emplaceBlock();
@@ -1533,6 +1537,8 @@ mlir::LogicalResult materializeRVVVectorRuntimeScalarCompareSelectSourceKernel(
   mlir::OperationState kernelState(loc,
                                    weft::exec::KernelOp::getOperationName());
   kernelState.addAttribute("sym_name", builder.getStringAttr(kernelName));
+  kernelState.addAttribute("construction_domain",
+                           builder.getStringAttr("riscv-execution"));
   kernelState.addRegion();
   auto kernel = llvm::cast<weft::exec::KernelOp>(builder.create(kernelState));
   kernel.getBody().emplaceBlock();

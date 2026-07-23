@@ -58,10 +58,15 @@ enum class CostBehavior {
 class SelectionCostPlugin final : public ExtensionPlugin {
 public:
   SelectionCostPlugin(llvm::StringRef name, double score, bool enabled = true,
-                      CostBehavior behavior = CostBehavior::Valid)
-      : name(name.str()), score(score), enabled(enabled), behavior(behavior) {}
+                      CostBehavior behavior = CostBehavior::Valid,
+                      llvm::StringRef constructionDomain = "test-domain")
+      : name(name.str()), score(score), enabled(enabled), behavior(behavior),
+        constructionDomain(constructionDomain.str()) {}
 
   llvm::StringRef getName() const override { return name; }
+  llvm::StringRef getConstructionDomain() const override {
+    return constructionDomain;
+  }
 
   llvm::ArrayRef<PluginCapability> getCapabilities() const override {
     return capabilities;
@@ -121,6 +126,7 @@ private:
   double score;
   bool enabled;
   CostBehavior behavior;
+  std::string constructionDomain;
   llvm::SmallVector<PluginCapability, 1> capabilities;
 };
 
@@ -129,6 +135,9 @@ public:
   explicit NoPreferencePlugin(llvm::StringRef name) : name(name.str()) {}
 
   llvm::StringRef getName() const override { return name; }
+  llvm::StringRef getConstructionDomain() const override {
+    return "test-domain";
+  }
 
   llvm::ArrayRef<PluginCapability> getCapabilities() const override {
     return capabilities;
@@ -1152,7 +1161,7 @@ module {
 int runBuiltinRVVScalarFallbackSelectionTest(mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
-  weft.exec.kernel @rvv_plus_scalar attributes {} {
+  weft.exec.kernel @rvv_plus_scalar attributes {construction_domain = "riscv-execution"} {
     weft.exec.capability @rvv {
       id = "rvv",
       kind = "isa-vector",
@@ -1199,7 +1208,7 @@ module {
     }
   }
 
-  weft.exec.kernel @scalar_only attributes {} {
+  weft.exec.kernel @scalar_only attributes {construction_domain = "riscv-execution"} {
     weft.exec.capability @scalar_fallback {
       id = "scalar.fallback",
       kind = "fallback",
@@ -1207,7 +1216,7 @@ module {
     }
   }
 
-  weft.exec.kernel @rvv_only attributes {} {
+  weft.exec.kernel @rvv_only attributes {construction_domain = "riscv-execution"} {
     weft.exec.capability @rvv {
       id = "rvv",
       kind = "isa-vector",
@@ -2246,6 +2255,46 @@ module {
   return 0;
 }
 
+int runConstructionDomainGateTest(mlir::MLIRContext &context) {
+  constexpr llvm::StringLiteral source = R"mlir(
+module {
+  weft.exec.kernel @domain_gate attributes {construction_domain = "test-domain"} {
+    weft.exec.capability @available {id = "available", kind = "test", status = "available"}
+    weft.exec.variant @local attributes {origin = "local-owner", requires = [@available]} {
+    }
+    weft.exec.variant @foreign attributes {origin = "foreign-owner", requires = [@available]} {
+    }
+  }
+}
+)mlir";
+
+  mlir::OwningOpRef<mlir::ModuleOp> module =
+      mlir::parseSourceString<mlir::ModuleOp>(source, &context);
+  if (!module)
+    return fail("failed to parse construction-domain selection test module");
+
+  KernelOp kernel = findKernel(*module, "domain_gate");
+  TargetCapabilitySet capabilities =
+      TargetCapabilitySet::buildFromKernel(kernel);
+  SelectionCostPlugin local("local-owner", 1.0);
+  SelectionCostPlugin foreign("foreign-owner", 0.5, true,
+                              CostBehavior::Valid, "foreign-domain");
+  ExtensionPluginRegistry registry;
+  if (int result = expectSuccess(registry.registerPlugin(local),
+                                 "register local-domain selection owner"))
+    return result;
+  if (int result = expectSuccess(registry.registerPlugin(foreign),
+                                 "register foreign-domain selection owner"))
+    return result;
+
+  return expectPlanErrorContains(
+      weft::transforms::planKernelVariantSelection(kernel, capabilities,
+                                                   registry),
+      {"declares construction domain 'test-domain'", "variant @foreign",
+       "origin plugin 'foreign-owner'",
+       "foreign construction domain 'foreign-domain'"});
+}
+
 } // namespace
 
 int main() {
@@ -2286,6 +2335,8 @@ int main() {
   if (int result = runSel2CrossParadigmMisfireFalsifierTest(context))
     return result;
   if (int result = runT4bFourConfigSelectorAblationTest(context))
+    return result;
+  if (int result = runConstructionDomainGateTest(context))
     return result;
 
   llvm::outs() << "variant selection planning smoke test passed\n";

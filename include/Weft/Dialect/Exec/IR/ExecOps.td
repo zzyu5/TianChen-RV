@@ -197,7 +197,8 @@ def KernelOp : WEFTExec_Op<"exec.kernel",
 
   let arguments = (ins SymbolNameAttr:$sym_name,
                    OptionalAttr<FlatSymbolRefAttr>:$target,
-                   OptionalAttr<FlatSymbolRefAttr>:$problem);
+                   OptionalAttr<FlatSymbolRefAttr>:$problem,
+                   OptionalAttr<StrAttr>:$construction_domain);
   let regions = (region SizedRegion<1>:$body);
   let assemblyFormat = "$sym_name attr-dict-with-keyword $body";
   let hasVerifier = 1;

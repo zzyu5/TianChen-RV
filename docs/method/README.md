@@ -14,21 +14,28 @@
 
 > **2026-07-23 V2 方向**：Weft 的外部边界进一步明确为 post-graph、pre-schedule 的
 > automatic operator-to-kernel compiler，canonical problem 为 `P=(S,g,ω)`。Target/profile
-> 在 construction 前绑定 family 与 `c_f`；family construction 必须先于且独立于 EmitC/
+> 在 proposal/selection 前绑定 selection/deployment domain `d` 与 `C_d`，域内 owner 再
+> 投影 `c_o`；owner construction 必须先于且独立于 EmitC/
 > NVVM 等 artifact。RISC-V 仍是当前旗舰，GPU 是第二 execution paradigm 目标但尚未
 > 实现。首个任务
 > `.trellis/tasks/07-23-artifact-neutral-family-construction-rebase/` 已横向迁出
 > EmitC driver 中的 construction lifecycle且未创建 GPU backend。下一 task 仍是
 > `.trellis/tasks/07-23-executable-knowledge-ab-horizontal-closure/`：先在 RISC-V 旗舰
-> realization 上闭合 A 线执行知识重建与 B 线重构后性能因果，再考虑 GPU family。
+> realization 上闭合 A 线执行知识重建与 B 线重构后性能因果，再考虑 GPU domain/owner。
 > 完整方法定义见 [项目全景与 Spec 重构前方法基线 V2](./项目全景与Spec重构前方法基线v2.md)。
 >
-> **2026-07-23 A 线当前切面**：family construction 现在返回 exact typed
+> **2026-07-23 A 线当前切面**：owner construction 现在返回 exact typed
 > operation/root，公共编排不再 module-scan 重发现 body。Demo、Toy、Template 与
 > TensorExtLite 的 manifest/typed-role replay、route provider、通用 readiness verifier、
 > 字符串 role/status/interface 镜像和 metadata-only lowering boundary 已退出 production；
 > artifact 只保留 ABI/callee 等机械常量。这一切面已完成并不等于 Scalar/RVV/IME 的完整
 > leaf 都能由 `g/c/ω + mechanisms + formula` 重建，后者仍是当前横向 task 的核心门。
+
+> **2026-07-23 domain gate**：source kernel 现在显式携带 `construction_domain`；所有 live
+> plugins 声明 membership。Registry 在 foreign owner 观察 problem 前过滤，selector 与
+> selected-owner construction 再校验同域。当前 RISC-V domain 仍允许 RVV/IME/Scalar
+> owner-qualified 候选比较；different-domain 选择被拒绝。该 gate 不等于 physical
+> canonical problems 已覆盖全部 source-origin entry。
 
 > **2026-07-23 RVV exact-body 清场**：RVV runtime control 已由 construction 以
 > `RVVBodyRuntimeControl {sew, lmul, policy, runtimeAVLValue}` 构造，selected-body owner
@@ -331,7 +338,7 @@ Trellis 仍可用于查找：
 reconstruction strength：
 
 1. 找出能够从 `g/c/ω` 推导、但仍封装在完整 leaf 中的 mechanism、参数和资源决定；
-2. 将其提升到 family-local formula，保持 final typed body 是唯一生产状态；
+2. 将其提升到 owner-local formula，保持 final typed body 是唯一生产状态；
 3. 用参数因果测试和 delete-leaf reconstruction 分别验证“公式承重”和“强重建”；
 4. 分开报告 catalog/front-door ownership、authority uniqueness、formula causal coverage、
    reconstruction coverage、semantic correctness 与 performance evidence；

@@ -20,6 +20,7 @@ public:
   ScalarExtensionPlugin();
 
   llvm::StringRef getName() const override;
+  llvm::StringRef getConstructionDomain() const override;
   llvm::StringRef getVersion() const override;
   llvm::ArrayRef<PluginCapability> getCapabilities() const override;
   void registerDialects(mlir::DialectRegistry &registry) const override;

@@ -187,6 +187,10 @@ RVVExtensionPlugin::RVVExtensionPlugin() {
 
 llvm::StringRef RVVExtensionPlugin::getName() const { return kRVVPluginName; }
 
+llvm::StringRef RVVExtensionPlugin::getConstructionDomain() const {
+  return "riscv-execution";
+}
+
 llvm::StringRef RVVExtensionPlugin::getVersion() const {
   return kRVVPluginVersion;
 }

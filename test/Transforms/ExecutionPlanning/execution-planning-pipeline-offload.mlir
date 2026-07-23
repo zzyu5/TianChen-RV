@@ -8,7 +8,7 @@ module {
   // PIPE: weft.exec.diagnostic
   // PIPE-SAME: message = "the Offload extension currently has no active executable lowering or target artifact route"
   // PIPE-SAME: status = "unsupported"
-  weft.exec.kernel @pipeline_offload_plus_scalar attributes {problem = @canonical_problem} {
+  weft.exec.kernel @pipeline_offload_plus_scalar attributes {construction_domain = "riscv-execution", problem = @canonical_problem} {
     weft.exec.int8_mac_problem @canonical_problem {lhs_signedness = #weft<integer_signedness signed>, rhs_signedness = #weft<integer_signedness signed>, m = 4 : i64, n = 4 : i64, k = 8 : i64}
     weft.exec.capability @offload_runtime {
       id = "offload.runtime",
@@ -79,7 +79,7 @@ module {
     handoff_kind = "runtime-offload"
   }
 
-  weft.exec.kernel @pipeline_profile_offload_plus_scalar attributes {problem = @canonical_problem, target = @module_offload_scalar_profile} {
+  weft.exec.kernel @pipeline_profile_offload_plus_scalar attributes {construction_domain = "riscv-execution", problem = @canonical_problem, target = @module_offload_scalar_profile} {
     weft.exec.int8_mac_problem @canonical_problem {lhs_signedness = #weft<integer_signedness signed>, rhs_signedness = #weft<integer_signedness signed>, m = 4 : i64, n = 4 : i64, k = 8 : i64}
     weft.exec.mem_window @abi_lhs_input_buffer {
       abi_role = "lhs-input-buffer",
@@ -124,6 +124,7 @@ module {
 module {
   // PIPE-LABEL: weft.exec.kernel @pipeline_vendor_string_no_offload
   weft.exec.kernel @pipeline_vendor_string_no_offload attributes {
+    construction_domain = "riscv-execution",
     problem = @canonical_problem,
     vendor_hint = "sophgo"
   } {
@@ -156,7 +157,7 @@ module {
 
 module {
   // PIPE-LABEL: weft.exec.kernel @pipeline_malformed_offload_declines_to_scalar
-  weft.exec.kernel @pipeline_malformed_offload_declines_to_scalar attributes {problem = @canonical_problem} {
+  weft.exec.kernel @pipeline_malformed_offload_declines_to_scalar attributes {construction_domain = "riscv-execution", problem = @canonical_problem} {
     weft.exec.int8_mac_problem @canonical_problem {lhs_signedness = #weft<integer_signedness signed>, rhs_signedness = #weft<integer_signedness signed>, m = 4 : i64, n = 4 : i64, k = 8 : i64}
     weft.exec.capability @offload_runtime {
       id = "offload.runtime",

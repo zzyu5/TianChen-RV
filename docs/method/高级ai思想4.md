@@ -8,21 +8,23 @@
 ## 项目侧校准
 
 1. `post-graph、pre-schedule` 的 `pre-schedule` 指 canonical source problem 尚未携带
-   family execution schedule；Weft 的 family-local construction 正是负责产生 LMUL、tile、
+   owner execution schedule；Weft 的 owner-local construction 正是负责产生 LMUL、tile、
    warp、pipeline 等执行计划，不是说 Weft 不生成 schedule。
 2. canonical source 是一份 `P=(S,g,ω)` typed contract，不强制新建通用高层 tensor/tile
    IR；现有 named source op 与 adapter 可以共同实现它。
-3. source/problem、construction family、final typed result、artifact lowerer 是四个不同
-   工位。GPU 必须从 source problem 构造自己的 typed body，不能从 RVV body 或 `flat_*`
-   plan 再发射。
-4. 新增 `S` 只是把系统外部 operator semantics 说清；进入具名 operator/family 后，原
+3. source/problem、target-bound selection/deployment domain、typed construction owner、
+   final typed result、artifact lowerer 是五个不同工位。GPU 必须绑定自己的 domain，并从
+   source problem 由 GPU owner 构造 typed body，不能从 RVV body 或 `flat_*` plan 再发射。
+4. 新增 `S` 只是把系统外部 operator semantics 说清；进入具名 operator/owner 后，原
    `θ=f^A(g,c,ω)` 与 `K` 构造式、两柱和六律均不改写。
+5. 同一 target domain 内可以有多个 owner-qualified candidates，例如 X60 上的
+   RVV/IME/Scalar；不同 domain（例如 RISC-V 与 future NVIDIA）不得进入同一 selector。
 
 这份讨论的方向可作为 V2 输入，但必须按上面的项目边界校准：
 
 > **Weft 的目标身份是一个基于 MLIR 的、有限领域的自动算子编译器；它拥有高于目标
 > 执行细节、远低于完整模型图的 typed source/problem contract，以及 RVV、IME、Scalar、
-> future GPU 等 family-specific 的低层执行 IR。**
+> future GPU 等 owner-specific 的低层执行 IR。**
 
 所以答案不是三选一：
 

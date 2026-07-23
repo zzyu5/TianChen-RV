@@ -77,6 +77,9 @@ public:
   }
 
   llvm::StringRef getName() const override { return name; }
+  llvm::StringRef getConstructionDomain() const override {
+    return "test-domain";
+  }
 
   llvm::ArrayRef<PluginCapability> getCapabilities() const override {
     return capabilities;
@@ -217,6 +220,9 @@ public:
   explicit DefaultCostPlugin(llvm::StringRef name) : name(name.str()) {}
 
   llvm::StringRef getName() const override { return name; }
+  llvm::StringRef getConstructionDomain() const override {
+    return "test-domain";
+  }
 
   llvm::ArrayRef<PluginCapability> getCapabilities() const override {
     return capabilities;

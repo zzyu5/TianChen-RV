@@ -20,5 +20,5 @@ module {
   }
 }
 
-// UNSUPPORTED-VLEN: bound family construction for origin 'ime-plugin' rejected selected variant legality
-// MISSING-VLEN: bound family construction for origin 'ime-plugin' rejected selected variant legality
+// UNSUPPORTED-VLEN: selected owner construction for origin 'ime-plugin' rejected selected variant legality
+// MISSING-VLEN: selected owner construction for origin 'ime-plugin' rejected selected variant legality

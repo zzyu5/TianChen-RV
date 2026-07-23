@@ -660,6 +660,8 @@ mlir::LogicalResult materializeKernel(
 
   mlir::OperationState kernelState(loc, weftexec::KernelOp::getOperationName());
   kernelState.addAttribute("sym_name", builder.getStringAttr(kernelName));
+  kernelState.addAttribute("construction_domain",
+                           builder.getStringAttr("riscv-execution"));
   kernelState.addRegion();
   auto kernel = llvm::cast<weftexec::KernelOp>(builder.create(kernelState));
   kernel.getBody().emplaceBlock();

@@ -15,7 +15,7 @@ module {
   // PIPE-SAME: status = "supported"
   // PIPE-NOT: artifact_kind = "metadata-diagnostic"
   // PIPE-NOT: source-export
-  weft.exec.kernel @pipeline_toy_template attributes {problem = @canonical_problem} {
+  weft.exec.kernel @pipeline_toy_template attributes {construction_domain = "riscv-execution", problem = @canonical_problem} {
     weft.exec.int8_mac_problem @canonical_problem {lhs_signedness = #weft<integer_signedness signed>, rhs_signedness = #weft<integer_signedness signed>, m = 4 : i64, n = 4 : i64, k = 8 : i64}
     weft.exec.capability @toy_template {
       id = "toy.template",

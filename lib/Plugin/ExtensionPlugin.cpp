@@ -22,6 +22,8 @@ namespace {
 
 constexpr llvm::StringLiteral kOriginAttrName("origin");
 constexpr llvm::StringLiteral kRequiresAttrName("requires");
+constexpr llvm::StringLiteral kConstructionDomainAttrName(
+    "construction_domain");
 constexpr llvm::StringLiteral kDefaultRuntimeABIKind(
     "plugin-owned-runtime-abi");
 constexpr llvm::StringLiteral kDefaultRuntimeGlueRole(
@@ -775,6 +777,14 @@ llvm::Error ExtensionPluginRegistry::registerPlugin(
     return makePluginRegistryError(
         llvm::Twine("duplicate Weft-RV extension plugin '") + name + "'");
 
+  llvm::StringRef constructionDomain = plugin.getConstructionDomain();
+  if (constructionDomain.trim().empty() ||
+      constructionDomain.trim() != constructionDomain)
+    return makePluginRegistryError(
+        llvm::Twine("Weft-RV extension plugin '") + name +
+        "' must explicitly declare a non-empty, already-trimmed construction "
+        "domain");
+
   plugins.push_back(&plugin);
   pluginsByName[name] = &plugin;
   return llvm::Error::success();
@@ -798,6 +808,62 @@ ExtensionPluginRegistry::getEnabledPlugins() const {
 const ExtensionPlugin *
 ExtensionPluginRegistry::lookupPlugin(llvm::StringRef name) const {
   return pluginsByName.lookup(name);
+}
+
+bool ExtensionPluginRegistry::hasEnabledPluginInConstructionDomain(
+    llvm::StringRef domain) const {
+  if (domain.trim().empty() || domain.trim() != domain)
+    return false;
+  return llvm::any_of(plugins, [&](const ExtensionPlugin *plugin) {
+    return plugin->isEnabled() && plugin->getConstructionDomain() == domain;
+  });
+}
+
+llvm::Error ExtensionPluginRegistry::validateKernelVariantConstructionDomain(
+    weft::exec::KernelOp kernel) const {
+  if (!kernel)
+    return makePluginRegistryError(
+        "construction-domain validation requires a weft.exec.kernel");
+
+  auto domainAttr = kernel->getAttrOfType<mlir::StringAttr>(
+      kConstructionDomainAttrName);
+  if (!domainAttr)
+    return llvm::Error::success();
+
+  llvm::StringRef domain = domainAttr.getValue();
+  if (!hasEnabledPluginInConstructionDomain(domain))
+    return makePluginRegistryError(
+        llvm::Twine("weft.exec.kernel @") + kernel.getSymName() +
+        " declares construction domain '" + domain +
+        "', but no enabled extension plugin declares that domain");
+
+  if (kernel.getBody().empty())
+    return llvm::Error::success();
+  for (mlir::Operation &operation : kernel.getBody().front()) {
+    auto variant = llvm::dyn_cast<weft::exec::VariantOp>(operation);
+    if (!variant)
+      continue;
+    auto originAttr = variant->getAttrOfType<mlir::StringAttr>(kOriginAttrName);
+    if (!originAttr || originAttr.getValue().trim().empty())
+      return makePluginRegistryError(
+          llvm::Twine("weft.exec.kernel @") + kernel.getSymName() +
+          " construction-domain validation requires variant @" +
+          variant.getSymName() + " to name a non-empty origin plugin");
+    const ExtensionPlugin *plugin = lookupPlugin(originAttr.getValue());
+    if (!plugin || !plugin->isEnabled())
+      return makePluginRegistryError(
+          llvm::Twine("weft.exec.kernel @") + kernel.getSymName() +
+          " construction-domain validation cannot resolve enabled origin '" +
+          originAttr.getValue() + "' for variant @" + variant.getSymName());
+    if (plugin->getConstructionDomain() != domain)
+      return makePluginRegistryError(
+          llvm::Twine("weft.exec.kernel @") + kernel.getSymName() +
+          " declares construction domain '" + domain + "', but variant @" +
+          variant.getSymName() + " origin plugin '" + plugin->getName() +
+          "' declares foreign construction domain '" +
+          plugin->getConstructionDomain() + "'");
+  }
+  return llvm::Error::success();
 }
 
 void ExtensionPluginRegistry::registerDialectsForAllPlugins(
@@ -1113,8 +1179,33 @@ llvm::Error ExtensionPluginRegistry::collectVariantProposals(
     const VariantProposalRequest &request,
     llvm::SmallVectorImpl<VariantProposal> &out,
     llvm::SmallVectorImpl<VariantProposalDecline> *recoverableDeclines) const {
+  if (!request.getProblem())
+    return makePluginRegistryError(
+        "variant proposal collection requires an exact canonical problem");
+  if (!request.getKernel())
+    return makePluginRegistryError(
+        "variant proposal collection requires a weft.exec.kernel");
+  auto domainAttr = request.getKernel()->getAttrOfType<mlir::StringAttr>(
+      kConstructionDomainAttrName);
+  if (!domainAttr || domainAttr.getValue().trim().empty())
+    return makePluginRegistryError(
+        llvm::Twine("weft.exec.kernel @") + request.getKernel().getSymName() +
+        " source variant proposal requires non-empty string attribute '" +
+        kConstructionDomainAttrName + "'");
+  llvm::StringRef constructionDomain = domainAttr.getValue();
+  if (!hasEnabledPluginInConstructionDomain(constructionDomain))
+    return makePluginRegistryError(
+        llvm::Twine("weft.exec.kernel @") + request.getKernel().getSymName() +
+        " declares construction domain '" + constructionDomain +
+        "', but no enabled extension plugin declares that domain");
+
   for (const ExtensionPlugin *plugin : plugins) {
     if (!plugin->isEnabled())
+      continue;
+
+    // Domain membership is checked before supportsOperation/proposal so a
+    // foreign-domain plugin cannot observe or influence this source problem.
+    if (plugin->getConstructionDomain() != constructionDomain)
       continue;
 
     if (!plugin->supportsOperation(request))
@@ -1373,48 +1464,59 @@ llvm::Error ExtensionPluginRegistry::constructFormulaPlansForVariant(
     FamilyConstructionResult &out, VariantEmissionRole role) const {
   if (!module || !variant)
     return makePluginRegistryError(
-        "bound family construction requires a module and selected variant");
+        "selected owner construction requires a module and selected variant");
   if (!isNestedUnder(variant.getOperation(), module.getOperation()))
     return makePluginRegistryError(
-        "bound family construction variant does not belong to the module");
+        "selected owner construction variant does not belong to the module");
 
   auto kernel = variant->getParentOfType<weft::exec::KernelOp>();
   if (!kernel)
     return makePluginRegistryError(
-        llvm::Twine("bound family construction requires variant @") +
+        llvm::Twine("selected owner construction requires variant @") +
         variant.getSymName() + " to have an enclosing kernel");
   auto originAttr = variant->getAttrOfType<mlir::StringAttr>(kOriginAttrName);
   if (!originAttr || originAttr.getValue().trim().empty())
     return makePluginRegistryError(
-        llvm::Twine("bound family construction requires variant @") +
-        variant.getSymName() + " to name a non-empty origin family");
+        llvm::Twine("selected owner construction requires variant @") +
+        variant.getSymName() + " to name a non-empty origin owner");
 
   llvm::StringRef origin = originAttr.getValue();
   const ExtensionPlugin *plugin = lookupPlugin(origin);
   if (!plugin)
     return makePluginRegistryError(
-        llvm::Twine("bound family construction cannot bind unknown origin '") +
+        llvm::Twine("selected owner construction cannot resolve unknown origin '") +
         origin + "'");
   if (!plugin->isEnabled())
     return makePluginRegistryError(
-        llvm::Twine("bound family construction cannot bind disabled origin '") +
+        llvm::Twine("selected owner construction cannot use disabled origin '") +
         origin + "'");
 
-  // Building the target capability set here is the typed c_f binding gate.
-  // The family may project finer-grained facts internally, but artifact code
-  // cannot postpone or redo this binding.
+  if (auto domainAttr = kernel->getAttrOfType<mlir::StringAttr>(
+          kConstructionDomainAttrName)) {
+    llvm::StringRef domain = domainAttr.getValue();
+    if (plugin->getConstructionDomain() != domain)
+      return makePluginRegistryError(
+          llvm::Twine("selected variant @") + variant.getSymName() +
+          " origin plugin '" + origin + "' declares construction domain '" +
+          plugin->getConstructionDomain() + "', which does not match kernel @" +
+          kernel.getSymName() + " construction domain '" + domain + "'");
+  }
+
+  // The construction domain was already fixed by the kernel identity. Build
+  // the target capability environment here so the selected owner can project
+  // its narrower typed capability input before artifact code runs.
   llvm::Expected<support::TargetCapabilitySet> capabilities =
       support::TargetCapabilitySet::buildFromKernelChecked(kernel);
   if (!capabilities)
     return makePluginRegistryError(
-        llvm::Twine("bound family construction for origin '") + origin +
+        llvm::Twine("selected owner construction for origin '") + origin +
         "' rejected target/profile capability projection: " +
         llvm::toString(capabilities.takeError()));
 
   if (llvm::Error error = plugin->verifyVariantLegality(
           VariantLegalityRequest(variant, kernel, *capabilities)))
     return makePluginRegistryError(
-        llvm::Twine("bound family construction for origin '") + origin +
+        llvm::Twine("selected owner construction for origin '") + origin +
         "' rejected selected variant legality: " +
         llvm::toString(std::move(error)));
 
@@ -1424,7 +1526,7 @@ llvm::Error ExtensionPluginRegistry::constructFormulaPlansForVariant(
         resolveCanonicalProblem(kernel);
     if (!resolvedProblem)
       return makePluginRegistryError(
-          llvm::Twine("bound family construction for origin '") + origin +
+          llvm::Twine("selected owner construction for origin '") + origin +
           "' rejected canonical problem anchor: " +
           llvm::toString(resolvedProblem.takeError()));
     problem = *resolvedProblem;
@@ -1435,24 +1537,24 @@ llvm::Error ExtensionPluginRegistry::constructFormulaPlansForVariant(
   out = FamilyConstructionResult();
   if (llvm::Error error = plugin->constructFormulaPlans(request, out))
     return makePluginRegistryError(
-        llvm::Twine("bound family construction for origin '") + origin +
+        llvm::Twine("selected owner construction for origin '") + origin +
         "' failed: " + llvm::toString(std::move(error)));
   if (!out.hasStatus())
     return makePluginRegistryError(
-        llvm::Twine("bound family construction for origin '") + origin +
+        llvm::Twine("selected owner construction for origin '") + origin +
         "' returned no lifecycle outcome");
   if (out.hasFinalBody() && !out.getOperation())
     return makePluginRegistryError(
-        llvm::Twine("bound family construction for origin '") + origin +
+        llvm::Twine("selected owner construction for origin '") + origin +
         "' returned FinalBody without a typed operation");
   if (out.getOperation() &&
       !isNestedUnder(out.getOperation(), kernel.getOperation()))
     return makePluginRegistryError(
-        llvm::Twine("bound family construction for origin '") + origin +
+        llvm::Twine("selected owner construction for origin '") + origin +
         "' returned an operation outside the bound kernel");
   if (out.isUnsupported() && out.getReason().trim().empty())
     return makePluginRegistryError(
-        llvm::Twine("bound family construction for origin '") + origin +
+        llvm::Twine("selected owner construction for origin '") + origin +
         "' returned unsupported without a reason");
   return llvm::Error::success();
 }

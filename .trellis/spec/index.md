@@ -28,11 +28,11 @@ task、旧 goal、旧简报和历史报告不能覆盖当前代码事实，也�
 
 Weft 是 post-graph、pre-schedule 的、能力驱动且可扩展的 MLIR automatic
 operator-to-kernel compiler / execution-layer software stack。它接收 canonical problem
-`P=(S,g,ω)`，先绑定 construction family 与 typed capability，再由 family-local 可执行专家
-知识构造专化 kernel。RISC-V ggml/llama.cpp 风格量化推理是当前旗舰 reference
+`P=(S,g,ω)`，先绑定 target selection/deployment domain 与 capability environment，再由
+域内 typed construction owners 的可执行专家知识构造专化 kernel。RISC-V ggml/llama.cpp 风格量化推理是当前旗舰 reference
 realization 和主要压力域；GPU 是 V2 明确引入的第二 execution paradigm 目标，尚未实现。
-这里 `pre-schedule` 只描述 source problem 尚未携带 family-specific execution mapping；
-LMUL、tile、warp、pipeline 等 schedule 正是 family construction 的输出。
+这里 `pre-schedule` 只描述 source problem 尚未携带 owner-specific execution mapping；
+LMUL、tile、warp、pipeline 等 schedule 正是 owner construction 的输出。
 
 它不是：
 
@@ -78,13 +78,13 @@ qualified measurement 可以在解析合法域内修正排序，但不能创造 
 
 ~~~text
 canonical operator problem P=(S,g,ω)
-  → typed target/profile binding (family f, capability c_f)
-  → catalogued plugin-local formula / construction
+  → typed target/domain binding (d, capability environment C_d)
+  → in-domain owner-local projection c_o + formula / construction
       · typed candidate or plan
       · legality/resource bounds
       · analytic prior
       · optional measurement key
-  → bounded selector
+  → bounded selector over owner-qualified candidates inside d
       · qualified winner if still legal
       · otherwise analytic prior or named fallback
   → selected typed body
@@ -176,12 +176,12 @@ tools/bench/bench --self-test
 ## 当前工程推进方向
 
 当前 Weft-RV registered/direct production path 已统一到 artifact-neutral
-construction-before-artifact：target/profile 先绑定 origin family 与 typed `c_f`，再由
+construction-before-artifact：target/profile capability environment 先建立，再由
 `ExtensionPlugin::constructFormulaPlans(FamilyConstructionRequest,
 FamilyConstructionResult)` 为绑定 variant 构造 exact final typed operation/root，或显式返回
-unsupported。公共编排只检查 exact result 存在且属于绑定 kernel/variant，不解释 family
+unsupported。公共编排只检查 exact result 存在且属于绑定 kernel/variant，不解释 owner
 compute，也不再 module-scan 重发现 body。`ExtensionPlugin` 的 base implementation fail
-closed；RVV、IME、Scalar、Demo、Toy、Template 与 TensorExtLite 都显式实现该 family
+closed；RVV、IME、Scalar、Demo、Toy、Template 与 TensorExtLite 都显式实现该 owner
 lifecycle，Offload 显式 unsupported。随后
 `convertConstructedModuleWithBackendEmitter` / `tryConvertConstructedModuleWithRegisteredBackend`
 只消费已构造 exact result；artifact registry 与 driver 不再拥有 construction hook。
@@ -189,7 +189,7 @@ lifecycle，Offload 显式 unsupported。随后
 RVV quantize/dequantize、repack、通用 schedule、selected-body 与 flat block-dot 已沿既有
 typed formula 链构造，其中 `flat_*` 是 formula 产生的最终计算 plan，emitter 直接读取，
 不得恢复 `kind`、`format` 或旧 `fold_model` 的第二决定。Scalar 的 q2 block-dot/q4_0
-dequant 与 IME 的 MAC/tile 选择也在 emission 前形成 family-local final plan；确定性的
+dequant 与 IME 的 MAC/tile 选择也在 emission 前形成 owner-local final plan；确定性的
 Demo/Toy/Template/TensorExtLite 以已资格化 final typed body 加固定机械 route 实现，不另造
 通用 plan/provider。
 
@@ -210,11 +210,13 @@ construction/formula 结果。保留的 artifact ABI/callee 常量只机械投�
 保留的 dialect verifier 只检查局部结构、类型和语义关系；删除的是 provider/formula replay
 验证，不是删除类型系统或 legality。
 
-V2 的首轮横向重构已经把 canonical problem 之后的 target/family binding 与 family
-construction 从 EmitC driver 迁入 artifact-neutral plugin lifecycle，并闭合 current
+V2 的首轮横向重构已经把 canonical problem 之后的 owner construction 从 EmitC driver
+迁入 artifact-neutral plugin lifecycle，并闭合 current
 source/direct/translate/artifact callers。`emitc.func` 现在只保留为 current EmitC artifact 的
 完整 legalization gate，不再代表 construction completion；GPU 也没有被注册成 EmitC
-emitter。
+emitter。显式 target-bound `construction_domain` membership/gate 现已在 source proposal、
+selection 与 selected-owner construction 前成立；selected origin 只表示 owner，不能冒充
+domain binding。
 
 公共底座与上述切换不表示每个 `ConstructedWeak` leaf 已经完成强义重建。下一阶段按 A/B
 两线在同一横向结构上推进，而不是立即实现 GPU：

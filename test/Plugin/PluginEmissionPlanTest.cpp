@@ -43,6 +43,9 @@ public:
       : name(name.str()), status(status), artifactKind(artifactKind.str()) {}
 
   llvm::StringRef getName() const override { return name; }
+  llvm::StringRef getConstructionDomain() const override {
+    return "test-domain";
+  }
 
   llvm::ArrayRef<PluginCapability> getCapabilities() const override {
     return capabilities;

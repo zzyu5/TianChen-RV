@@ -272,7 +272,7 @@ int runBuiltinSourceFrontDoorCollectionTest() {
 int runProposalGatingAndDeclineTest(mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
-  weft.exec.kernel @available_toy attributes {} {
+  weft.exec.kernel @available_toy attributes {construction_domain = "riscv-execution"} {
     weft.exec.capability @toy_template {
       id = "toy.template",
       kind = "extension-template",
@@ -282,10 +282,10 @@ module {
     }
   }
 
-  weft.exec.kernel @missing_toy attributes {} {
+  weft.exec.kernel @missing_toy attributes {construction_domain = "riscv-execution"} {
   }
 
-  weft.exec.kernel @unavailable_toy attributes {} {
+  weft.exec.kernel @unavailable_toy attributes {construction_domain = "riscv-execution"} {
     weft.exec.capability @toy_template {
       id = "toy.template",
       kind = "extension-template",
@@ -295,7 +295,7 @@ module {
     }
   }
 
-  weft.exec.kernel @malformed_toy attributes {} {
+  weft.exec.kernel @malformed_toy attributes {construction_domain = "riscv-execution"} {
     weft.exec.capability @toy_template {
       id = "toy.template",
       kind = "extension-template",
@@ -422,7 +422,7 @@ module {
 int runPipelineHookTest(mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
-  weft.exec.kernel @toy_template_kernel attributes {} {
+  weft.exec.kernel @toy_template_kernel attributes {construction_domain = "riscv-execution"} {
     weft.exec.capability @toy_template {
       id = "toy.template",
       kind = "extension-template",

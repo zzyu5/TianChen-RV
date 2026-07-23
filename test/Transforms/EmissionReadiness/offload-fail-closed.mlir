@@ -39,7 +39,7 @@ module {
 // -----
 
 module {
-  // expected-error@+1 {{bound family construction for origin 'offload-plugin' rejected selected variant legality: Weft-RV runtime-offload extension plugin first slice failed: materialized runtime-offload variant @offload_runtime_first_slice requires non-empty string 'weft_offload.runtime_abi' metadata}}
+  // expected-error@+1 {{selected owner construction for origin 'offload-plugin' rejected selected variant legality: Weft-RV runtime-offload extension plugin first slice failed: materialized runtime-offload variant @offload_runtime_first_slice requires non-empty string 'weft_offload.runtime_abi' metadata}}
   weft.exec.kernel @offload_selected_missing_runtime_abi {
     weft.exec.capability @offload_runtime {
       id = "offload.runtime",
@@ -78,7 +78,7 @@ module {
 // -----
 
 module {
-  // expected-error@+1 {{bound family construction for origin 'offload-plugin' rejected selected variant legality: Weft-RV runtime-offload extension plugin first slice failed: capability id 'offload.runtime' kind must be 'runtime-offload'}}
+  // expected-error@+1 {{selected owner construction for origin 'offload-plugin' rejected selected variant legality: Weft-RV runtime-offload extension plugin first slice failed: capability id 'offload.runtime' kind must be 'runtime-offload'}}
   weft.exec.kernel @offload_custom_isa_misclassification {
     weft.exec.capability @offload_runtime {
       id = "offload.runtime",
@@ -118,7 +118,7 @@ module {
 // -----
 
 module {
-  // expected-error@+1 {{bound family construction cannot bind unknown origin 'offload-unregistered-plugin'}}
+  // expected-error@+1 {{selected owner construction cannot resolve unknown origin 'offload-unregistered-plugin'}}
   weft.exec.kernel @unknown_offload_origin_generic_registry_failure {
     weft.exec.capability @offload_runtime {
       id = "offload.runtime",

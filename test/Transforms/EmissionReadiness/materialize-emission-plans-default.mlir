@@ -17,4 +17,4 @@ module {
 // CHECK: Weft-RV emission path check failed for kernel @public_unknown_origin:
 // CHECK-SAME: variant emission plan collection failed during family construction
 // CHECK-SAME: for variant @fast as direct variant:
-// CHECK-SAME: bound family construction cannot bind unknown origin 'mock-emitter'
+// CHECK-SAME: selected owner construction cannot resolve unknown origin 'mock-emitter'

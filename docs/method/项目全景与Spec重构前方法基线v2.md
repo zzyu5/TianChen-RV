@@ -7,9 +7,10 @@
 > 它不是 GPU 已实现声明，也不覆盖两柱、六律和既有主公式的权威。
 >
 > 术语校准：本文中的 `pre-schedule` 指 canonical source problem 尚未携带
-> family-specific execution schedule；Weft construction 本身负责产生 LMUL、tile、warp、
-> pipeline 等 schedule。`backend` 只在指 artifact lowerer/toolchain 时使用；拥有公式、
-> legality 与 typed body 的对象统一称 construction family。
+> owner-specific execution schedule；Weft construction 本身负责产生 LMUL、tile、warp、
+> pipeline 等 schedule。`backend` 只在指 artifact lowerer/toolchain 时使用。本文严格区分
+> target-bound selection/deployment domain `d` 与 typed construction owner `o`：前者隔离
+> 设备、地址空间和 ABI/runtime，后者拥有公式、legality 与 typed body。
 
 ---
 
@@ -24,7 +25,7 @@ V2 正式明确三件此前没有被充分分开的事：
    使用者预先写好的 RVV/IME/未来 GPU 低层执行体；
 2. RISC-V 与 GPU 共享的是 problem decomposition 和 construction contract，不共享具体
    mechanism、Plan 类、资源模型或低层 IR；
-3. family construction 与 artifact lowering 是两层。一个 family 必须先构造自己的最终
+3. owner construction 与 artifact lowering 是两层。一个 owner 必须先构造自己的最终
    typed body，之后才选择适合它的 EmitC/LLVM/NVVM/ROCDL 等机械物化路径。
 
 保持不变的内容更多：
@@ -40,18 +41,18 @@ V2 正式明确三件此前没有被充分分开的事：
 V2 的总研究问题是：
 
 > 如何设计一个基于 MLIR 的自动 operator-to-kernel compiler，使 operator semantics、
-> representation、静态场景、目标能力与 execution family 可以独立演化，同时允许每个
-> family 以自己的可执行专家知识完成深度目标专化，生成有竞争力的 kernel？
+> representation、静态场景、target domain、目标能力与 construction owner 可以独立演化，
+> 同时允许每个 owner 以自己的可执行专家知识完成深度目标专化，生成有竞争力的 kernel？
 
 这里的共同方法是：
 
 ```text
 先分离变化轴
   → 保持扩展局部性
-  → 绑定目标 family 与 typed capability
-  → 由 family-local 知识重新组合
+  → 绑定 target selection/deployment domain 与 capability environment
+  → 由域内 owner-local 知识重新组合
   → 构造目标专化 typed body
-  → 机械物化为 family artifact
+  → 机械物化为 domain-compatible artifact
 ```
 
 ---
@@ -62,11 +63,11 @@ V2 的总研究问题是：
 
 Weft 在系统边界上是：
 
-> **位于图级处理之后、family-specific 执行映射之前的自动 operator-to-kernel compiler。**
+> **位于图级处理之后、owner-specific 执行映射之前的自动 operator-to-kernel compiler。**
 
 Weft 在内部架构上是：
 
-> **以 family-local execution construction 与低层 typed execution IR 为核心的
+> **以 domain-scoped、owner-local execution construction 与低层 typed execution IR 为核心的
 > execution-layer compiler。**
 
 这两句话是包含关系，不是二选一。
@@ -83,16 +84,16 @@ canonical operator problem P=(S,g,ω)
           │
           │ Weft + target request
           ▼
-family-local execution construction
+domain-scoped、owner-local execution construction
           │
           ▼
-RVV / IME / Scalar / future GPU typed execution body
+RVV / IME / Scalar / future GPU-owner typed execution body
           │
           ▼
-family artifact lowering + ABI/runtime
+owner/domain artifact lowering + ABI/runtime
 ```
 
-因此，原有低层 `weft_rvv.*`、IME body 与其它 family IR 不删除。它们被准确定位为 Weft
+因此，原有低层 `weft_rvv.*`、IME body 与其它 owner IR 不删除。它们被准确定位为 Weft
 自动构造出来的内部执行 IR，而不是整个系统唯一的规范用户输入。
 
 ### 1.2 Weft 不是什么
@@ -103,13 +104,13 @@ Weft 不负责：
 - 新建一个覆盖任意 tensor 程序的高层 tensor/tile IR；
 - 要求普通用户手写 tile、LMUL、warp、pipeline stage 的 kernel DSL；
 - 通用搜索式或在线 autotuning；
-- 自动得到所有 family、所有 operator 的全局最优 kernel；
+- 自动得到所有 owner、所有 operator 的全局最优 kernel；
 - 把不同设备放进尚不存在的跨设备 runtime selector。
 
 Weft 可以包含领域专用 source ops/dialect，但主类别不是“用户调度 DSL”，而是：
 
 > **an MLIR-based automatic operator-to-kernel compiler with a domain-specific
-> semantic source contract and family-specific execution IRs.**
+> semantic source contract and owner-specific execution IRs.**
 
 ### 1.3 总方法与 realization 命名
 
@@ -117,22 +118,23 @@ Weft 可以包含领域专用 source ops/dialect，但主类别不是“用户�
 
 ```text
 Weft                         总方法与 compiler architecture
-├─ Weft-RV                   RISC-V 旗舰 realization suite
-│  ├─ RVV                    construction family
-│  ├─ IME                    construction family
-│  └─ Scalar                 construction family
+├─ Weft-RV                   RISC-V 旗舰 realization suite/domain grouping
+│  └─ RISC-V native domain   target-bound selection/deployment domain
+│     ├─ RVV                 typed construction owner
+│     ├─ IME                 typed construction owner
+│     └─ Scalar              typed construction owner / fallback
 └─ Weft-GPU                  GPU 跨范式 realization grouping（目标态）
-   ├─ NVIDIA-GPU             future construction family
-   │  ├─ H100 profile
-   │  └─ 5090D profile
-   └─ AMD-GPU                future construction family
+   ├─ NVIDIA domain          future selection/deployment domain
+   │  └─ NVIDIA-GPU owner    SIMT/MMA mechanisms; H100/5090D profiles
+   └─ AMD domain             future independent domain/owner
 ```
 
 `Weft-RV`/`Weft-GPU` 是 execution-paradigm realization 分组，不是 formula candidate，也
-不是一个必须吞掉所有 vendor 差异的巨型 plugin。本文中的 family `f` 指真正拥有
-capability projection、formula、legality 与 typed construction result 的 construction
-family，例如 RVV、IME、Scalar、未来 NVIDIA-GPU 或 AMD-GPU。Artifact contract/lowerer
-与 family construction 相接，但不是 family identity 或 compute 的判定来源。
+不是一个必须吞掉所有 vendor 差异的巨型 plugin。Domain `d` 由显式 target/profile 绑定，
+只容纳同一设备、地址空间和部署 ABI/runtime 中可比较/可回退的候选。Owner `o` 才是真正
+拥有 capability projection、formula、legality 与 typed construction result 的对象，例如
+RVV、IME、Scalar、未来 NVIDIA-GPU 或 AMD-GPU。Artifact contract/lowerer 与 selected owner
+相接并服从 bound domain，但不能反向决定 domain、owner 或 compute。
 
 当前仓库和工程名可以继续使用 TianchenRV/Weft-RV；无需在架构重构前做大规模改名。
 
@@ -166,19 +168,21 @@ Linalg + descriptor ─┼─→ canonical execution problem
 其它 kernel IR adapter┘
 ```
 
-adapter 只恢复语义和 representation facts，不决定 family schedule。
+adapter 只恢复语义和 representation facts，不决定 owner schedule。
 
-### 2.2 Family Binding 与 Capability 层
+### 2.2 Domain Binding 与 Owner Capability 层
 
-目标请求先绑定 construction family，并得到该 family 的 typed capability projection。
-该步骤决定“由哪个知识域构造”，不决定“该知识域内用哪个 candidate”。
+目标请求先绑定唯一 selection/deployment domain，并得到该 target 的 typed capability
+environment。该步骤决定哪些 construction owners 的候选可以共存、比较和 fallback，不决定
+域内用哪个 owner/candidate。
 
-family binding 必须依据显式 target/profile 与 typed applicability，经 registry/interface 完成；
-不得在 artifact emitter 中按 family 名、route id 或输出格式二次分派。
+domain binding 必须依据显式 target/profile，经 registry/interface 完成；不得从 artifact
+kind、winner origin、route id 或输出格式反推。域内每个 owner 再投影自己的 typed
+capability，common 不建立跨 owner 的 giant optional struct。
 
 ### 2.3 Execution Construction 层
 
-family-local formula 根据 problem 与 capability 构造：
+owner-local formula 根据 problem 与 owner capability projection 构造：
 
 - mechanisms 与组合拓扑；
 - candidate/typed plan；
@@ -199,7 +203,7 @@ final typed body 已经包含全部 code-affecting 计算决定。artifact backe
 - ABI 与 launch contract；
 - runtime glue。
 
-当前 RISC-V family 主要使用 EmitC/C/C++/object 路径。未来 NVIDIA-GPU 可以使用
+当前 RISC-V domain 的 owners 主要使用 EmitC/C/C++/object 路径。未来 NVIDIA owner 可以使用
 `gpu/vector/nvgpu/nvvm`，AMD-GPU 可以使用 `gpu/vector/amdgpu/rocdl`。Artifact 形态不同，
 不意味着重新定义 construction。
 
@@ -222,33 +226,37 @@ P=(S,g,\omega)
   逻辑 shape/geometry 及与表示相关的事实，但不携带目标执行选择；
 - `ω`：bounded static context。它只包含不属于 representation 本身、但真实承重的
   regime、必要 usage/shape bucket、静态 memory form 或 policy，不包含 runtime data
-  distribution 与 winner memory。某个 shape 事实只能在 `g` 或 `ω` 有一个 owner；family
+  distribution 与 winner memory。某个 shape 事实只能在 `g` 或 `ω` 有一个 owner；owner
   projection 可以派生视图，但不得双写成两个决定来源。
 
-`S` 的引入不改变原主公式。进入一个具名 operator/family formula 时，`S` 已由 source op
+`S` 的引入不改变原主公式。进入一个具名 operator/owner formula 时，`S` 已由 source op
 和 formula domain 固定，原公式继续只显式写 `g/c/ω`。
 
-### 3.2 Target Binding 不是 selector
+### 3.2 Target/Domain Binding 不是 selector
 
 令 `t` 为显式编译目标请求：
 
 \[
-\operatorname{Bind}(P,t)=(f,c_f)
+\operatorname{BindDomain}(t)=(d,C_d)
 \]
 
 其中：
 
-- `f` 是唯一 construction family；
-- `c_f` 是该 family 的 typed capability projection；
-- 不适用、缺失或冲突的目标事实导致具名 unsupported/reject；
-- `Bind` 不产生 formula candidate，不读取 measurement winner，也不选择逐点 leaf。
+- `d` 是唯一 target-bound selection/deployment domain；
+- `C_d` 是该 target/profile 的 typed capability environment；
+- `o∈Owners(d)` 是域内 typed construction owner；每个 owner 得到
+  `c_o=π_o(C_d)`；
+- 不适用、缺失或冲突的 domain/owner capability 导致具名 unsupported/reject；
+- `BindDomain` 不产生 formula candidate，不读取 measurement winner，也不选择 owner 或
+  逐点 leaf。
 
 正常 AOT 模式是：
 
 ```text
 target/profile request
-  → bind one construction family + c_f
-  → construct/legalize/select inside f
+  → bind one selection/deployment domain + C_d
+  → owners project c_o and construct/legalize candidates
+  → select only inside the in-domain owner-qualified legal union
 ```
 
 当前不定义 CPU/GPU 跨设备 runtime selection。将来若真有跨设备 dispatch，它必须另有
@@ -256,7 +264,7 @@ observer、cost、transfer、artifact 共存和 runtime 证据，不能偷塞进
 
 ### 3.3 原主公式原样保留
 
-在已绑定的 family `f` 内，`c` 取该 family 的 `c_f`。核心构造式仍是：
+在域内某个 owner `o` 中，`c` 取该 owner 的 `c_o`。核心构造式仍是：
 
 \[
 \boxed{
@@ -279,30 +287,39 @@ m_{i,v}(g,\omega)
 
 V2 只增加作用域说明：
 
-- `v` 是 family `f` 内的有限候选；
-- `m`、`f^A`、`θ`、legality 与 `Emit_v` 都由 `f` 的 typed owner 持有；
-- `c` 是 `c_f`，不是一个同时塞入 RVV/GPU/IME optional 字段的巨型对象；
-- `K` 是已经可由 final typed body 表达的完整候选实现，不是 family/leaf 标签；
-- `Emit_v` 是构造式中把已确定 mechanisms/parameters 组成完整候选 `K` 的 family-local
+- `v` 是 owner `o` 内的有限候选；外层身份为 owner-qualified `(o,v)`；
+- `m`、`f^A`、`θ`、legality 与 `Emit_v` 都由 `o` 持有；
+- `c` 是 `c_o`，不是一个同时塞入 RVV/GPU/IME optional 字段的巨型对象；
+- `K` 是已经可由 final typed body 表达的完整候选实现，不是 owner/leaf 标签；
+- `Emit_v` 是构造式中把已确定 mechanisms/parameters 组成完整候选 `K` 的 owner-local
   构造投影。它不是 C++ emitter、artifact registry 或 NVVM/ROCDL backend；最终
-  object/cubin/hsaco packaging 属于下游 artifact lowering，不获得新的 compute authority。
+  object/cubin/hsaco packaging 属于下游 owner/domain artifact lowering，不获得新的 compute authority。
 
-没有必要另立一套“GPU 主公式”，也不把 family 名写进原公式正文。若需要讨论多个 family，
-可以把 `f` 作为外层作用域标记，但它不是新的 selector 变量。
+没有必要另立一套“GPU 主公式”，也不把 domain/owner 名写进原公式正文。Owner `o` 只是
+已有 origin ownership 的外层限定，不是新的公式输入或 artifact selector。
 
 ### 3.4 合法域与薄 selector 继续原义
 
 \[
-\mathcal V_f(g,c_f;\omega)
+\mathcal V_o(g,c_o;\omega)
 =
 \left\{
-v\in\mathcal A_f(g,c_f;\omega)
+v\in\mathcal A_o(g,c_o;\omega)
 \mid
-L^f_v(g,c_f,\omega)=1
+L^o_v(g,c_o,\omega)=1
 \right\}
 \]
 
-family-local selector 只允许：
+bound domain 中可供薄 selector 使用的集合为：
+
+\[
+\mathcal V_d(P,C_d)
+=
+\bigsqcup_{o\in Owners(d)}
+\{(o,v)\mid v\in\mathcal V_o(g,c_o;\omega),\;c_o=\pi_o(C_d)\}.
+\]
+
+domain-scoped selector 只允许：
 
 ```text
 qualified/fresh/selection-valid winner 且仍在合法集
@@ -323,28 +340,30 @@ Selector 不产生 mechanism、不补 `θ`、不构造 body、不选择 artifact
 \[
 \operatorname{Compile}(P,t)
 =
-\operatorname{LowerArtifact}_f
+\operatorname{LowerArtifact}_{d,o^*}
 \left(
-\operatorname{Construct}_f(P,c_f)
+\operatorname{Construct}_{o^*}(P,c_{o^*},v^*)
 \right),
 \quad
-(f,c_f)=\operatorname{Bind}(P,t)
+(d,C_d)=\operatorname{BindDomain}(t),\quad
+(o^*,v^*)=\operatorname{Select}_d(\mathcal V_d)
 \]
 
-这里 `Construct_f` 内部就是既有 construct → legality → bounded select → final body
-语义；`LowerArtifact_f` 只机械消费 construction-qualified final body。
+这里每个 `Construct_o` 仍服从既有 construct → legality → bounded select → final body
+语义；`LowerArtifact_{d,o}` 只机械消费 construction-qualified final body。不同 domain 的
+候选不得进入同一个 `Select_d`。
 
 ---
 
-## 4. 跨 family 共享什么，不共享什么
+## 4. 跨 domain/owner 共享什么，不共享什么
 
-| 对象 | 跨 family 共享 | family-local |
+| 对象 | 跨 domain/owner 共享 | owner-local |
 |---|---|---|
-| Problem contract | `S/g/ω` 的角色、类型纪律与规范化责任 | family-specific applicability projection |
+| Problem contract | `S/g/ω` 的角色、类型纪律与规范化责任 | owner-specific applicability projection |
 | Capability | identity/provenance/relation/query 的最小协议 | RVV、IME、NVIDIA、AMD 的具体字段与资源模型 |
 | Construction | construct→legality→bounded select→final body 的因果顺序 | mechanisms、formula、candidate/plan 类型、prior |
 | Measurement | correctness、lineage、qualification、freshness、只修正合法排序 | key、resource metrics、opponent、device/board fields |
-| Final body | typed、完整、足以让 lowerer 机械工作 | `weft_rvv`、IME、Scalar、future GPU execution IR |
+| Final body | typed、完整、足以让 lowerer 机械工作 | `weft_rvv`、IME、Scalar、future GPU-owner execution IR |
 | Artifact | typed ownership、fail-closed、ABI/runtime provenance | EmitC/object、NVVM/cubin、ROCDL/hsaco 等 |
 
 最重要的原则是：
@@ -357,15 +376,15 @@ Selector 不产生 mechanism、不补 `θ`、不构造 body、不选择 artifact
 - universal physical Plan；
 - universal Formula IR/result；
 - 让 GPU 读取 RVV `flat_*` plan 再“换一种方式发射”；
-- 让同一 common lowerer 解释所有 family 的 compute；
-- 为形式统一给每个 family 强加 provider/verifier 中间层。
+- 让同一 common lowerer 解释所有 owner 的 compute；
+- 为形式统一给每个 owner 强加 provider/verifier 中间层。
 
-`flat_*` 是 RVV family 的最终 computation plan，不是 V2 的跨 family IR。未来 GPU 必须从
-同一 `P+c_f` construction contract 构造自己的 GPU typed plan/body。
+`flat_*` 是 RVV owner 的最终 computation plan，不是 V2 的跨 owner IR。未来 GPU owner
+必须从同一 `P+c_o` construction contract 构造自己的 GPU typed plan/body。
 
 ---
 
-## 5. Capability、Family 与 Target Profile
+## 5. Capability、Domain、Owner 与 Target Profile
 
 ### 5.1 最小公共 capability contract
 
@@ -373,14 +392,14 @@ Selector 不产生 mechanism、不补 `θ`、不构造 body、不选择 artifact
 
 ```text
 capability identity
-family ownership
+domain provenance + owner projection
 typed relation / provides / implies / conflicts
 provenance and conflict/missing policy
-family projection/query entry
+owner projection/query entry
 artifact/runtime availability facts when load-bearing
 ```
 
-具体字段留在 family payload：
+具体字段留在 owner payload：
 
 ```text
 RVVCapability       VLEN/ELEN/SEW/vreg/fractional-LMUL/ISA/toolchain
@@ -390,29 +409,31 @@ AmdCapability       wave/register/LDS/MFMA/WMMA/artifact
 ```
 
 不建立含 `vlen?`、`warp_size?`、`mfma?`、`tensor_core?` 等全部 optional 字段的公共巨型
-struct。Family formula 只消费自己声明的 typed projection。
+struct。Owner formula 只消费自己声明的 typed projection。
 
-### 5.2 Profile 与 family 的关系
+### 5.2 Profile 与 domain/owner 的关系
 
-H100 与 5090D 应是同一 NVIDIA-GPU construction family 下的不同 capability profile，
-而不是两个复制完整 compiler 的 family。它们共享 family skeleton、mechanism categories、
-typed GPU body contract 与 NVIDIA artifact/runtime；差异进入 capability 与 family-local
+H100 与 5090D 应是同一 NVIDIA domain/owner 下的不同 capability profile，
+而不是两个复制完整 compiler 的 owner。它们共享 owner skeleton、mechanism categories、
+typed GPU body contract 与 NVIDIA artifact/runtime；差异进入 capability 与 owner-local
 applicability/legality/formula。
 
-AMD-GPU 若使用显著不同的 wave/MFMA/artifact 语义，可以是独立 construction family，同时
-复用上层 problem contract 与相同 authority 顺序。
+AMD-GPU 若使用显著不同的地址空间、wave/MFMA、artifact 与 runtime 语义，应是独立
+selection/deployment domain，并由自己的 construction owner 复用上层 problem contract 与
+相同 authority 顺序。
 
 ---
 
-## 6. GPU 是完整 construction family，不是 emission branch
+## 6. GPU 是独立 domain 中的完整 construction owner，不是 emission branch
 
-### 6.1 GPU family 必须拥有的内容
+### 6.1 GPU domain/owner 必须拥有的内容
 
-一个真正的 GPU family 至少拥有：
+一个真正的 GPU realization 至少拥有显式 target-bound domain，以及该域中至少一个 owner
+的完整链：
 
 - typed GPU capability projection；
 - GPU mechanism catalog/basis；
-- family-local formulas；
+- owner-local formulas；
 - legality 与 resource model；
 - bounded candidate/selection space；
 - final typed GPU body；
@@ -473,13 +494,13 @@ Weft 决定执行结构；标准 MLIR/LLVM toolchain 负责目标指令和 artif
 
 截至 2026-07-23：
 
-- 仓库没有 NVIDIA/AMD GPU construction family；
+- 仓库没有 NVIDIA/AMD GPU selection/deployment domain 或 construction owner；
 - 没有 GPU typed body、GPU formula、GPU artifact/runtime 或 GPU 性能证据；
 - H100/5090D 是后续 implementation profile，不是当前 supported target；
-- GPU 前置的 artifact-neutral family construction rebase 已实施；本轮仍未实现任何 GPU
-  family 或 GPU artifact。
+- GPU 前置的 artifact-neutral owner construction rebase 与显式 target-bound domain gate
+  已实施。本轮仍未实现任何 GPU owner 或 GPU artifact。
 
-因此可以说“V2 architecture 显式容纳 GPU family”，不能说“Weft 已支持 GPU”。
+因此可以说“V2 architecture 明确定义 GPU domain/owner 的接入位置”，不能说“Weft 已支持 GPU”。
 
 ---
 
@@ -489,13 +510,13 @@ Weft 决定执行结构；标准 MLIR/LLVM toolchain 负责目标指令和 artif
 
 #### P1：能力驱动、类型化、可复用的扩展架构
 
-operator semantics、representation、static context、target capability、construction family、
-typed execution body、artifact/runtime 各有唯一 typed owner，不形成完整笛卡尔积实现。
+operator semantics、representation、static context、target domain/capability、construction
+owner、typed execution body、artifact/runtime 各有唯一 typed owner，不形成完整笛卡尔积实现。
 
 GPU 是 P1 的强压力测试：若新增 NVIDIA-GPU 需要改写 RVV formula、复制 source semantics、
 或在 common emitter 中加 CUDA 分支，说明扩展局部性未成立。
 
-#### P2：family-local 可执行专家知识
+#### P2：owner-local 可执行专家知识
 
 高性能知识仍以 mechanism、formula、legality、bounded selection 和 typed body 构造存在。
 RISC-V 与 GPU 的知识内容不同，但都必须从 `g/c/ω` 真实产生 code-affecting 结构，不能只
@@ -505,12 +526,12 @@ RISC-V 与 GPU 的知识内容不同，但都必须从 `g/c/ω` 真实产生 cod
 
 下列内容是既有六律在 V2 系统边界上的检查项，不是新版本或重新解释：
 
-1. **变化有唯一 typed owner**：`S`、`g`、`ω`、`c_f`、family formula/body、artifact/runtime
+1. **变化有唯一 typed owner**：`S`、`g`、`ω`、domain `C_d`、owner `c_o`、formula/body、artifact/runtime
    分别归位；
 2. **机制源码无经验点**：RVV/GPU mechanism 不嵌入具体 board/device winner；
-3. **和积增长**：新增 operator、format、profile、family 主要增加各自 owner，而非复制
+3. **和积增长**：新增 operator、format、profile、domain/owner 主要增加各自 owner，而非复制
    operator×format×device×regime 完整 kernel；
-4. **理由可执行、变量充分**：承重决定真实消费声明的 `S/g/ω/c_f` 并产生 typed 结果；
+4. **理由可执行、变量充分**：承重决定真实消费声明的 `S/g/ω/c_o` 并产生 typed 结果；
 5. **单向专化**：problem→binding→construction→legality→selection→typed body→artifact，
    后层不重新解释；
 6. **合格的双向知识积累**：win/loss/wall/wash 更新 formula、capability、measurement 或
@@ -528,7 +549,7 @@ RISC-V 与 GPU 的知识内容不同，但都必须从 `g/c/ω` 真实产生 cod
 ### C1：Extensible Execution-Layer Architecture
 
 贡献是 post-graph/pre-schedule 的 typed narrow waist，使 source semantics、representation、
-capability、construction family、typed body 与 artifact/runtime 能独立演化。
+capability、selection/deployment domain、construction owner、typed body 与 artifact/runtime 能独立演化。
 
 ### C2：Executable Family-Local Specialization
 
@@ -537,12 +558,12 @@ measurement 只修正合法残差，artifact lowerer 无 compute authority。
 
 ### C3：Cross-Paradigm Realization
 
-目标贡献是在碎片化 RISC-V 与至少一个 GPU construction family 上证明：
+目标贡献是在碎片化 RISC-V 与至少一个 GPU domain/owner 上证明：
 
 - 同一 source/problem contract；
-- 不同 family capability、mechanism、formula、body 与 artifact；
+- 不同 owner capability、mechanism、formula、body 与 artifact；
 - 各自具有竞争力且可解释的 kernel；
-- 新 family 不破坏旧 family。
+- 新 domain/owner 不破坏旧 domain/owner。
 
 当前只有 RISC-V 旗舰 realization 拥有完整工程与硬件证据。C3 的 GPU 部分是明确的未来
 实现和评价目标，不得由架构文档提前写成已完成贡献。
@@ -555,34 +576,37 @@ measurement 只修正合法残差，artifact lowerer 无 compute authority。
 
 | 边界 | 当前已经成立 | 边界 / 尚未完成 |
 |---|---|---|
-| family / artifact authority | family 先返回 exact typed body，artifact lowerer 机械消费 | 不代表所有 leaf 已能由 mechanisms/formula 重建 |
+| owner / artifact authority | selected owner 先返回 exact typed body，artifact lowerer 机械消费 | 不代表所有 leaf 已能由 mechanisms/formula 重建 |
 | RVV body | `flat_*` 与 runtime control 由 construction 拥有，旧 route-provider/protocol 已退出 | 仍有 `ConstructedWeak` 完整 leaf |
 | verification | typed dialect 检查结构/类型，capability check 检查已绑定配置 | verifier 不得重放公式或重新选择 compute |
-| GPU | V2 lifecycle 已为独立 GPU family 留出正确工位 | 尚无 GPU family、body、artifact、runtime 或证据 |
+| domain binding | source proposal、selector 与 selected-owner construction 均校验 explicit domain membership | direct/pre-realized 无 domain 输入只属 debug qualification，不计 source coverage |
+| GPU | V2 lifecycle 已为独立 GPU domain/owner 留出正确工位 | 尚无 GPU domain、owner、body、artifact、runtime 或证据 |
 | evidence | 本地 compiler/build 路径可验证 | current-artifact 真硬件 A/B 尚未闭合 |
 
 ### 9.1 已经成立的基础
 
 当前项目已经完成一轮重要横向收口：
 
-- current production formula/construction authority 已进入 family-local typed owner；
+- current production formula/construction authority 已进入 owner-local typed owner；
 - quantize 与 dequantize 进入相同 top-level construction cut；
 - RVV `flat_*` 是 formula 产生的最终计算 plan，emitter 不读取旧
   `kind/format/fold_model` 重选；
 - shared EmitC conversion 只有一个 `applyPartialConversion` harness；
 - direct pass、registry、translate 与 artifact 路径 fail closed；
-- `ExtensionPlugin` base construction fail closed，所有 live production family 显式实现
+- `ExtensionPlugin` base construction fail closed，所有 live production owners 显式实现
   variant-scoped `constructFormulaPlans(FamilyConstructionRequest, FamilyConstructionResult)`；
-- target/profile 在 construction 前绑定 origin family 与 typed `c_f`；
-- family construction 返回 exact typed operation/root 或 explicit unsupported；公共编排只
+- target/profile 通过 kernel `construction_domain` 显式建立 selection/deployment domain；
+  proposal 在调用 foreign owner 的 `supportsOperation` 前过滤，selector 与 selected-owner
+  construction 再校验 membership。跨-origin ranking 只允许发生在同一 bound domain；
+- owner construction 返回 exact typed operation/root 或 explicit unsupported；公共编排只
   检查结果存在、仍属于绑定 kernel/variant，并把该 exact result 传给 artifact query；
 - `TypedBackendEmissionDriver` 没有 construction hook，constructed-only API 不扫描 module
   重发现 body，只消费已传入的 final typed body/plan；
 - `emitc.func` 只属于 current EmitC artifact completion gate；
-- mixed-family body 在 standalone materialization 前拒绝；
+- mixed-owner body 在 standalone materialization 前拒绝；
 - Demo、Toy、Template 与 TensorExtLite 的 construction manifest、typed-role replay、route
   provider、通用 readiness verifier、role/status/interface 字符串镜像和 metadata-only
-  `lowering_boundary` 已退出 production；它们保留 family-local typed body、legality 与纯
+  `lowering_boundary` 已退出 production；它们保留 owner-local typed body、legality 与纯
   artifact ABI/callee 常量，artifact 常量不参与 compute；
 - RVV construction 现在以
   `RVVBodyRuntimeControl {sew, lmul, policy, runtimeAVLValue}` 明确拥有 exact-body runtime
@@ -599,12 +623,12 @@ measurement 只修正合法残差，artifact lowerer 无 compute authority。
   检查已经绑定的 body config，二者都不是第二 compute authority；
 - `ConstructedWeak` 与 strong reconstruction 的界线保持诚实。
 
-这里的“artifact-neutral”不仅指 lifecycle/caller 已迁出 EmitC driver，也指确定性 family
+这里的“artifact-neutral”不仅指 lifecycle/caller 已迁出 EmitC driver，也指确定性 owner
 不再用 artifact route/manifest 判定 construction 完成。但这仍只是 authority 与结构收敛：
 typed body 是否已经包含可由 mechanisms/formula 重建的完整执行知识，仍须按
 delete-leaf reconstruction 单独验证。
 
-这些资产必须保留，后续 A/B 闭环、GPU family 或强重建工作都不能恢复旧 emitter
+这些资产必须保留，后续 A/B 闭环、GPU domain/owner 或强重建工作都不能恢复旧 emitter
 authority。
 
 ### 9.2 当前仍需完成的 A/B 主线
@@ -614,11 +638,11 @@ Artifact-neutral 主体切换、caller closure、旧 RVV provider/protocol 物�
 RISC-V 旗舰 realization 的方法闭环：
 
 1. `P=(S,g,ω)` ownership 已可枚举，但真实 code-affecting `g/c/ω` 与 mechanism/formula
-   仍分散在若干 family leaf、front door、schedule 与 conversion 中；
+   仍分散在若干 owner leaf、front door、schedule 与 conversion 中；
 2. `ConstructedWeak` final leaf 仍需多 topology 的 delete-leaf reconstruction 才能升级 strong
    construction；
 3. Scalar 等路径若 formula 只生成参数字典、而完整算法仍住 artifact leaf，仍须提升为
-   family-local typed mechanism/body；确定性 typed root 不能替代这项证明；
+   owner-local typed mechanism/body；确定性 typed root 不能替代这项证明；
 4. formula causal fan-out、capability counterfactual、analytic-only 与 bounded residual 的
    作用边界仍需直接实验；
 5. 重构后的 current artifact 必须重新经过 correctness、deployed symbol、strong opponent 与
@@ -634,11 +658,13 @@ RISC-V 旗舰 realization 的方法闭环：
 
 ---
 
-## 10. GPU 前置的 artifact-neutral 横向重构（已完成）
+## 10. GPU 前置的 artifact-neutral owner rebase 与 domain gate（均已完成）
 
-首个 task 定义为 **artifact-neutral family construction rebase**，而不是 GPU
-implementation；主体提交已完成结构切换、caller closure 与完整回归。本节保留其架构结果，
-不改写为 GPU 完成声明。
+首个 task 定义为 **artifact-neutral owner construction rebase**，而不是 GPU
+implementation；主体提交已完成 construction-before-artifact、caller closure 与完整回归。
+该 task 当时没有建立显式 target-bound domain gate；这个缺口已由当前 A/B 横向任务补齐，
+且没有把 selected origin 改称 binding。本节保留两次横向切面的已完成结果；exact source
+coverage、strong reconstruction 与 A/B 性能仍按各自门继续进行。
 
 ### 10.1 重构目标
 
@@ -646,18 +672,18 @@ implementation；主体提交已完成结构切换、caller closure 与完整回
 
 ```text
 canonical problem/source entry
-  → typed target/family binding
-  → artifact-neutral family construction lifecycle
-  → legality + optional bounded selection
+  → typed target/domain binding
+  → in-domain owner-local construction lifecycle
+  → owner-local legality + domain-bounded selection
   → construction-qualified final typed body
-  → family artifact driver
+  → owner/domain artifact driver
        ├─ current EmitC/C/object
        └─ future NVVM/ROCDL/other
 ```
 
 ### 10.2 横向范围
 
-不是先迁一个 family。最终合入必须同时覆盖：
+不是先迁一个 owner。最终合入必须同时覆盖：
 
 - RVV、IME、Scalar、Demo、Toy、Template、TensorExtLite；
 - Offload 的 explicit unsupported；
@@ -669,18 +695,18 @@ canonical problem/source entry
 ### 10.3 关键动作
 
 1. 定义可枚举的 typed problem/source contract，明确 `S/g/ω` owner；
-2. 把 target/family binding 放在 construction 前，并使其不依赖 EmitC registry；
-3. 让 family construction 成为 plugin/family 的必实现 artifact-neutral lifecycle；
-4. 删除 `ExtensionPlugin` 的隐式成功 construction；unsupported family 显式拒绝；
+2. 把 target/domain binding 放在 proposal/selection 前，并使其不依赖 EmitC registry；
+3. 让 owner construction 成为 plugin/owner 的必实现 artifact-neutral lifecycle；
+4. 删除 `ExtensionPlugin` 的隐式成功 construction；unsupported owner 显式拒绝；
 5. 将 construction 与 qualification 从 `TypedBackendEmissionDriver` 的 EmitC 专属职责中
    横向迁出；EmitC driver 只消费 construction-qualified final body；
-6. 让 public/direct/translate/artifact caller 先调用同一 family construction seam，再进入
+6. 让 public/direct/translate/artifact caller 先调用同一 owner construction seam，再进入
    对应 artifact driver；
 7. 保持当前 EmitC 路径的唯一 conversion harness 与 fail-closed 性质；
 8. 从 common contract 移除“成功必须产生 `emitc.func`”之类 artifact-specific 假设；该门
    留在 EmitC artifact backend 内；
 9. 删除旧双入口、默认 no-op、兼容 adapter 与 emitter-side recovery；
-10. 用 current families 做全路径回归，不创建 GPU dialect、GPU plan、CUDA/ROCm runtime。
+10. 用 current domain/owners 做全路径回归，不创建 GPU dialect、GPU plan、CUDA/ROCm runtime。
 
 ### 10.4 这个 task 不做什么
 
@@ -693,32 +719,37 @@ canonical problem/source entry
 - 不建立 universal verifier/provider/Formula IR；
 - 不改变 `flat_*`、六律、原主公式和 thin selector。
 
-### 10.5 完成判据
+### 10.5 最终共同判据与当前状态
 
-本次 task 已同时满足：
+GPU 前置结构最终必须同时满足：
 
-- 每个 production source entry 都能说明自己的 `S/g/ω`；
-- target/family binding 在 construction 前完成，common artifact code 不按 family 名分支；
-- 每个 live family 有唯一 artifact-neutral construction owner；
-- construction completion 不依赖 EmitC 类型或 `emitc.func`；
-- EmitC registry 只代表一个 artifact class，不代表所有 family construction；
-- 所有 current paths 从 source/direct input 到 artifact 仍共享 construction-before-emission；
-- missing/ambiguous/mixed/unconstructed/unsupported 全部 fail closed；
-- quantize/dequantize 对称性和 RVV `flat_*` plan authority 保持；
-- current full test、catalog/registry、source/direct/artifact negative tests 全绿；
-- 没有 production compatibility middle path。
+- `[进行中]` 每个 production source-origin entry 都有 exact typed `P=(S,g,ω)`；direct
+  exact-body debug/qualification 另列，不冒充 source coverage；
+- `[已完成]` target/domain binding 在 proposal/selection 前完成，common 不按具体
+  domain/owner 名分支，foreign-domain origin fail closed；
+- `[已完成]` 每个 live owner 有唯一 artifact-neutral construction owner；
+- `[已完成]` construction completion 不依赖 EmitC 类型或 `emitc.func`；
+- `[已完成]` EmitC registry 只代表一个 artifact class，不代表所有 owner construction；
+- `[已完成]` current paths 从 source/direct input 到 artifact 共享
+  construction-before-emission；
+- `[已完成并持续保护]` missing/unknown/mixed-domain/unconstructed/unsupported 全部 fail closed；
+- `[已完成]` quantize/dequantize caller 对称性和 RVV `flat_*` plan authority 保持；
+- `[持续门]` current full test、catalog/registry、source/direct/artifact negative tests 全绿；
+- `[已完成并持续保护]` 没有 production compatibility middle path。
 
-完成该 task 只证明“系统已经具备正确接入 GPU family 的结构”，不证明 GPU 已支持，也不
+artifact-neutral rebase 只证明 construction 不再绑在 EmitC；只有当前 domain gate 与 A/B
+其余完成门同时闭合后，才可说系统具备正确接入 GPU domain/owner 的结构。两者都不证明 GPU 已支持，也不
 表示科研主线应立即转向 GPU。当前 A/B 横向 task 先闭合 RISC-V 旗舰 realization 的执行
 知识因式分解、强重建、formula causality、current artifact correctness 与真实性能。
-其中 deterministic family 的 route/manifest qualification 已在该 task 的第一项横向清理中
+其中 deterministic owner 的 route/manifest qualification 已在该 task 的第一项横向清理中
 退役；这项完成不代表其余 leaf 已 strong，也不授权恢复新的通用 verifier/provider。
 
 ---
 
 ## 11. A/B 闭环之后的 GPU realization 方向
 
-在 artifact-neutral rebase 与 RISC-V 旗舰 A/B 闭环完成后，GPU 才按真正 family 接入：
+在 artifact-neutral rebase、domain gate 与 RISC-V 旗舰 A/B 闭环完成后，GPU 才按真正
+domain/owner 接入：
 
 1. NVIDIA capability profiles；
 2. source/problem applicability；
@@ -739,13 +770,13 @@ dequantize、quantized dot/matvec/matmul 或 reduction。实现顺序是工程�
 
 ### 12.1 C1：扩展局部性
 
-检查新增 NVIDIA-GPU family 与 H100→5090D profile 时：
+检查新增 NVIDIA domain/owner 与 H100→5090D profile 时：
 
 - source/problem semantics 是否复用；
 - RVV/IME/Scalar 是否无需修改；
 - core/common 是否无 GPU/device-name branch；
 - 变化是否集中在 GPU capability、mechanism、formula、body、artifact/runtime；
-- 新 profile 是否主要表现为 capability 与 family-local规则变化，而非复制完整 compiler。
+- 新 profile 是否主要表现为 capability 与 owner-local 规则变化，而非复制完整 compiler。
 
 ### 12.2 C2：construction 因果
 
@@ -761,7 +792,7 @@ resource 与 artifact，证明性能决定来自 compiler-owned knowledge 而非
 | 维度 | RISC-V | GPU |
 |---|---|---|
 | problem contract | `S/g/ω` | `S/g/ω` |
-| capability | RVV/IME/Scalar | NVIDIA/AMD profile |
+| capability | RISC-V environment → RVV/IME/Scalar projections | NVIDIA/AMD profile → owner projection |
 | mechanism | vector/matrix/scalar | SIMT/MMA/shared memory |
 | legality | VLEN/vreg/extension | register/shared memory/MMA |
 | typed body | RVV/IME/Scalar | future GPU body |
@@ -778,7 +809,7 @@ GPU correctness/performance。
 
 1. 在 current EmitC registry 里加一个名为 GPU 的 emitter；
 2. 把 RVV typed body 或 `flat_*` plan 翻译成 GPU；
-3. 用一个含所有 family optional 字段的 capability/plan；
+3. 用一个含所有 owner optional 字段的 capability/plan；
 4. 让 artifact lowerer 重新选择 tile、LMUL、warp、stage、MMA 或 mechanism；
 5. 把 H100/5090D device name 写入 core/common decision；
 6. 只登记外部 CUDA kernel 名便声称 automatic GPU compiler；
@@ -803,15 +834,15 @@ GPU correctness/performance。
 
 ### Architecture
 
-- 增加 canonical execution problem 与 target/family binding 正本；
+- 增加 canonical execution problem 与 target/domain binding 正本；
 - construction contract 与 artifact contract 分离；
-- source body 与 family execution body 分层；
+- source body 与 owner execution body 分层；
 - 当前 EmitC 详细规则保留为 RISC-V artifact realization；
-- GPU family architecture 作为目标态，不混入当前 family census。
+- GPU domain/owner architecture 作为目标态，不混入当前 owner inventory。
 
 ### Measurement / Evidence
 
-统一治理原则，保留 family-specific schema：
+统一治理原则，保留 domain/owner-specific schema：
 
 - 统一 correctness、lineage、qualification、freshness、provenance；
 - RISC-V 保持 board/engine/regime；
@@ -835,8 +866,9 @@ GPU correctness/performance。
 
 > Weft 是一个面向碎片化硬件生态的、能力驱动的 MLIR 自动算子到 kernel 编译器。它在
 > 图级处理之后接收语义充分但尚未决定执行映射的 operator problem，将稳定的算子与数据
-> 表示同 family-local 的目标能力、执行机制和可执行专家知识分离，再在编译时构造成
-> target-specialized typed execution body，并由 family artifact/runtime 机械物化。RISC-V
+> 表示同 target-bound domain、owner-local 目标能力、执行机制和可执行专家知识分离，再在
+> 编译时构造成 target-specialized typed execution body，并由 domain-compatible
+> artifact/runtime 机械物化。RISC-V
 > 是当前最完整的旗舰 realization；GPU 是 V2 明确引入的第二执行范式目标。
 
 ### English
@@ -845,9 +877,9 @@ GPU correctness/performance。
 > for extensible high-performance specialization across fragmented hardware
 > ecosystems. It accepts a semantically complete but execution-undetermined
 > operator problem after graph-level compilation, then combines stable operator
-> and representation semantics with family-local target capabilities and
+> and representation semantics with target-bound deployment domains, owner-local capabilities and
 > executable expert knowledge to construct target-specialized typed execution
-> bodies and mechanically lower them into family artifacts. RISC-V is the
+> bodies and mechanically lower them into domain-compatible artifacts. RISC-V is the
 > flagship realization, while GPU is the second execution paradigm introduced
 > by the V2 architecture.**
 
@@ -857,7 +889,7 @@ GPU correctness/performance。
 \boxed{
 \text{稳定的执行问题窄腰}
 +
-\text{family-local capability 与可执行知识}
+\text{domain-bound、owner-local capability 与可执行知识}
 +
 \text{artifact-neutral construction}
 =
@@ -876,5 +908,5 @@ RISC-V compiler + GPU emitter
 ```text
 one construction philosophy
 ├─ RISC-V flagship realization
-└─ future GPU construction families
+└─ future GPU domain + construction owners
 ```

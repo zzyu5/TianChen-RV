@@ -41,7 +41,7 @@ module {
   // IME matrix variant's capability-derived cost 0.5 < the RVV vector base 1.0 =>
   // IME is ranked 0 and chosen. The winner tracks the capability fact AND M >= M*.
   // CHECK: {"candidates":[{"explicit_preference":true,"feasible":true,"origin":"ime-plugin","rank":0,"requires_runtime_guard":false,"score":0.5,"variant":"ime_vmadot_matmul_slice"},{"explicit_preference":true,"feasible":true,"origin":"rvv-plugin","rank":1,"requires_runtime_guard":false,"score":1,"variant":"rvv_typed_body"}],"chosen":"ime_vmadot_matmul_slice","declared_instance_hash":"{{[0-9a-f]+}}","kernel":"t5c_mstar_gemm_prefers_matrix","keys_evaluated":{"rvv":"available","spacemit_ime":"available"},"reason":"static_order","ts":"0"}
-  weft.exec.kernel @t5c_mstar_gemm_prefers_matrix {
+  weft.exec.kernel @t5c_mstar_gemm_prefers_matrix attributes {construction_domain = "riscv-execution"} {
     weft.exec.capability @rvv {
       id = "rvv",
       kind = "isa-vector",
@@ -97,7 +97,7 @@ module {
   // matrix paradigm (the compute-isolated micro-advantage does not transduce to
   // the memory-bound decode roofline).
   // CHECK: {"candidates":[{"explicit_preference":true,"feasible":true,"origin":"rvv-plugin","rank":0,"requires_runtime_guard":false,"score":1,"variant":"rvv_typed_body"},{"explicit_preference":true,"feasible":true,"origin":"ime-plugin","rank":1,"requires_runtime_guard":false,"score":20,"variant":"ime_vmadot_mma_slice"}],"chosen":"rvv_typed_body","declared_instance_hash":"{{[0-9a-f]+}}","kernel":"t5c_decode_fragment_yields_to_rvv","keys_evaluated":{"rvv":"available","spacemit_ime":"available"},"reason":"static_order","ts":"0"}
-  weft.exec.kernel @t5c_decode_fragment_yields_to_rvv {
+  weft.exec.kernel @t5c_decode_fragment_yields_to_rvv attributes {construction_domain = "riscv-execution"} {
     weft.exec.capability @rvv {
       id = "rvv",
       kind = "isa-vector",

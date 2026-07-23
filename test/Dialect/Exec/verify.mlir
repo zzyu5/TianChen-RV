@@ -28,6 +28,12 @@ weft.exec.kernel @ok attributes {} {
 
 // -----
 
+// expected-error @+1 {{requires optional string attribute 'construction_domain' to be a non-empty, already-trimmed identity}}
+weft.exec.kernel @empty_construction_domain attributes {construction_domain = ""} {
+}
+
+// -----
+
 weft.exec.kernel @selected_marker_ok attributes {} {
   weft.exec.capability @portable {id = "portable", kind = "toolchain"}
   weft.exec.variant @portable_variant attributes {fallback_role = "conservative", origin = "portable-plugin", requires = [@portable]} {

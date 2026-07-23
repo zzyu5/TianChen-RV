@@ -321,6 +321,10 @@ llvm::StringRef TemplateExtensionPlugin::getName() const {
   return kTemplatePluginName;
 }
 
+llvm::StringRef TemplateExtensionPlugin::getConstructionDomain() const {
+  return "riscv-execution";
+}
+
 llvm::StringRef TemplateExtensionPlugin::getVersion() const {
   return kTemplatePluginVersion;
 }

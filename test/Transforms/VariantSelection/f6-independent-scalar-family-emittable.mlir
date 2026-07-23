@@ -20,7 +20,7 @@
 // RUN: weft-opt %s --weft-check-capability-requires --weft-materialize-plugin-variants --weft-verify-plugin-variant-legality --weft-select-variants | weft-translate --weft-scalar-emitc-to-cpp | FileCheck %s --check-prefix=EMIT --implicit-check-not="__riscv_" --implicit-check-not="popcount" --implicit-check-not="weft_rvv"
 
 module {
-  weft.exec.kernel @only_feasible_scalar attributes {problem = @canonical_problem} {
+  weft.exec.kernel @only_feasible_scalar attributes {construction_domain = "riscv-execution", problem = @canonical_problem} {
     weft.exec.dequantize_row_q4_0_problem @canonical_problem {
       qk = 32 : i64,
       weight_block_stride = 18 : i64,

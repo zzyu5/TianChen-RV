@@ -5,16 +5,17 @@
 > [《项目全景与 Spec 重构前方法基线 V2》](./项目全景与Spec重构前方法基线v2.md)
 > 与 `.trellis/spec/` 为准。
 
-## 项目侧校准：先固定五个不许混用的对象
+## 项目侧校准：先固定六个不许混用的对象
 
 本文后续出现的宽泛 “backend” 一词，应按语境拆成：
 
 | 对象 | 含义 |
 |---|---|
 | execution paradigm / realization grouping | RISC-V 与 GPU 这类跨计算范式实例分组 |
-| construction family | RVV、IME、Scalar、future NVIDIA-GPU、future AMD-GPU 等拥有公式与 typed body 的 owner |
-| capability profile | 同一 family 下的具体目标能力实例，例如不同 GPU generation/profile |
-| final typed construction result | family 公式与 mechanisms 已经构造完成的 computation body/plan |
+| selection/deployment domain | target/profile 显式绑定的单设备、地址空间与 ABI/runtime 可共存作用域；不同 domain 不进入同一 selector |
+| typed construction owner | RVV、IME、Scalar、future NVIDIA-GPU、future AMD-GPU 等拥有公式与 typed body 的 owner |
+| capability profile | domain capability environment 及其 owner-local projection，例如不同 GPU generation/profile |
+| final typed construction result | selected owner 的公式与 mechanisms 已经构造完成的 computation body/plan |
 | artifact lowerer/backend | 机械消费 typed result 并交给 EmitC/LLVM/NVVM/ROCDL 等 toolchain 的物化层 |
 
 还需固定四条校准：
@@ -23,9 +24,15 @@
 2. 原公式中的 `Emit_v(c)` 是候选构造式内部的组合/实现投影，不是当前 C++
    `emitter`、artifact registry 或 NVVM lowering；
 3. RISC-V/GPU 不直接充当同一个 selector 中的 candidates。AOT target/profile 先绑定
-   construction family，之后只在该 family 内构造、合法化和选择；
+   selection/deployment domain，之后只在该域内收集 owner-qualified candidates；同一 X60
+   域中的 RVV/IME/Scalar 可以选择和 fallback，正如同一 NVIDIA 域中的 SIMT/MMA 可以选择；
 4. 本文描述的是目标态。当前仓库尚无 GPU capability、formula、typed body、artifact、
    runtime 或硬件证据，不能写成“已经支持 GPU”。
+
+下文保留教师讨论稿的原始措辞，但按此校准阅读：宽泛的 “RISC-V/GPU family” 指
+selection/deployment domain 或 realization grouping；RVV/IME/Scalar/NVIDIA owner 指 typed
+construction owner。若下文出现“先绑定 RVV/IME exact family”或把 candidate origin 当作
+binding，应由本节与稳定 spec 覆盖，不能据此取消同一 target domain 内的跨-owner 选择。
 
 但先把最关键的边界说清楚：
 
@@ -290,8 +297,8 @@ packaging 属于其后的 artifact lowerer。由此明确：
 
 * capability 是 family-local 的；
 * mechanism 是 family-local 的；
-* formula 是 family-local 的；
-* typed construction result 是 family-local 的；
+* formula 是 owner-local 的；
+* typed construction result 是 owner-local 的；
 * artifact lowering 不能反向决定上述任何内容。
 
 RISC-V 和 GPU 也不应被同一个性能 selector 当作候选，除非未来真的实现并验证跨设备
@@ -301,8 +308,9 @@ runtime dispatch。
 
 ```text
 target profile
-→ 先绑定 construction family
-→ 再在该 family 内构造和选择候选
+→ 先绑定 selection/deployment domain
+→ 域内 owners 各自构造/合法化候选
+→ 只在同域 owner-qualified 合法候选中选择
 ```
 
 ---

@@ -319,6 +319,10 @@ llvm::StringRef ToyExtensionPlugin::getName() const {
   return kToyPluginName;
 }
 
+llvm::StringRef ToyExtensionPlugin::getConstructionDomain() const {
+  return "riscv-execution";
+}
+
 llvm::StringRef ToyExtensionPlugin::getVersion() const {
   return kToyPluginVersion;
 }

@@ -771,6 +771,10 @@ public:
   virtual ~ExtensionPlugin() = default;
 
   virtual llvm::StringRef getName() const = 0;
+  /// Stable, target-selected construction/selection domain owned by this
+  /// plugin. Multiple typed construction owners may intentionally share one
+  /// domain. The base class provides no implicit/default domain.
+  virtual llvm::StringRef getConstructionDomain() const = 0;
   virtual llvm::StringRef getVersion() const { return {}; }
   virtual llvm::ArrayRef<PluginCapability> getCapabilities() const = 0;
   virtual void registerDialects(mlir::DialectRegistry &registry) const = 0;
@@ -832,6 +836,13 @@ public:
   llvm::SmallVector<const ExtensionPlugin *, 4> getEnabledPlugins() const;
 
   const ExtensionPlugin *lookupPlugin(llvm::StringRef name) const;
+  bool hasEnabledPluginInConstructionDomain(llvm::StringRef domain) const;
+  /// For kernels that declare a construction domain, require every direct
+  /// variant origin to resolve to an enabled plugin in that exact domain.
+  /// Kernels without a domain are direct/pre-realized qualification inputs and
+  /// are intentionally left unchanged by this gate.
+  llvm::Error validateKernelVariantConstructionDomain(
+      weft::exec::KernelOp kernel) const;
 
   void registerDialectsForAllPlugins(mlir::DialectRegistry &registry) const;
   void registerDialectsForEnabledPlugins(mlir::DialectRegistry &registry) const;
@@ -874,9 +885,10 @@ public:
                                 VariantEmissionStatus &out) const;
   llvm::Error buildVariantEmissionPlan(const VariantEmissionRequest &request,
                                        VariantEmissionPlan &out) const;
-  /// Bind one selected variant to its origin family and typed target
-  /// capability set, then invoke that family's artifact-neutral construction
-  /// lifecycle.  Artifact kind/backend identity is intentionally absent.
+  /// Dispatch one selected, domain-qualified variant to its origin owner and
+  /// typed target capability set, then invoke that owner's artifact-neutral
+  /// construction lifecycle. Artifact kind/backend identity is intentionally
+  /// absent and never determines the construction domain.
   llvm::Error constructFormulaPlansForVariant(
       mlir::ModuleOp module, weft::exec::VariantOp variant,
       FamilyConstructionResult &out,

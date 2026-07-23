@@ -207,6 +207,8 @@ void materializeToySourceKernel(mlir::OpBuilder &builder,
 
   mlir::OperationState kernelState(loc, "weft.exec.kernel");
   kernelState.addAttribute("sym_name", builder.getStringAttr(kernelName));
+  kernelState.addAttribute("construction_domain",
+                           builder.getStringAttr("riscv-execution"));
   kernelState.addRegion();
   auto kernel =
       llvm::cast<weft::exec::KernelOp>(builder.create(kernelState));

@@ -2,6 +2,7 @@
 
 #include "Weft/Support/CapabilityModel.h"
 #include "Weft/Transforms/Passes.h"
+#include "mlir/IR/Attributes.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/Diagnostics.h"
@@ -578,11 +579,26 @@ llvm::Error materializeKernelPluginVariants(
     return makeMaterializationError(
         llvm::toString(problem.takeError()));
 
+  auto constructionDomain =
+      kernel->getAttrOfType<mlir::StringAttr>("construction_domain");
+  if (!constructionDomain || constructionDomain.getValue().trim().empty())
+    return makeMaterializationError(
+        llvm::Twine("Weft-RV plugin variant materialization for source kernel @") +
+        kernel.getSymName() +
+        " requires non-empty string attribute 'construction_domain'");
+
   if (registry.empty())
     return makeMaterializationError(
         llvm::Twine("Weft-RV plugin variant materialization for kernel @") +
         kernel.getSymName() +
         " requires at least one enabled extension plugin in the registry");
+  if (!registry.hasEnabledPluginInConstructionDomain(
+          constructionDomain.getValue()))
+    return makeMaterializationError(
+        llvm::Twine("Weft-RV plugin variant materialization for source kernel @") +
+        kernel.getSymName() + " declares construction domain '" +
+        constructionDomain.getValue() +
+        "', but no enabled extension plugin declares that domain");
 
   llvm::Expected<TargetCapabilitySet> capabilities =
       TargetCapabilitySet::buildFromKernelChecked(kernel);

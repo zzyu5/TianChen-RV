@@ -15,7 +15,7 @@
 // neither the signed vmadot nor the unsigned vmadotu helper/variant leaks into
 // the mixed-sign path, and no OTHER family dialect leaks into core.
 module {
-  weft.exec.kernel @ime_mma_su_kernel attributes {problem = @canonical_problem} {
+  weft.exec.kernel @ime_mma_su_kernel attributes {construction_domain = "riscv-execution", problem = @canonical_problem} {
     weft.exec.int8_mac_problem @canonical_problem {lhs_signedness = #weft<integer_signedness signed>, rhs_signedness = #weft<integer_signedness unsigned>, m = 4 : i64, n = 4 : i64, k = 8 : i64}
     weft.exec.capability @spacemit_ime {
       id = "spacemit.ime",

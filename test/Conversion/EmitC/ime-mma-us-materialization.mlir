@@ -17,7 +17,7 @@
 // vmadotu, mixed-sign vmadotsu) leaks into the us path, and no OTHER family
 // dialect leaks into core.
 module {
-  weft.exec.kernel @ime_mma_us_kernel attributes {problem = @canonical_problem} {
+  weft.exec.kernel @ime_mma_us_kernel attributes {construction_domain = "riscv-execution", problem = @canonical_problem} {
     weft.exec.int8_mac_problem @canonical_problem {lhs_signedness = #weft<integer_signedness unsigned>, rhs_signedness = #weft<integer_signedness signed>, m = 4 : i64, n = 4 : i64, k = 8 : i64}
     weft.exec.capability @spacemit_ime {
       id = "spacemit.ime",

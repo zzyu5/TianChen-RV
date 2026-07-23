@@ -368,6 +368,10 @@ llvm::StringRef OffloadExtensionPlugin::getName() const {
   return kOffloadPluginName;
 }
 
+llvm::StringRef OffloadExtensionPlugin::getConstructionDomain() const {
+  return "riscv-execution";
+}
+
 llvm::StringRef OffloadExtensionPlugin::getVersion() const {
   return kOffloadPluginVersion;
 }

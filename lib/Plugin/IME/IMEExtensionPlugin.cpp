@@ -741,6 +741,10 @@ IMEExtensionPlugin::IMEExtensionPlugin() {
 
 llvm::StringRef IMEExtensionPlugin::getName() const { return kIMEPluginName; }
 
+llvm::StringRef IMEExtensionPlugin::getConstructionDomain() const {
+  return "riscv-execution";
+}
+
 llvm::StringRef IMEExtensionPlugin::getVersion() const {
   return kIMEPluginVersion;
 }

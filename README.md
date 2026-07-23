@@ -1,21 +1,21 @@
 # Weft-RV MLIR
 
-Weft is an extensible, MLIR-based automatic operator-to-kernel compiler and execution-layer software stack. It accepts a semantically complete but execution-undetermined operator problem after graph-level compilation, binds a target construction family, and uses family-local capability- and context-conditioned executable knowledge to construct specialized kernels. Fragmented RISC-V quantized inference is the flagship reference realization and primary stress domain; GPU is the second execution paradigm introduced by the V2 architecture, not a currently implemented backend.
+Weft is an extensible, MLIR-based automatic operator-to-kernel compiler and execution-layer software stack. It accepts a semantically complete but execution-undetermined operator problem after graph-level compilation, binds a target selection/deployment domain, and uses in-domain owner-local capability- and context-conditioned executable knowledge to construct specialized kernels. Fragmented RISC-V quantized inference is the flagship reference realization and primary stress domain; GPU is the second execution paradigm introduced by the V2 architecture, not a currently implemented backend.
 
-The project is not a general-purpose graph/tensor compiler and does not introduce a new high-level tensor/tile IR. It owns the post-graph, pre-schedule operator execution layer: canonical problem intake, target/family binding, construction, legality, selection, typed bodies, artifact realization, ABI/runtime integration and evidence. The design goal is an ecosystem in which new operators and targets remain local without giving up expert-quality specialization.
+The project is not a general-purpose graph/tensor compiler and does not introduce a new high-level tensor/tile IR. It owns the post-graph, pre-schedule operator execution layer: canonical problem intake, target/domain binding, owner-local construction, legality, in-domain selection, typed bodies, artifact realization, ABI/runtime integration and evidence. The design goal is an ecosystem in which new operators and targets remain local without giving up expert-quality specialization.
 
 Here, “pre-schedule” means the source problem has not already chosen a
-family-specific execution schedule. Weft construction itself produces LMUL/tile/warp/
+owner-specific execution schedule. Weft construction itself produces LMUL/tile/warp/
 pipeline decisions; artifact lowering does not choose them again.
 
 ## Research direction: two pillars
 
 ### Pillar 1: a typed, capability-driven extension template
 
-- format and mechanism changes enter typed facts and family-local plans;
+- format and mechanism changes enter typed facts and owner-local plans;
 - target and board changes enter canonical capability objects;
-- new extension families use the plugin protocol and typed bodies;
-- core/common code does not branch on family names;
+- new construction owners use the plugin protocol and typed bodies; new deployment boundaries declare domains;
+- core/common code does not branch on concrete domain/owner names;
 - new performance knowledge does not require editing old emitters;
 - correctness and locality are machine-checkable.
 
@@ -35,31 +35,31 @@ The current two-pillar, six-law research framing lives in [canon/暂定-科研�
 
 ~~~text
 canonical operator problem P=(S,g,ω)
-  → typed target/profile binding (family f, capability c_f)
-  → catalogued plugin-local formula / construction
+  → typed target/domain binding (d, capability environment C_d)
+  → in-domain owner projection c_o + formula / construction
       · typed candidate or plan
       · legality/resource bounds
       · analytic prior
       · optional measurement key
-  → bounded selector
+  → bounded selector over owner-qualified candidates inside d
       · qualified measured winner if still legal
       · otherwise analytic prior or named fallback
   → selected typed extension body
-  → family-local realization / artifact driver
+  → selected owner/domain realization / artifact driver
       · current EmitC/native object
-      · future family-specific artifact
+      · future domain-specific artifact
 ~~~
 
 Every production operator entry follows this path, including deterministic single-candidate construction with honest-null axes. Quantize, dequantize, contraction, elementwise, reduction and different backend families do not keep separate hidden decision worlds. This is not a new Formula IR, a universal expression DSL or a runtime autotuner.
 
-The canonical problem, family-binding and artifact-neutral contract is defined in
+The canonical problem, domain-binding, owner-construction and artifact-neutral contract is defined in
 [architecture/执行问题与家族边界.md](.trellis/spec/architecture/执行问题与家族边界.md).
 
 ## Current project assets
 
 The repository already contains:
 
-- RVV, IME, Scalar, Demo, Toy, Template, TensorExtLite and Offload plugin families;
+- RVV, IME, Scalar, Demo, Toy, Template, TensorExtLite and Offload construction owners;
 - typed construction and extension bodies;
 - seven dequant mechanism formulas: Int8Scale, NibbleDecode, BinarySign,
   KQuantScaleMin, CodebookGather, GridLookup and TernaryDecode;
@@ -73,22 +73,22 @@ The repository already contains:
 
 These assets do not mean the project is finished. The current production authority
 boundary has completed its horizontal cutover: registered/direct construction entries
-are enumerated by the lightweight catalog while evaluation remains in family-local
+are enumerated by the lightweight catalog while evaluation remains in owner-local
 typed formulas; generic and source schedules use the same construction lifecycle;
 lower-quant outputs complete legal schedules; composite realization is a real registry
 owner; and obsolete Q40/GEMM compatibility passes and non-semantic decision mirrors
 have been removed.
 
 The construction boundary is now artifact-neutral. Registry clone, public
-materialization, direct RVV conversion, translate and artifact export all invoke a
-family-owned construction seam before the construction-blind backend registry.
+materialization, direct RVV conversion, translate and artifact export all invoke an
+owner-owned construction seam before the construction-blind backend registry.
 `TypedBackendEmissionDriver` no longer owns a construction hook, and `emitc.func` is
 only the success gate for the current EmitC artifact. RVV, IME, Scalar, Demo, Toy,
-Template and TensorExtLite return an exact family-local typed construction result;
+Template and TensorExtLite return an exact owner-local typed construction result;
 Offload remains explicitly unsupported. Common orchestration checks only exact-result
 existence/ownership and passes it to the artifact query instead of rediscovering a body
 by scanning module metadata. Scalar q2/dequant and IME MAC/tile decisions are frozen
-into family-local final plans before emission, while deterministic small families
+into owner-local final plans before emission, while deterministic small owners
 construct a typed body for their current mechanical artifact path. Catalog/backend
 inventories are checked separately and neither is compute authority. See
 [ISSUE-129 and ISSUE-131](.trellis/spec/issues/发射器与架构.md).
@@ -104,14 +104,17 @@ still verifies local structure, types and semantic relations, but no verifier
 replays a formula or recreates a provider decision.
 
 That lifecycle cutover is a structural prerequisite, not the end of the research
-refactor. Deterministic-family construction manifests and the old RVV compute
+refactor. Deterministic-owner construction manifests and the old RVV compute
 route-provider/protocol stack, typed-role replay, provider-side formula replay,
 generic readiness verification, string role/status/interface mirrors and
 metadata-only lowering boundaries have been retired; pure artifact ABI/callee
 constants no longer decide construction. Other code-affecting knowledge still lives
 across complete leaves, front doors, schedules and conversions, and
 `ConstructedWeak` entries have not thereby passed delete-leaf reconstruction. The
-current project-wide task therefore closes the A/B lines horizontally across the
+exact source-problem seam, artifact-neutral owner lifecycle and explicit target-bound
+domain gate now exist, but complete `P → owner → body` coverage remains part of the
+active horizontal task rather than completed GPU support. The current project-wide
+task closes the A/B lines horizontally across the
 RISC-V realization: factor mechanisms and formulas, prove multi-topology
 reconstruction, and re-establish current-artifact correctness and performance
 causality. GPU implementation starts only after this closure and will not be
@@ -206,20 +209,20 @@ When modifying emitter/verifier code, make sure the tools are actually relinked 
 
 The plugin protocol is defined in [architecture/插件协议.md](.trellis/spec/architecture/插件协议.md).
 
-A family supplies the five-piece acceptance set:
+A construction owner supplies the five-piece acceptance set and declares its target-bound domain membership:
 
 1. problem applicability plus capability facts/schema;
 2. plugin legality;
-3. family-local construction, typed mechanism/body and artifact lowering;
+3. owner-local construction, typed mechanism/body and artifact lowering;
 4. tests/falsifiers;
 5. ledger/docs/evidence.
 
-Every production family also supplies a catalogued, artifact-neutral formula/construction contract.
-A family with no choice uses a deterministic single-candidate construction and honest-null axes; it
+Every production owner also supplies a catalogued, artifact-neutral formula/construction contract.
+An owner with no choice uses a deterministic single-candidate construction and honest-null axes; it
 does not bypass the stage:
 
 ~~~text
-canonical problem S/g/ω + bound family capability c_f
+canonical problem S/g/ω + bound domain d/C_d + owner projection c_o
 candidate or plan
 legality/resource verdict
 analytic prior
@@ -228,7 +231,7 @@ optional measurement key
 selected typed result
 ~~~
 
-Reference family: lib/Plugin/Template/.
+Reference owner: lib/Plugin/Template/.
 
 The stable formula-layer and coverage contract is in [architecture/公式层与覆盖.md](.trellis/spec/architecture/公式层与覆盖.md).
 The completed first V2 implementation task is the
@@ -283,12 +286,12 @@ Current tables and run lineage are under experiments/master/, experiments/runs/ 
 ## Important boundaries
 
 - weft.exec is an execution envelope, not a compute dialect.
-- Computation belongs to typed extension-family bodies.
+- Computation belongs to typed construction-owner bodies.
 - Core/common paths do not branch on RVV, IME, Scalar or vendor names.
 - Metadata, reason traces and artifacts are mirrors, not compute authority.
-- Target/profile binds a construction family before formula evaluation; artifact code does not choose the family.
+- Target/profile binds a selection/deployment domain before proposal/selection; member owners project their capabilities and artifact code chooses neither domain nor owner.
 - Construction completion is artifact-neutral; `emitc.func` is only an EmitC artifact gate.
-- GPU is a V2 architecture target, not a currently supported family or performance claim.
+- GPU is a V2 architecture target, not a currently supported domain/owner or performance claim.
 - Measurement rows cannot create candidates or bypass legality.
 - Emitters do not redo formula or selector decisions.
 - Python is tooling; core compiler implementation remains C++/MLIR/LLVM/TableGen.

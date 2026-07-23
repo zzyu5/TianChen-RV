@@ -8,7 +8,7 @@
 // FACT, not on a family-name match.
 module {
   // CHECK-LABEL: weft.exec.kernel @non_ime_kernel
-  weft.exec.kernel @non_ime_kernel attributes {problem = @canonical_problem} {
+  weft.exec.kernel @non_ime_kernel attributes {construction_domain = "riscv-execution", problem = @canonical_problem} {
     weft.exec.int8_mac_problem @canonical_problem {lhs_signedness = #weft<integer_signedness signed>, rhs_signedness = #weft<integer_signedness signed>, m = 4 : i64, n = 4 : i64, k = 8 : i64}
     weft.exec.capability @scalar_fallback {
       id = "scalar.fallback",
